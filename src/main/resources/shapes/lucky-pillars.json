@@ -1,0 +1,10 @@
+{
+  "name": "Lucky Pillars (8 pillars in a circle, stand at center, ~Y80)",
+  "shapes": [
+    {"type": "pillars", "origin": [-12, -20, -12], "countX": 2, "countZ": 2, "spacing": 24, "height": 20, "material": "QUARTZ_PILLAR"},
+    {"type": "pillars", "origin": [0, -20, -17], "countX": 1, "countZ": 2, "spacing": 34, "height": 20, "material": "QUARTZ_PILLAR"},
+    {"type": "pillars", "origin": [-17, -20, 0], "countX": 2, "countZ": 1, "spacing": 34, "height": 20, "material": "QUARTZ_PILLAR"},
+    {"type": "box", "from": [-2, -2, -2], "to": [2, -2, 2], "material": "GOLD_BLOCK"},
+    {"type": "dome", "center": [0, -25, 0], "radius": 30, "material": "BARRIER", "hollow": true}
+  ]
+}

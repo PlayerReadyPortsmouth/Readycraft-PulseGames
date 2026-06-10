@@ -1,0 +1,33 @@
+# Example arena definition. Copy this into plugins/PulseGames/arenas/ and edit.
+# The world template folder must exist at plugins/PulseGames/maps/<world-template>/
+# (a normal world save: level.dat, region/, ...). It is cloned per game instance.
+
+id: frosty
+game: spleef
+display-name: "<aqua>Frosty Caverns"
+world-template: frosty
+# Which of the game's modes this map supports (omit for all).
+modes: [classic, decay, splegg]
+
+min-players: 2
+max-players: 12
+
+# Locations are "x,y,z[,yaw,pitch]" in the template world.
+lobby: "0.5,80,0.5,0,0"
+spectator: "0.5,90,0.5,0,0"
+spawns:
+  - "20.5,65,0.5,90,0"
+  - "-19.5,65,0.5,-90,0"
+  - "0.5,65,20.5,180,0"
+  - "0.5,65,-19.5,0,0"
+
+# Named cuboid regions, "x,y,z" corners. Games look these up by name;
+# Spleef breaks every region whose name starts with "floor".
+regions:
+  floor1:
+    min: "-25,64,-25"
+    max: "25,64,25"
+
+# Free-form per-game settings (read by the game implementation).
+settings:
+  void-y: 40

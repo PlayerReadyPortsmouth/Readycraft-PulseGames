@@ -1,0 +1,11 @@
+{
+  "name": "Spleef Arena (stand at center, ~Y64)",
+  "shapes": [
+    {"type": "cylinder", "material": "SNOW_BLOCK", "center": [0, 0, 0], "radius": 20, "height": 1},
+    {"type": "cylinder", "material": "BARRIER", "center": [0, 1, 0], "radius": 22, "height": 12, "hollow": true},
+    {"type": "cylinder", "material": "PACKED_ICE", "center": [0, -12, 0], "radius": 24, "height": 1},
+    {"type": "ring", "center": [0, 0, 0], "radius": 21, "material": "BLUE_ICE"},
+    {"type": "box", "from": [-3, 14, -3], "to": [3, 14, 3], "material": "SMOOTH_QUARTZ"},
+    {"type": "box", "from": [-3, 15, -3], "to": [3, 18, 3], "material": "GLASS", "hollow": true}
+  ]
+}
