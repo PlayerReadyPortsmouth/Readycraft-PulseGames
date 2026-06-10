@@ -160,6 +160,36 @@ The checklist shows all of this in-game; this is the reference with map-building
 
 ---
 
+## Generating geometry from JSON ("shape schematics")
+
+You don't have to place every block by hand. `plugins/PulseGames/shapes/*.json` files
+describe geometry as data - primitives with materials and offsets - and
+`/pulse shape paste <file>` stamps them into the world **relative to where you stand**
+(`/pulse shape undo` reverts the last paste). Three examples ship with the plugin:
+`spleef-arena`, `lucky-pillars` and `skywars-island` (paste the island once per spawn point).
+
+Supported primitives (all coordinates are offsets from your feet):
+
+| Type | Keys | Notes |
+|---|---|---|
+| `box` | `from`, `to`, `hollow?` | cuboid (hollow = walls only) |
+| `cylinder` | `center`, `radius`, `height?`, `hollow?` | flat floors, towers, rings of wall |
+| `sphere` / `dome` | `center`, `radius`, `hollow?` | dome = top half only |
+| `pillars` | `origin`, `countX`, `countZ`, `spacing`, `height` | grids of columns |
+| `ring` | `center`, `radius` | one-block circle outline (race checkpoints!) |
+| `checker` | `from`, `to`, `materials` | alternating floor pattern |
+| `scatter` | `from`, `to`, `density?` | random decoration fill |
+
+Every shape takes `"material": "SNOW_BLOCK"` or `"materials": [...]` (random per block).
+
+This means a whole arena can be authored as a JSON file - by hand, by a script, or by
+an AI assistant - dropped into the shapes folder, pasted, then registered with
+`/pulse setup` as usual. A typical loop: ask Claude for "a volcano arena shape file,
+40-block radius, with a central crater", save it as `volcano1.json`, `/pulse shape paste
+volcano1`, touch up by hand, run setup, save.
+
+---
+
 ## How worlds are stored
 
 - Templates live in `plugins/PulseGames/maps/<arenaId>/` (written by `/pulse setup save`).

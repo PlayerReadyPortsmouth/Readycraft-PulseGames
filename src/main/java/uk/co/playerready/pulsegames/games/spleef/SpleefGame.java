@@ -56,7 +56,20 @@ public final class SpleefGame extends MiniGame {
 
     @Override
     public boolean canBreak(Player player, Block block) {
-        return !isSplegg() && inFloor(block);
+        if (isSplegg() || !inFloor(block)) return false;
+        // Digging earns throwable snowballs (max 16) for ranged plays.
+        if (countSnowballs(player) < 16) {
+            player.getInventory().addItem(new ItemStack(Material.SNOWBALL));
+        }
+        return true;
+    }
+
+    private int countSnowballs(Player player) {
+        int count = 0;
+        for (ItemStack item : player.getInventory().getContents()) {
+            if (item != null && item.getType() == Material.SNOWBALL) count += item.getAmount();
+        }
+        return count;
     }
 
     private boolean inFloor(Block block) {
@@ -89,8 +102,13 @@ public final class SpleefGame extends MiniGame {
 
     @Override
     public void onProjectileHit(ProjectileHitEvent event) {
-        if (event.getEntity() instanceof Egg && event.getHitBlock() != null && inFloor(event.getHitBlock())) {
-            event.getHitBlock().setType(Material.AIR);
+        boolean breaker = event.getEntity() instanceof Egg
+                || event.getEntity() instanceof org.bukkit.entity.Snowball;
+        if (breaker && event.getHitBlock() != null && inFloor(event.getHitBlock())) {
+            Block hit = event.getHitBlock();
+            hit.getWorld().spawnParticle(org.bukkit.Particle.ITEM_SNOWBALL,
+                    hit.getLocation().add(0.5, 0.5, 0.5), 8, 0.3, 0.3, 0.3, 0.02);
+            hit.setType(Material.AIR);
         }
         if (event.getEntity() instanceof Egg) event.setCancelled(true);
     }

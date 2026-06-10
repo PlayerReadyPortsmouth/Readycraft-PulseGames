@@ -15,6 +15,11 @@ commands:
   lobby:
     description: Return to the main lobby.
     aliases: [hub, leave]
+  stats:
+    description: View your minigame stats.
+  shop:
+    description: Open the token shop.
+    aliases: [tokens, cosmetics]
   pulse:
     description: PulseGames admin commands.
     usage: /pulse <list|start|end|setlobby|reload>

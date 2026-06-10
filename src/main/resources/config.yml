@@ -26,3 +26,14 @@ party:
 end:
   # Seconds to celebrate before players are returned to the lobby.
   celebrate-seconds: 10
+
+economy:
+  # Pulse Tokens earned for...
+  win-reward: 50
+  participation-reward: 10
+  kill-reward: 5
+  # ...being online (every N minutes)
+  playtime-bonus: 25
+  playtime-interval-minutes: 15
+  # ...first login of the day
+  daily-bonus: 100

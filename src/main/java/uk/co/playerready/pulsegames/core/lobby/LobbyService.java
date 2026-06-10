@@ -38,6 +38,7 @@ public final class LobbyService {
     public void sendToLobby(Player player) {
         player.teleport(lobbyLocation());
         player.setGameMode(org.bukkit.GameMode.ADVENTURE);
+        player.setAllowFlight(true); // lobby double jump
         if (plugin.getConfig().getBoolean("lobby.give-menu-item", true)) {
             giveMenuItem(player);
         }
@@ -48,10 +49,18 @@ public final class LobbyService {
         ItemStack compass = new ItemStack(Material.COMPASS);
         compass.editMeta(meta -> meta.displayName(Text.mm("<gradient:#ff5f6d:#ffc371><b>Game Menu</b></gradient> <gray>(right-click)")));
         player.getInventory().setItem(4, compass);
+        ItemStack shop = new ItemStack(Material.SUNFLOWER);
+        shop.editMeta(meta -> meta.displayName(Text.mm("<gold><b>Token Shop</b> <gray>(right-click)")));
+        player.getInventory().setItem(6, shop);
     }
 
     public boolean isMenuItem(ItemStack item) {
         return item != null && item.getType() == Material.COMPASS && item.hasItemMeta()
+                && item.getItemMeta().hasDisplayName();
+    }
+
+    public boolean isShopItem(ItemStack item) {
+        return item != null && item.getType() == Material.SUNFLOWER && item.hasItemMeta()
                 && item.getItemMeta().hasDisplayName();
     }
 }

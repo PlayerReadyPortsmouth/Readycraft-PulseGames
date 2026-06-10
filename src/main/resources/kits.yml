@@ -27,6 +27,29 @@ kits:
     items:
       - DIAMOND_SWORD
       - GOLDEN_APPLE:8
+  # Unlockable via the token shop (Kit Unlocks category)
+  tank:
+    display-name: "<dark_gray>Tank"
+    icon: NETHERITE_CHESTPLATE
+    helmet: NETHERITE_HELMET
+    chestplate: NETHERITE_CHESTPLATE
+    leggings: IRON_LEGGINGS
+    boots: IRON_BOOTS
+    items:
+      - STONE_SWORD
+      - COOKED_BEEF:8
+  archer:
+    display-name: "<green>Archer"
+    icon: BOW
+    helmet: LEATHER_HELMET
+    chestplate: CHAINMAIL_CHESTPLATE
+    leggings: LEATHER_LEGGINGS
+    boots: LEATHER_BOOTS
+    items:
+      - WOODEN_SWORD
+      - BOW
+      - ARROW:48
+      - COOKED_BEEF:6
   koth:
     display-name: "<gold>KOTH"
     icon: GOLDEN_HELMET

@@ -93,6 +93,18 @@ public final class PropHuntGame extends MiniGame {
                     if (seeker != null) equipSeeker(seeker);
                 }
             }
+            return;
+        }
+        // Heartbeat: every 30s all hiders emit a sound so camping isn't free.
+        if (gameTime % 30 == 0) {
+            game.broadcast("<dark_gray>The props made a sound...");
+            for (UUID id : hiders) {
+                Player hider = game.plugin().getServer().getPlayer(id);
+                if (hider == null) continue;
+                game.world().playSound(hider.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1.2f, 0.8f);
+                game.world().spawnParticle(org.bukkit.Particle.NOTE,
+                        hider.getLocation().add(0, 2, 0), 3, 0.2, 0.2, 0.2);
+            }
         }
     }
 

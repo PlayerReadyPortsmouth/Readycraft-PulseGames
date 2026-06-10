@@ -57,9 +57,18 @@ public final class BedwarsGame extends MiniGame {
             new ShopItem(new ItemStack(Material.IRON_PICKAXE), Material.IRON_INGOT, 25),
             new ShopItem(new ItemStack(Material.TNT), Material.GOLD_INGOT, 8));
 
+    private static final org.bukkit.Color[] TEAM_COLORS = {
+            org.bukkit.Color.RED, org.bukkit.Color.BLUE, org.bukkit.Color.LIME, org.bukkit.Color.YELLOW,
+            org.bukkit.Color.AQUA, org.bukkit.Color.FUCHSIA, org.bukkit.Color.WHITE, org.bukkit.Color.GRAY
+    };
+
     private final Map<Integer, Boolean> bedAlive = new HashMap<>();
     private final Set<Location> playerBlocks = new HashSet<>();
+    private final Set<Integer> sharpnessTeams = new HashSet<>();
+    private final Set<Integer> protectionTeams = new HashSet<>();
+    private final Set<Integer> hasteTeams = new HashSet<>();
     private List<Cuboid> bedRegions = List.of();
+    private int generatorTier = 1;
 
     public BedwarsGame(GameInstance game) {
         super(game);
@@ -70,25 +79,82 @@ public final class BedwarsGame extends MiniGame {
         bedRegions = game.arena().regionsByPrefix("bed");
         for (GameTeam team : game.teams()) bedAlive.put(team.index(), true);
         game.alivePlayers().forEach(this::equipBase);
-        startGenerators();
         game.broadcast("Protect your bed! If it's destroyed you can't respawn.");
+        game.broadcast("<gray>Generators upgrade at <yellow>5:00</yellow> and <yellow>10:00</yellow>!");
     }
 
     private void equipBase(Player player) {
-        player.getInventory().setItem(0, new ItemStack(Material.WOODEN_SWORD));
+        GameTeam team = game.teamOf(player);
+        int teamIndex = team != null ? team.index() : 0;
+        ItemStack sword = new ItemStack(Material.WOODEN_SWORD);
+        if (sharpnessTeams.contains(teamIndex)) {
+            sword.addUnsafeEnchantment(org.bukkit.enchantments.Enchantment.SHARPNESS, 1);
+        }
+        player.getInventory().setItem(0, sword);
         ItemStack shop = new ItemStack(Material.EMERALD);
         shop.editMeta(meta -> meta.displayName(Text.mm("<green><b>Item Shop</b> <gray>(right-click)")));
         player.getInventory().setItem(8, shop);
+        // Team-colored leather armor.
+        org.bukkit.Color color = TEAM_COLORS[teamIndex % TEAM_COLORS.length];
+        player.getInventory().setChestplate(dyed(Material.LEATHER_CHESTPLATE, color, protectionTeams.contains(teamIndex)));
+        player.getInventory().setLeggings(dyed(Material.LEATHER_LEGGINGS, color, protectionTeams.contains(teamIndex)));
+        player.getInventory().setBoots(dyed(Material.LEATHER_BOOTS, color, protectionTeams.contains(teamIndex)));
+        if (hasteTeams.contains(teamIndex)) {
+            player.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                    org.bukkit.potion.PotionEffectType.HASTE, org.bukkit.potion.PotionEffect.INFINITE_DURATION,
+                    0, false, false));
+        }
     }
 
-    private void startGenerators() {
-        game.runRepeating(40L, 40L, () -> dropAtTeamGenerators(Material.IRON_INGOT));
-        game.runRepeating(160L, 160L, () -> dropAtTeamGenerators(Material.GOLD_INGOT));
-        game.runRepeating(600L, 600L, () -> {
-            for (String raw : game.arena().settings().getStringList("diamond-generators")) {
-                drop(uk.co.playerready.pulsegames.core.util.LocUtil.parse(raw, game.world()), Material.DIAMOND);
+    /** Applies owned team upgrades to a player's current gear in place. */
+    private void applyUpgrades(Player player, int teamIndex) {
+        if (sharpnessTeams.contains(teamIndex)) {
+            for (ItemStack item : player.getInventory().getContents()) {
+                if (item != null && item.getType().name().endsWith("_SWORD")) {
+                    item.addUnsafeEnchantment(org.bukkit.enchantments.Enchantment.SHARPNESS, 1);
+                }
             }
-        });
+        }
+        if (protectionTeams.contains(teamIndex)) {
+            for (ItemStack armor : player.getInventory().getArmorContents()) {
+                if (armor != null) {
+                    armor.addUnsafeEnchantment(org.bukkit.enchantments.Enchantment.PROTECTION, 1);
+                }
+            }
+        }
+        if (hasteTeams.contains(teamIndex)) {
+            player.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                    org.bukkit.potion.PotionEffectType.HASTE, org.bukkit.potion.PotionEffect.INFINITE_DURATION,
+                    0, false, false));
+        }
+    }
+
+    private ItemStack dyed(Material material, org.bukkit.Color color, boolean protect) {
+        ItemStack item = new ItemStack(material);
+        item.editMeta(org.bukkit.inventory.meta.LeatherArmorMeta.class, meta -> meta.setColor(color));
+        if (protect) item.addUnsafeEnchantment(org.bukkit.enchantments.Enchantment.PROTECTION, 1);
+        return item;
+    }
+
+    /** Tiered resource generators driven by game time. */
+    @Override
+    public void onSecond(int gameTime) {
+        if (gameTime == 300 || gameTime == 600) {
+            generatorTier = gameTime == 300 ? 2 : 3;
+            game.broadcast("<aqua><b>GENERATORS UPGRADED</b></aqua> <gray>to Tier " + generatorTier + "!");
+        }
+        int ironEvery = generatorTier >= 2 ? 1 : 2;
+        int goldEvery = generatorTier >= 3 ? 3 : generatorTier == 2 ? 5 : 8;
+        int diamondEvery = generatorTier >= 3 ? 20 : generatorTier == 2 ? 25 : 30;
+        if (gameTime % ironEvery == 0) dropAtTeamGenerators(Material.IRON_INGOT);
+        if (gameTime % goldEvery == 0) dropAtTeamGenerators(Material.GOLD_INGOT);
+        if (gameTime % diamondEvery == 0) {
+            for (String raw : game.arena().settings().getStringList("diamond-generators")) {
+                Location loc = uk.co.playerready.pulsegames.core.util.LocUtil.parse(raw, game.world());
+                drop(loc, Material.DIAMOND);
+                game.world().spawnParticle(org.bukkit.Particle.HAPPY_VILLAGER, loc.clone().add(0, 1, 0), 5, 0.3, 0.5, 0.3);
+            }
+        }
     }
 
     private void dropAtTeamGenerators(Material material) {
@@ -182,6 +248,15 @@ public final class BedwarsGame extends MiniGame {
         }
     }
 
+    private record TeamUpgrade(String name, Material icon, int diamondCost, Set<Integer> owners) {}
+
+    private List<TeamUpgrade> teamUpgrades() {
+        return List.of(
+                new TeamUpgrade("Sharpened Swords (team)", Material.DIAMOND_SWORD, 8, sharpnessTeams),
+                new TeamUpgrade("Reinforced Armor (team)", Material.DIAMOND_CHESTPLATE, 8, protectionTeams),
+                new TeamUpgrade("Maniac Miner (team haste)", Material.GOLDEN_PICKAXE, 4, hasteTeams));
+    }
+
     private void openShop(Player player) {
         ShopHolder holder = new ShopHolder();
         Inventory inv = Bukkit.createInventory(holder, 27, Text.mm("<dark_gray>Item Shop"));
@@ -194,6 +269,20 @@ public final class BedwarsGame extends MiniGame {
                             + entry.currency().name().toLowerCase().replace('_', ' ')))));
             inv.setItem(i, display);
         }
+        GameTeam team = game.teamOf(player);
+        int teamIndex = team != null ? team.index() : 0;
+        List<TeamUpgrade> upgrades = teamUpgrades();
+        for (int i = 0; i < upgrades.size(); i++) {
+            TeamUpgrade upgrade = upgrades.get(i);
+            boolean owned = upgrade.owners().contains(teamIndex);
+            ItemStack display = new ItemStack(owned ? Material.LIME_DYE : upgrade.icon());
+            display.editMeta(meta -> {
+                meta.displayName(Text.mm((owned ? "<green>" : "<aqua>") + upgrade.name()));
+                meta.lore(List.of((Component) Text.mm(owned ? "<green>Purchased!"
+                        : "<gray>Cost: <aqua>" + upgrade.diamondCost() + " diamonds")));
+            });
+            inv.setItem(18 + i, display);
+        }
         player.openInventory(inv);
     }
 
@@ -202,7 +291,12 @@ public final class BedwarsGame extends MiniGame {
         if (!(event.getInventory().getHolder() instanceof ShopHolder)) return;
         event.setCancelled(true);
         int slot = event.getSlot();
-        if (event.getClickedInventory() != event.getInventory() || slot < 0 || slot >= SHOP.size()) return;
+        if (event.getClickedInventory() != event.getInventory() || slot < 0) return;
+        if (slot >= 18 && slot < 18 + teamUpgrades().size()) {
+            buyTeamUpgrade(player, teamUpgrades().get(slot - 18));
+            return;
+        }
+        if (slot >= SHOP.size()) return;
         ShopItem entry = SHOP.get(slot);
         if (!player.getInventory().containsAtLeast(new ItemStack(entry.currency()), entry.cost())) {
             player.sendMessage(Text.msg("<red>You can't afford that."));
@@ -217,6 +311,34 @@ public final class BedwarsGame extends MiniGame {
         }
         player.getInventory().addItem(product);
         player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
+    }
+
+    private void buyTeamUpgrade(Player player, TeamUpgrade upgrade) {
+        GameTeam team = game.teamOf(player);
+        int teamIndex = team != null ? team.index() : 0;
+        if (upgrade.owners().contains(teamIndex)) {
+            player.sendMessage(Text.msg("<red>Your team already has that upgrade."));
+            return;
+        }
+        if (!player.getInventory().containsAtLeast(new ItemStack(Material.DIAMOND), upgrade.diamondCost())) {
+            player.sendMessage(Text.msg("<red>You need <aqua>" + upgrade.diamondCost() + " diamonds</aqua> for that."));
+            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+            return;
+        }
+        player.getInventory().removeItem(new ItemStack(Material.DIAMOND, upgrade.diamondCost()));
+        upgrade.owners().add(teamIndex);
+        // Apply to every online teammate immediately (without resetting their gear).
+        if (team != null) {
+            for (java.util.UUID member : team.members()) {
+                Player teammate = Bukkit.getPlayer(member);
+                if (teammate != null && game.isAlive(teammate)) applyUpgrades(teammate, teamIndex);
+            }
+        }
+        game.broadcast(team != null
+                ? team.coloredName() + "</gray> unlocked <aqua>" + upgrade.name() + "</aqua>!"
+                : "<aqua>" + upgrade.name() + "</aqua> unlocked!");
+        player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1.4f);
+        openShop(player);
     }
 
     // ---- rules ----------------------------------------------------------------------

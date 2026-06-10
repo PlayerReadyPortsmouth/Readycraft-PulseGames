@@ -233,6 +233,10 @@ public final class GameInstance {
             broadcast("<gray>Starting in <yellow>" + countdown + "s");
             for (Player p : players()) {
                 p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 1f, countdown <= 3 ? 2f : 1f);
+                if (countdown <= 5) {
+                    Text.title(p, countdown <= 3 ? "<red><b>" + countdown : "<yellow><b>" + countdown,
+                            "<gray>" + arena.displayName());
+                }
             }
         }
         for (Player p : players()) p.setLevel(countdown);
@@ -298,16 +302,30 @@ public final class GameInstance {
         if (state != GameState.RUNNING || !isAlive(victim)) return;
         victim.setFallDistance(0);
         victim.setFireTicks(0);
-        logic.onDeath(victim, killer != null ? killer : killerOf(victim));
+        Player resolvedKiller = killer != null ? killer : killerOf(victim);
+        if (resolvedKiller != null) {
+            plugin.cosmetics().playKillEffect(resolvedKiller, victim.getLocation());
+            plugin.economy().addTokens(resolvedKiller,
+                    plugin.getConfig().getInt("economy.kill-reward", 5), "kill");
+        }
+        logic.onDeath(victim, resolvedKiller);
     }
 
     public void eliminate(Player player) {
         if (!alive.remove(player.getUniqueId())) return;
         spectators.add(player.getUniqueId());
+        Location deathSpot = player.getLocation();
+        world.spawnParticle(org.bukkit.Particle.CLOUD, deathSpot.add(0, 1, 0), 30, 0.3, 0.5, 0.3, 0.05);
+        world.spawnParticle(org.bukkit.Particle.FLAME, deathSpot, 15, 0.2, 0.3, 0.2, 0.02);
+        for (Player p : everyone()) {
+            p.playSound(deathSpot, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 0.3f, 1.6f);
+        }
         plugin.playerState().reset(player);
         player.setGameMode(org.bukkit.GameMode.SPECTATOR);
         player.teleport(arena.spectator(world));
         Text.title(player, "<red><b>ELIMINATED", "<gray>You are now spectating");
+        player.sendMessage(Text.msg("<gray>You're spectating - use the vanilla spectator menu "
+                + "(<yellow>1</yellow>) to follow players, or <yellow>/lobby</yellow> to leave."));
         logic.onEliminated(player);
         checkEnd();
     }
@@ -350,13 +368,29 @@ public final class GameInstance {
                 Text.title(p, "<gold><b>VICTORY!", "<gray>You won " + type.displayName());
                 p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
                 plugin.stats().addWin(p, type.id());
+                plugin.economy().addTokens(p, plugin.getConfig().getInt("economy.win-reward", 50), "victory");
                 spawnFirework(p.getLocation());
             } else {
+                if (isParticipant(p)) {
+                    plugin.economy().addTokens(p,
+                            plugin.getConfig().getInt("economy.participation-reward", 10), "game played");
+                }
                 Text.title(p, "<red><b>GAME OVER", "<gray>Winner(s): " + names);
                 if (isParticipant(p)) plugin.stats().addLoss(p, type.id());
             }
             p.setGameMode(org.bukkit.GameMode.SPECTATOR);
+            p.sendMessage(Text.msg("<gray>Record: <green>" + plugin.stats().get(p, type.id(), "wins")
+                    + "W</green> <red>" + plugin.stats().get(p, type.id(), "losses") + "L</red> <gray>in "
+                    + type.displayName() + " <dark_gray>(" + plugin.stats().get(p, type.id(), "played") + " played)"));
         }
+        // Celebration: fireworks rain on the winners until cleanup.
+        runRepeating(20L, 30L, () -> {
+            for (Player winner : winners) {
+                if (!winner.isOnline() || winner.getWorld() != world) continue;
+                spawnFirework(winner.getLocation());
+                plugin.cosmetics().playWinEffect(winner);
+            }
+        });
         logic.onEnd(winners);
     }
 

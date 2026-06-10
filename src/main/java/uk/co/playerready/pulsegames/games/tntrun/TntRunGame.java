@@ -56,6 +56,9 @@ public final class TntRunGame extends MiniGame {
         game.runLater(8L, () -> {
             // Remove this block and the support block beneath it (classic 2-layer maps).
             Block below = target.getRelative(0, -1, 0);
+            target.getWorld().spawnParticle(org.bukkit.Particle.BLOCK,
+                    target.getLocation().add(0.5, 0.5, 0.5), 12, 0.3, 0.3, 0.3, target.getBlockData());
+            target.getWorld().playSound(target.getLocation(), Sound.BLOCK_SAND_BREAK, 0.6f, 0.8f);
             target.setType(Material.AIR);
             if (!below.getType().isAir()) below.setType(Material.AIR);
             crumbling.remove(key);

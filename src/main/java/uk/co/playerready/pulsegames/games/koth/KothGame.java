@@ -55,6 +55,11 @@ public final class KothGame extends MiniGame {
                 teamScores.merge(team.index(), 1, Integer::sum);
             }
             game.addScore(player, 1);
+            int shown = team != null ? teamScores.get(team.index()) : game.score(player);
+            player.sendActionBar(uk.co.playerready.pulsegames.core.util.Text.mm(
+                    "<gold>⚑ Capturing! <yellow>+1</yellow> <gray>(" + shown + "/" + target() + ")"));
+            player.getWorld().spawnParticle(org.bukkit.Particle.CRIT,
+                    player.getLocation().add(0, 0.2, 0), 5, 0.3, 0.1, 0.3, 0.01);
         }
         if (game.mode().isTeams()) {
             teamScores.entrySet().stream()

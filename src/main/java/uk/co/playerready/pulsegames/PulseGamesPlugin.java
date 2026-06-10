@@ -3,6 +3,9 @@ package uk.co.playerready.pulsegames;
 import org.bukkit.plugin.java.JavaPlugin;
 import uk.co.playerready.pulsegames.core.arena.ArenaService;
 import uk.co.playerready.pulsegames.core.command.Commands;
+import uk.co.playerready.pulsegames.core.economy.CosmeticsService;
+import uk.co.playerready.pulsegames.core.economy.EconomyService;
+import uk.co.playerready.pulsegames.core.economy.TokenShopMenu;
 import uk.co.playerready.pulsegames.core.game.GameListener;
 import uk.co.playerready.pulsegames.core.game.GameRegistry;
 import uk.co.playerready.pulsegames.core.game.InstanceManager;
@@ -13,6 +16,7 @@ import uk.co.playerready.pulsegames.core.lobby.LobbyService;
 import uk.co.playerready.pulsegames.core.party.PartyManager;
 import uk.co.playerready.pulsegames.core.player.PlayerStateService;
 import uk.co.playerready.pulsegames.core.setup.ArenaSetupManager;
+import uk.co.playerready.pulsegames.core.shapes.ShapeService;
 import uk.co.playerready.pulsegames.core.scoreboard.SidebarService;
 import uk.co.playerready.pulsegames.core.stats.StatsService;
 import uk.co.playerready.pulsegames.core.world.WorldService;
@@ -35,6 +39,10 @@ public final class PulseGamesPlugin extends JavaPlugin {
     private StatsService stats;
     private PlayService playService;
     private ArenaSetupManager setup;
+    private EconomyService economy;
+    private CosmeticsService cosmetics;
+    private TokenShopMenu tokenShop;
+    private ShapeService shapes;
 
     @Override
     public void onEnable() {
@@ -54,6 +62,10 @@ public final class PulseGamesPlugin extends JavaPlugin {
         stats = new StatsService(this);
         playService = new PlayService(this);
         setup = new ArenaSetupManager(this);
+        economy = new EconomyService(this);
+        cosmetics = new CosmeticsService(economy);
+        tokenShop = new TokenShopMenu(this);
+        shapes = new ShapeService(this);
 
         worlds.purgeLeftovers();
         arenas.load();
@@ -63,6 +75,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new GameListener(this), this);
         getServer().getPluginManager().registerEvents(gameMenu, this);
         getServer().getPluginManager().registerEvents(setup, this);
+        getServer().getPluginManager().registerEvents(tokenShop, this);
         new Commands(this);
 
         getLogger().info("PulseGames enabled with " + registry.all().size() + " games.");
@@ -72,6 +85,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
     public void onDisable() {
         if (instances != null) instances.shutdownAll();
         if (stats != null) stats.flush();
+        if (economy != null) economy.flush();
     }
 
     public GameRegistry registry() { return registry; }
@@ -87,4 +101,8 @@ public final class PulseGamesPlugin extends JavaPlugin {
     public StatsService stats() { return stats; }
     public PlayService playService() { return playService; }
     public ArenaSetupManager setup() { return setup; }
+    public EconomyService economy() { return economy; }
+    public CosmeticsService cosmetics() { return cosmetics; }
+    public TokenShopMenu tokenShop() { return tokenShop; }
+    public ShapeService shapes() { return shapes; }
 }

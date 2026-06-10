@@ -57,6 +57,8 @@ public final class ReadyPlayerZGame extends MiniGame {
     private boolean roundActive;
     private final Set<UUID> zombies = new HashSet<>();
     private final Set<UUID> downed = new HashSet<>();
+    private final java.util.Map<UUID, String> powerupItems = new java.util.HashMap<>();
+    private long doublePointsUntil;
     private List<Cuboid> mobSpawns = List.of();
 
     public ReadyPlayerZGame(GameInstance game) {
@@ -148,9 +150,72 @@ public final class ReadyPlayerZGame extends MiniGame {
     @Override
     public void onEntityDeath(LivingEntity entity, Player killer) {
         if (killer != null && zombies.contains(entity.getUniqueId())) {
-            int points = 10;
+            int points = System.currentTimeMillis() < doublePointsUntil ? 20 : 10;
             game.addScore(killer, points);
             killer.sendActionBar(Text.mm("<gold>+" + points + " points"));
+            maybeDropPowerup(entity.getLocation());
+        }
+    }
+
+    // ---- power-up drops (CoD style) -------------------------------------------
+
+    private void maybeDropPowerup(Location location) {
+        if (ThreadLocalRandom.current().nextInt(100) >= 8) return; // 8% chance
+        String[] types = {"insta-kill", "double-points", "max-ammo", "nuke"};
+        Material[] icons = {Material.BLAZE_POWDER, Material.GOLD_INGOT, Material.ARROW, Material.TNT};
+        int pick = ThreadLocalRandom.current().nextInt(types.length);
+        ItemStack stack = new ItemStack(icons[pick]);
+        stack.editMeta(meta -> meta.displayName(Text.mm("<gold><b>" + types[pick].toUpperCase().replace('-', ' '))));
+        var item = game.world().dropItem(location.clone().add(0, 0.5, 0), stack);
+        item.setGlowing(true);
+        item.setVelocity(new org.bukkit.util.Vector(0, 0.2, 0));
+        powerupItems.put(item.getUniqueId(), types[pick]);
+        game.world().spawnParticle(org.bukkit.Particle.FIREWORK, location, 20, 0.3, 0.5, 0.3, 0.05);
+        // Despawn after 20s if nobody grabs it.
+        game.runLater(400L, () -> {
+            if (powerupItems.remove(item.getUniqueId()) != null && item.isValid()) item.remove();
+        });
+    }
+
+    @Override
+    public boolean itemPickup(Player player, org.bukkit.entity.Item item) {
+        String type = powerupItems.remove(item.getUniqueId());
+        if (type == null) return false;
+        item.remove();
+        activatePowerup(player, type);
+        return false; // consumed by the effect, never enters the inventory
+    }
+
+    private void activatePowerup(Player collector, String type) {
+        for (Player p : game.everyone()) {
+            Text.title(p, "<gold><b>" + type.toUpperCase().replace('-', ' '), "<gray>grabbed by " + collector.getName());
+            p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 0.7f);
+        }
+        switch (type) {
+            case "insta-kill" -> game.alivePlayers().forEach(p -> p.addPotionEffect(new PotionEffect(
+                    PotionEffectType.STRENGTH, 20 * 10, 9, false, true)));
+            case "double-points" -> doublePointsUntil = System.currentTimeMillis() + 30_000;
+            case "max-ammo" -> game.alivePlayers().forEach(p -> {
+                if (p.getInventory().contains(Material.BOW)) {
+                    p.getInventory().addItem(new ItemStack(Material.ARROW, 16));
+                }
+            });
+            case "nuke" -> {
+                int killed = 0;
+                for (UUID id : new HashSet<>(zombies)) {
+                    if (game.world().getEntity(id) instanceof LivingEntity zombie && !zombie.isDead()) {
+                        game.world().strikeLightningEffect(zombie.getLocation());
+                        zombie.setHealth(0);
+                        killed++;
+                    }
+                }
+                zombies.clear();
+                int bonus = Math.max(killed * 10, 50);
+                game.alivePlayers().forEach(p -> game.addScore(p, bonus));
+                game.broadcast("<gold><b>NUKE!</b></gold> <gray>" + killed + " zombies vaporised <gold>(+"
+                        + bonus + " points each)");
+            }
+            default -> { }
         }
     }
 

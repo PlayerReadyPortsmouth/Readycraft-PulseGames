@@ -46,6 +46,7 @@ public final class GameListener implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         plugin.lobby().sendToLobby(event.getPlayer());
+        plugin.economy().handleDailyBonus(event.getPlayer());
     }
 
     @EventHandler
@@ -61,7 +62,17 @@ public final class GameListener implements Listener {
     public void onMove(PlayerMoveEvent event) {
         Player player = event.getPlayer();
         GameInstance instance = instanceOf(player);
-        if (instance == null) return;
+        if (instance == null) {
+            if (plugin.lobby().isLobbyWorld(player.getWorld())) {
+                // Re-arm the lobby double jump once back on the ground.
+                if (!player.getAllowFlight() && player.getGameMode() == org.bukkit.GameMode.ADVENTURE
+                        && player.isOnGround()) {
+                    player.setAllowFlight(true);
+                }
+                plugin.cosmetics().playTrail(player);
+            }
+            return;
+        }
         Location from = event.getFrom();
         Location to = event.getTo();
         boolean blockChanged = from.getBlockX() != to.getBlockX()
@@ -255,6 +266,9 @@ public final class GameListener implements Listener {
             if (plugin.lobby().isMenuItem(event.getItem()) && event.getAction().isRightClick()) {
                 event.setCancelled(true);
                 plugin.gameMenu().openGames(player);
+            } else if (plugin.lobby().isShopItem(event.getItem()) && event.getAction().isRightClick()) {
+                event.setCancelled(true);
+                plugin.tokenShop().openMain(player);
             }
             return;
         }
@@ -291,7 +305,21 @@ public final class GameListener implements Listener {
     @EventHandler
     public void onToggleFlight(PlayerToggleFlightEvent event) {
         GameInstance instance = instanceOf(event.getPlayer());
-        if (instance != null && instance.state() == GameState.RUNNING
+        if (instance == null) {
+            Player player = event.getPlayer();
+            // Lobby double jump.
+            if (plugin.lobby().isLobbyWorld(player.getWorld())
+                    && player.getGameMode() == org.bukkit.GameMode.ADVENTURE) {
+                event.setCancelled(true);
+                player.setFlying(false);
+                player.setAllowFlight(false);
+                player.setVelocity(player.getLocation().getDirection().multiply(0.8)
+                        .add(new org.bukkit.util.Vector(0, 0.8, 0)));
+                player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_BAT_TAKEOFF, 1f, 1.4f);
+            }
+            return;
+        }
+        if (instance.state() == GameState.RUNNING
                 && instance.isAlive(event.getPlayer())
                 && event.getPlayer().getGameMode() != org.bukkit.GameMode.CREATIVE
                 && event.getPlayer().getGameMode() != org.bukkit.GameMode.SPECTATOR) {

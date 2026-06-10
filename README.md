@@ -41,7 +41,12 @@ throwaway copy of a map world.
 - **Per-game modes** - every game registers multiple gamemodes (team sizes, difficulty, twists).
 - **Fully in-game arena setup** - `/pulse setup` with a selection wand, a requirement
   checklist (chat + chest GUI) and automatic world-template capture. No config editing needed.
-- **Scoreboards, titles, sounds, fireworks, kits, stats** (YAML-backed, swappable for a DB).
+- **Scoreboards, titles, sounds, particles, fireworks, kits, stats** (YAML-backed, swappable for a DB).
+- **Pulse Tokens economy** - earn tokens for playing, winning, kills, playtime (every 15 min)
+  and daily logins. Spend them in the token shop (`/shop` or the lobby sunflower) on
+  **kill effects, victory effects, lobby trails, Kit PvP kit unlocks and 2x token boosters**.
+- **Shape schematics** - generate arena geometry from JSON data files
+  (`/pulse shape paste <file>`); see the map guide. Author maps as code, paste them in-game.
 
 ## Building
 
@@ -71,7 +76,10 @@ matching artifact version and bump `api-version` in `plugin.yml` if needed.
 | `/play <game> [mode]` | queue for a game (no args = GUI) |
 | `/party invite/accept/deny/leave/disband/list/chat` | parties |
 | `/lobby` (aliases `/hub`, `/leave`) | leave game / return to hub |
+| `/stats` | your per-game stats |
+| `/shop` (aliases `/tokens`, `/cosmetics`) | token shop |
 | `/pulse setup ...` | in-game arena creation (see map guide) |
+| `/pulse shape list/paste/undo` | generate geometry from JSON shape files |
 | `/pulse world <name>` | load/create a build world on this server |
 | `/pulse list / arenas / games` | inspect running instances, maps, games |
 | `/pulse start / end` | force-start/-end the game you're in |

@@ -40,7 +40,12 @@ public final class KitPvpGame extends MiniGame {
             player.getInventory().setItem(1, new ItemStack(Material.BOW));
             player.getInventory().setItem(9, new ItemStack(Material.ARROW, 1));
         } else {
-            Kit kit = game.plugin().kits().get(game.arena().settings().getString("kit", "warrior"));
+            // Token-shop kit unlocks override the arena default.
+            String unlocked = game.plugin().cosmetics().equippedKitId(player);
+            Kit kit = unlocked != null ? game.plugin().kits().get(unlocked) : null;
+            if (kit == null) {
+                kit = game.plugin().kits().get(game.arena().settings().getString("kit", "warrior"));
+            }
             if (kit != null) kit.apply(player);
         }
     }

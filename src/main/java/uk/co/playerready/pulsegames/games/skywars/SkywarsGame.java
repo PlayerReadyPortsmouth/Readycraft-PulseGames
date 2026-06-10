@@ -57,6 +57,23 @@ public final class SkywarsGame extends MiniGame {
                 + " standing wins!");
     }
 
+    private int refillAt() {
+        return game.arena().settings().getInt("refill-seconds", 300);
+    }
+
+    @Override
+    public void onSecond(int gameTime) {
+        if (gameTime == refillAt() - 60) {
+            game.broadcast("<yellow>Chests refill in <gold>60s</gold>!");
+        } else if (gameTime == refillAt()) {
+            filledChests.clear();
+            game.broadcast("<gold><b>CHESTS REFILLED!</b></gold> <gray>Open them again for fresh loot.");
+            for (org.bukkit.entity.Player p : game.alivePlayers()) {
+                p.playSound(p.getLocation(), org.bukkit.Sound.BLOCK_ENDER_CHEST_OPEN, 1f, 1.2f);
+            }
+        }
+    }
+
     @Override
     public void onInteract(PlayerInteractEvent event) {
         if (event.getClickedBlock() == null) return;

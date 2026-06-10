@@ -22,7 +22,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
 
     public Commands(PulseGamesPlugin plugin) {
         this.plugin = plugin;
-        for (String name : List.of("play", "party", "lobby", "pulse")) {
+        for (String name : List.of("play", "party", "lobby", "pulse", "stats", "shop")) {
             var command = plugin.getCommand(name);
             command.setExecutor(this);
             command.setTabCompleter(this);
@@ -39,6 +39,8 @@ public final class Commands implements CommandExecutor, TabCompleter {
             case "play" -> play(player, args);
             case "party" -> party(player, args);
             case "lobby" -> plugin.playService().leave(player);
+            case "stats" -> stats(player);
+            case "shop" -> plugin.tokenShop().openMain(player);
             case "pulse" -> admin(player, args);
         }
         return true;
@@ -66,6 +68,25 @@ public final class Commands implements CommandExecutor, TabCompleter {
             return;
         }
         plugin.playService().join(player, type, mode);
+    }
+
+    private void stats(Player player) {
+        player.sendMessage(Text.msg("<yellow><b>Your stats</b>"));
+        int totalWins = 0, totalKills = 0, totalPlayed = 0;
+        for (GameType type : plugin.registry().all()) {
+            int played = plugin.stats().get(player, type.id(), "played");
+            if (played == 0) continue;
+            int wins = plugin.stats().get(player, type.id(), "wins");
+            int kills = plugin.stats().get(player, type.id(), "kills");
+            totalWins += wins;
+            totalKills += kills;
+            totalPlayed += played;
+            player.sendMessage(Text.mm(" <gray>" + type.displayName() + ": <green>" + wins
+                    + "W</green> <white>" + played + " played</white>"
+                    + (kills > 0 ? " <red>" + kills + " kills" : "")));
+        }
+        player.sendMessage(Text.mm(" <gray>Total: <green>" + totalWins + " wins</green><gray>, <white>"
+                + totalPlayed + " games</white><gray>, <red>" + totalKills + " kills"));
     }
 
     private void party(Player player, String[] args) {
@@ -117,6 +138,25 @@ public final class Commands implements CommandExecutor, TabCompleter {
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
             case "setup" -> plugin.setup().handle(player, java.util.Arrays.copyOfRange(args, 1, args.length));
+            case "shape" -> {
+                if (args.length < 2) {
+                    player.sendMessage(Text.msg("Usage: <yellow>/pulse shape <list|paste|undo> [file]"));
+                    return;
+                }
+                switch (args[1].toLowerCase(Locale.ROOT)) {
+                    case "list" -> player.sendMessage(Text.msg("Shape files: <yellow>"
+                            + String.join(", ", plugin.shapes().available())));
+                    case "paste" -> {
+                        if (args.length < 3) {
+                            player.sendMessage(Text.msg("<red>Usage: /pulse shape paste <file>"));
+                            return;
+                        }
+                        plugin.shapes().paste(player, args[2]);
+                    }
+                    case "undo" -> plugin.shapes().undo(player);
+                    default -> player.sendMessage(Text.msg("<red>Unknown shape subcommand."));
+                }
+            }
             case "world" -> {
                 if (args.length < 2) {
                     player.sendMessage(Text.msg("<red>Usage: /pulse world <name> <gray>- load/create a build world"));
@@ -200,7 +240,13 @@ public final class Commands implements CommandExecutor, TabCompleter {
             }
             case "pulse" -> {
                 if (args.length == 1) {
-                    return List.of("setup", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
+                    return List.of("setup", "shape", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
+                }
+                if (args.length == 2 && args[0].equalsIgnoreCase("shape")) {
+                    return List.of("list", "paste", "undo");
+                }
+                if (args.length == 3 && args[0].equalsIgnoreCase("shape") && args[1].equalsIgnoreCase("paste")) {
+                    return plugin.shapes().available();
                 }
                 if (args.length == 2 && args[0].equalsIgnoreCase("setup")) {
                     return List.of("start", "wand", "lobby", "spectator", "addspawn", "clearspawns",
