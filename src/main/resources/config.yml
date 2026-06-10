@@ -1,0 +1,28 @@
+# PulseGames core configuration
+
+lobby:
+  # Set in-game with /pulse setlobby
+  world: world
+  location: "0.5,100,0.5,0,0"
+  # Give the game-menu compass on lobby join
+  give-menu-item: true
+
+instances:
+  # Hard cap on concurrently running game instances (worlds) on this server.
+  max-concurrent: 20
+  # Prefix for cloned instance world folders.
+  world-prefix: pulse_
+
+countdown:
+  # Seconds in the waiting lobby once min players is reached.
+  lobby-seconds: 30
+  # When the arena is full, shorten the countdown to this.
+  full-seconds: 10
+
+party:
+  max-size: 8
+  invite-expiry-seconds: 60
+
+end:
+  # Seconds to celebrate before players are returned to the lobby.
+  celebrate-seconds: 10

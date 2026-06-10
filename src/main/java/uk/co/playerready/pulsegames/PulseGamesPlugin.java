@@ -1,0 +1,90 @@
+package uk.co.playerready.pulsegames;
+
+import org.bukkit.plugin.java.JavaPlugin;
+import uk.co.playerready.pulsegames.core.arena.ArenaService;
+import uk.co.playerready.pulsegames.core.command.Commands;
+import uk.co.playerready.pulsegames.core.game.GameListener;
+import uk.co.playerready.pulsegames.core.game.GameRegistry;
+import uk.co.playerready.pulsegames.core.game.InstanceManager;
+import uk.co.playerready.pulsegames.core.game.PlayService;
+import uk.co.playerready.pulsegames.core.kit.KitService;
+import uk.co.playerready.pulsegames.core.lobby.GameMenu;
+import uk.co.playerready.pulsegames.core.lobby.LobbyService;
+import uk.co.playerready.pulsegames.core.party.PartyManager;
+import uk.co.playerready.pulsegames.core.player.PlayerStateService;
+import uk.co.playerready.pulsegames.core.setup.ArenaSetupManager;
+import uk.co.playerready.pulsegames.core.scoreboard.SidebarService;
+import uk.co.playerready.pulsegames.core.stats.StatsService;
+import uk.co.playerready.pulsegames.core.world.WorldService;
+import uk.co.playerready.pulsegames.games.GameCatalog;
+
+import java.io.File;
+
+public final class PulseGamesPlugin extends JavaPlugin {
+
+    private GameRegistry registry;
+    private ArenaService arenas;
+    private WorldService worlds;
+    private InstanceManager instances;
+    private PartyManager parties;
+    private LobbyService lobby;
+    private GameMenu gameMenu;
+    private KitService kits;
+    private PlayerStateService playerState;
+    private SidebarService sidebar;
+    private StatsService stats;
+    private PlayService playService;
+    private ArenaSetupManager setup;
+
+    @Override
+    public void onEnable() {
+        saveDefaultConfig();
+        new File(getDataFolder(), "maps").mkdirs();
+
+        registry = new GameRegistry();
+        arenas = new ArenaService(this);
+        worlds = new WorldService(this);
+        instances = new InstanceManager(this);
+        parties = new PartyManager(this);
+        lobby = new LobbyService(this);
+        gameMenu = new GameMenu(this);
+        kits = new KitService(this);
+        playerState = new PlayerStateService();
+        sidebar = new SidebarService();
+        stats = new StatsService(this);
+        playService = new PlayService(this);
+        setup = new ArenaSetupManager(this);
+
+        worlds.purgeLeftovers();
+        arenas.load();
+        kits.load();
+        GameCatalog.registerAll(registry);
+
+        getServer().getPluginManager().registerEvents(new GameListener(this), this);
+        getServer().getPluginManager().registerEvents(gameMenu, this);
+        getServer().getPluginManager().registerEvents(setup, this);
+        new Commands(this);
+
+        getLogger().info("PulseGames enabled with " + registry.all().size() + " games.");
+    }
+
+    @Override
+    public void onDisable() {
+        if (instances != null) instances.shutdownAll();
+        if (stats != null) stats.flush();
+    }
+
+    public GameRegistry registry() { return registry; }
+    public ArenaService arenas() { return arenas; }
+    public WorldService worlds() { return worlds; }
+    public InstanceManager instances() { return instances; }
+    public PartyManager parties() { return parties; }
+    public LobbyService lobby() { return lobby; }
+    public GameMenu gameMenu() { return gameMenu; }
+    public KitService kits() { return kits; }
+    public PlayerStateService playerState() { return playerState; }
+    public SidebarService sidebar() { return sidebar; }
+    public StatsService stats() { return stats; }
+    public PlayService playService() { return playService; }
+    public ArenaSetupManager setup() { return setup; }
+}

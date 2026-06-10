@@ -1,0 +1,21 @@
+name: PulseGames
+version: "${version}"
+main: uk.co.playerready.pulsegames.PulseGamesPlugin
+api-version: '1.21'
+author: PlayerReady
+description: Multi-instance minigame engine for the Readycraft network.
+commands:
+  play:
+    description: Join a minigame.
+    usage: /play <game> [mode]
+  party:
+    description: Manage your party.
+    usage: /party <invite|accept|deny|leave|disband|list|chat> [player|message]
+    aliases: [p]
+  lobby:
+    description: Return to the main lobby.
+    aliases: [hub, leave]
+  pulse:
+    description: PulseGames admin commands.
+    usage: /pulse <list|start|end|setlobby|reload>
+    permission: pulsegames.admin

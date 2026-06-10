@@ -1,0 +1,216 @@
+package uk.co.playerready.pulsegames.core.command;
+
+import org.bukkit.Bukkit;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandExecutor;
+import org.bukkit.command.CommandSender;
+import org.bukkit.command.TabCompleter;
+import org.bukkit.entity.Player;
+import uk.co.playerready.pulsegames.PulseGamesPlugin;
+import uk.co.playerready.pulsegames.core.game.GameInstance;
+import uk.co.playerready.pulsegames.core.game.GameMode;
+import uk.co.playerready.pulsegames.core.game.GameType;
+import uk.co.playerready.pulsegames.core.util.Text;
+
+import java.util.List;
+import java.util.Locale;
+
+/** /play, /party, /lobby and /pulse admin commands. */
+public final class Commands implements CommandExecutor, TabCompleter {
+
+    private final PulseGamesPlugin plugin;
+
+    public Commands(PulseGamesPlugin plugin) {
+        this.plugin = plugin;
+        for (String name : List.of("play", "party", "lobby", "pulse")) {
+            var command = plugin.getCommand(name);
+            command.setExecutor(this);
+            command.setTabCompleter(this);
+        }
+    }
+
+    @Override
+    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("In-game only.");
+            return true;
+        }
+        switch (command.getName().toLowerCase(Locale.ROOT)) {
+            case "play" -> play(player, args);
+            case "party" -> party(player, args);
+            case "lobby" -> plugin.playService().leave(player);
+            case "pulse" -> admin(player, args);
+        }
+        return true;
+    }
+
+    private void play(Player player, String[] args) {
+        if (args.length == 0) {
+            plugin.gameMenu().openGames(player);
+            return;
+        }
+        GameType type = plugin.registry().get(args[0]);
+        if (type == null) {
+            player.sendMessage(Text.msg("<red>Unknown game. Try: <yellow>"
+                    + String.join(", ", plugin.registry().all().stream().map(GameType::id).toList())));
+            return;
+        }
+        if (type.wip()) {
+            player.sendMessage(Text.msg("<red>" + type.displayName() + " is coming soon!"));
+            return;
+        }
+        GameMode mode = args.length > 1 ? type.mode(args[1]) : type.defaultMode();
+        if (mode == null) {
+            player.sendMessage(Text.msg("<red>Unknown mode. Modes: <yellow>"
+                    + String.join(", ", type.modes().stream().map(GameMode::id).toList())));
+            return;
+        }
+        plugin.playService().join(player, type, mode);
+    }
+
+    private void party(Player player, String[] args) {
+        if (args.length == 0) {
+            player.sendMessage(Text.msg("Usage: <yellow>/party <invite|accept|deny|leave|disband|list|chat>"));
+            return;
+        }
+        switch (args[0].toLowerCase(Locale.ROOT)) {
+            case "invite" -> {
+                if (args.length < 2) {
+                    player.sendMessage(Text.msg("<red>Usage: /party invite <player>"));
+                    return;
+                }
+                Player target = Bukkit.getPlayerExact(args[1]);
+                if (target == null || target.equals(player)) {
+                    player.sendMessage(Text.msg("<red>Player not found."));
+                    return;
+                }
+                plugin.parties().invite(player, target);
+            }
+            case "accept" -> plugin.parties().accept(player);
+            case "deny" -> plugin.parties().deny(player);
+            case "leave" -> plugin.parties().leave(player);
+            case "disband" -> plugin.parties().disband(player);
+            case "list" -> {
+                var party = plugin.parties().partyOf(player);
+                if (party == null) {
+                    player.sendMessage(Text.msg("<red>You are not in a party."));
+                    return;
+                }
+                player.sendMessage(Text.msg("Party (<yellow>" + party.size() + "</yellow>): <white>"
+                        + String.join(", ", party.onlineMembers().stream().map(Player::getName).toList())));
+            }
+            case "chat" -> {
+                if (args.length < 2) {
+                    player.sendMessage(Text.msg("<red>Usage: /party chat <message>"));
+                    return;
+                }
+                plugin.parties().chat(player, String.join(" ", List.of(args).subList(1, args.length)));
+            }
+            default -> player.sendMessage(Text.msg("<red>Unknown subcommand."));
+        }
+    }
+
+    private void admin(Player player, String[] args) {
+        if (args.length == 0) {
+            player.sendMessage(Text.msg("Usage: <yellow>/pulse <setup|world|games|list|arenas|start|end|setlobby|reload>"));
+            return;
+        }
+        switch (args[0].toLowerCase(Locale.ROOT)) {
+            case "setup" -> plugin.setup().handle(player, java.util.Arrays.copyOfRange(args, 1, args.length));
+            case "world" -> {
+                if (args.length < 2) {
+                    player.sendMessage(Text.msg("<red>Usage: /pulse world <name> <gray>- load/create a build world"));
+                    return;
+                }
+                plugin.setup().loadBuildWorld(player, args[1]);
+            }
+            case "games" -> {
+                player.sendMessage(Text.msg("Registered games:"));
+                for (GameType type : plugin.registry().all()) {
+                    player.sendMessage(Text.mm(" <gray>- <yellow>" + type.id() + "</yellow> <gray>modes: <white>"
+                            + String.join(", ", type.modes().stream().map(GameMode::id).toList())));
+                }
+            }
+            case "list" -> {
+                player.sendMessage(Text.msg("Running instances: <yellow>" + plugin.instances().all().size()));
+                for (GameInstance instance : plugin.instances().all()) {
+                    player.sendMessage(Text.mm(" <gray>- <yellow>" + instance.type().id() + "</yellow>/"
+                            + instance.mode().id() + " <gray>map=" + instance.arena().id()
+                            + " state=<white>" + instance.state() + "</white> players=<white>"
+                            + instance.players().size()));
+                }
+            }
+            case "arenas" -> {
+                player.sendMessage(Text.msg("Loaded arenas: <yellow>" + plugin.arenas().all().size()));
+                plugin.arenas().all().forEach(a -> player.sendMessage(Text.mm(" <gray>- <yellow>" + a.id()
+                        + "</yellow> game=<white>" + a.gameId() + "</white> template=<white>" + a.worldTemplate())));
+            }
+            case "start" -> {
+                GameInstance instance = plugin.instances().byPlayer(player);
+                if (instance == null) {
+                    player.sendMessage(Text.msg("<red>You are not in a game."));
+                    return;
+                }
+                instance.start();
+                player.sendMessage(Text.msg("Force-started."));
+            }
+            case "end" -> {
+                GameInstance instance = plugin.instances().byPlayer(player);
+                if (instance == null) {
+                    player.sendMessage(Text.msg("<red>You are not in a game."));
+                    return;
+                }
+                instance.forceEnd();
+                player.sendMessage(Text.msg("Force-ended."));
+            }
+            case "setlobby" -> {
+                plugin.lobby().setLobby(player.getLocation());
+                player.sendMessage(Text.msg("Main lobby set to your location."));
+            }
+            case "reload" -> {
+                plugin.reloadConfig();
+                plugin.arenas().load();
+                plugin.kits().load();
+                player.sendMessage(Text.msg("Config, arenas and kits reloaded."));
+            }
+            default -> player.sendMessage(Text.msg("<red>Unknown subcommand."));
+        }
+    }
+
+    @Override
+    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        switch (command.getName().toLowerCase(Locale.ROOT)) {
+            case "play" -> {
+                if (args.length == 1) {
+                    return plugin.registry().all().stream().map(GameType::id)
+                            .filter(id -> id.startsWith(args[0].toLowerCase(Locale.ROOT))).toList();
+                }
+                if (args.length == 2) {
+                    GameType type = plugin.registry().get(args[0]);
+                    if (type != null) {
+                        return type.modes().stream().map(GameMode::id)
+                                .filter(id -> id.startsWith(args[1].toLowerCase(Locale.ROOT))).toList();
+                    }
+                }
+            }
+            case "party" -> {
+                if (args.length == 1) {
+                    return List.of("invite", "accept", "deny", "leave", "disband", "list", "chat");
+                }
+            }
+            case "pulse" -> {
+                if (args.length == 1) {
+                    return List.of("setup", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
+                }
+                if (args.length == 2 && args[0].equalsIgnoreCase("setup")) {
+                    return List.of("start", "wand", "lobby", "spectator", "addspawn", "clearspawns",
+                            "region", "setloc", "addloc", "set", "check", "gui", "save", "cancel");
+                }
+                if (args.length == 3 && args[0].equalsIgnoreCase("setup") && args[1].equalsIgnoreCase("start")) {
+                    return plugin.registry().all().stream().map(GameType::id).toList();
+                }
+            }
+        }
+        return List.of();
+    }
+}

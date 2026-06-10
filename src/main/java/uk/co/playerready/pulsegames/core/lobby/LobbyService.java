@@ -1,0 +1,57 @@
+package uk.co.playerready.pulsegames.core.lobby;
+
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.World;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.plugin.java.JavaPlugin;
+import uk.co.playerready.pulsegames.core.util.LocUtil;
+import uk.co.playerready.pulsegames.core.util.Text;
+
+public final class LobbyService {
+
+    private final JavaPlugin plugin;
+
+    public LobbyService(JavaPlugin plugin) {
+        this.plugin = plugin;
+    }
+
+    public Location lobbyLocation() {
+        String worldName = plugin.getConfig().getString("lobby.world", "world");
+        World world = Bukkit.getWorld(worldName);
+        if (world == null) world = Bukkit.getWorlds().get(0);
+        return LocUtil.parse(plugin.getConfig().getString("lobby.location", "0.5,100,0.5"), world);
+    }
+
+    public void setLobby(Location location) {
+        plugin.getConfig().set("lobby.world", location.getWorld().getName());
+        plugin.getConfig().set("lobby.location", LocUtil.serialize(location));
+        plugin.saveConfig();
+    }
+
+    public boolean isLobbyWorld(World world) {
+        return world.getName().equals(plugin.getConfig().getString("lobby.world", "world"));
+    }
+
+    public void sendToLobby(Player player) {
+        player.teleport(lobbyLocation());
+        player.setGameMode(org.bukkit.GameMode.ADVENTURE);
+        if (plugin.getConfig().getBoolean("lobby.give-menu-item", true)) {
+            giveMenuItem(player);
+        }
+    }
+
+    public void giveMenuItem(Player player) {
+        player.getInventory().clear();
+        ItemStack compass = new ItemStack(Material.COMPASS);
+        compass.editMeta(meta -> meta.displayName(Text.mm("<gradient:#ff5f6d:#ffc371><b>Game Menu</b></gradient> <gray>(right-click)")));
+        player.getInventory().setItem(4, compass);
+    }
+
+    public boolean isMenuItem(ItemStack item) {
+        return item != null && item.getType() == Material.COMPASS && item.hasItemMeta()
+                && item.getItemMeta().hasDisplayName();
+    }
+}

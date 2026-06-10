@@ -1,0 +1,39 @@
+# Kits used by Duels, KOTH and (later) Kit PvP.
+# Format: material[:amount] entries. Armor slots are explicit.
+kits:
+  warrior:
+    display-name: "<red>Warrior"
+    icon: IRON_SWORD
+    helmet: IRON_HELMET
+    chestplate: IRON_CHESTPLATE
+    leggings: IRON_LEGGINGS
+    boots: IRON_BOOTS
+    items:
+      - IRON_SWORD
+      - BOW
+      - ARROW:16
+      - GOLDEN_APPLE:3
+  sumo:
+    display-name: "<yellow>Sumo"
+    icon: LEAD
+    items: []
+  op:
+    display-name: "<light_purple>OP"
+    icon: DIAMOND_SWORD
+    helmet: DIAMOND_HELMET
+    chestplate: DIAMOND_CHESTPLATE
+    leggings: DIAMOND_LEGGINGS
+    boots: DIAMOND_BOOTS
+    items:
+      - DIAMOND_SWORD
+      - GOLDEN_APPLE:8
+  koth:
+    display-name: "<gold>KOTH"
+    icon: GOLDEN_HELMET
+    helmet: CHAINMAIL_HELMET
+    chestplate: CHAINMAIL_CHESTPLATE
+    leggings: CHAINMAIL_LEGGINGS
+    boots: CHAINMAIL_BOOTS
+    items:
+      - STONE_SWORD
+      - COOKED_BEEF:8
