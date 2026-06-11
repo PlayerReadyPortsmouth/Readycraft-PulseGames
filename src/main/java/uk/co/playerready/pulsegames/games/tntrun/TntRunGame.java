@@ -32,8 +32,29 @@ public final class TntRunGame extends MiniGame {
         game.broadcast("The floor falls away behind you - keep moving!");
         if (isDoubleJump()) {
             game.broadcast("<yellow>Double-jump enabled! Tap jump twice in the air.");
-            game.alivePlayers().forEach(p -> p.setAllowFlight(true));
+            for (Player p : game.alivePlayers()) {
+                if (uk.co.playerready.pulsegames.core.util.BedrockUtil.isBedrock(p)) {
+                    // Geyser doesn't relay double-tap flight toggles; give a boost item instead.
+                    org.bukkit.inventory.ItemStack boost = new org.bukkit.inventory.ItemStack(Material.FEATHER);
+                    boost.editMeta(meta -> meta.displayName(
+                            uk.co.playerready.pulsegames.core.util.Text.mm("<aqua><b>Boost</b> <gray>(tap to leap)")));
+                    p.getInventory().setItem(0, boost);
+                } else {
+                    p.setAllowFlight(true);
+                }
+            }
         }
+    }
+
+    @Override
+    public void onInteract(org.bukkit.event.player.PlayerInteractEvent event) {
+        if (!isDoubleJump() || event.getItem() == null || event.getItem().getType() != Material.FEATHER
+                || !event.getAction().isRightClick()) return;
+        event.setCancelled(true);
+        Player player = event.getPlayer();
+        if (player.hasCooldown(Material.FEATHER)) return;
+        player.setCooldown(Material.FEATHER, 60);
+        boost(player);
     }
 
     @Override
@@ -71,11 +92,15 @@ public final class TntRunGame extends MiniGame {
         event.setCancelled(true);
         player.setFlying(false);
         player.setAllowFlight(false);
-        player.setVelocity(player.getLocation().getDirection().multiply(0.6).add(new Vector(0, 0.9, 0)));
-        player.playSound(player.getLocation(), Sound.ENTITY_BAT_TAKEOFF, 1f, 1.5f);
+        boost(player);
         game.runLater(60L, () -> {
             if (game.isAlive(player)) player.setAllowFlight(true);
         });
+    }
+
+    private void boost(Player player) {
+        player.setVelocity(player.getLocation().getDirection().multiply(0.6).add(new Vector(0, 0.9, 0)));
+        player.playSound(player.getLocation(), Sound.ENTITY_BAT_TAKEOFF, 1f, 1.5f);
     }
 
     @Override

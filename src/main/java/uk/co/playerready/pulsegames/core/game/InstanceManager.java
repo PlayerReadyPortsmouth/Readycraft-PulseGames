@@ -44,7 +44,8 @@ public final class InstanceManager {
      */
     public GameInstance findOrCreate(GameType type, GameMode mode, int groupSize) {
         for (GameInstance instance : instances) {
-            if (instance.type() == type && instance.mode().id().equals(mode.id()) && instance.joinable(groupSize)) {
+            if (instance.type() == type && instance.mode().id().equals(mode.id())
+                    && !instance.practice() && instance.joinable(groupSize)) {
                 return instance;
             }
         }
@@ -53,6 +54,19 @@ public final class InstanceManager {
         Arena arena = plugin.arenas().pickRandom(type.id(), mode.id());
         if (arena == null) return null;
         GameInstance instance = new GameInstance(plugin, type, mode, arena);
+        instances.add(instance);
+        instance.init();
+        return instance;
+    }
+
+    /** A private practice instance: starts solo, never matched into by other players. */
+    public GameInstance createPractice(GameType type, GameMode mode) {
+        int max = plugin.getConfig().getInt("instances.max-concurrent", 20);
+        if (instances.size() >= max) return null;
+        Arena arena = plugin.arenas().pickRandom(type.id(), mode.id());
+        if (arena == null) return null;
+        GameInstance instance = new GameInstance(plugin, type, mode, arena);
+        instance.setPractice(true);
         instances.add(instance);
         instance.init();
         return instance;

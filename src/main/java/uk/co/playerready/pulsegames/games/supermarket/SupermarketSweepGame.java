@@ -62,8 +62,11 @@ public final class SupermarketSweepGame extends MiniGame {
     }
 
     private String listText() {
-        return String.join("<gray>,</gray> ",
-                shoppingList.stream().map(m -> pretty(m)).toList());
+        List<String> names = new ArrayList<>();
+        for (Material material : shoppingList) {
+            names.add(pretty(material));
+        }
+        return String.join("<gray>,</gray> ", names);
     }
 
     private static String pretty(Material material) {

@@ -57,9 +57,10 @@ public final class PartyManager {
         long expiry = plugin.getConfig().getInt("party.invite-expiry-seconds", 60) * 1000L;
         invites.put(target.getUniqueId(), new Invite(party.leader(), System.currentTimeMillis() + expiry));
         inviter.sendMessage(Text.msg("Invited <yellow>" + target.getName() + "</yellow> to your party."));
+        // Plain commands in the text too: Bedrock (Geyser) clients can't click chat.
         target.sendMessage(Text.msg("<yellow>" + inviter.getName()
                 + "</yellow> invited you to a party. <green><click:run_command:'/party accept'>[ACCEPT]</click></green> "
-                + "<red><click:run_command:'/party deny'>[DENY]</click></red>"));
+                + "<red><click:run_command:'/party deny'>[DENY]</click></red> <gray>(or type /party accept)"));
         return true;
     }
 

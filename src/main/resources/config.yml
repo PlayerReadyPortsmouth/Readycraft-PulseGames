@@ -27,6 +27,10 @@ end:
   # Seconds to celebrate before players are returned to the lobby.
   celebrate-seconds: 10
 
+messages:
+  # Supportive messages when players are eliminated (great for younger players).
+  encouragement: true
+
 economy:
   # Pulse Tokens earned for...
   win-reward: 50

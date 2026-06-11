@@ -69,6 +69,33 @@ matching artifact version and bump `api-version` in `plugin.yml` if needed.
    to register arenas entirely in-game.
 4. Players join, grab the compass, pick a game. Done.
 
+## Accessibility & SEN-friendly features
+
+Built for a community that includes young people with special educational needs:
+
+- **`/calm`** - calm mode per player, persisted: full-screen title flashes become quiet
+  action-bar lines, loud effect sounds and particle bursts are skipped. Players opt in once.
+- **`/practice <game> [mode]`** - a private solo instance that starts in 5 seconds.
+  Learn any game with zero pressure and nobody watching.
+- **Encouragement messages** on elimination instead of just "you lost" (toggle in config).
+- **Chill modes** - e.g. Block Party `chill` (4 colors, 10s timers, relaxed pace);
+  every game's pace settings are per-arena tunable.
+- **No punishment loops** - no death screens, no item loss, instant respawns where
+  the game allows, and parties always keep friends on the same team.
+
+## Bedrock support (Geyser/Floodgate)
+
+Run [Geyser + Floodgate](https://geysermc.org/) on the server (or your proxy) and
+Bedrock players can join. PulseGames detects Bedrock clients automatically (Floodgate's
+version-0 UUIDs) and adapts:
+
+- **Double jump** (lobby + TNT Run): Bedrock clients don't send flight toggles through
+  Geyser, so they get a tappable **Boost feather** instead.
+- **Party invites**: clickable chat doesn't exist on Bedrock; invites include the plain
+  `/party accept` command.
+- Chest GUIs, scoreboards, titles, action bars, boats, elytra and shops all translate
+  through Geyser natively. Some particles map to approximations - cosmetic only.
+
 ## Commands
 
 | Command | Purpose |

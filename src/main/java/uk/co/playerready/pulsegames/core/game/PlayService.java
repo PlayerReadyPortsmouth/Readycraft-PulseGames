@@ -68,6 +68,19 @@ public final class PlayService {
         }
     }
 
+    /** Pressure-free solo practice round: own instance, starts in seconds, no waiting. */
+    public void practice(Player player, GameType type, GameMode mode) {
+        GameInstance current = plugin.instances().byPlayer(player);
+        if (current != null) current.remove(player, false);
+        GameInstance instance = plugin.instances().createPractice(type, mode);
+        if (instance == null) {
+            player.sendMessage(Text.msg("<red>No maps available for " + type.displayName() + " right now."));
+            return;
+        }
+        player.sendMessage(Text.msg("<green>Practice mode!</green> <gray>Take your time - nobody else can join."));
+        joinWhenReady(instance, List.of(player), 0);
+    }
+
     public void leave(Player player) {
         GameInstance instance = plugin.instances().byPlayer(player);
         if (instance == null) {

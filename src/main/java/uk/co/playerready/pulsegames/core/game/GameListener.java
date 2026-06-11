@@ -269,6 +269,14 @@ public final class GameListener implements Listener {
             } else if (plugin.lobby().isShopItem(event.getItem()) && event.getAction().isRightClick()) {
                 event.setCancelled(true);
                 plugin.tokenShop().openMain(player);
+            } else if (plugin.lobby().isBoostItem(event.getItem()) && event.getAction().isRightClick()
+                    && plugin.lobby().isLobbyWorld(player.getWorld())
+                    && !player.hasCooldown(Material.FEATHER)) {
+                event.setCancelled(true);
+                player.setCooldown(Material.FEATHER, 40);
+                player.setVelocity(player.getLocation().getDirection().multiply(0.8)
+                        .add(new org.bukkit.util.Vector(0, 0.8, 0)));
+                player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_BAT_TAKEOFF, 1f, 1.4f);
             }
             return;
         }

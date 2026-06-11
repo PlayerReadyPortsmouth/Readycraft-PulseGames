@@ -65,6 +65,7 @@ public final class GameCatalog {
         registry.register(new GameType("blockparty", "Block Party",
                 "Stand on the called color before the floor vanishes!", Material.MAGENTA_WOOL,
                 List.of(GameMode.ffa("classic", "Classic", 2, 20),
+                        GameMode.ffa("chill", "Chill", 2, 20),
                         GameMode.ffa("hardcore", "Hardcore", 2, 20)),
                 BlockPartyGame::new,
                 List.of(spawns(1, "on the dance floor"),

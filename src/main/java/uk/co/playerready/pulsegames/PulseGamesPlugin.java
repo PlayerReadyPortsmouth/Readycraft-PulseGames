@@ -15,6 +15,7 @@ import uk.co.playerready.pulsegames.core.lobby.GameMenu;
 import uk.co.playerready.pulsegames.core.lobby.LobbyService;
 import uk.co.playerready.pulsegames.core.party.PartyManager;
 import uk.co.playerready.pulsegames.core.player.PlayerStateService;
+import uk.co.playerready.pulsegames.core.player.PrefsService;
 import uk.co.playerready.pulsegames.core.setup.ArenaSetupManager;
 import uk.co.playerready.pulsegames.core.shapes.ShapeService;
 import uk.co.playerready.pulsegames.core.scoreboard.SidebarService;
@@ -43,6 +44,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
     private CosmeticsService cosmetics;
     private TokenShopMenu tokenShop;
     private ShapeService shapes;
+    private PrefsService prefs;
 
     @Override
     public void onEnable() {
@@ -66,6 +68,8 @@ public final class PulseGamesPlugin extends JavaPlugin {
         cosmetics = new CosmeticsService(economy);
         tokenShop = new TokenShopMenu(this);
         shapes = new ShapeService(this);
+        prefs = new PrefsService(this);
+        uk.co.playerready.pulsegames.core.util.Text.init(prefs);
 
         worlds.purgeLeftovers();
         arenas.load();
@@ -105,4 +109,5 @@ public final class PulseGamesPlugin extends JavaPlugin {
     public CosmeticsService cosmetics() { return cosmetics; }
     public TokenShopMenu tokenShop() { return tokenShop; }
     public ShapeService shapes() { return shapes; }
+    public PrefsService prefs() { return prefs; }
 }

@@ -22,7 +22,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
 
     public Commands(PulseGamesPlugin plugin) {
         this.plugin = plugin;
-        for (String name : List.of("play", "party", "lobby", "pulse", "stats", "shop")) {
+        for (String name : List.of("play", "party", "lobby", "pulse", "stats", "shop", "practice", "calm")) {
             var command = plugin.getCommand(name);
             command.setExecutor(this);
             command.setTabCompleter(this);
@@ -41,6 +41,13 @@ public final class Commands implements CommandExecutor, TabCompleter {
             case "lobby" -> plugin.playService().leave(player);
             case "stats" -> stats(player);
             case "shop" -> plugin.tokenShop().openMain(player);
+            case "practice" -> practice(player, args);
+            case "calm" -> {
+                boolean calm = plugin.prefs().toggleCalm(player);
+                player.sendMessage(Text.msg(calm
+                        ? "<green>Calm mode on.</green> <gray>Quieter sounds, no flashing titles or particle bursts."
+                        : "Calm mode off - full effects restored."));
+            }
             case "pulse" -> admin(player, args);
         }
         return true;
@@ -87,6 +94,25 @@ public final class Commands implements CommandExecutor, TabCompleter {
         }
         player.sendMessage(Text.mm(" <gray>Total: <green>" + totalWins + " wins</green><gray>, <white>"
                 + totalPlayed + " games</white><gray>, <red>" + totalKills + " kills"));
+    }
+
+    private void practice(Player player, String[] args) {
+        if (args.length == 0) {
+            player.sendMessage(Text.msg("Usage: <yellow>/practice <game> [mode]</yellow> <gray>- solo, pressure-free."));
+            return;
+        }
+        GameType type = plugin.registry().get(args[0]);
+        if (type == null) {
+            player.sendMessage(Text.msg("<red>Unknown game. See <yellow>/pulse games"));
+            return;
+        }
+        GameMode mode = args.length > 1 ? type.mode(args[1]) : type.defaultMode();
+        if (mode == null) {
+            player.sendMessage(Text.msg("<red>Unknown mode. Modes: <yellow>"
+                    + String.join(", ", type.modes().stream().map(GameMode::id).toList())));
+            return;
+        }
+        plugin.playService().practice(player, type, mode);
     }
 
     private void party(Player player, String[] args) {
@@ -220,7 +246,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         switch (command.getName().toLowerCase(Locale.ROOT)) {
-            case "play" -> {
+            case "play", "practice" -> {
                 if (args.length == 1) {
                     return plugin.registry().all().stream().map(GameType::id)
                             .filter(id -> id.startsWith(args[0].toLowerCase(Locale.ROOT))).toList();

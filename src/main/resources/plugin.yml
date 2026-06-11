@@ -20,6 +20,11 @@ commands:
   shop:
     description: Open the token shop.
     aliases: [tokens, cosmetics]
+  practice:
+    description: Practice a minigame solo, pressure-free.
+    usage: /practice <game> [mode]
+  calm:
+    description: Toggle calm mode (reduced flashing titles, sounds and particles).
   pulse:
     description: PulseGames admin commands.
     usage: /pulse <list|start|end|setlobby|reload>

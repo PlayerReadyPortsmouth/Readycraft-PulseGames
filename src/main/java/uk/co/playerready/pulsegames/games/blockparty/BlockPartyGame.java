@@ -39,11 +39,15 @@ public final class BlockPartyGame extends MiniGame {
 
     private boolean isHardcore() { return game.mode().id().equals("hardcore"); }
 
-    private int maxRounds() { return game.arena().settings().getInt("rounds", 15); }
+    /** Chill: relaxed pace, fewer colors, generous timers - great for newer players. */
+    private boolean isChill() { return game.mode().id().equals("chill"); }
 
-    private int colorCount() { return Math.min(isHardcore() ? 8 : 5, COLORS.length); }
+    private int maxRounds() { return game.arena().settings().getInt("rounds", isChill() ? 10 : 15); }
+
+    private int colorCount() { return Math.min(isHardcore() ? 8 : isChill() ? 4 : 5, COLORS.length); }
 
     private int standSeconds() {
+        if (isChill()) return 10;
         int base = isHardcore() ? 5 : 7;
         return Math.max(isHardcore() ? 1 : 2, base - round / 2);
     }

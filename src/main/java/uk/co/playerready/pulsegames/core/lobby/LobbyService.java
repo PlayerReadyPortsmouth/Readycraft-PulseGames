@@ -52,6 +52,17 @@ public final class LobbyService {
         ItemStack shop = new ItemStack(Material.SUNFLOWER);
         shop.editMeta(meta -> meta.displayName(Text.mm("<gold><b>Token Shop</b> <gray>(right-click)")));
         player.getInventory().setItem(6, shop);
+        // Bedrock clients can't double-tap-jump through Geyser; give them a boost item.
+        if (uk.co.playerready.pulsegames.core.util.BedrockUtil.isBedrock(player)) {
+            ItemStack boost = new ItemStack(Material.FEATHER);
+            boost.editMeta(meta -> meta.displayName(Text.mm("<aqua><b>Boost</b> <gray>(tap to leap)")));
+            player.getInventory().setItem(2, boost);
+        }
+    }
+
+    public boolean isBoostItem(ItemStack item) {
+        return item != null && item.getType() == Material.FEATHER && item.hasItemMeta()
+                && item.getItemMeta().hasDisplayName();
     }
 
     public boolean isMenuItem(ItemStack item) {

@@ -47,6 +47,8 @@ public final class GameInstance {
     private int countdown;
     private int gameTime;
     private long frozenUntil;
+    /** Practice instances start solo with a short countdown - pressure-free learning. */
+    private boolean practice;
 
     private final Set<UUID> participants = new LinkedHashSet<>();
     private final Set<UUID> alive = new LinkedHashSet<>();
@@ -94,7 +96,9 @@ public final class GameInstance {
     public boolean frozen() { return System.currentTimeMillis() < frozenUntil; }
 
     public int maxPlayers() { return Math.min(arena.maxPlayers(), mode.maxPlayers()); }
-    public int minPlayers() { return Math.max(arena.minPlayers(), mode.minPlayers()); }
+    public int minPlayers() { return practice ? 1 : Math.max(arena.minPlayers(), mode.minPlayers()); }
+    public boolean practice() { return practice; }
+    public void setPractice(boolean practice) { this.practice = practice; }
 
     public boolean joinable(int count) {
         return (state == GameState.WAITING || state == GameState.COUNTDOWN)
@@ -196,7 +200,7 @@ public final class GameInstance {
             case WAITING -> {
                 if (participants.size() >= minPlayers()) {
                     state = GameState.COUNTDOWN;
-                    countdown = plugin.getConfig().getInt("countdown.lobby-seconds", 30);
+                    countdown = practice ? 5 : plugin.getConfig().getInt("countdown.lobby-seconds", 30);
                 }
             }
             case COUNTDOWN -> tickCountdown();
@@ -232,7 +236,9 @@ public final class GameInstance {
         if (countdown <= 5 || countdown == 10 || countdown == 15 || countdown == 30) {
             broadcast("<gray>Starting in <yellow>" + countdown + "s");
             for (Player p : players()) {
-                p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 1f, countdown <= 3 ? 2f : 1f);
+                if (!Text.calm(p)) {
+                    p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 1f, countdown <= 3 ? 2f : 1f);
+                }
                 if (countdown <= 5) {
                     Text.title(p, countdown <= 3 ? "<red><b>" + countdown : "<yellow><b>" + countdown,
                             "<gray>" + arena.displayName());
@@ -311,19 +317,33 @@ public final class GameInstance {
         logic.onDeath(victim, resolvedKiller);
     }
 
+    private static final String[] ENCOURAGEMENT = {
+            "<green>Nice try! <gray>Every round makes you better.",
+            "<green>Great effort! <gray>You lasted longer than last time?",
+            "<green>So close! <gray>You'll get them next round.",
+            "<green>Well played! <gray>Watch the others for new tricks.",
+            "<green>Good game! <gray>Want to try a different mode next?",
+    };
+
     public void eliminate(Player player) {
         if (!alive.remove(player.getUniqueId())) return;
         spectators.add(player.getUniqueId());
-        Location deathSpot = player.getLocation();
-        world.spawnParticle(org.bukkit.Particle.CLOUD, deathSpot.add(0, 1, 0), 30, 0.3, 0.5, 0.3, 0.05);
-        world.spawnParticle(org.bukkit.Particle.FLAME, deathSpot, 15, 0.2, 0.3, 0.2, 0.02);
+        Location deathSpot = player.getLocation().add(0, 1, 0);
+        // Per-viewer effects so calm-mode players aren't startled.
         for (Player p : everyone()) {
+            if (Text.calm(p)) continue;
+            p.spawnParticle(org.bukkit.Particle.CLOUD, deathSpot, 30, 0.3, 0.5, 0.3, 0.05);
+            p.spawnParticle(org.bukkit.Particle.FLAME, deathSpot, 15, 0.2, 0.3, 0.2, 0.02);
             p.playSound(deathSpot, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 0.3f, 1.6f);
         }
         plugin.playerState().reset(player);
         player.setGameMode(org.bukkit.GameMode.SPECTATOR);
         player.teleport(arena.spectator(world));
         Text.title(player, "<red><b>ELIMINATED", "<gray>You are now spectating");
+        if (plugin.getConfig().getBoolean("messages.encouragement", true)) {
+            player.sendMessage(Text.msg(
+                    ENCOURAGEMENT[ThreadLocalRandom.current().nextInt(ENCOURAGEMENT.length)]));
+        }
         player.sendMessage(Text.msg("<gray>You're spectating - use the vanilla spectator menu "
                 + "(<yellow>1</yellow>) to follow players, or <yellow>/lobby</yellow> to leave."));
         logic.onEliminated(player);
