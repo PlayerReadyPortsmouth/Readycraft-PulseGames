@@ -30,7 +30,61 @@ public final class StatsService {
         }
     }
 
-    public void addWin(Player player, String game) { bump(player, game, "wins"); }
+    public void addWin(Player player, String game) {
+        bump(player, game, "wins");
+        // Weekly tally for lobby leaderboards.
+        String week = currentWeek();
+        String path = "week." + week + "." + player.getUniqueId() + "." + game;
+        synchronized (this) {
+            data.set(path, data.getInt(path) + 1);
+            dirty = true;
+        }
+    }
+
+    public static String currentWeek() {
+        java.time.LocalDate now = java.time.LocalDate.now();
+        java.time.temporal.WeekFields wf = java.time.temporal.WeekFields.ISO;
+        return now.get(wf.weekBasedYear()) + "-W" + now.get(wf.weekOfWeekBasedYear());
+    }
+
+    /** Total of a stat across all games (e.g. lifetime wins). */
+    public synchronized int total(Player player, String key) {
+        var section = data.getConfigurationSection(player.getUniqueId().toString());
+        if (section == null) return 0;
+        int sum = 0;
+        for (String game : section.getKeys(false)) {
+            sum += data.getInt(player.getUniqueId() + "." + game + "." + key);
+        }
+        return sum;
+    }
+
+    /** This week's top winners for a game ("overall" = all games combined). */
+    public synchronized java.util.List<java.util.Map.Entry<java.util.UUID, Integer>> topWeekly(String game, int limit) {
+        var section = data.getConfigurationSection("week." + currentWeek());
+        if (section == null) return java.util.List.of();
+        java.util.Map<java.util.UUID, Integer> totals = new java.util.HashMap<>();
+        for (String rawUuid : section.getKeys(false)) {
+            java.util.UUID uuid;
+            try {
+                uuid = java.util.UUID.fromString(rawUuid);
+            } catch (IllegalArgumentException ex) {
+                continue;
+            }
+            var games = section.getConfigurationSection(rawUuid);
+            if (games == null) continue;
+            int sum = 0;
+            for (String g : games.getKeys(false)) {
+                if (game.equals("overall") || game.equalsIgnoreCase(g)) {
+                    sum += games.getInt(g);
+                }
+            }
+            if (sum > 0) totals.put(uuid, sum);
+        }
+        return totals.entrySet().stream()
+                .sorted(java.util.Map.Entry.<java.util.UUID, Integer>comparingByValue().reversed())
+                .limit(limit)
+                .toList();
+    }
     public void addLoss(Player player, String game) { bump(player, game, "losses"); }
     public void addKill(Player player, String game) { bump(player, game, "kills"); }
     public void addPlayed(Player player, String game) { bump(player, game, "played"); }

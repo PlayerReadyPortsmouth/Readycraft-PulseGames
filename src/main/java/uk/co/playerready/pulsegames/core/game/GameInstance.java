@@ -53,6 +53,8 @@ public final class GameInstance {
     private final Set<UUID> participants = new LinkedHashSet<>();
     private final Set<UUID> alive = new LinkedHashSet<>();
     private final Set<UUID> spectators = new LinkedHashSet<>();
+    /** Buddy assistants: present and visible, but protected and non-competing. */
+    private final Set<UUID> assistants = new LinkedHashSet<>();
     private final List<GameTeam> teams = new ArrayList<>();
     private final List<BukkitTask> tasks = new ArrayList<>();
     private final Map<UUID, UUID> lastDamager = new HashMap<>();
@@ -116,12 +118,14 @@ public final class GameInstance {
     public List<Player> everyone() {
         Set<UUID> all = new LinkedHashSet<>(participants);
         all.addAll(spectators);
+        all.addAll(assistants);
         return all.stream().map(Bukkit::getPlayer).filter(p -> p != null && p.isOnline()).toList();
     }
 
     public boolean isAlive(Player player) { return alive.contains(player.getUniqueId()); }
     public boolean isParticipant(Player player) { return participants.contains(player.getUniqueId()); }
     public boolean isSpectator(Player player) { return spectators.contains(player.getUniqueId()); }
+    public boolean isAssistant(Player player) { return assistants.contains(player.getUniqueId()); }
 
     public GameTeam teamOf(Player player) {
         for (GameTeam team : teams) if (team.contains(player)) return team;
@@ -168,11 +172,27 @@ public final class GameInstance {
         player.getInventory().setItem(8, bed);
     }
 
+    /** Joins as a protected, non-competing buddy assistant (helper/support worker). */
+    public boolean addAssistant(Player player) {
+        if (!joinable(0) && state != GameState.RUNNING) return false;
+        if (world == null) return false;
+        assistants.add(player.getUniqueId());
+        plugin.instances().index(player, this);
+        plugin.playerState().save(player);
+        player.setGameMode(org.bukkit.GameMode.ADVENTURE);
+        player.teleport(arena.lobby(world));
+        player.sendMessage(Text.msg("<aqua>You're here as a <b>buddy assistant</b></aqua> <gray>- you can move "
+                + "around with your buddy but can't be hurt, fight or win. <yellow>/lobby</yellow> to leave."));
+        broadcast("<aqua>" + player.getName() + "</aqua> <gray>is supporting as a buddy assistant.");
+        return true;
+    }
+
     /** Removes a player at any stage (quit, /lobby, kicked). */
     public void remove(Player player, boolean teleportToLobby) {
         boolean wasAlive = alive.remove(player.getUniqueId());
         participants.remove(player.getUniqueId());
         spectators.remove(player.getUniqueId());
+        assistants.remove(player.getUniqueId());
         teams.forEach(t -> t.members().remove(player.getUniqueId()));
         plugin.instances().unindex(player);
         logic.onQuit(player);
@@ -187,7 +207,7 @@ public final class GameInstance {
             broadcast("<red>" + player.getName() + "</red> disconnected");
             checkEnd();
         }
-        if (participants.isEmpty() && spectators.isEmpty() && state != GameState.RESETTING
+        if (participants.isEmpty() && spectators.isEmpty() && assistants.isEmpty() && state != GameState.RESETTING
                 && state != GameState.WAITING && state != GameState.COUNTDOWN) {
             cleanup();
         }
@@ -278,6 +298,11 @@ public final class GameInstance {
                 }
             }
         }
+        // Assistants follow the action from the spectator point, visible and safe.
+        for (UUID id : assistants) {
+            Player assistant = Bukkit.getPlayer(id);
+            if (assistant != null) assistant.teleport(arena.spectator(world));
+        }
         frozenUntil = System.currentTimeMillis() + logic.startFreezeSeconds() * 1000L;
         logic.onStart();
     }
@@ -313,6 +338,9 @@ public final class GameInstance {
             plugin.cosmetics().playKillEffect(resolvedKiller, victim.getLocation());
             plugin.economy().addTokens(resolvedKiller,
                     plugin.getConfig().getInt("economy.kill-reward", 5), "kill");
+            plugin.levels().addXp(resolvedKiller, 10);
+            plugin.quests().record(resolvedKiller, type.id(), uk.co.playerready.pulsegames.core.quest.QuestService.Type.KILL);
+            plugin.achievements().check(resolvedKiller);
         }
         logic.onDeath(victim, resolvedKiller);
     }
@@ -389,11 +417,14 @@ public final class GameInstance {
                 p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
                 plugin.stats().addWin(p, type.id());
                 plugin.economy().addTokens(p, plugin.getConfig().getInt("economy.win-reward", 50), "victory");
+                plugin.levels().addXp(p, 75);
+                plugin.quests().record(p, type.id(), uk.co.playerready.pulsegames.core.quest.QuestService.Type.WIN);
                 spawnFirework(p.getLocation());
             } else {
                 if (isParticipant(p)) {
                     plugin.economy().addTokens(p,
                             plugin.getConfig().getInt("economy.participation-reward", 10), "game played");
+                    plugin.levels().addXp(p, 25);
                 }
                 Text.title(p, "<red><b>GAME OVER", "<gray>Winner(s): " + names);
                 if (isParticipant(p)) plugin.stats().addLoss(p, type.id());
@@ -402,6 +433,12 @@ public final class GameInstance {
             p.sendMessage(Text.msg("<gray>Record: <green>" + plugin.stats().get(p, type.id(), "wins")
                     + "W</green> <red>" + plugin.stats().get(p, type.id(), "losses") + "L</red> <gray>in "
                     + type.displayName() + " <dark_gray>(" + plugin.stats().get(p, type.id(), "played") + " played)"));
+        }
+        for (Player p : everyone()) {
+            if (isParticipant(p)) {
+                plugin.quests().record(p, type.id(), uk.co.playerready.pulsegames.core.quest.QuestService.Type.PLAY);
+                plugin.achievements().check(p);
+            }
         }
         // Celebration: fireworks rain on the winners until cleanup.
         runRepeating(20L, 30L, () -> {
@@ -448,6 +485,7 @@ public final class GameInstance {
         participants.clear();
         alive.clear();
         spectators.clear();
+        assistants.clear();
         if (world != null) {
             plugin.worlds().unloadAndDelete(world);
             world = null;

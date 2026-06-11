@@ -50,6 +50,10 @@ public final class EconomyService {
     public void addTokens(Player player, int amount, String reason) {
         if (amount <= 0) return;
         if (boosterActive(player)) amount *= 2;
+        // Seasonal event multiplier (e.g. double-token weekends).
+        if (plugin.getConfig().getBoolean("event.active", false)) {
+            amount = (int) Math.round(amount * plugin.getConfig().getDouble("event.token-multiplier", 2.0));
+        }
         synchronized (this) {
             data.set(key(player) + ".tokens", tokens(player) + amount);
             dirty = true;

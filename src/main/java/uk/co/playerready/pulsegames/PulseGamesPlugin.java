@@ -1,6 +1,7 @@
 package uk.co.playerready.pulsegames;
 
 import org.bukkit.plugin.java.JavaPlugin;
+import uk.co.playerready.pulsegames.core.achieve.AchievementService;
 import uk.co.playerready.pulsegames.core.arena.ArenaService;
 import uk.co.playerready.pulsegames.core.command.Commands;
 import uk.co.playerready.pulsegames.core.economy.CosmeticsService;
@@ -11,15 +12,19 @@ import uk.co.playerready.pulsegames.core.game.GameRegistry;
 import uk.co.playerready.pulsegames.core.game.InstanceManager;
 import uk.co.playerready.pulsegames.core.game.PlayService;
 import uk.co.playerready.pulsegames.core.kit.KitService;
+import uk.co.playerready.pulsegames.core.leaderboard.LeaderboardService;
+import uk.co.playerready.pulsegames.core.level.LevelService;
 import uk.co.playerready.pulsegames.core.lobby.GameMenu;
 import uk.co.playerready.pulsegames.core.lobby.LobbyService;
 import uk.co.playerready.pulsegames.core.party.PartyManager;
 import uk.co.playerready.pulsegames.core.player.PlayerStateService;
 import uk.co.playerready.pulsegames.core.player.PrefsService;
+import uk.co.playerready.pulsegames.core.quest.QuestService;
 import uk.co.playerready.pulsegames.core.setup.ArenaSetupManager;
 import uk.co.playerready.pulsegames.core.shapes.ShapeService;
 import uk.co.playerready.pulsegames.core.scoreboard.SidebarService;
 import uk.co.playerready.pulsegames.core.stats.StatsService;
+import uk.co.playerready.pulsegames.core.trivia.TriviaService;
 import uk.co.playerready.pulsegames.core.world.WorldService;
 import uk.co.playerready.pulsegames.games.GameCatalog;
 
@@ -45,6 +50,11 @@ public final class PulseGamesPlugin extends JavaPlugin {
     private TokenShopMenu tokenShop;
     private ShapeService shapes;
     private PrefsService prefs;
+    private LevelService levels;
+    private QuestService quests;
+    private AchievementService achievements;
+    private TriviaService trivia;
+    private LeaderboardService leaderboards;
 
     @Override
     public void onEnable() {
@@ -70,6 +80,11 @@ public final class PulseGamesPlugin extends JavaPlugin {
         shapes = new ShapeService(this);
         prefs = new PrefsService(this);
         uk.co.playerready.pulsegames.core.util.Text.init(prefs);
+        levels = new LevelService(this);
+        quests = new QuestService(this);
+        achievements = new AchievementService(this);
+        trivia = new TriviaService(this);
+        leaderboards = new LeaderboardService(this);
 
         worlds.purgeLeftovers();
         arenas.load();
@@ -80,6 +95,8 @@ public final class PulseGamesPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(gameMenu, this);
         getServer().getPluginManager().registerEvents(setup, this);
         getServer().getPluginManager().registerEvents(tokenShop, this);
+        getServer().getPluginManager().registerEvents(levels, this);
+        getServer().getPluginManager().registerEvents(trivia, this);
         new Commands(this);
 
         getLogger().info("PulseGames enabled with " + registry.all().size() + " games.");
@@ -90,6 +107,9 @@ public final class PulseGamesPlugin extends JavaPlugin {
         if (instances != null) instances.shutdownAll();
         if (stats != null) stats.flush();
         if (economy != null) economy.flush();
+        if (levels != null) levels.flush();
+        if (quests != null) quests.flush();
+        if (achievements != null) achievements.flush();
     }
 
     public GameRegistry registry() { return registry; }
@@ -110,4 +130,9 @@ public final class PulseGamesPlugin extends JavaPlugin {
     public TokenShopMenu tokenShop() { return tokenShop; }
     public ShapeService shapes() { return shapes; }
     public PrefsService prefs() { return prefs; }
+    public LevelService levels() { return levels; }
+    public QuestService quests() { return quests; }
+    public AchievementService achievements() { return achievements; }
+    public TriviaService trivia() { return trivia; }
+    public LeaderboardService leaderboards() { return leaderboards; }
 }

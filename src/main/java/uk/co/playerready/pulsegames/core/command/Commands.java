@@ -22,7 +22,8 @@ public final class Commands implements CommandExecutor, TabCompleter {
 
     public Commands(PulseGamesPlugin plugin) {
         this.plugin = plugin;
-        for (String name : List.of("play", "party", "lobby", "pulse", "stats", "shop", "practice", "calm")) {
+        for (String name : List.of("play", "party", "lobby", "pulse", "stats", "shop", "practice", "calm",
+                "quests", "achievements")) {
             var command = plugin.getCommand(name);
             command.setExecutor(this);
             command.setTabCompleter(this);
@@ -42,6 +43,8 @@ public final class Commands implements CommandExecutor, TabCompleter {
             case "stats" -> stats(player);
             case "shop" -> plugin.tokenShop().openMain(player);
             case "practice" -> practice(player, args);
+            case "quests" -> plugin.quests().show(player);
+            case "achievements" -> plugin.achievements().show(player);
             case "calm" -> {
                 boolean calm = plugin.prefs().toggleCalm(player);
                 player.sendMessage(Text.msg(calm
@@ -153,6 +156,28 @@ public final class Commands implements CommandExecutor, TabCompleter {
                 }
                 plugin.parties().chat(player, String.join(" ", List.of(args).subList(1, args.length)));
             }
+            case "assist" -> {
+                if (args.length < 2) {
+                    player.sendMessage(Text.msg("<red>Usage: /party assist <member> <gray>- toggle buddy-assist "
+                            + "(joins games protected, non-competing - for helpers/support workers)"));
+                    return;
+                }
+                var party = plugin.parties().partyOf(player);
+                if (party == null || !party.isLeader(player)) {
+                    player.sendMessage(Text.msg("<red>Only the party leader can set assistants."));
+                    return;
+                }
+                Player target = Bukkit.getPlayerExact(args[1]);
+                if (target == null || !party.contains(target.getUniqueId())) {
+                    player.sendMessage(Text.msg("<red>That player isn't in your party."));
+                    return;
+                }
+                boolean nowAssist = party.toggleAssistant(target.getUniqueId());
+                plugin.parties().broadcast(party, nowAssist
+                        ? "<yellow>" + target.getName() + "</yellow> is now a <aqua>buddy assistant</aqua> - "
+                        + "they'll join games protected and non-competing."
+                        : "<yellow>" + target.getName() + "</yellow> is a normal player again.");
+            }
             default -> player.sendMessage(Text.msg("<red>Unknown subcommand."));
         }
     }
@@ -189,6 +214,42 @@ public final class Commands implements CommandExecutor, TabCompleter {
                     return;
                 }
                 plugin.setup().loadBuildWorld(player, args[1]);
+            }
+            case "leaderboard" -> {
+                if (args.length < 2) {
+                    player.sendMessage(Text.msg("Usage: <yellow>/pulse leaderboard <add <game|overall>|clear>"));
+                    return;
+                }
+                if (args[1].equalsIgnoreCase("clear")) {
+                    plugin.leaderboards().clear(player);
+                } else if (args[1].equalsIgnoreCase("add") && args.length >= 3) {
+                    plugin.leaderboards().add(player, args[2].toLowerCase(Locale.ROOT));
+                } else {
+                    player.sendMessage(Text.msg("<red>Usage: /pulse leaderboard add <game|overall>"));
+                }
+            }
+            case "event" -> {
+                if (args.length < 2) {
+                    player.sendMessage(Text.msg("Usage: <yellow>/pulse event <on|off|name <text>|multiplier <x>>"));
+                    return;
+                }
+                switch (args[1].toLowerCase(Locale.ROOT)) {
+                    case "on" -> plugin.getConfig().set("event.active", true);
+                    case "off" -> plugin.getConfig().set("event.active", false);
+                    case "name" -> plugin.getConfig().set("event.name",
+                            String.join(" ", List.of(args).subList(2, args.length)));
+                    case "multiplier" -> plugin.getConfig().set("event.token-multiplier",
+                            Double.parseDouble(args[2]));
+                    default -> {
+                        player.sendMessage(Text.msg("<red>Unknown event option."));
+                        return;
+                    }
+                }
+                plugin.saveConfig();
+                boolean active = plugin.getConfig().getBoolean("event.active");
+                player.sendMessage(Text.msg("Event <yellow>" + plugin.getConfig().getString("event.name")
+                        + "</yellow> is now " + (active ? "<green>ACTIVE</green> <gray>("
+                        + plugin.getConfig().getDouble("event.token-multiplier") + "x tokens)" : "<red>off")));
             }
             case "games" -> {
                 player.sendMessage(Text.msg("Registered games:"));
@@ -261,12 +322,19 @@ public final class Commands implements CommandExecutor, TabCompleter {
             }
             case "party" -> {
                 if (args.length == 1) {
-                    return List.of("invite", "accept", "deny", "leave", "disband", "list", "chat");
+                    return List.of("invite", "accept", "deny", "leave", "disband", "list", "chat", "assist");
                 }
             }
             case "pulse" -> {
                 if (args.length == 1) {
-                    return List.of("setup", "shape", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
+                    return List.of("setup", "shape", "world", "games", "list", "arenas", "start", "end",
+                            "setlobby", "reload", "leaderboard", "event");
+                }
+                if (args.length == 2 && args[0].equalsIgnoreCase("leaderboard")) {
+                    return List.of("add", "clear");
+                }
+                if (args.length == 2 && args[0].equalsIgnoreCase("event")) {
+                    return List.of("on", "off", "name", "multiplier");
                 }
                 if (args.length == 2 && args[0].equalsIgnoreCase("shape")) {
                     return List.of("list", "paste", "undo");

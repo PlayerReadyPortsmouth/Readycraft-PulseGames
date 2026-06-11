@@ -43,15 +43,23 @@ public final class InstanceManager {
      * players, or spins up a new one on a random eligible map.
      */
     public GameInstance findOrCreate(GameType type, GameMode mode, int groupSize) {
+        return findOrCreate(type, mode, groupSize, null);
+    }
+
+    /** With a non-null arenaId, matches/creates only instances on that map. */
+    public GameInstance findOrCreate(GameType type, GameMode mode, int groupSize, String arenaId) {
         for (GameInstance instance : instances) {
             if (instance.type() == type && instance.mode().id().equals(mode.id())
-                    && !instance.practice() && instance.joinable(groupSize)) {
+                    && !instance.practice() && instance.joinable(groupSize)
+                    && (arenaId == null || instance.arena().id().equalsIgnoreCase(arenaId))) {
                 return instance;
             }
         }
         int max = plugin.getConfig().getInt("instances.max-concurrent", 20);
         if (instances.size() >= max) return null;
-        Arena arena = plugin.arenas().pickRandom(type.id(), mode.id());
+        Arena arena = arenaId != null
+                ? plugin.arenas().byId(type.id(), arenaId)
+                : plugin.arenas().pickRandom(type.id(), mode.id());
         if (arena == null) return null;
         GameInstance instance = new GameInstance(plugin, type, mode, arena);
         instances.add(instance);

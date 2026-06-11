@@ -29,6 +29,7 @@ public final class GameMenu implements Listener {
 
     private static final class MenuHolder implements InventoryHolder {
         final GameType gameOrNull; // null = top-level game list
+        GameMode modeOrNull;       // set = map-selection page
         Inventory inventory;
 
         MenuHolder(GameType gameOrNull) {
@@ -82,6 +83,34 @@ public final class GameMenu implements Listener {
         player.openInventory(inv);
     }
 
+    /** Map selection: pick a specific map, or Random. */
+    public void openMaps(Player player, GameType game, GameMode mode) {
+        var arenas = plugin.arenas().forGame(game.id(), mode.id());
+        MenuHolder holder = new MenuHolder(game);
+        holder.modeOrNull = mode;
+        Inventory inv = Bukkit.createInventory(holder, 27, Text.mm("<dark_gray>" + game.displayName() + ": pick a map"));
+        holder.inventory = inv;
+        ItemStack random = new ItemStack(Material.ENDER_PEARL);
+        random.editMeta(meta -> {
+            meta.displayName(Text.mm("<light_purple><b>Random Map"));
+            meta.lore(List.of(Text.mm("<gray>Let fate decide!")));
+        });
+        inv.setItem(4, random);
+        int slot = 9;
+        for (int i = 0; i < arenas.size() && slot < 27; i++) {
+            var arena = arenas.get(i);
+            ItemStack item = new ItemStack(Material.MAP);
+            item.editMeta(meta -> {
+                meta.displayName(Text.mm("<yellow><b>" + arena.displayName()));
+                meta.lore(List.of(
+                        Text.mm("<gray>Players: <white>" + arena.minPlayers() + "-" + arena.maxPlayers()),
+                        Text.mm("<green>Click to queue on this map!")));
+            });
+            inv.setItem(slot++, item);
+        }
+        player.openInventory(inv);
+    }
+
     @EventHandler
     public void onClick(InventoryClickEvent event) {
         if (!(event.getInventory().getHolder() instanceof MenuHolder holder)) return;
@@ -100,17 +129,37 @@ public final class GameMenu implements Listener {
                 return;
             }
             if (game.modes().size() == 1) {
-                player.closeInventory();
-                plugin.playService().join(player, game, game.defaultMode());
+                afterModeChosen(player, game, game.defaultMode());
             } else {
                 openModes(player, game);
             }
-        } else {
+        } else if (holder.modeOrNull == null) {
             int modeIndex = modeIndexFromSlot(event.getSlot());
             if (modeIndex < 0 || modeIndex >= holder.gameOrNull.modes().size()) return;
-            GameMode mode = holder.gameOrNull.modes().get(modeIndex);
+            afterModeChosen(player, holder.gameOrNull, holder.gameOrNull.modes().get(modeIndex));
+        } else {
+            // Map selection page.
+            int slot = event.getSlot();
+            if (slot == 4) {
+                player.closeInventory();
+                plugin.playService().join(player, holder.gameOrNull, holder.modeOrNull);
+                return;
+            }
+            var arenas = plugin.arenas().forGame(holder.gameOrNull.id(), holder.modeOrNull.id());
+            int index = slot - 9;
+            if (index < 0 || index >= arenas.size()) return;
             player.closeInventory();
-            plugin.playService().join(player, holder.gameOrNull, mode);
+            plugin.playService().join(player, holder.gameOrNull, holder.modeOrNull, arenas.get(index).id());
+        }
+    }
+
+    /** Multiple maps -> offer map selection; otherwise queue straight away. */
+    private void afterModeChosen(Player player, GameType game, GameMode mode) {
+        if (plugin.arenas().forGame(game.id(), mode.id()).size() > 1) {
+            openMaps(player, game, mode);
+        } else {
+            player.closeInventory();
+            plugin.playService().join(player, game, mode);
         }
     }
 

@@ -47,6 +47,13 @@ public final class GameListener implements Listener {
     public void onJoin(PlayerJoinEvent event) {
         plugin.lobby().sendToLobby(event.getPlayer());
         plugin.economy().handleDailyBonus(event.getPlayer());
+        if (plugin.getConfig().getBoolean("event.active", false)) {
+            event.getPlayer().sendMessage(uk.co.playerready.pulsegames.core.util.Text.msg(
+                    "<light_purple><b>" + plugin.getConfig().getString("event.name", "Event")
+                            + "</b></light_purple> <gray>is live - <gold>"
+                            + plugin.getConfig().getDouble("event.token-multiplier", 2.0)
+                            + "x tokens</gold> on everything!"));
+        }
     }
 
     @EventHandler
@@ -90,6 +97,13 @@ public final class GameListener implements Listener {
         if (instance.state() == GameState.RUNNING && instance.isAlive(player)
                 && to.getY() < instance.logic().voidY()) {
             instance.handleDeath(player, null);
+            return;
+        }
+        // Assistants can't die; falling just puts them back at the spectator point.
+        if (instance.isAssistant(player) && instance.world() != null
+                && to.getY() < instance.logic().voidY()) {
+            player.setFallDistance(0);
+            player.teleport(instance.arena().spectator(instance.world()));
             return;
         }
         if (instance.state() == GameState.RUNNING && instance.isAlive(player)) {
@@ -250,7 +264,7 @@ public final class GameListener implements Listener {
     public void onPickup(EntityPickupItemEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
         GameInstance instance = instanceOf(player);
-        if (instance == null || instance.state() != GameState.RUNNING
+        if (instance == null || instance.state() != GameState.RUNNING || !instance.isAlive(player)
                 || !instance.logic().itemPickup(player, event.getItem())) {
             event.setCancelled(true);
         }

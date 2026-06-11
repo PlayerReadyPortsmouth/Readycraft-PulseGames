@@ -27,6 +27,12 @@ end:
   # Seconds to celebrate before players are returned to the lobby.
   celebrate-seconds: 10
 
+# Seasonal events: toggle in-game with /pulse event on|off
+event:
+  active: false
+  name: "Summer Splash"
+  token-multiplier: 2.0
+
 messages:
   # Supportive messages when players are eliminated (great for younger players).
   encouragement: true

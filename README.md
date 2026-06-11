@@ -69,6 +69,26 @@ matching artifact version and bump `api-version` in `plugin.yml` if needed.
    to register arenas entirely in-game.
 4. Players join, grab the compass, pick a game. Done.
 
+## Progression & community
+
+- **Daily quests** (`/quests`) - the same three quests for everyone each day, rotating
+  automatically, with token + XP rewards.
+- **Levels & titles** - XP from wins/games/kills; levels show as titles in chat and
+  the tab list (Rookie → Player → Pro → Expert → Master → Legend).
+- **Achievements** (`/achievements`) - lifetime milestones with popup celebrations,
+  token rewards and server-wide shout-outs.
+- **Weekly lobby leaderboards** - floating holographic boards (no plugin dependency):
+  stand where you want one and `/pulse leaderboard add <game|overall>`. Resets weekly
+  so everyone gets a shot at the top.
+- **Spectator trivia** - eliminated players get kid-friendly Minecraft trivia in chat
+  while they wait; first correct answer earns tokens.
+- **Map selection** - when a game has multiple maps, the menu offers a map picker
+  (or Random); `/play` still quick-queues.
+- **Seasonal events** - `/pulse event on` enables a named event with a token
+  multiplier, announced to everyone on join.
+- **Buddy assist** - `/party assist <member>` marks a helper (parent, support worker)
+  who joins games with the party but is invulnerable and non-competing.
+
 ## Accessibility & SEN-friendly features
 
 Built for a community that includes young people with special educational needs:

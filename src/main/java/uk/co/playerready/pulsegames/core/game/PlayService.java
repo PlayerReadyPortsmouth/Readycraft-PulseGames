@@ -17,6 +17,11 @@ public final class PlayService {
     }
 
     public void join(Player player, GameType type, GameMode mode) {
+        join(player, type, mode, null);
+    }
+
+    /** With a non-null arenaId, queues specifically for that map. */
+    public void join(Player player, GameType type, GameMode mode, String arenaId) {
         Party party = plugin.parties().partyOf(player);
         List<Player> group;
         if (party != null) {
@@ -36,7 +41,7 @@ public final class PlayService {
             player.sendMessage(Text.msg("<red>Your party is too big for this mode."));
             return;
         }
-        GameInstance instance = plugin.instances().findOrCreate(type, mode, group.size());
+        GameInstance instance = plugin.instances().findOrCreate(type, mode, group.size(), arenaId);
         if (instance == null) {
             player.sendMessage(Text.msg("<red>No maps available for " + type.displayName() + " <gray>("
                     + mode.displayName() + ")</gray><red> right now."));
@@ -60,6 +65,11 @@ public final class PlayService {
         }
         for (Player member : group) {
             if (!member.isOnline()) continue;
+            Party party = plugin.parties().partyOf(member);
+            if (party != null && party.isAssistant(member.getUniqueId())) {
+                instance.addAssistant(member);
+                continue;
+            }
             if (!instance.add(member)) {
                 member.sendMessage(Text.msg("<red>That game filled up. Re-queueing..."));
                 join(member, instance.type(), instance.mode());
