@@ -19,7 +19,7 @@ throwaway copy of a map world.
 | Party Games | `partygames` | classic |
 | Volcano | `volcano` | classic, eruption |
 | Parkour Race | `parkour` | sprint, elimination |
-| Block Party | `blockparty` | classic, hardcore |
+| Block Party | `blockparty` | classic, chill, hardcore |
 | Avalanche | `avalanche` | classic |
 | Duels | `duels` | classic, op, sumo |
 | Kit PvP | `kitpvp` | ffa, oitc |
@@ -122,12 +122,19 @@ version-0 UUIDs) and adapts:
 |---|---|
 | `/play <game> [mode]` | queue for a game (no args = GUI) |
 | `/party invite/accept/deny/leave/disband/list/chat` | parties |
+| `/party assist <member>` | toggle buddy-assist (protected, non-competing helper) |
 | `/lobby` (aliases `/hub`, `/leave`) | leave game / return to hub |
 | `/stats` | your per-game stats |
+| `/quests` | today's daily quests |
+| `/achievements` | your achievement progress |
+| `/practice <game> [mode]` | private solo practice instance |
+| `/calm` | toggle calm mode (reduced flashes/sounds/particles) |
 | `/shop` (aliases `/tokens`, `/cosmetics`) | token shop |
 | `/pulse setup ...` | in-game arena creation (see map guide) |
 | `/pulse shape list/paste/undo` | generate geometry from JSON shape files |
 | `/pulse world <name>` | load/create a build world on this server |
+| `/pulse leaderboard add <game|overall> / clear` | place/remove lobby leaderboards |
+| `/pulse event on/off/name/multiplier` | seasonal token events |
 | `/pulse list / arenas / games` | inspect running instances, maps, games |
 | `/pulse start / end` | force-start/-end the game you're in |
 | `/pulse setlobby / reload` | hub spawn / reload configs |
