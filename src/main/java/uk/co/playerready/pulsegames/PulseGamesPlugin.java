@@ -16,6 +16,7 @@ import uk.co.playerready.pulsegames.core.leaderboard.LeaderboardService;
 import uk.co.playerready.pulsegames.core.level.LevelService;
 import uk.co.playerready.pulsegames.core.lobby.GameMenu;
 import uk.co.playerready.pulsegames.core.lobby.LobbyService;
+import uk.co.playerready.pulsegames.core.npc.NpcService;
 import uk.co.playerready.pulsegames.core.party.PartyManager;
 import uk.co.playerready.pulsegames.core.player.PlayerStateService;
 import uk.co.playerready.pulsegames.core.player.PrefsService;
@@ -25,6 +26,7 @@ import uk.co.playerready.pulsegames.core.shapes.ShapeService;
 import uk.co.playerready.pulsegames.core.scoreboard.SidebarService;
 import uk.co.playerready.pulsegames.core.stats.StatsService;
 import uk.co.playerready.pulsegames.core.trivia.TriviaService;
+import uk.co.playerready.pulsegames.core.util.MenuFx;
 import uk.co.playerready.pulsegames.core.world.WorldService;
 import uk.co.playerready.pulsegames.games.GameCatalog;
 
@@ -55,6 +57,8 @@ public final class PulseGamesPlugin extends JavaPlugin {
     private AchievementService achievements;
     private TriviaService trivia;
     private LeaderboardService leaderboards;
+    private NpcService npcs;
+    private MenuFx menuFx;
 
     @Override
     public void onEnable() {
@@ -62,6 +66,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
         new File(getDataFolder(), "maps").mkdirs();
 
         registry = new GameRegistry();
+        menuFx = new MenuFx(this);
         arenas = new ArenaService(this);
         worlds = new WorldService(this);
         instances = new InstanceManager(this);
@@ -85,6 +90,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
         achievements = new AchievementService(this);
         trivia = new TriviaService(this);
         leaderboards = new LeaderboardService(this);
+        npcs = new NpcService(this);
 
         worlds.purgeLeftovers();
         arenas.load();
@@ -97,6 +103,9 @@ public final class PulseGamesPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(tokenShop, this);
         getServer().getPluginManager().registerEvents(levels, this);
         getServer().getPluginManager().registerEvents(trivia, this);
+        getServer().getPluginManager().registerEvents(menuFx, this);
+        getServer().getPluginManager().registerEvents(npcs, this);
+        npcs.enable();
         new Commands(this);
 
         getLogger().info("PulseGames enabled with " + registry.all().size() + " games.");
@@ -105,6 +114,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
     @Override
     public void onDisable() {
         if (instances != null) instances.shutdownAll();
+        if (npcs != null) npcs.shutdown();
         if (stats != null) stats.flush();
         if (economy != null) economy.flush();
         if (levels != null) levels.flush();
@@ -135,4 +145,6 @@ public final class PulseGamesPlugin extends JavaPlugin {
     public AchievementService achievements() { return achievements; }
     public TriviaService trivia() { return trivia; }
     public LeaderboardService leaderboards() { return leaderboards; }
+    public NpcService npcs() { return npcs; }
+    public MenuFx menuFx() { return menuFx; }
 }

@@ -10,6 +10,7 @@ import uk.co.playerready.pulsegames.PulseGamesPlugin;
 import uk.co.playerready.pulsegames.core.game.GameInstance;
 import uk.co.playerready.pulsegames.core.game.GameMode;
 import uk.co.playerready.pulsegames.core.game.GameType;
+import uk.co.playerready.pulsegames.core.npc.NpcDefinition;
 import uk.co.playerready.pulsegames.core.util.Text;
 
 import java.util.List;
@@ -184,7 +185,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
 
     private void admin(Player player, String[] args) {
         if (args.length == 0) {
-            player.sendMessage(Text.msg("Usage: <yellow>/pulse <setup|world|games|list|arenas|start|end|setlobby|reload>"));
+            player.sendMessage(Text.msg("Usage: <yellow>/pulse <setup|npc|world|games|list|arenas|start|end|setlobby|reload>"));
             return;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
@@ -290,6 +291,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
                 instance.forceEnd();
                 player.sendMessage(Text.msg("Force-ended."));
             }
+            case "npc" -> npc(player, args);
             case "setlobby" -> {
                 plugin.lobby().setLobby(player.getLocation());
                 player.sendMessage(Text.msg("Main lobby set to your location."));
@@ -301,6 +303,133 @@ public final class Commands implements CommandExecutor, TabCompleter {
                 player.sendMessage(Text.msg("Config, arenas and kits reloaded."));
             }
             default -> player.sendMessage(Text.msg("<red>Unknown subcommand."));
+        }
+    }
+
+    /** /pulse npc - Citizens-backed lobby/map NPCs. */
+    private void npc(Player player, String[] args) {
+        if (!plugin.npcs().available()) {
+            player.sendMessage(Text.msg("<red>NPCs need the <yellow>Citizens</yellow> plugin installed."));
+            return;
+        }
+        if (args.length < 2) {
+            player.sendMessage(Text.msg("Usage: <yellow>/pulse npc <create|line|skin|radius|remove|list>"));
+            return;
+        }
+        switch (args[1].toLowerCase(Locale.ROOT)) {
+            case "create" -> {
+                if (args.length < 3) {
+                    player.sendMessage(Text.msg("Usage: <yellow>/pulse npc create game <game|menu> [name]</yellow> "
+                            + "or <yellow>/pulse npc create greeter [name]"));
+                    return;
+                }
+                switch (args[2].toLowerCase(Locale.ROOT)) {
+                    case "game" -> {
+                        if (args.length < 4) {
+                            player.sendMessage(Text.msg("<red>Usage: /pulse npc create game <game|menu> [name]"));
+                            return;
+                        }
+                        String gameId = args[3].toLowerCase(Locale.ROOT);
+                        GameType type = plugin.registry().get(gameId);
+                        if (type == null && !gameId.equals("menu")) {
+                            player.sendMessage(Text.msg("<red>Unknown game. Use a game id, or <yellow>menu</yellow> "
+                                    + "for the full game list."));
+                            return;
+                        }
+                        String name = args.length > 4
+                                ? String.join(" ", List.of(args).subList(4, args.length))
+                                : (type != null ? "<yellow><b>" + type.displayName() : "<yellow><b>Games");
+                        var def = plugin.npcs().create(player,
+                                NpcDefinition.Kind.GAME,
+                                type != null ? type.id() : null, name);
+                        player.sendMessage(Text.msg("Created game NPC <yellow>" + def.id() + "</yellow> here. "
+                                + "Right-clicking it opens " + (type != null ? type.displayName() : "the game menu")
+                                + ". Set a skin with <yellow>/pulse npc skin " + def.id() + " <player>"));
+                    }
+                    case "greeter" -> {
+                        String name = args.length > 3
+                                ? String.join(" ", List.of(args).subList(3, args.length))
+                                : "<aqua><b>Greeter";
+                        var def = plugin.npcs().create(player,
+                                NpcDefinition.Kind.GREETER, null, name);
+                        player.sendMessage(Text.msg("Created greeter NPC <yellow>" + def.id() + "</yellow> here. "
+                                + "Give it things to say with <yellow>/pulse npc line " + def.id() + " <text>"));
+                        if (!plugin.lobby().isLobbyWorld(player.getWorld())) {
+                            player.sendMessage(Text.mm(" <gray>Placed in world <white>" + player.getWorld().getName()
+                                    + "</white> - if that's a map template, it'll appear in every game on that map."));
+                        }
+                    }
+                    default -> player.sendMessage(Text.msg("<red>NPC kinds: <yellow>game</yellow>, <yellow>greeter"));
+                }
+            }
+            case "line" -> {
+                if (args.length < 4) {
+                    player.sendMessage(Text.msg("<red>Usage: /pulse npc line <id> <text> <gray>(MiniMessage ok)"));
+                    return;
+                }
+                var def = plugin.npcs().byId(args[2]);
+                if (def == null) {
+                    player.sendMessage(Text.msg("<red>No NPC with id <yellow>" + args[2] + "</yellow>. See /pulse npc list"));
+                    return;
+                }
+                String line = String.join(" ", List.of(args).subList(3, args.length));
+                plugin.npcs().addLine(def, line);
+                player.sendMessage(Text.msg("Added line " + def.lines().size() + " to <yellow>" + def.id() + "</yellow>:"));
+                player.sendMessage(Text.mm(" " + def.name() + " <dark_gray>» <gray>" + line));
+            }
+            case "skin" -> {
+                if (args.length < 4) {
+                    player.sendMessage(Text.msg("<red>Usage: /pulse npc skin <id> <playerName>"));
+                    return;
+                }
+                var def = plugin.npcs().byId(args[2]);
+                if (def == null) {
+                    player.sendMessage(Text.msg("<red>No NPC with id <yellow>" + args[2] + "</yellow>."));
+                    return;
+                }
+                plugin.npcs().setSkin(def, args[3]);
+                player.sendMessage(Text.msg("NPC <yellow>" + def.id() + "</yellow> now wears <yellow>"
+                        + args[3] + "</yellow>'s skin."));
+            }
+            case "radius" -> {
+                if (args.length < 4) {
+                    player.sendMessage(Text.msg("<red>Usage: /pulse npc radius <id> <blocks>"));
+                    return;
+                }
+                var def = plugin.npcs().byId(args[2]);
+                if (def == null) {
+                    player.sendMessage(Text.msg("<red>No NPC with id <yellow>" + args[2] + "</yellow>."));
+                    return;
+                }
+                try {
+                    plugin.npcs().setRadius(def, Double.parseDouble(args[3]));
+                } catch (NumberFormatException e) {
+                    player.sendMessage(Text.msg("<red>Not a number: " + args[3]));
+                    return;
+                }
+                player.sendMessage(Text.msg("NPC <yellow>" + def.id() + "</yellow> now chats within <yellow>"
+                        + def.radius() + "</yellow> blocks."));
+            }
+            case "remove" -> {
+                if (args.length < 3) {
+                    player.sendMessage(Text.msg("<red>Usage: /pulse npc remove <id>"));
+                    return;
+                }
+                player.sendMessage(plugin.npcs().remove(args[2])
+                        ? Text.msg("Removed NPC <yellow>" + args[2] + "</yellow>.")
+                        : Text.msg("<red>No NPC with id <yellow>" + args[2] + "</yellow>."));
+            }
+            case "list" -> {
+                player.sendMessage(Text.msg("NPCs: <yellow>" + plugin.npcs().all().size()));
+                for (var def : plugin.npcs().all()) {
+                    player.sendMessage(Text.mm(" <gray>- <yellow>" + def.id() + "</yellow> " + def.name()
+                            + " <gray>world=<white>" + def.world() + "</white>"
+                            + (def.kind() == NpcDefinition.Kind.GAME
+                                    ? " opens=<white>" + (def.gameId() == null ? "menu" : def.gameId())
+                                    : " lines=<white>" + def.lines().size())));
+                }
+            }
+            default -> player.sendMessage(Text.msg("<red>Unknown npc subcommand."));
         }
     }
 
@@ -328,7 +457,23 @@ public final class Commands implements CommandExecutor, TabCompleter {
             case "pulse" -> {
                 if (args.length == 1) {
                     return List.of("setup", "shape", "world", "games", "list", "arenas", "start", "end",
-                            "setlobby", "reload", "leaderboard", "event");
+                            "setlobby", "reload", "leaderboard", "event", "npc");
+                }
+                if (args.length == 2 && args[0].equalsIgnoreCase("npc")) {
+                    return List.of("create", "line", "skin", "radius", "remove", "list");
+                }
+                if (args.length == 3 && args[0].equalsIgnoreCase("npc")) {
+                    if (args[1].equalsIgnoreCase("create")) return List.of("game", "greeter");
+                    if (List.of("line", "skin", "radius", "remove").contains(args[1].toLowerCase(Locale.ROOT))) {
+                        return plugin.npcs().all().stream()
+                                .map(NpcDefinition::id).toList();
+                    }
+                }
+                if (args.length == 4 && args[0].equalsIgnoreCase("npc") && args[1].equalsIgnoreCase("create")
+                        && args[2].equalsIgnoreCase("game")) {
+                    var ids = new java.util.ArrayList<>(plugin.registry().all().stream().map(GameType::id).toList());
+                    ids.add("menu");
+                    return ids;
                 }
                 if (args.length == 2 && args[0].equalsIgnoreCase("leaderboard")) {
                     return List.of("add", "clear");

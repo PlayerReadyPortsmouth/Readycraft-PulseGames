@@ -75,6 +75,7 @@ public final class GameInstance {
             this.world = loaded;
             this.state = GameState.WAITING;
             logic.onWorldReady();
+            plugin.npcs().spawnForInstance(this);
             tasks.add(Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L));
         }, () -> {
             broadcast("<red>Failed to load the map. The game was cancelled.");
@@ -487,6 +488,7 @@ public final class GameInstance {
         spectators.clear();
         assistants.clear();
         if (world != null) {
+            plugin.npcs().despawnForInstance(this);
             plugin.worlds().unloadAndDelete(world);
             world = null;
         }

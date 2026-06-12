@@ -45,6 +45,10 @@ Restrict a map to certain modes with `/pulse setup set modes <mode1,mode2>`.
   through them between ticks - especially for elytra and karts.
 - The waiting lobby should be enclosed (players can move freely there before the game).
 - After saving you can re-run setup with the same id to overwrite the arena.
+- **Map NPCs** (needs [Citizens](https://citizensnpcs.co/)): while standing in the
+  template world (`/pulse world <name>`), run `/pulse npc create greeter <name>` and add
+  chat lines with `/pulse npc line <id> <text>`. A copy of the NPC appears in every game
+  instance cloned from that map and chats to players who walk near it.
 
 ---
 

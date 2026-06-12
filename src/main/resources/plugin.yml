@@ -2,6 +2,7 @@ name: PulseGames
 version: "${version}"
 main: uk.co.playerready.pulsegames.PulseGamesPlugin
 api-version: '1.21'
+softdepend: [Citizens]
 author: PlayerReady
 description: Multi-instance minigame engine for the Readycraft network.
 commands:
@@ -31,5 +32,5 @@ commands:
     description: View your achievements.
   pulse:
     description: PulseGames admin commands.
-    usage: /pulse <list|start|end|setlobby|reload>
+    usage: /pulse <setup|npc|list|start|end|setlobby|reload>
     permission: pulsegames.admin

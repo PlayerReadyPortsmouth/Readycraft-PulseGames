@@ -12,16 +12,26 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import uk.co.playerready.pulsegames.PulseGamesPlugin;
+import uk.co.playerready.pulsegames.core.util.MenuFx;
 import uk.co.playerready.pulsegames.core.util.Text;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /** The token shop GUI: cosmetics, kit unlocks and boosters. */
 public final class TokenShopMenu implements Listener {
 
+    private static final String TITLE_TAG = "<gradient:#ffc371:#ffd700><b>";
+
     private static final int BOOSTER_PRICE = 500;
     private static final int BOOSTER_MINUTES = 60;
+
+    private static final int BALANCE_SLOT = 13;
+    private static final int[] CATEGORY_SLOTS = {19, 21, 23, 25};
+    private static final int BOOSTER_SLOT = 31;
+    private static final int BACK_SLOT = 31;
 
     private final PulseGamesPlugin plugin;
 
@@ -31,13 +41,14 @@ public final class TokenShopMenu implements Listener {
 
     private static final class ShopHolder implements InventoryHolder {
         Cosmetic.Category category; // null = main menu
+        final Map<Integer, Cosmetic> bySlot = new HashMap<>();
         Inventory inventory;
         @Override public Inventory getInventory() { return inventory; }
     }
 
     public void openMain(Player player) {
         ShopHolder holder = new ShopHolder();
-        Inventory inv = Bukkit.createInventory(holder, 27, Text.mm("<dark_gray>Token Shop"));
+        Inventory inv = Bukkit.createInventory(holder, 45, Text.mm(TITLE_TAG + "Token Shop"));
         holder.inventory = inv;
 
         ItemStack balance = new ItemStack(Material.SUNFLOWER);
@@ -48,11 +59,10 @@ public final class TokenShopMenu implements Listener {
                     Text.mm("<gray>winning, kills, playtime and"),
                     Text.mm("<gray>daily logins!")));
         });
-        inv.setItem(4, balance);
+        inv.setItem(BALANCE_SLOT, balance);
 
         Cosmetic.Category[] categories = Cosmetic.Category.values();
-        int[] slots = {10, 12, 14, 16};
-        for (int i = 0; i < categories.length; i++) {
+        for (int i = 0; i < categories.length && i < CATEGORY_SLOTS.length; i++) {
             Cosmetic.Category category = categories[i];
             ItemStack item = new ItemStack(category.icon);
             long owned = CosmeticsService.byCategory(category).stream()
@@ -63,7 +73,7 @@ public final class TokenShopMenu implements Listener {
                         Text.mm("<gray>Unlocked: <white>" + owned + "/" + CosmeticsService.byCategory(category).size()),
                         Text.mm("<green>Click to browse!")));
             });
-            inv.setItem(slots[i], item);
+            inv.setItem(CATEGORY_SLOTS[i], item);
         }
 
         ItemStack booster = new ItemStack(Material.EXPERIENCE_BOTTLE);
@@ -74,18 +84,21 @@ public final class TokenShopMenu implements Listener {
                     Text.mm(active ? "<green>Currently active!" : "<gray>Doubles all token earnings"),
                     Text.mm("<gold>⛀ " + BOOSTER_PRICE + " <gray>- click to buy" + (active ? " (extends)" : ""))));
         });
-        inv.setItem(22, booster);
-        player.openInventory(inv);
+        inv.setItem(BOOSTER_SLOT, booster);
+        plugin.menuFx().open(player, inv);
     }
 
     public void openCategory(Player player, Cosmetic.Category category) {
         ShopHolder holder = new ShopHolder();
         holder.category = category;
-        Inventory inv = Bukkit.createInventory(holder, 27, Text.mm("<dark_gray>" + category.displayName));
+        Inventory inv = Bukkit.createInventory(holder, 45, Text.mm(TITLE_TAG + category.displayName));
         holder.inventory = inv;
         List<Cosmetic> items = CosmeticsService.byCategory(category);
         String equipped = plugin.economy().equipped(player, category);
-        for (int i = 0; i < items.size() && i < 26; i++) {
+        // Interior slots minus the bottom-centre one reserved for the back button.
+        List<Integer> slots = new ArrayList<>(MenuFx.interiorSlots(45));
+        slots.remove(Integer.valueOf(BACK_SLOT));
+        for (int i = 0; i < items.size() && i < slots.size(); i++) {
             Cosmetic cosmetic = items.get(i);
             boolean owned = plugin.economy().isUnlocked(player, cosmetic.id());
             boolean isEquipped = cosmetic.id().equals(equipped);
@@ -104,12 +117,14 @@ public final class TokenShopMenu implements Listener {
                 }
                 meta.lore(lore);
             });
-            inv.setItem(i, item);
+            int slot = slots.get(i);
+            inv.setItem(slot, item);
+            holder.bySlot.put(slot, cosmetic);
         }
         ItemStack back = new ItemStack(Material.ARROW);
         back.editMeta(meta -> meta.displayName(Text.mm("<gray>« Back")));
-        inv.setItem(26, back);
-        player.openInventory(inv);
+        inv.setItem(BACK_SLOT, back);
+        plugin.menuFx().open(player, inv);
     }
 
     @EventHandler
@@ -122,23 +137,21 @@ public final class TokenShopMenu implements Listener {
 
         if (holder.category == null) {
             Cosmetic.Category[] categories = Cosmetic.Category.values();
-            switch (slot) {
-                case 10 -> openCategory(player, categories[0]);
-                case 12 -> openCategory(player, categories[1]);
-                case 14 -> openCategory(player, categories[2]);
-                case 16 -> openCategory(player, categories[3]);
-                case 22 -> buyBooster(player);
-                default -> { }
+            for (int i = 0; i < categories.length && i < CATEGORY_SLOTS.length; i++) {
+                if (slot == CATEGORY_SLOTS[i]) {
+                    openCategory(player, categories[i]);
+                    return;
+                }
             }
+            if (slot == BOOSTER_SLOT) buyBooster(player);
             return;
         }
-        if (slot == 26) {
+        if (slot == BACK_SLOT) {
             openMain(player);
             return;
         }
-        List<Cosmetic> items = CosmeticsService.byCategory(holder.category);
-        if (slot >= items.size()) return;
-        Cosmetic cosmetic = items.get(slot);
+        Cosmetic cosmetic = holder.bySlot.get(slot);
+        if (cosmetic == null) return;
         if (plugin.economy().isUnlocked(player, cosmetic.id())) {
             boolean isEquipped = cosmetic.id().equals(plugin.economy().equipped(player, holder.category));
             plugin.economy().equip(player, holder.category, isEquipped ? null : cosmetic.id());

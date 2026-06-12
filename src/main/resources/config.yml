@@ -37,6 +37,13 @@ messages:
   # Supportive messages when players are eliminated (great for younger players).
   encouragement: true
 
+# Citizens-backed NPCs (requires the Citizens plugin; manage with /pulse npc).
+npc:
+  # Default trigger distance (blocks) for greeter NPC chat lines.
+  chat-radius: 4
+  # Seconds before the same NPC speaks to the same player again.
+  chat-cooldown-seconds: 25
+
 economy:
   # Pulse Tokens earned for...
   win-reward: 50

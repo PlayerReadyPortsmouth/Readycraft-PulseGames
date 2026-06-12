@@ -47,6 +47,15 @@ throwaway copy of a map world.
   **kill effects, victory effects, lobby trails, Kit PvP kit unlocks and 2x token boosters**.
 - **Shape schematics** - generate arena geometry from JSON data files
   (`/pulse shape paste <file>`); see the map guide. Author maps as code, paste them in-game.
+- **Citizens NPCs** (optional, needs the [Citizens](https://citizensnpcs.co/) plugin) -
+  `/pulse npc create game <game>` places an NPC that opens that game's play menu on
+  right-click (`menu` for the full game list); `/pulse npc create greeter` places an NPC
+  that chats to players who walk near it (`/pulse npc line <id> <text>` to add lines).
+  Place greeters in the lobby, or in a map template world (`/pulse world`) to have them
+  appear inside every game instance on that map. Without Citizens installed everything
+  else works as normal.
+- **Animated menus** - lobby GUIs (game menu, token shop) have a flowing animated
+  gradient border; calm-mode players get a static border instead.
 
 ## Building
 
@@ -135,6 +144,7 @@ version-0 UUIDs) and adapts:
 | `/pulse world <name>` | load/create a build world on this server |
 | `/pulse leaderboard add <game|overall> / clear` | place/remove lobby leaderboards |
 | `/pulse event on/off/name/multiplier` | seasonal token events |
+| `/pulse npc create/line/skin/radius/remove/list` | Citizens NPCs (game pickers + greeters) |
 | `/pulse list / arenas / games` | inspect running instances, maps, games |
 | `/pulse start / end` | force-start/-end the game you're in |
 | `/pulse setlobby / reload` | hub spawn / reload configs |
