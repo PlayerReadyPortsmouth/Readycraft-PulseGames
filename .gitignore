@@ -32,3 +32,6 @@ build/
 .idea/
 *.iml
 .vscode/
+
+# Agent worktrees
+.claude/
