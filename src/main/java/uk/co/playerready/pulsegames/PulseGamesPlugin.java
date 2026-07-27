@@ -71,8 +71,18 @@ public final class PulseGamesPlugin extends JavaPlugin {
         mapBuilder = new MapBuilder(this);
 
         worlds.purgeLeftovers();
-        arenas.load();
-        kits.load();
+        // A broken arenas/ or kits.yml must not take the rest of the wiring down with
+        // it - without commands and listeners the plugin is inert on the whole network.
+        try {
+            arenas.load();
+        } catch (Exception ex) {
+            getLogger().severe("Arena load failed; continuing with no arenas: " + ex);
+        }
+        try {
+            kits.load();
+        } catch (Exception ex) {
+            getLogger().severe("Kit load failed; continuing with no kits: " + ex);
+        }
         GameCatalog.registerAll(registry);
 
         getServer().getPluginManager().registerEvents(new GameListener(this), this);
@@ -86,7 +96,13 @@ public final class PulseGamesPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        if (instances != null) instances.shutdownAll();
+        // The flushes below are the only persistence for stats and Pulse Tokens since
+        // the last 60s autosave, so nothing above them may abort onDisable.
+        try {
+            if (instances != null) instances.shutdownAll();
+        } catch (Throwable ex) {
+            getLogger().severe("Instance shutdown failed: " + ex);
+        }
         if (stats != null) stats.flush();
         if (economy != null) economy.flush();
     }

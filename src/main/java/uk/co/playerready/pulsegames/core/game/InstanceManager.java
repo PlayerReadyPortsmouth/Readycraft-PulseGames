@@ -58,9 +58,18 @@ public final class InstanceManager {
         return instance;
     }
 
+    /**
+     * Shuts every instance down. One instance failing must not stop the rest, and must
+     * not abort the caller: onDisable() flushes stats and token balances after this, and
+     * those writes are the last chance to persist a finished round.
+     */
     public void shutdownAll() {
         for (GameInstance instance : new ArrayList<>(instances)) {
-            instance.cleanup();
+            try {
+                instance.cleanup();
+            } catch (Throwable ex) {
+                plugin.getLogger().severe("Instance cleanup failed during shutdown: " + ex);
+            }
         }
     }
 }

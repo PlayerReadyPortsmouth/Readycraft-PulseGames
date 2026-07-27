@@ -53,13 +53,38 @@ import java.util.Map;
  */
 public final class MapBuilder {
 
+    /** A build that never reports back (a throw inside a scheduled batch, a shutdown
+     *  mid-capture) used to wedge the lock until the server restarted. */
+    private static final long BUILD_LOCK_STALE_MILLIS = 10 * 60 * 1000L;
+
     private final PulseGamesPlugin plugin;
     /** Only one build at a time: capturing a world while another is mid-build
      *  races on chunk saving and silently produces an empty template. */
     private boolean building;
+    private long buildingSince;
 
     public MapBuilder(PulseGamesPlugin plugin) {
         this.plugin = plugin;
+    }
+
+    private boolean buildInProgress() {
+        if (!building) return false;
+        if (System.currentTimeMillis() - buildingSince > BUILD_LOCK_STALE_MILLIS) {
+            plugin.getLogger().warning("Previous map build never finished; releasing the build lock.");
+            endBuild();
+            return false;
+        }
+        return true;
+    }
+
+    private void startBuild() {
+        building = true;
+        buildingSince = System.currentTimeMillis();
+    }
+
+    private void endBuild() {
+        building = false;
+        buildingSince = 0L;
     }
 
     private File blueprintsDir() {
@@ -88,7 +113,7 @@ public final class MapBuilder {
                     + String.join(", ", available()));
             return;
         }
-        if (building) {
+        if (buildInProgress()) {
             msg(sender, "<red>Another map build is in progress - wait for it to finish, then retry.");
             return;
         }
@@ -104,6 +129,12 @@ public final class MapBuilder {
         GameType game;
         try {
             arenaId = req(bp, "arena-id").getAsString().toLowerCase(Locale.ROOT);
+            // The id becomes a world folder and a map-template folder that gets deleted
+            // recursively, so anything that could escape those folders is refused here.
+            if (!WorldService.isValidTemplateId(arenaId)) {
+                throw new IllegalArgumentException("invalid arena-id '" + arenaId
+                        + "' (allowed: a-z, 0-9, '_' and '-', up to 32 characters)");
+            }
             game = plugin.registry().get(req(bp, "game").getAsString());
             if (game == null) throw new IllegalArgumentException("unknown game '" + bp.get("game").getAsString() + "'");
         } catch (Exception ex) {
@@ -140,12 +171,12 @@ public final class MapBuilder {
 
         msg(sender, "Building <yellow>" + arenaId + "</yellow> (" + game.id() + ") - stamping "
                 + shapes.size() + " shape(s)...");
-        building = true;
+        startBuild();
         try {
             plugin.shapes().build(world, originLoc, shapes,
                     () -> finish(sender, bp, game, arenaId, worldName, world));
         } catch (Exception ex) {
-            building = false;
+            endBuild();
             msg(sender, "<red>Geometry error: " + ex.getMessage());
             plugin.worlds().unloadAndDelete(world);
         }
@@ -156,22 +187,28 @@ public final class MapBuilder {
         try {
             writeArenaFile(bp, game, arenaId);
         } catch (Exception ex) {
-            building = false;
+            endBuild();
             msg(sender, "<red>Could not write arena file: " + ex.getMessage());
             plugin.worlds().unloadAndDelete(world);
             return;
         }
         msg(sender, "<gray>Geometry done. Capturing world template <yellow>" + arenaId + "</yellow>...");
         plugin.worlds().saveAsTemplate(world, arenaId, () -> {
-            building = false;
-            plugin.worlds().unloadAndDelete(world);
-            plugin.arenas().load();
-            msg(sender, "<green><b>Arena " + arenaId + " is live!</b></green> <gray>Try <yellow>/play "
-                    + game.id());
+            try {
+                plugin.worlds().unloadAndDelete(world);
+                plugin.arenas().load();
+                msg(sender, "<green><b>Arena " + arenaId + " is live!</b></green> <gray>Try <yellow>/play "
+                        + game.id());
+            } finally {
+                endBuild();
+            }
         }, error -> {
-            building = false;
-            msg(sender, "<red>World capture failed: " + error);
-            plugin.worlds().unloadAndDelete(world);
+            try {
+                msg(sender, "<red>World capture failed: " + error);
+                plugin.worlds().unloadAndDelete(world);
+            } finally {
+                endBuild();
+            }
         });
     }
 
@@ -247,7 +284,9 @@ public final class MapBuilder {
         double z = a.get(2).getAsDouble();
         double yaw = a.size() > 3 ? a.get(3).getAsDouble() : 0;
         double pitch = a.size() > 4 ? a.get(4).getAsDouble() : 0;
-        return "%.2f,%.2f,%.2f,%.1f,%.1f".formatted(x, y, z, yaw, pitch);
+        // Locale.ROOT: these strings are parsed back by splitting on ',', so a
+        // comma-decimal default locale would corrupt every coordinate written here.
+        return String.format(Locale.ROOT, "%.2f,%.2f,%.2f,%.1f,%.1f", x, y, z, yaw, pitch);
     }
 
     private void msg(CommandSender sender, String miniMessage) {

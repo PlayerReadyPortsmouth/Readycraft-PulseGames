@@ -54,6 +54,7 @@ import java.util.concurrent.ThreadLocalRandom;
 public final class ShapeService {
 
     private static final int BLOCKS_PER_TICK = 4000;
+    private static final int DEFAULT_MAX_BLOCKS = 2_000_000;
 
     private final JavaPlugin plugin;
     private final Map<UUID, Map<Location, BlockData>> undoBuffers = new HashMap<>();
@@ -162,6 +163,33 @@ public final class ShapeService {
         }.accept(0);
     }
 
+    // ---- limits ----------------------------------------------------------------------
+
+    private int maxBlocks() {
+        return Math.max(1, plugin.getConfig().getInt("limits.max-shape-blocks", DEFAULT_MAX_BLOCKS));
+    }
+
+    /**
+     * Every primitive projects its block count before it starts looping. Radii and
+     * counts come straight from a JSON file, and the placement map is built entirely
+     * on the main thread before {@link #applyBatched} yields a tick - so an unchecked
+     * "radius": 2000 hangs the server outright rather than merely lagging it.
+     * Projections are computed in {@code double} so an absurd value cannot overflow
+     * its way back under the limit.
+     */
+    private void checkBudget(Map<Location, BlockData> out, double projected, String type) {
+        int max = maxBlocks();
+        if (projected + out.size() > max) {
+            throw new IllegalArgumentException(type + " would place about "
+                    + (long) Math.min(projected, Long.MAX_VALUE) + " blocks; the limit is "
+                    + max + " (limits.max-shape-blocks in config.yml)");
+        }
+    }
+
+    private static double span(int a, int b) {
+        return Math.abs((double) a - (double) b) + 1;
+    }
+
     // ---- primitives ----------------------------------------------------------------
 
     private void buildShape(JsonObject shape, Location origin, Map<Location, BlockData> out) {
@@ -185,6 +213,7 @@ public final class ShapeService {
         int minX = Math.min(from[0], to[0]), maxX = Math.max(from[0], to[0]);
         int minY = Math.min(from[1], to[1]), maxY = Math.max(from[1], to[1]);
         int minZ = Math.min(from[2], to[2]), maxZ = Math.max(from[2], to[2]);
+        checkBudget(out, span(minX, maxX) * span(minY, maxY) * span(minZ, maxZ), "box");
         for (int x = minX; x <= maxX; x++)
             for (int y = minY; y <= maxY; y++)
                 for (int z = minZ; z <= maxZ; z++) {
@@ -199,6 +228,7 @@ public final class ShapeService {
         int height = shape.has("height") ? shape.get("height").getAsInt() : 1;
         boolean hollow = bool(shape, "hollow");
         int r = (int) Math.ceil(radius);
+        checkBudget(out, (2 * radius + 1) * (2 * radius + 1) * Math.max(0, height), "cylinder");
         for (int x = -r; x <= r; x++)
             for (int z = -r; z <= r; z++) {
                 double dist = Math.sqrt(x * x + z * z);
@@ -215,6 +245,8 @@ public final class ShapeService {
         double radius = shape.get("radius").getAsDouble();
         boolean hollow = bool(shape, "hollow");
         int r = (int) Math.ceil(radius);
+        double side = 2 * radius + 1;
+        checkBudget(out, side * side * (dome ? radius + 1 : side), dome ? "dome" : "sphere");
         for (int x = -r; x <= r; x++)
             for (int y = dome ? 0 : -r; y <= r; y++)
                 for (int z = -r; z <= r; z++) {
@@ -231,6 +263,7 @@ public final class ShapeService {
         int countZ = shape.get("countZ").getAsInt();
         int spacing = shape.get("spacing").getAsInt();
         int height = shape.get("height").getAsInt();
+        checkBudget(out, (double) Math.max(0, countX) * Math.max(0, countZ) * Math.max(0, height), "pillars");
         for (int ix = 0; ix < countX; ix++)
             for (int iz = 0; iz < countZ; iz++)
                 for (int y = 0; y < height; y++) {
@@ -242,6 +275,7 @@ public final class ShapeService {
     private void ring(JsonObject shape, Location origin, Map<Location, BlockData> out) {
         int[] center = vec(shape, "center");
         double radius = shape.get("radius").getAsDouble();
+        checkBudget(out, Math.max(16, radius * 8), "ring");
         int segments = (int) Math.max(16, radius * 8);
         for (int i = 0; i < segments; i++) {
             double angle = 2 * Math.PI * i / segments;
@@ -257,6 +291,7 @@ public final class ShapeService {
         List<Material> materials = materials(shape);
         int minX = Math.min(from[0], to[0]), maxX = Math.max(from[0], to[0]);
         int minZ = Math.min(from[2], to[2]), maxZ = Math.max(from[2], to[2]);
+        checkBudget(out, span(minX, maxX) * span(minZ, maxZ), "checker");
         for (int x = minX; x <= maxX; x++)
             for (int z = minZ; z <= maxZ; z++) {
                 Material material = materials.get(Math.abs(x + z) % materials.size());
@@ -273,6 +308,9 @@ public final class ShapeService {
         int minX = Math.min(from[0], to[0]), maxX = Math.max(from[0], to[0]);
         int minY = Math.min(from[1], to[1]), maxY = Math.max(from[1], to[1]);
         int minZ = Math.min(from[2], to[2]), maxZ = Math.max(from[2], to[2]);
+        // Scanned in full even though only `density` of it is placed, so the scan
+        // volume - not the placed count - is what has to stay bounded.
+        checkBudget(out, span(minX, maxX) * span(minY, maxY) * span(minZ, maxZ), "scatter");
         for (int x = minX; x <= maxX; x++)
             for (int y = minY; y <= maxY; y++)
                 for (int z = minZ; z <= maxZ; z++) {

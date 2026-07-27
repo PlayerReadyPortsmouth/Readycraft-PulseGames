@@ -3,6 +3,8 @@ package uk.co.playerready.pulsegames.core.util;
 import org.bukkit.Location;
 import org.bukkit.World;
 
+import java.util.Locale;
+
 /** Serializes locations as "x,y,z[,yaw,pitch]" relative to a world chosen at runtime. */
 public final class LocUtil {
 
@@ -19,7 +21,10 @@ public final class LocUtil {
         return new Location(world, x, y, z, yaw, pitch);
     }
 
+    /** Locale.ROOT is load-bearing: parse() splits on ',', so a comma-decimal default
+     *  locale ("12,50") would write coordinates that read back as different numbers. */
     public static String serialize(Location loc) {
-        return "%.2f,%.2f,%.2f,%.1f,%.1f".formatted(loc.getX(), loc.getY(), loc.getZ(), loc.getYaw(), loc.getPitch());
+        return String.format(Locale.ROOT, "%.2f,%.2f,%.2f,%.1f,%.1f",
+                loc.getX(), loc.getY(), loc.getZ(), loc.getYaw(), loc.getPitch());
     }
 }
