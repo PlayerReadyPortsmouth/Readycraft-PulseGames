@@ -35,6 +35,9 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public final class GameInstance {
 
+    /** Consecutive throws from game logic before the instance is force-ended. */
+    private static final int MAX_LOGIC_FAILURES = 5;
+
     private final PulseGamesPlugin plugin;
     private final String id;
     private final GameType type;
@@ -47,6 +50,8 @@ public final class GameInstance {
     private int countdown;
     private int gameTime;
     private long frozenUntil;
+    private long emptySince;
+    private int logicFailures;
 
     private final Set<UUID> participants = new LinkedHashSet<>();
     private final Set<UUID> alive = new LinkedHashSet<>();
@@ -93,8 +98,26 @@ public final class GameInstance {
     public List<GameTeam> teams() { return teams; }
     public boolean frozen() { return System.currentTimeMillis() < frozenUntil; }
 
-    public int maxPlayers() { return Math.min(arena.maxPlayers(), mode.maxPlayers()); }
+    /**
+     * Capacity is the arena's, not just the mode's: a map with fewer spawns/beds/plots
+     * than the mode allows must not admit players it has nowhere to put.
+     */
+    public int maxPlayers() {
+        int cap = Math.min(arena.maxPlayers(), mode.maxPlayers());
+        cap = Math.min(cap, logic.arenaPlayerCap());
+        if (mode.isTeams()) cap = Math.min(cap, teamCount() * mode.teamSize());
+        return Math.max(cap, mode.isTeams() ? 2 : 1);
+    }
+
     public int minPlayers() { return Math.max(arena.minPlayers(), mode.minPlayers()); }
+
+    /**
+     * Teams this arena can host: never below 2 (a single team can't fight itself) and
+     * never more than the map has spawns, or game-specific per-team features, for.
+     */
+    public int teamCount() {
+        return Math.max(2, Math.min(arena.spawnCount(), logic.maxTeams()));
+    }
 
     public boolean joinable(int count) {
         return (state == GameState.WAITING || state == GameState.COUNTDOWN)
@@ -192,6 +215,8 @@ public final class GameInstance {
     // ---- state machine -------------------------------------------------------
 
     private void tick() {
+        tasks.removeIf(BukkitTask::isCancelled);
+        if (reapIfAbandoned()) return;
         switch (state) {
             case WAITING -> {
                 if (participants.size() >= minPlayers()) {
@@ -202,9 +227,9 @@ public final class GameInstance {
             case COUNTDOWN -> tickCountdown();
             case RUNNING -> {
                 gameTime++;
-                logic.onSecond(gameTime);
+                runLogic("onSecond", () -> logic.onSecond(gameTime));
                 if (state == GameState.RUNNING && gameTime >= logic.timeLimitSeconds()) {
-                    logic.onTimeUp();
+                    runLogic("onTimeUp", logic::onTimeUp);
                 }
             }
             case ENDING -> {
@@ -214,6 +239,51 @@ public final class GameInstance {
         }
         if (state == GameState.WAITING || state == GameState.COUNTDOWN || state == GameState.RUNNING) {
             updateSidebars();
+        }
+    }
+
+    /**
+     * Pre-start lobbies are exempt from the empty-instance cleanup in {@link #remove},
+     * so an abandoned queue would otherwise hold its cloned world and one of the
+     * max-concurrent slots until the server restarts.
+     */
+    private boolean reapIfAbandoned() {
+        boolean pending = state == GameState.WAITING || state == GameState.COUNTDOWN;
+        if (!pending || !participants.isEmpty() || !spectators.isEmpty()) {
+            emptySince = 0L;
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        if (emptySince == 0L) {
+            emptySince = now;
+            return false;
+        }
+        long idleMillis = plugin.getConfig().getInt("instances.empty-lobby-seconds", 60) * 1000L;
+        if (now - emptySince < idleMillis) return false;
+        cleanup();
+        return true;
+    }
+
+    /**
+     * Runs a game-logic hook. One repeatable throw would otherwise strand the instance
+     * in RUNNING forever, holding a world and a concurrency slot.
+     */
+    private void runLogic(String hook, Runnable action) {
+        try {
+            action.run();
+            logicFailures = 0;
+        } catch (Exception ex) {
+            plugin.getLogger().log(java.util.logging.Level.SEVERE,
+                    "Game logic error in " + type.id() + "." + hook + " (instance " + id + ")", ex);
+            if (++logicFailures < MAX_LOGIC_FAILURES) return;
+            broadcast("<red>This game hit an error and had to be stopped.");
+            try {
+                forceEnd();
+            } catch (Exception fatal) {
+                plugin.getLogger().log(java.util.logging.Level.SEVERE,
+                        "Could not force-end instance " + id + "; discarding it", fatal);
+                cleanup();
+            }
         }
     }
 
@@ -228,7 +298,7 @@ public final class GameInstance {
             countdown = full;
             broadcast("<green>Arena full! Starting soon.");
         }
-        logic.onCountdownTick(countdown);
+        runLogic("onCountdownTick", () -> logic.onCountdownTick(countdown));
         if (countdown <= 5 || countdown == 10 || countdown == 15 || countdown == 30) {
             broadcast("<gray>Starting in <yellow>" + countdown + "s");
             for (Player p : players()) {
@@ -244,14 +314,16 @@ public final class GameInstance {
     }
 
     public void start() {
-        if (state == GameState.RUNNING) return;
+        // Only a pre-start lobby may start: replaying a RUNNING/ENDING round re-awards
+        // wins and tokens, and a LOADING one has no world to teleport into.
+        if (state != GameState.WAITING && state != GameState.COUNTDOWN) return;
         state = GameState.RUNNING;
         gameTime = 0;
         alive.clear();
         alive.addAll(participants);
         if (mode.isTeams()) {
             teams.clear();
-            teams.addAll(TeamAllocator.allocate(players(), mode.teamSize(), plugin.parties()));
+            teams.addAll(TeamAllocator.allocate(players(), mode.teamSize(), teamCount(), plugin.parties()));
         }
         int i = 0;
         for (Player p : players()) {
@@ -273,7 +345,7 @@ public final class GameInstance {
             }
         }
         frozenUntil = System.currentTimeMillis() + logic.startFreezeSeconds() * 1000L;
-        logic.onStart();
+        runLogic("onStart", logic::onStart);
     }
 
     /** Player spawn point: their team's spawn, or their join-order spawn for FFA. */
@@ -324,8 +396,9 @@ public final class GameInstance {
         player.setGameMode(org.bukkit.GameMode.SPECTATOR);
         player.teleport(arena.spectator(world));
         Text.title(player, "<red><b>ELIMINATED", "<gray>You are now spectating");
-        player.sendMessage(Text.msg("<gray>You're spectating - use the vanilla spectator menu "
-                + "(<yellow>1</yellow>) to follow players, or <yellow>/lobby</yellow> to leave."));
+        // Bedrock clients have no vanilla spectator menu, so only name what works everywhere.
+        player.sendMessage(Text.msg("<gray>You're spectating - fly around to watch the rest of the "
+                + "game, or type <yellow>/lobby</yellow> to leave."));
         logic.onEliminated(player);
         checkEnd();
     }
@@ -351,7 +424,10 @@ public final class GameInstance {
             if (remaining.size() <= 1) {
                 end(remaining.isEmpty() ? List.of() : alivePlayers(), "last-team");
             }
-        } else if (alive.size() <= 1) {
+        } else if (alive.isEmpty()) {
+            end(List.of(), "nobody-left");
+        } else if (!logic.cooperative() && alive.size() <= 1) {
+            // Co-op games are won against the map, so one survivor is not a winner.
             end(alivePlayers(), "last-standing");
         }
     }
@@ -391,7 +467,7 @@ public final class GameInstance {
                 plugin.cosmetics().playWinEffect(winner);
             }
         });
-        logic.onEnd(winners);
+        runLogic("onEnd", () -> logic.onEnd(winners));
     }
 
     private void spawnFirework(Location loc) {
@@ -433,7 +509,7 @@ public final class GameInstance {
             world = null;
         }
         plugin.instances().remove(this);
-        plugin.stats().flush();
+        plugin.stats().flushAsync();
     }
 
     // ---- helpers -----------------------------------------------------------------
@@ -448,10 +524,19 @@ public final class GameInstance {
         for (Player p : everyone()) p.sendMessage(component);
     }
 
+    /**
+     * One-shot tasks drop themselves from the cancel-on-cleanup list once they have run.
+     * Games schedule one per crumbling block, so keeping every finished handle grows the
+     * list into the tens of thousands over a single round.
+     */
     public BukkitTask runLater(long delayTicks, Runnable runnable) {
-        BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin, runnable, delayTicks);
-        tasks.add(task);
-        return task;
+        BukkitTask[] handle = new BukkitTask[1];
+        handle[0] = Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            tasks.remove(handle[0]);
+            runnable.run();
+        }, delayTicks);
+        tasks.add(handle[0]);
+        return handle[0];
     }
 
     public BukkitTask runRepeating(long delayTicks, long periodTicks, Runnable runnable) {

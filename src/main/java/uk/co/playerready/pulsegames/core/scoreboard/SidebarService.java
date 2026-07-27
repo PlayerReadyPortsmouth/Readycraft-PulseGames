@@ -30,10 +30,11 @@ public final class SidebarService {
             board.resetScores(entry);
         }
         int score = miniMessageLines.size();
-        int pad = 0;
         for (String line : miniMessageLines) {
             String rendered = Text.legacy(Text.mm(line));
-            // Ensure uniqueness for duplicate (e.g. blank) lines.
+            // Ensure uniqueness for duplicate (e.g. blank) lines. The pad budget is
+            // per line: shared across lines it runs out and later lines collide.
+            int pad = 0;
             while (board.getEntries().contains(rendered)) {
                 rendered += "§r";
                 if (++pad > 32) break;

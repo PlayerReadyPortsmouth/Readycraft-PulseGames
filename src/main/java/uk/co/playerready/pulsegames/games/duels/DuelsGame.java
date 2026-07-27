@@ -3,6 +3,7 @@ package uk.co.playerready.pulsegames.games.duels;
 import org.bukkit.entity.Player;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import uk.co.playerready.pulsegames.core.game.GameInstance;
+import uk.co.playerready.pulsegames.core.game.GameState;
 import uk.co.playerready.pulsegames.core.game.MiniGame;
 import uk.co.playerready.pulsegames.core.kit.Kit;
 import uk.co.playerready.pulsegames.core.util.Text;
@@ -83,9 +84,17 @@ public final class DuelsGame extends MiniGame {
         victim.teleport(game.arena().spectator(game.world()));
         victim.setGameMode(org.bukkit.GameMode.SPECTATOR);
         game.runLater(60L, () -> {
+            // The match can be decided in this window (a disconnect ends it), and
+            // restarting a round mid-ENDING wipes the winner's inventory.
+            if (game.state() != GameState.RUNNING) return;
             if (victim.isOnline()) victim.setGameMode(playGameMode());
             startRound();
         });
+    }
+
+    @Override
+    public void onQuit(Player player) {
+        roundWins.remove(player.getUniqueId());
     }
 
     @Override

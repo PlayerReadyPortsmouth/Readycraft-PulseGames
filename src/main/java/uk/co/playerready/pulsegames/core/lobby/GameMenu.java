@@ -87,6 +87,9 @@ public final class GameMenu implements Listener {
         if (!(event.getInventory().getHolder() instanceof MenuHolder holder)) return;
         event.setCancelled(true);
         if (!(event.getWhoClicked() instanceof Player player)) return;
+        // Slots in the player's own inventory share the click event; without this a click
+        // on your own hotbar queues you into whichever game sits in the matching menu slot.
+        if (event.getClickedInventory() != event.getInventory()) return;
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getType() == Material.AIR) return;
 
