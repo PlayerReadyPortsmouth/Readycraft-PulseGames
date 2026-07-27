@@ -142,6 +142,12 @@ public final class PulseKartsGame extends CheckpointRaceGame {
     }
 
     @Override
+    public void onQuit(Player player) {
+        super.onQuit(player);
+        boxCooldown.remove(player.getUniqueId());
+    }
+
+    @Override
     public void onEnd(List<Player> winners) {
         game.world().getEntitiesByClass(Boat.class).forEach(Boat::remove);
     }

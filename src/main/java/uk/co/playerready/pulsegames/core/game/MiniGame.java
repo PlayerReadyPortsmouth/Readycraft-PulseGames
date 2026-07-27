@@ -84,6 +84,24 @@ public abstract class MiniGame {
 
     public boolean pvp() { return false; }
 
+    /**
+     * Cooperative games are won or lost together, so the engine's FFA "last player
+     * standing" rule must not fire when a teammate leaves or is downed.
+     */
+    public boolean cooperative() { return false; }
+
+    /**
+     * Hard cap on teams this arena can host, where the map needs one dedicated
+     * feature per team (Bedwars: one bed region). Default: no game-specific limit.
+     */
+    public int maxTeams() { return Integer.MAX_VALUE; }
+
+    /**
+     * Hard cap on players this arena can host, where the map needs one dedicated
+     * feature per player (Build Battle: one plot). Default: no game-specific limit.
+     */
+    public int arenaPlayerCap() { return Integer.MAX_VALUE; }
+
     public boolean fallDamage() { return false; }
 
     /** All other environmental damage (fire, lava, suffocation, mobs...). */
@@ -94,6 +112,12 @@ public abstract class MiniGame {
     public boolean canBreak(Player player, Block block) { return false; }
 
     public boolean canPlace(Player player, Block block) { return false; }
+
+    /**
+     * May an explosion remove this block? Games that own destructible state (Bedwars beds)
+     * must route it through their own bookkeeping here, not just allow the removal.
+     */
+    public boolean canExplode(Block block) { return false; }
 
     public boolean itemDrops() { return false; }
 

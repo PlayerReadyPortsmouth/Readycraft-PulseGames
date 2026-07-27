@@ -48,14 +48,20 @@ public final class KothGame extends MiniGame {
     @Override
     public void onSecond(int gameTime) {
         if (hill == null) return;
-        for (Player player : game.alivePlayers()) {
-            if (!hill.contains(player.getLocation())) continue;
+        List<Player> onHill = game.alivePlayers().stream()
+                .filter(p -> hill.contains(p.getLocation())).toList();
+        // One point per team per second, not per player: stacking the hill would otherwise
+        // scale a team's capture rate with its size and win in a fraction of the time.
+        onHill.stream()
+                .map(game::teamOf)
+                .filter(java.util.Objects::nonNull)
+                .map(GameTeam::index)
+                .distinct()
+                .forEach(index -> teamScores.merge(index, 1, Integer::sum));
+        for (Player player : onHill) {
             GameTeam team = game.teamOf(player);
-            if (team != null) {
-                teamScores.merge(team.index(), 1, Integer::sum);
-            }
-            game.addScore(player, 1);
-            int shown = team != null ? teamScores.get(team.index()) : game.score(player);
+            if (team == null) game.addScore(player, 1);
+            int shown = team != null ? teamScores.getOrDefault(team.index(), 0) : game.score(player);
             player.sendActionBar(uk.co.playerready.pulsegames.core.util.Text.mm(
                     "<gold>⚑ Capturing! <yellow>+1</yellow> <gray>(" + shown + "/" + target() + ")"));
             player.getWorld().spawnParticle(org.bukkit.Particle.CRIT,

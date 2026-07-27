@@ -13,8 +13,14 @@ public final class TeamAllocator {
     private TeamAllocator() {
     }
 
-    public static List<GameTeam> allocate(List<Player> players, int teamSize, PartyManager parties) {
-        int teamCount = Math.max(1, (int) Math.ceil(players.size() / (double) teamSize));
+    /**
+     * @param maxTeams what the arena can actually host (spawn points, bed regions...).
+     *                 Teams are never fewer than 2: on a single team nobody can be
+     *                 damaged and every player "wins" the moment the clock runs out.
+     */
+    public static List<GameTeam> allocate(List<Player> players, int teamSize, int maxTeams, PartyManager parties) {
+        int wanted = (int) Math.ceil(players.size() / (double) teamSize);
+        int teamCount = Math.max(2, Math.min(wanted, maxTeams));
         List<GameTeam> teams = new ArrayList<>();
         for (int i = 0; i < teamCount; i++) teams.add(new GameTeam(i));
 
@@ -28,7 +34,11 @@ public final class TeamAllocator {
                         // Prefer the team that already has this player's group-mates.
                         .max(Comparator.comparingInt(t -> (int) group.stream().filter(t::contains).count() * 100
                                 - t.members().size()))
-                        .orElse(teams.get(0));
+                        // Teams can be capped below players/teamSize, so fall back to the
+                        // emptiest team rather than piling everyone onto team 1.
+                        .orElseGet(() -> teams.stream()
+                                .min(Comparator.comparingInt(t -> t.members().size()))
+                                .orElseThrow());
                 best.add(player);
             }
         }

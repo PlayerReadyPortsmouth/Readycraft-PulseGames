@@ -10,6 +10,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import uk.co.playerready.pulsegames.core.game.GameInstance;
+import uk.co.playerready.pulsegames.core.game.GameState;
 import uk.co.playerready.pulsegames.core.game.MiniGame;
 import uk.co.playerready.pulsegames.core.util.Text;
 
@@ -135,7 +136,15 @@ public final class PropHuntGame extends MiniGame {
 
     @Override
     public void onDeath(Player victim, Player killer) {
-        hiders.remove(victim.getUniqueId());
+        if (seekers.contains(victim.getUniqueId())) {
+            // Eliminating a seeker (e.g. the lone seeker falling) would leave a round
+            // with nobody able to find the hiders - put them back at the release point.
+            victim.setFallDistance(0);
+            victim.teleport(seekerHold != null ? seekerHold : game.spawnFor(victim));
+            victim.sendActionBar(Text.mm("<red>You died - back to the start."));
+            return;
+        }
+        if (!hiders.remove(victim.getUniqueId())) return;
         if (isInfection()) {
             seekers.add(victim.getUniqueId());
             game.plugin().playerState().reset(victim);
@@ -147,9 +156,29 @@ public final class PropHuntGame extends MiniGame {
             game.broadcast("<red>" + victim.getName() + "</red> was found! <gray>(" + hiders.size() + " hiders left)");
             game.eliminate(victim);
         }
+        checkWin();
+    }
+
+    /**
+     * Neither role is tracked by the engine's alive set (infection eliminates nobody),
+     * so a disconnect has to prune the role sets and re-run the win condition here or
+     * the round can never be won.
+     */
+    @Override
+    public void onQuit(Player player) {
+        boolean wasSeeker = seekers.remove(player.getUniqueId());
+        boolean wasHider = hiders.remove(player.getUniqueId());
+        if ((!wasSeeker && !wasHider) || game.state() != GameState.RUNNING) return;
+        checkWin();
+    }
+
+    private void checkWin() {
         if (hiders.isEmpty()) {
             game.broadcast("<red><b>All hiders found - seekers win!");
             game.end(game.alivePlayers().stream().filter(p -> seekers.contains(p.getUniqueId())).toList(), "all-found");
+        } else if (seekers.isEmpty()) {
+            game.broadcast("<green><b>No seekers left - the hiders win!");
+            game.end(game.alivePlayers().stream().filter(p -> hiders.contains(p.getUniqueId())).toList(), "no-seekers");
         }
     }
 

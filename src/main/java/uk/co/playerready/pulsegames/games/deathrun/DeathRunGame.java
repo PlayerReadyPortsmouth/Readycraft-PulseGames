@@ -8,6 +8,7 @@ import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerInteractEvent;
 import uk.co.playerready.pulsegames.core.game.GameInstance;
+import uk.co.playerready.pulsegames.core.game.GameState;
 import uk.co.playerready.pulsegames.core.game.MiniGame;
 import uk.co.playerready.pulsegames.core.util.Cuboid;
 import uk.co.playerready.pulsegames.core.util.Text;
@@ -108,13 +109,30 @@ public final class DeathRunGame extends MiniGame {
         return game.alivePlayers().stream().filter(p -> !isDeath(p)).toList();
     }
 
-    /** Runners respawn at the start when they die; Deaths can't die. */
+    /** Nobody is eliminated here: both roles are put back at their post. */
     @Override
     public void onDeath(Player victim, Player killer) {
-        if (isDeath(victim)) return;
         victim.setFallDistance(0);
+        if (isDeath(victim)) {
+            // Deaths have no death handling of their own; without this a Death who walks
+            // off the trap platform falls forever and blocks the round until the clock ends.
+            Location deathSpawn = game.arena().settingLocation("death-spawn", game.world());
+            victim.teleport(deathSpawn != null ? deathSpawn : game.spawnFor(victim));
+            victim.sendActionBar(Text.mm("<red>You fell! Back to your post."));
+            return;
+        }
         victim.teleport(game.spawnFor(victim));
         victim.sendActionBar(Text.mm("<red>You died! Back to the start."));
+    }
+
+    /** A departing Death must not leave a round nobody can win. */
+    @Override
+    public void onQuit(Player player) {
+        if (!deaths.remove(player.getUniqueId()) || game.state() != GameState.RUNNING) return;
+        if (deaths.isEmpty()) {
+            game.broadcast("<green><b>The Death left - the runners win!");
+            game.end(runners(), "death-left");
+        }
     }
 
     /** Time ran out: the Deaths win. */

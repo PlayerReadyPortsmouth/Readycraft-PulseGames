@@ -2,6 +2,8 @@ package uk.co.playerready.pulsegames.core.game;
 
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
@@ -9,10 +11,12 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
@@ -29,6 +33,8 @@ import org.bukkit.event.vehicle.VehicleMoveEvent;
 import org.bukkit.event.player.PlayerToggleFlightEvent;
 import uk.co.playerready.pulsegames.PulseGamesPlugin;
 import uk.co.playerready.pulsegames.core.team.GameTeam;
+
+import java.util.List;
 
 /** Routes Bukkit events to the game instance the player is in and enforces game rules. */
 public final class GameListener implements Listener {
@@ -304,6 +310,32 @@ public final class GameListener implements Listener {
                 || !instance.logic().canPlace(player, event.getBlock())) {
             event.setCancelled(true);
         }
+    }
+
+    /**
+     * Explosions bypass BlockBreakEvent entirely. Without this a Bedwars TNT could take a
+     * bed out without {@code destroyBed} ever running, leaving that team respawning off a
+     * bed that no longer exists.
+     */
+    @EventHandler(ignoreCancelled = true)
+    public void onEntityExplode(EntityExplodeEvent event) {
+        filterExplosion(event.getEntity().getWorld(), event.blockList());
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onBlockExplode(BlockExplodeEvent event) {
+        filterExplosion(event.getBlock().getWorld(), event.blockList());
+    }
+
+    private void filterExplosion(World world, List<Block> blocks) {
+        GameInstance instance = plugin.instances().byWorld(world);
+        if (instance == null) {
+            // Nothing outside an instance world is destructible on this server.
+            blocks.clear();
+            return;
+        }
+        MiniGame logic = instance.logic();
+        blocks.removeIf(block -> !logic.canExplode(block));
     }
 
     @EventHandler(ignoreCancelled = true)

@@ -91,8 +91,10 @@ public final class GameCatalog {
 
         registry.register(new GameType("koth", "King of the Hill",
                 "Hold the hill to score - fight off everyone else!", Material.GOLDEN_HELMET,
+                // Teams needs 2*teamSize to start: below that everyone lands on one team,
+                // nobody can be damaged, and all four "win" when the clock runs out.
                 List.of(GameMode.ffa("solo", "Solo", 2, 12),
-                        GameMode.teams("teams", "Teams", 4, 16, 4)),
+                        GameMode.teams("teams", "Teams", 8, 16, 4)),
                 KothGame::new,
                 List.of(spawns(4, "around the hill (team games: spawn N = team N)"),
                         region("hill", "the capture zone on top")),
