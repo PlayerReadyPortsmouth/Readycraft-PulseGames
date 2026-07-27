@@ -22,39 +22,62 @@ public final class KitService {
         this.plugin = plugin;
     }
 
+    /**
+     * Parses into a local map and only swaps it in on success: a single malformed
+     * line used to throw out of here, wiping every kit and - because this runs from
+     * onEnable - skipping game registration, listeners and commands entirely.
+     */
     public void load() {
-        kits.clear();
         File file = new File(plugin.getDataFolder(), "kits.yml");
         if (!file.exists()) plugin.saveResource("kits.yml", false);
         YamlConfiguration yml = YamlConfiguration.loadConfiguration(file);
         ConfigurationSection root = yml.getConfigurationSection("kits");
-        if (root == null) return;
-        for (String id : root.getKeys(false)) {
-            ConfigurationSection sec = root.getConfigurationSection(id);
-            List<ItemStack> items = new ArrayList<>();
-            for (String raw : sec.getStringList("items")) {
-                ItemStack item = parseItem(raw);
-                if (item != null) items.add(item);
-            }
-            kits.put(id.toLowerCase(Locale.ROOT), new Kit(
-                    id,
-                    sec.getString("display-name", id),
-                    material(sec.getString("icon"), Material.CHEST),
-                    armor(sec.getString("helmet")), armor(sec.getString("chestplate")),
-                    armor(sec.getString("leggings")), armor(sec.getString("boots")),
-                    items));
+        if (root == null) {
+            plugin.getLogger().severe("kits.yml has no 'kits' section; keeping the "
+                    + kits.size() + " kits already loaded.");
+            return;
         }
+        Map<String, Kit> loaded = new LinkedHashMap<>();
+        for (String id : root.getKeys(false)) {
+            try {
+                ConfigurationSection sec = root.getConfigurationSection(id);
+                if (sec == null) throw new IllegalArgumentException("not a kit section");
+                List<ItemStack> items = new ArrayList<>();
+                for (String raw : sec.getStringList("items")) {
+                    ItemStack item = parseItem(raw);
+                    if (item != null) items.add(item);
+                }
+                loaded.put(id.toLowerCase(Locale.ROOT), new Kit(
+                        id,
+                        sec.getString("display-name", id),
+                        material(sec.getString("icon"), Material.CHEST),
+                        armor(sec.getString("helmet")), armor(sec.getString("chestplate")),
+                        armor(sec.getString("leggings")), armor(sec.getString("boots")),
+                        items));
+            } catch (Exception ex) {
+                plugin.getLogger().severe("Skipping kit '" + id + "' in kits.yml: " + ex.getMessage());
+            }
+        }
+        kits.clear();
+        kits.putAll(loaded);
         plugin.getLogger().info("Loaded " + kits.size() + " kits.");
     }
 
     private ItemStack parseItem(String raw) {
         String[] parts = raw.split(":");
-        Material material = Material.matchMaterial(parts[0]);
+        Material material = Material.matchMaterial(parts[0].trim());
         if (material == null) {
             plugin.getLogger().warning("Unknown material in kits.yml: " + raw);
             return null;
         }
-        int amount = parts.length > 1 ? Integer.parseInt(parts[1]) : 1;
+        int amount = 1;
+        if (parts.length > 1) {
+            try {
+                amount = Math.max(1, Integer.parseInt(parts[1].trim()));
+            } catch (NumberFormatException ex) {
+                plugin.getLogger().warning("Bad amount in kits.yml entry '" + raw + "'; using 1.");
+            }
+        }
         return new ItemStack(material, amount);
     }
 

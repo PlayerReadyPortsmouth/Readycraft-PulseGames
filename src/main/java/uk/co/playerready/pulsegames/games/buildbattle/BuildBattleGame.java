@@ -64,8 +64,14 @@ public final class BuildBattleGame extends MiniGame {
         theme = themes.get(ThreadLocalRandom.current().nextInt(themes.size()));
         int i = 0;
         for (Player player : game.alivePlayers()) {
-            plotOf.put(player.getUniqueId(), i % Math.max(plots.size(), 1));
-            teleportToPlot(player, plotOf.get(player.getUniqueId()));
+            // One plot each, never shared: co-occupants could delete each other's blocks
+            // and only the first of them would be credited with the build.
+            if (i >= plots.size()) {
+                player.sendMessage(Text.msg("<red>This map has no free plot for you - you're watching this round."));
+                continue;
+            }
+            plotOf.put(player.getUniqueId(), i);
+            teleportToPlot(player, i);
             i++;
         }
         game.broadcast("<yellow><b>Theme: " + theme + "</b></yellow> <gray>- you have "
@@ -135,8 +141,22 @@ public final class BuildBattleGame extends MiniGame {
         }
     }
 
+    /** Highest assigned plot + 1, so a mid-game quit leaves a gap rather than truncating the rotation. */
     private int usedPlotCount(List<Player> builders) {
-        return (int) plotOf.values().stream().distinct().count();
+        return plotOf.values().stream().mapToInt(Integer::intValue).max().orElse(-1) + 1;
+    }
+
+    /** One plot per player: the lobby must not admit more players than the map has plots. */
+    @Override
+    public int arenaPlayerCap() {
+        return Math.max(1, game.arena().regionsByPrefix("plot").size());
+    }
+
+    /** A departing builder's plot must drop out of the voting rotation. */
+    @Override
+    public void onQuit(Player player) {
+        plotOf.remove(player.getUniqueId());
+        votedThisPlot.remove(player.getUniqueId());
     }
 
     private Player ownerOfPlot(int plotIndex) {

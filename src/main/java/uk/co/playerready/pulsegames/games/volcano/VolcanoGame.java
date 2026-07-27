@@ -18,8 +18,12 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public final class VolcanoGame extends MiniGame {
 
+    /** Block writes per tick while a layer floods; a whole plane in one tick stalls the server. */
+    private static final int BLOCKS_PER_TICK = 1024;
+
     private Cuboid area;
     private int lavaY;
+    private boolean flooding;
 
     public VolcanoGame(GameInstance game) {
         super(game);
@@ -41,15 +45,9 @@ public final class VolcanoGame extends MiniGame {
     @Override
     public void onSecond(int gameTime) {
         if (area == null) return;
-        if (gameTime > 10 && gameTime % lavaInterval() == 0 && lavaY <= area.maxY()) {
-            for (int x = area.minX(); x <= area.maxX(); x++) {
-                for (int z = area.minZ(); z <= area.maxZ(); z++) {
-                    Block block = game.world().getBlockAt(x, lavaY, z);
-                    if (block.getType().isAir() || block.getType() == Material.WATER) {
-                        block.setType(Material.LAVA);
-                    }
-                }
-            }
+        if (!flooding && gameTime > 10 && gameTime % lavaInterval() == 0 && lavaY <= area.maxY()) {
+            flooding = true;
+            floodSlice(lavaY, area.minX());
             lavaY++;
             game.broadcast("<red>The lava rises! <gray>(Y=" + lavaY + ")");
         }
@@ -62,6 +60,29 @@ public final class VolcanoGame extends MiniGame {
             rock.setDropItem(false);
             rock.setHurtEntities(true);
         }
+    }
+
+    /** Writes one budgeted strip of the layer, then queues the next strip a tick later. */
+    private void floodSlice(int y, int fromX) {
+        int depth = area.maxZ() - area.minZ() + 1;
+        int columns = Math.max(1, BLOCKS_PER_TICK / depth);
+        int toX = Math.min(area.maxX(), fromX + columns - 1);
+        for (int x = fromX; x <= toX; x++) {
+            for (int z = area.minZ(); z <= area.maxZ(); z++) {
+                Block block = game.world().getBlockAt(x, y, z);
+                if (block.getType().isAir() || block.getType() == Material.WATER) {
+                    block.setType(Material.LAVA);
+                }
+            }
+        }
+        if (toX >= area.maxX()) {
+            flooding = false;
+            return;
+        }
+        game.runLater(1L, () -> {
+            if (game.world() == null) return;
+            floodSlice(y, toX + 1);
+        });
     }
 
     @Override

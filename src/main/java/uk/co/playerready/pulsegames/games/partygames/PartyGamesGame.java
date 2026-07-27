@@ -71,8 +71,7 @@ public final class PartyGamesGame extends MiniGame {
     private void nextRound() {
         round++;
         if (round > totalRounds()) {
-            var top = game.topScores();
-            Player best = top.isEmpty() ? null : game.plugin().getServer().getPlayer(top.get(0).getKey());
+            Player best = winner();
             game.end(best == null ? List.of() : List.of(best), "rounds");
             return;
         }
@@ -95,13 +94,23 @@ public final class PartyGamesGame extends MiniGame {
         game.broadcast("<yellow><b>Round " + round + ":</b> " + microName(current));
     }
 
+    /** Top scorer who is still here: a disconnected leader would otherwise draw the game. */
+    private Player winner() {
+        for (var entry : game.topScores()) {
+            Player candidate = game.plugin().getServer().getPlayer(entry.getKey());
+            if (candidate != null && candidate.isOnline() && game.isParticipant(candidate)) return candidate;
+        }
+        return null;
+    }
+
     private Location startLocation(int index) {
         if (current == Micro.SUMO) {
             Cuboid sumo = game.arena().region("sumo");
             if (sumo != null) {
                 Location center = sumo.center(game.world());
                 center.setY(sumo.maxY() + 1);
-                return center.add(index % 3 - 1, 0, (double) index / 3 - 1);
+                // Integer division on the row, or the whole grid collapses onto one line.
+                return center.add(index % 3 - 1, 0, index / 3 - 1);
             }
         }
         return game.arena().spawn(index, game.world());
@@ -198,6 +207,13 @@ public final class PartyGamesGame extends MiniGame {
         if (current == Micro.SUMO && survivors().size() <= 1) {
             endRound(survivors());
         }
+    }
+
+    /** A leaver still counted as "in" would stall a sumo round waiting for a knock-off. */
+    @Override
+    public void onQuit(Player player) {
+        if (!roundAlive.remove(player.getUniqueId())) return;
+        if (current == Micro.SUMO && survivors().size() <= 1) endRound(survivors());
     }
 
     private void endRound(List<Player> winners) {

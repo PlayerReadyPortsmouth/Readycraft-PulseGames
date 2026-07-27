@@ -73,16 +73,20 @@ public final class EconomyService {
         String today = LocalDate.now().toString();
         synchronized (this) {
             if (today.equals(data.getString(key(player) + ".last-daily"))) return;
-            data.set(key(player) + ".last-daily", today);
-            dirty = true;
         }
         int amount = plugin.getConfig().getInt("economy.daily-bonus", 100);
+        // The delay is only there to land after the join spam: mark the day claimed at
+        // pay time, or a disconnect inside the window burns the bonus without paying it.
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (player.isOnline()) {
-                addTokens(player, amount, "daily bonus");
-                player.sendMessage(Text.msg("<gold><b>Daily bonus!</b></gold> <gray>+" + amount
-                        + " tokens for stopping by today."));
+            if (!player.isOnline()) return;
+            synchronized (this) {
+                if (today.equals(data.getString(key(player) + ".last-daily"))) return;
+                data.set(key(player) + ".last-daily", today);
+                dirty = true;
             }
+            addTokens(player, amount, "daily bonus");
+            player.sendMessage(Text.msg("<gold><b>Daily bonus!</b></gold> <gray>+" + amount
+                    + " tokens for stopping by today."));
         }, 40L);
     }
 

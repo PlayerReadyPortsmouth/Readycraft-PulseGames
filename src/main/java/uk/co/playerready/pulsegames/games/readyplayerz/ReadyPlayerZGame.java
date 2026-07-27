@@ -16,6 +16,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import uk.co.playerready.pulsegames.core.game.GameInstance;
+import uk.co.playerready.pulsegames.core.game.GameState;
 import uk.co.playerready.pulsegames.core.game.MiniGame;
 import uk.co.playerready.pulsegames.core.util.Cuboid;
 import uk.co.playerready.pulsegames.core.util.Text;
@@ -55,6 +56,7 @@ public final class ReadyPlayerZGame extends MiniGame {
     private int round = 0;
     private int breakTimer = 8;
     private boolean roundActive;
+    private int pendingSpawns;
     private final Set<UUID> zombies = new HashSet<>();
     private final Set<UUID> downed = new HashSet<>();
     private final java.util.Map<UUID, String> powerupItems = new java.util.HashMap<>();
@@ -96,7 +98,9 @@ public final class ReadyPlayerZGame extends MiniGame {
                 var entity = game.world().getEntity(id);
                 return entity == null || entity.isDead();
             });
-            if (zombies.isEmpty()) {
+            // Spawns are staggered across the round, and a nuke empties the live set while
+            // the rest of the wave is still queued - both would read as "round survived".
+            if (zombies.isEmpty() && pendingSpawns <= 0) {
                 roundActive = false;
                 breakTimer = isFrenzy() ? 5 : 10;
                 game.broadcast("<green><b>Round " + round + " survived!</b></green>");
@@ -119,10 +123,13 @@ public final class ReadyPlayerZGame extends MiniGame {
             p.playSound(p.getLocation(), Sound.ENTITY_WOLF_HOWL, 1f, 0.7f);
         }
         var random = ThreadLocalRandom.current();
+        pendingSpawns = 0;
         for (int i = 0; i < count; i++) {
             Cuboid region = mobSpawns.isEmpty() ? null : mobSpawns.get(random.nextInt(mobSpawns.size()));
             Location loc = region != null ? region.center(game.world()) : game.arena().spawn(0, game.world());
+            pendingSpawns++;
             game.runLater(i * (isFrenzy() ? 6L : 12L), () -> {
+                pendingSpawns--;
                 if (game.world() == null || !roundActive) return;
                 Zombie zombie = (Zombie) game.world().spawnEntity(loc, EntityType.ZOMBIE);
                 zombie.setShouldBurnInDay(false);
@@ -226,12 +233,26 @@ public final class ReadyPlayerZGame extends MiniGame {
         victim.setGameMode(org.bukkit.GameMode.SPECTATOR);
         victim.teleport(game.arena().spectator(game.world()));
         game.broadcast("<red>" + victim.getName() + "</red> is down! Survive the round to revive them.");
-        boolean allDown = game.alivePlayers().stream().allMatch(p -> downed.contains(p.getUniqueId()));
-        if (allDown) {
+        checkOverrun();
+    }
+
+    /** Someone leaving must not leave a downed squad counted as still fighting. */
+    @Override
+    public void onQuit(Player player) {
+        downed.remove(player.getUniqueId());
+        if (game.state() == GameState.RUNNING) checkOverrun();
+    }
+
+    private void checkOverrun() {
+        List<Player> squad = game.alivePlayers();
+        if (squad.isEmpty() || squad.stream().allMatch(p -> downed.contains(p.getUniqueId()))) {
             game.broadcast("<red><b>The team was overrun on round " + round + "!");
             game.end(List.of(), "overrun");
         }
     }
+
+    @Override
+    public boolean cooperative() { return true; }
 
     // ---- shop ------------------------------------------------------------------
 

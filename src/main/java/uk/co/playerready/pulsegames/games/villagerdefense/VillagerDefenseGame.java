@@ -31,6 +31,7 @@ public final class VillagerDefenseGame extends MiniGame {
     private int wave = 0;
     private int breakTimer = 5;
     private boolean waveActive;
+    private int pendingSpawns;
     private final Set<UUID> waveZombies = new HashSet<>();
     private List<Cuboid> mobSpawns = List.of();
 
@@ -54,12 +55,24 @@ public final class VillagerDefenseGame extends MiniGame {
         mayor.setCustomNameVisible(true);
         mayor.setAI(false);
         mayor.setRemoveWhenFarAway(false);
-        for (Player player : game.alivePlayers()) {
-            player.getInventory().setItem(0, new ItemStack(Material.STONE_SWORD));
-            player.getInventory().setItem(1, new ItemStack(Material.BOW));
-            player.getInventory().setItem(9, new ItemStack(Material.ARROW, 32));
-        }
+        game.alivePlayers().forEach(this::equipDefender);
         game.broadcast("Protect <gold>The Mayor</gold> for <yellow>" + totalWaves() + "</yellow> waves!");
+    }
+
+    /** Base kit plus the wave milestones already reached, so a respawn isn't a demotion. */
+    private void equipDefender(Player player) {
+        player.getInventory().setItem(0, new ItemStack(Material.STONE_SWORD));
+        player.getInventory().setItem(1, new ItemStack(Material.BOW));
+        player.getInventory().setItem(9, new ItemStack(Material.ARROW, 32));
+        if (wave >= 2) player.getInventory().addItem(new ItemStack(Material.IRON_SWORD));
+        if (wave >= 4) player.getInventory().setChestplate(new ItemStack(Material.IRON_CHESTPLATE));
+        if (wave >= 6) player.getInventory().addItem(new ItemStack(Material.DIAMOND_SWORD));
+    }
+
+    /** {@link GameInstance#respawn} resets the player, so the kit has to be handed back. */
+    @Override
+    public void onRespawn(Player player) {
+        equipDefender(player);
     }
 
     @Override
@@ -74,7 +87,8 @@ public final class VillagerDefenseGame extends MiniGame {
                 var entity = game.world().getEntity(id);
                 return entity == null || entity.isDead();
             });
-            if (waveZombies.isEmpty()) {
+            // Spawns are staggered, so an empty set alone doesn't mean the wave is over.
+            if (waveZombies.isEmpty() && pendingSpawns <= 0) {
                 waveActive = false;
                 breakTimer = 10;
                 game.broadcast("<green><b>Wave " + wave + " cleared!</b></green>");
@@ -97,10 +111,13 @@ public final class VillagerDefenseGame extends MiniGame {
             p.playSound(p.getLocation(), Sound.EVENT_RAID_HORN, 0.8f, 1f);
         }
         var random = ThreadLocalRandom.current();
+        pendingSpawns = 0;
         for (int i = 0; i < count; i++) {
             Cuboid region = mobSpawns.isEmpty() ? null : mobSpawns.get(random.nextInt(mobSpawns.size()));
             Location loc = region != null ? region.center(game.world()) : game.arena().spawn(0, game.world());
+            pendingSpawns++;
             game.runLater(i * 10L, () -> {
+                pendingSpawns--;
                 if (game.world() == null || !waveActive) return;
                 Zombie zombie = (Zombie) game.world().spawnEntity(loc, EntityType.ZOMBIE);
                 zombie.setShouldBurnInDay(false);
@@ -124,13 +141,17 @@ public final class VillagerDefenseGame extends MiniGame {
 
     @Override
     public void onEntityDeath(LivingEntity entity, Player killer) {
-        if (entity instanceof Villager) {
+        // Only the Mayor ends the round - any other villager on the map is scenery.
+        if (mayor != null && entity.getUniqueId().equals(mayor.getUniqueId())) {
             game.broadcast("<red><b>The Mayor has fallen!</b></red>");
             game.end(List.of(), "mayor-died");
         } else if (killer != null && waveZombies.contains(entity.getUniqueId())) {
             game.addScore(killer, 1);
         }
     }
+
+    @Override
+    public boolean cooperative() { return true; }
 
     @Override
     public List<String> sidebar(Player player) {

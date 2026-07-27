@@ -96,6 +96,11 @@ public final class SupermarketSweepGame extends MiniGame {
     }
 
     @Override
+    public void onQuit(Player player) {
+        collected.remove(player.getUniqueId());
+    }
+
+    @Override
     public void onTimeUp() {
         Player best = null;
         int bestCount = -1;

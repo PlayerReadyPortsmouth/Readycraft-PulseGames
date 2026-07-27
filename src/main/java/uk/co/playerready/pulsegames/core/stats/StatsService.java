@@ -39,6 +39,19 @@ public final class StatsService {
         return data.getInt(player.getUniqueId() + "." + game + "." + key);
     }
 
+    /**
+     * Off-thread flush for callers on the main thread (every game end). A full-file YAML
+     * write is far too slow to sit in a tick; falls back to a blocking write during
+     * shutdown, when the scheduler no longer accepts tasks.
+     */
+    public void flushAsync() {
+        if (!plugin.isEnabled()) {
+            flush();
+            return;
+        }
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, this::flush);
+    }
+
     public synchronized void flush() {
         if (!dirty) return;
         try {

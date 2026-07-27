@@ -20,6 +20,7 @@ import uk.co.playerready.pulsegames.core.game.GameType;
 import uk.co.playerready.pulsegames.core.util.Cuboid;
 import uk.co.playerready.pulsegames.core.util.LocUtil;
 import uk.co.playerready.pulsegames.core.util.Text;
+import uk.co.playerready.pulsegames.core.world.WorldService;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -90,6 +91,14 @@ public final class ArenaSetupManager implements Listener {
             player.sendMessage(Text.msg("<red>No setup session. Begin with <yellow>/pulse setup start <game> <arenaId>"));
             return;
         }
+        // Every point below is stored as bare coordinates and re-read against the
+        // cloned template world, so capturing one outside the map world is meaningless.
+        if (List.of("lobby", "spectator", "addspawn", "setloc", "addloc").contains(sub)
+                && !player.getWorld().equals(session.world)) {
+            player.sendMessage(Text.msg("<red>You're in <yellow>" + player.getWorld().getName()
+                    + "</yellow>; this setup is for <yellow>" + session.world.getName() + "</yellow>."));
+            return;
+        }
         switch (sub) {
             case "wand" -> giveWand(player);
             case "lobby" -> {
@@ -118,9 +127,18 @@ public final class ArenaSetupManager implements Listener {
                     return;
                 }
                 String name = args[1].toLowerCase(Locale.ROOT);
-                session.regions.put(name, new Cuboid(
-                        session.pos1.getBlockX(), session.pos1.getBlockY(), session.pos1.getBlockZ(),
-                        session.pos2.getBlockX(), session.pos2.getBlockY(), session.pos2.getBlockZ()));
+                Cuboid region;
+                try {
+                    // Cuboid rejects anything big enough to hang a round: games walk
+                    // whole regions block by block on the main thread.
+                    region = new Cuboid(
+                            session.pos1.getBlockX(), session.pos1.getBlockY(), session.pos1.getBlockZ(),
+                            session.pos2.getBlockX(), session.pos2.getBlockY(), session.pos2.getBlockZ());
+                } catch (IllegalArgumentException ex) {
+                    player.sendMessage(Text.msg("<red>Selection too large: " + ex.getMessage()));
+                    return;
+                }
+                session.regions.put(name, region);
                 player.sendMessage(Text.msg("<green>Region <yellow>" + name + "</yellow> saved."));
             }
             case "setloc" -> {
@@ -194,7 +212,15 @@ public final class ArenaSetupManager implements Listener {
             player.sendMessage(Text.msg("<red>Unknown game <yellow>" + args[1] + "</yellow>. See /pulse games"));
             return;
         }
-        Session session = new Session(game, args[2].toLowerCase(Locale.ROOT), player.getWorld());
+        String arenaId = args[2].toLowerCase(Locale.ROOT);
+        // The id becomes a map-template folder that /pulse setup save deletes
+        // recursively, so anything that could escape plugins/PulseGames/maps is refused.
+        if (!WorldService.isValidTemplateId(arenaId)) {
+            player.sendMessage(Text.msg("<red>Invalid arena id <yellow>" + args[2]
+                    + "</yellow>. Use a-z, 0-9, <white>_</white> and <white>-</white> (max 32 characters)."));
+            return;
+        }
+        Session session = new Session(game, arenaId, player.getWorld());
         sessions.put(player.getUniqueId(), session);
         giveWand(player);
         player.sendMessage(Text.msg("<green>Setting up <yellow>" + game.displayName() + "</yellow> arena <yellow>"
@@ -234,6 +260,15 @@ public final class ArenaSetupManager implements Listener {
         if (item == null || item.getType() != Material.BLAZE_ROD || !item.hasItemMeta()) return;
         event.setCancelled(true);
         Location loc = event.getClickedBlock().getLocation();
+        // Region coordinates are stored world-less and re-read against the cloned
+        // template world, so corners from another world silently produce a region
+        // spanning the distance between the two maps.
+        if (!session.world.equals(loc.getWorld())) {
+            player.sendMessage(Text.msg("<red>That block is in <yellow>" + loc.getWorld().getName()
+                    + "</yellow>, but this setup is for <yellow>" + session.world.getName()
+                    + "</yellow>. Select corners inside the map world."));
+            return;
+        }
         if (event.getAction() == Action.LEFT_CLICK_BLOCK) {
             session.pos1 = loc;
             player.sendMessage(Text.msg("Pos1: <yellow>" + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ()));

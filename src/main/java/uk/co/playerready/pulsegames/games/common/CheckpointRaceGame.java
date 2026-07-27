@@ -56,7 +56,7 @@ public abstract class CheckpointRaceGame extends MiniGame {
         if (p.nextCheckpoint < checkpoints.size()) {
             if (checkpoints.get(p.nextCheckpoint).contains(to)) {
                 p.nextCheckpoint++;
-                p.lastSafe = to.clone();
+                recordSafe(player, p, to);
                 player.sendActionBar(Text.mm("<green>Checkpoint " + p.nextCheckpoint + "/" + checkpoints.size()
                         + (laps() > 1 ? " <gray>(lap " + p.lap + "/" + laps() + ")" : "")));
                 player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1f, 1.5f);
@@ -65,12 +65,30 @@ public abstract class CheckpointRaceGame extends MiniGame {
             if (p.lap < laps()) {
                 p.lap++;
                 p.nextCheckpoint = 0;
-                p.lastSafe = to.clone();
+                recordSafe(player, p, to);
                 game.broadcast("<yellow>" + player.getName() + "</yellow> started lap <yellow>" + p.lap + "/" + laps());
             } else {
                 onFinish(player);
             }
         }
+    }
+
+    /**
+     * Records a respawn point only where the player was actually supported. A position
+     * captured while free-falling past a checkpoint sends them straight back into the
+     * same fall, looping until the timer expires. Kart passengers and gliding racers are
+     * never "on ground", so their supported states count too.
+     */
+    private void recordSafe(Player player, Progress p, Location at) {
+        if (player.isOnGround() || player.isInsideVehicle() || player.isGliding()) {
+            p.lastSafe = at.clone();
+        }
+    }
+
+    /** Per-round progress must not outlive the player who left. */
+    @Override
+    public void onQuit(Player player) {
+        progress.remove(player.getUniqueId());
     }
 
     /** A player completed all laps. Default: they win. */

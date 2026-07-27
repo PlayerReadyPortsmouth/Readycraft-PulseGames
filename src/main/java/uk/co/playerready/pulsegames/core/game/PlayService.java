@@ -10,6 +10,9 @@ import java.util.List;
 /** Matchmaking entry point: routes players (and their whole party) into instances. */
 public final class PlayService {
 
+    /** A broken arena rejects every join, so re-queueing must not be able to spin forever. */
+    private static final int MAX_REQUEUES = 3;
+
     private final PulseGamesPlugin plugin;
 
     public PlayService(PulseGamesPlugin plugin) {
@@ -17,6 +20,10 @@ public final class PlayService {
     }
 
     public void join(Player player, GameType type, GameMode mode) {
+        join(player, type, mode, 0);
+    }
+
+    private void join(Player player, GameType type, GameMode mode, int requeues) {
         Party party = plugin.parties().partyOf(player);
         List<Player> group;
         if (party != null) {
@@ -28,10 +35,6 @@ public final class PlayService {
         } else {
             group = List.of(player);
         }
-        for (Player member : group) {
-            GameInstance current = plugin.instances().byPlayer(member);
-            if (current != null) current.remove(member, false);
-        }
         if (group.size() > Math.min(mode.maxPlayers(), 64)) {
             player.sendMessage(Text.msg("<red>Your party is too big for this mode."));
             return;
@@ -42,11 +45,17 @@ public final class PlayService {
                     + mode.displayName() + ")</gray><red> right now."));
             return;
         }
-        joinWhenReady(instance, group, 0);
+        // Only leave the current game once the new one is secured - a failed queue used to
+        // strand the player inside an instance world with no way back to the lobby.
+        for (Player member : group) {
+            GameInstance current = plugin.instances().byPlayer(member);
+            if (current != null) current.remove(member, false);
+        }
+        joinWhenReady(instance, group, 0, requeues);
     }
 
     /** Instances clone their world async; poll briefly until the lobby is open. */
-    private void joinWhenReady(GameInstance instance, List<Player> group, int attempts) {
+    private void joinWhenReady(GameInstance instance, List<Player> group, int attempts, int requeues) {
         if (instance.state() == GameState.LOADING) {
             if (attempts > 60) {
                 group.forEach(p -> p.sendMessage(Text.msg("<red>The game took too long to load, try again.")));
@@ -55,16 +64,22 @@ public final class PlayService {
             if (attempts == 0) {
                 group.forEach(p -> p.sendMessage(Text.msg("Loading <yellow>" + instance.arena().displayName() + "</yellow>...")));
             }
-            plugin.getServer().getScheduler().runTaskLater(plugin, () -> joinWhenReady(instance, group, attempts + 1), 10L);
+            plugin.getServer().getScheduler().runTaskLater(plugin,
+                    () -> joinWhenReady(instance, group, attempts + 1, requeues), 10L);
             return;
         }
         for (Player member : group) {
             if (!member.isOnline()) continue;
-            if (!instance.add(member)) {
-                member.sendMessage(Text.msg("<red>That game filled up. Re-queueing..."));
-                join(member, instance.type(), instance.mode());
+            if (instance.add(member)) continue;
+            if (requeues >= MAX_REQUEUES) {
+                member.sendMessage(Text.msg("<red>Couldn't get you into " + instance.type().displayName()
+                        + " right now - please try again shortly."));
+                plugin.lobby().sendToLobby(member);
                 return;
             }
+            member.sendMessage(Text.msg("<red>That game filled up. Re-queueing..."));
+            join(member, instance.type(), instance.mode(), requeues + 1);
+            return;
         }
     }
 

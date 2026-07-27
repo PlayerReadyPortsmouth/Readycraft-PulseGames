@@ -50,8 +50,16 @@ public final class ArenaService {
         ConfigurationSection regionSec = yml.getConfigurationSection("regions");
         if (regionSec != null) {
             for (String name : regionSec.getKeys(false)) {
-                ConfigurationSection r = regionSec.getConfigurationSection(name);
-                regions.put(name.toLowerCase(Locale.ROOT), Cuboid.parse(r.getString("min"), r.getString("max")));
+                // One bad region drops itself, not the whole map: losing an arena from
+                // the pool over a typo shows up as "No maps available", nothing more.
+                try {
+                    ConfigurationSection r = regionSec.getConfigurationSection(name);
+                    if (r == null) throw new IllegalArgumentException("not a region section");
+                    regions.put(name.toLowerCase(Locale.ROOT), Cuboid.parse(r.getString("min"), r.getString("max")));
+                } catch (Exception ex) {
+                    plugin.getLogger().severe("Skipping region '" + name + "' in arena " + id
+                            + ": " + ex.getMessage());
+                }
             }
         }
         return new Arena(

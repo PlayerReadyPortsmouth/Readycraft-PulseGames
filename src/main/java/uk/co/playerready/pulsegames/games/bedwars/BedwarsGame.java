@@ -194,16 +194,39 @@ public final class BedwarsGame extends MiniGame {
         return -1;
     }
 
+    /** @param breaker null when an explosion took the bed rather than a player's pickaxe. */
     private void destroyBed(int teamIndex, Player breaker) {
         if (!bedAlive.getOrDefault(teamIndex, false)) return;
         bedAlive.put(teamIndex, false);
         GameTeam victimTeam = game.teams().stream().filter(t -> t.index() == teamIndex).findFirst().orElse(null);
         String teamName = victimTeam != null ? victimTeam.coloredName() : "A team";
-        game.broadcast("<red><b>BED DESTROYED!</b></red> " + teamName + "'s</gray> bed was broken by <yellow>"
-                + breaker.getName() + "</yellow>!");
+        String culprit = breaker != null ? "<yellow>" + breaker.getName() + "</yellow>" : "<gray>an explosion</gray>";
+        game.broadcast("<red><b>BED DESTROYED!</b></red> " + teamName + "'s</gray> bed was broken by "
+                + culprit + "!");
         for (Player p : game.everyone()) {
             p.playSound(p.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 0.7f, 1f);
         }
+    }
+
+    /**
+     * TNT is a shop item, so beds do get blown up. Route those through destroyBed or the
+     * team keeps respawning off a bed that is no longer there.
+     */
+    @Override
+    public boolean canExplode(Block block) {
+        if (block.getType().name().endsWith("_BED")) {
+            int bedTeam = bedTeamIndex(block.getLocation());
+            if (bedTeam < 0) return false;
+            destroyBed(bedTeam, null);
+            return true;
+        }
+        return playerBlocks.contains(block.getLocation());
+    }
+
+    /** One bed region per team: a map with fewer beds than teams can never end. */
+    @Override
+    public int maxTeams() {
+        return game.arena().regionsByPrefix("bed").size();
     }
 
     @Override
@@ -338,7 +361,10 @@ public final class BedwarsGame extends MiniGame {
                 ? team.coloredName() + "</gray> unlocked <aqua>" + upgrade.name() + "</aqua>!"
                 : "<aqua>" + upgrade.name() + "</aqua> unlocked!");
         player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1.4f);
-        openShop(player);
+        // Re-opening from inside InventoryClickEvent leaves the client with a ghost window.
+        game.runLater(1L, () -> {
+            if (player.isOnline() && game.isAlive(player)) openShop(player);
+        });
     }
 
     // ---- rules ----------------------------------------------------------------------
