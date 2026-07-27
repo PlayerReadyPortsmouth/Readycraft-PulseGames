@@ -119,6 +119,19 @@ public final class ShapeService {
                 Text.msg("<green>Paste complete!</green> <gray>Undo with <yellow>/pulse shape undo")));
     }
 
+    /**
+     * Headless build: stamps the given shapes array into {@code world} at
+     * {@code origin} with no player involved, then runs {@code onDone}. Used by
+     * the blueprint pipeline so maps can be generated from the server console.
+     */
+    public void build(World world, Location origin, JsonArray shapes, Runnable onDone) {
+        Map<Location, BlockData> placements = new LinkedHashMap<>();
+        for (JsonElement element : shapes) {
+            buildShape(element.getAsJsonObject(), origin, placements);
+        }
+        applyBatched(placements, onDone);
+    }
+
     public void undo(Player player) {
         Map<Location, BlockData> undo = undoBuffers.remove(player.getUniqueId());
         if (undo == null) {

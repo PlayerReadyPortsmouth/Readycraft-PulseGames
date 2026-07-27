@@ -1,0 +1,43 @@
+{
+  "arena-id": "glacier",
+  "game": "spleef",
+  "display-name": "<aqua><bold>Glacier Dome",
+  "modes": ["classic", "decay", "splegg"],
+  "min-players": 2,
+  "max-players": 12,
+
+  "origin": [0, 100, 0],
+
+  "shapes": [
+    {"type": "cylinder", "material": "PACKED_ICE", "center": [0, 0, 0], "radius": 40, "height": 1},
+    {"type": "cylinder", "material": "SNOW_BLOCK", "center": [0, 0, 0], "radius": 38, "height": 1},
+    {"type": "ring", "material": "PACKED_ICE", "center": [0, 0, 0], "radius": 13},
+    {"type": "ring", "material": "PACKED_ICE", "center": [0, 0, 0], "radius": 26},
+    {"type": "scatter", "from": [-37, 0, -37], "to": [37, 0, 37], "density": 0.05, "materials": ["BLUE_ICE", "PACKED_ICE"]},
+
+    {"type": "dome", "material": "LIGHT_BLUE_STAINED_GLASS", "center": [0, 0, 0], "radius": 40, "hollow": true},
+    {"type": "ring", "material": "SEA_LANTERN", "center": [0, 0, 0], "radius": 39},
+
+    {"type": "box", "from": [0, 1, 0], "to": [0, 1, 0], "material": "SEA_LANTERN"}
+  ],
+
+  "lobby": [0.5, 101, 0.5, 0, 0],
+  "spectator": [0.5, 128, 0.5, 0, 0],
+
+  "spawns": [
+    [22.5, 101, 0.5, 90, 0],
+    [11.5, 101, 19.5, 150, 0],
+    [-10.5, 101, 19.5, -150, 0],
+    [-21.5, 101, 0.5, -90, 0],
+    [-10.5, 101, -18.5, -30, 0],
+    [11.5, 101, -18.5, 30, 0]
+  ],
+
+  "regions": {
+    "floor1": {"min": [-38, 100, -38], "max": [38, 100, 38]}
+  },
+
+  "settings": {
+    "void-y": 90
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "arena-id": "circuit",
+  "game": "karts",
+  "display-name": "<gold><bold>Frostbite Circuit",
+  "modes": ["sprint", "cup"],
+  "min-players": 2,
+  "max-players": 12,
+
+  "origin": [0, 100, 0],
+
+  "shapes": [
+    {"type": "cylinder", "material": "BLUE_ICE", "center": [0, 0, 0], "radius": 46, "height": 1},
+    {"type": "cylinder", "material": "GRASS_BLOCK", "center": [0, 0, 0], "radius": 33, "height": 1},
+
+    {"type": "cylinder", "material": "SMOOTH_QUARTZ", "center": [0, 0, 0], "radius": 47, "height": 4, "hollow": true},
+    {"type": "cylinder", "material": "SMOOTH_QUARTZ", "center": [0, 0, 0], "radius": 33, "height": 3, "hollow": true},
+
+    {"type": "scatter", "from": [-31, 1, -31], "to": [31, 1, 31], "density": 0.05, "materials": ["POPPY", "DANDELION", "CORNFLOWER", "OXEYE_DAISY", "SHORT_GRASS"]},
+
+    {"type": "box", "from": [15, 1, 15], "to": [15, 5, 15], "material": "OAK_LOG"},
+    {"type": "dome", "material": "OAK_LEAVES", "center": [15, 6, 15], "radius": 3},
+    {"type": "box", "from": [-16, 1, 12], "to": [-16, 6, 12], "material": "SPRUCE_LOG"},
+    {"type": "dome", "material": "SPRUCE_LEAVES", "center": [-16, 7, 12], "radius": 3},
+    {"type": "box", "from": [-12, 1, -16], "to": [-12, 5, -16], "material": "OAK_LOG"},
+    {"type": "dome", "material": "OAK_LEAVES", "center": [-12, 6, -16], "radius": 3},
+    {"type": "box", "from": [16, 1, -13], "to": [16, 6, -13], "material": "BIRCH_LOG"},
+    {"type": "dome", "material": "BIRCH_LEAVES", "center": [16, 7, -13], "radius": 3},
+
+    {"type": "cylinder", "material": "STONE_BRICKS", "center": [0, 0, 0], "radius": 5, "height": 1},
+    {"type": "cylinder", "material": "QUARTZ_BLOCK", "center": [0, 1, 0], "radius": 3, "height": 3},
+    {"type": "box", "from": [0, 4, 0], "to": [0, 4, 0], "material": "SEA_LANTERN"},
+
+    {"type": "box", "from": [31, 1, 0], "to": [31, 7, 0], "material": "QUARTZ_PILLAR"},
+    {"type": "box", "from": [47, 1, 0], "to": [47, 7, 0], "material": "QUARTZ_PILLAR"},
+    {"type": "box", "from": [31, 8, 0], "to": [47, 8, 0], "material": "GOLD_BLOCK"},
+    {"type": "checker", "from": [34, 1, 4], "to": [45, 1, 4], "materials": ["WHITE_CONCRETE", "BLACK_CONCRETE"]},
+
+    {"type": "cylinder", "material": "QUARTZ_BLOCK", "center": [50, 0, 50], "radius": 2, "height": 1},
+    {"type": "cylinder", "material": "SEA_LANTERN", "center": [50, 1, 50], "radius": 1, "height": 12},
+    {"type": "cylinder", "material": "QUARTZ_BLOCK", "center": [-50, 0, 50], "radius": 2, "height": 1},
+    {"type": "cylinder", "material": "SEA_LANTERN", "center": [-50, 1, 50], "radius": 1, "height": 12},
+    {"type": "cylinder", "material": "QUARTZ_BLOCK", "center": [50, 0, -50], "radius": 2, "height": 1},
+    {"type": "cylinder", "material": "SEA_LANTERN", "center": [50, 1, -50], "radius": 1, "height": 12},
+    {"type": "cylinder", "material": "QUARTZ_BLOCK", "center": [-50, 0, -50], "radius": 2, "height": 1},
+    {"type": "cylinder", "material": "SEA_LANTERN", "center": [-50, 1, -50], "radius": 1, "height": 12}
+  ],
+
+  "lobby": [0.5, 101, 14.5, 180, 0],
+  "spectator": [0.5, 135, 0.5, 0, 0],
+
+  "spawns": [
+    [37.5, 101, -1.5, 0, 0],
+    [40.5, 101, -1.5, 0, 0],
+    [37.5, 101, -3.5, 0, 0],
+    [40.5, 101, -3.5, 0, 0]
+  ],
+
+  "regions": {
+    "checkpoint1": {"min": [-5, 100, 33], "max": [5, 104, 46]},
+    "checkpoint2": {"min": [-46, 100, -5], "max": [-33, 104, 5]},
+    "checkpoint3": {"min": [-5, 100, -46], "max": [5, 104, -33]},
+    "finish": {"min": [33, 100, -5], "max": [46, 104, 5]},
+    "itembox1": {"min": [23, 100, 23], "max": [31, 104, 31]},
+    "itembox2": {"min": [-31, 100, 23], "max": [-23, 104, 31]},
+    "itembox3": {"min": [-31, 100, -31], "max": [-23, 104, -23]}
+  },
+
+  "settings": {
+    "void-y": 90,
+    "laps": 3,
+    "time-limit": 600
+  }
+}

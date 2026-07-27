@@ -1,0 +1,38 @@
+{
+  "arena-id": "collapse",
+  "game": "tntrun",
+  "display-name": "<red><bold>Collapse",
+  "modes": ["classic", "doublejump"],
+  "min-players": 2,
+  "max-players": 16,
+
+  "origin": [0, 100, 0],
+
+  "shapes": [
+    {"type": "checker", "from": [-28, 0, -28], "to": [28, 0, 28], "materials": ["RED_WOOL", "ORANGE_WOOL", "YELLOW_WOOL", "LIME_WOOL", "LIGHT_BLUE_WOOL", "BLUE_WOOL", "PURPLE_WOOL", "MAGENTA_WOOL"]},
+    {"type": "box", "from": [-28, -1, -28], "to": [28, -1, 28], "material": "GRAY_CONCRETE"},
+
+    {"type": "box", "from": [-29, 1, -29], "to": [29, 3, -29], "material": "BLACK_CONCRETE"},
+    {"type": "box", "from": [-29, 1, 29], "to": [29, 3, 29], "material": "BLACK_CONCRETE"},
+    {"type": "box", "from": [-29, 1, -29], "to": [-29, 3, 29], "material": "BLACK_CONCRETE"},
+    {"type": "box", "from": [29, 1, -29], "to": [29, 3, 29], "material": "BLACK_CONCRETE"},
+    {"type": "box", "from": [-29, 4, -29], "to": [29, 4, -29], "material": "GLOWSTONE"},
+    {"type": "box", "from": [-29, 4, 29], "to": [29, 4, 29], "material": "GLOWSTONE"},
+    {"type": "box", "from": [-29, 4, -29], "to": [-29, 4, 29], "material": "GLOWSTONE"},
+    {"type": "box", "from": [29, 4, -29], "to": [29, 4, 29], "material": "GLOWSTONE"}
+  ],
+
+  "lobby": [0.5, 101, 0.5, 0, 0],
+  "spectator": [0.5, 125, 0.5, 0, 0],
+
+  "spawns": [
+    [18.5, 101, 18.5, -135, 0],
+    [-17.5, 101, 18.5, 135, 0],
+    [18.5, 101, -17.5, -45, 0],
+    [-17.5, 101, -17.5, 45, 0]
+  ],
+
+  "settings": {
+    "void-y": 90
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "arena-id": "skyfall",
+  "game": "skywars",
+  "display-name": "<yellow>Skyfall",
+  "modes": ["solo", "insane"],
+  "min-players": 2,
+  "max-players": 4,
+
+  "origin": [0, 100, 0],
+
+  "shapes": [
+    {"type": "cylinder", "material": "GRASS_BLOCK", "center": [0, 0, 0], "radius": 5, "height": 1},
+    {"type": "cylinder", "material": "DIRT", "center": [0, -1, 0], "radius": 4, "height": 2},
+    {"type": "box", "from": [3, 1, 0], "to": [3, 1, 0], "material": "CHEST"},
+    {"type": "box", "from": [-3, 1, 0], "to": [-3, 1, 0], "material": "CHEST"},
+    {"type": "box", "from": [0, 1, 3], "to": [0, 1, 3], "material": "CHEST"},
+    {"type": "box", "from": [0, 1, -3], "to": [0, 1, -3], "material": "CHEST"},
+
+    {"type": "cylinder", "material": "GRASS_BLOCK", "center": [20, 0, 0], "radius": 4, "height": 1},
+    {"type": "cylinder", "material": "DIRT", "center": [20, -1, 0], "radius": 3, "height": 2},
+    {"type": "box", "from": [20, 1, 2], "to": [20, 1, 2], "material": "CHEST"},
+    {"type": "box", "from": [20, 1, -2], "to": [20, 1, -2], "material": "CHEST"},
+    {"type": "box", "from": [22, 1, 0], "to": [22, 3, 0], "material": "OAK_LOG"},
+    {"type": "dome", "material": "OAK_LEAVES", "center": [22, 4, 0], "radius": 2},
+
+    {"type": "cylinder", "material": "GRASS_BLOCK", "center": [-20, 0, 0], "radius": 4, "height": 1},
+    {"type": "cylinder", "material": "DIRT", "center": [-20, -1, 0], "radius": 3, "height": 2},
+    {"type": "box", "from": [-20, 1, 2], "to": [-20, 1, 2], "material": "CHEST"},
+    {"type": "box", "from": [-20, 1, -2], "to": [-20, 1, -2], "material": "CHEST"},
+    {"type": "box", "from": [-22, 1, 0], "to": [-22, 3, 0], "material": "BIRCH_LOG"},
+    {"type": "dome", "material": "BIRCH_LEAVES", "center": [-22, 4, 0], "radius": 2},
+
+    {"type": "cylinder", "material": "GRASS_BLOCK", "center": [0, 0, 20], "radius": 4, "height": 1},
+    {"type": "cylinder", "material": "DIRT", "center": [0, -1, 20], "radius": 3, "height": 2},
+    {"type": "box", "from": [2, 1, 20], "to": [2, 1, 20], "material": "CHEST"},
+    {"type": "box", "from": [-2, 1, 20], "to": [-2, 1, 20], "material": "CHEST"},
+    {"type": "box", "from": [0, 1, 22], "to": [0, 3, 22], "material": "SPRUCE_LOG"},
+    {"type": "dome", "material": "SPRUCE_LEAVES", "center": [0, 4, 22], "radius": 2},
+
+    {"type": "cylinder", "material": "GRASS_BLOCK", "center": [0, 0, -20], "radius": 4, "height": 1},
+    {"type": "cylinder", "material": "DIRT", "center": [0, -1, -20], "radius": 3, "height": 2},
+    {"type": "box", "from": [2, 1, -20], "to": [2, 1, -20], "material": "CHEST"},
+    {"type": "box", "from": [-2, 1, -20], "to": [-2, 1, -20], "material": "CHEST"},
+    {"type": "box", "from": [0, 1, -22], "to": [0, 3, -22], "material": "OAK_LOG"},
+    {"type": "dome", "material": "OAK_LEAVES", "center": [0, 4, -22], "radius": 2}
+  ],
+
+  "lobby": [0.5, 101, 0.5, 0, 0],
+  "spectator": [0.5, 125, 0.5, 0, 0],
+
+  "spawns": [
+    [20.5, 101, 0.5, 90, 0],
+    [-19.5, 101, 0.5, -90, 0],
+    [0.5, 101, 20.5, 180, 0],
+    [0.5, 101, -19.5, 0, 0]
+  ],
+
+  "settings": {
+    "void-y": 80,
+    "refill-seconds": 240
+  }
+}

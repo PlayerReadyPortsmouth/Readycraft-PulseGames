@@ -24,6 +24,8 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.event.vehicle.VehicleMoveEvent;
 import org.bukkit.event.player.PlayerToggleFlightEvent;
 import uk.co.playerready.pulsegames.PulseGamesPlugin;
 import uk.co.playerready.pulsegames.core.team.GameTeam;
@@ -64,6 +66,13 @@ public final class GameListener implements Listener {
         GameInstance instance = instanceOf(player);
         if (instance == null) {
             if (plugin.lobby().isLobbyWorld(player.getWorld())) {
+                Location lobby = plugin.lobby().lobbyLocation();
+                // Safety net: lobby damage is cancelled (incl. void), so a fall off
+                // the hub would never stop. Return players who drop far below it.
+                if (event.getTo().getY() < lobby.getY() - 48) {
+                    player.teleport(lobby);
+                    return;
+                }
                 // Re-arm the lobby double jump once back on the ground.
                 if (!player.getAllowFlight() && player.getGameMode() == org.bukkit.GameMode.ADVENTURE
                         && player.isOnGround()) {
@@ -80,6 +89,18 @@ public final class GameListener implements Listener {
                 || from.getBlockZ() != to.getBlockZ();
         if (!blockChanged) return;
 
+        // Safety net for pre-game states: damage (incl. void) is cancelled until the
+        // game is RUNNING, so a player who walks off the waiting lobby would fall
+        // forever. Put them back on the arena's waiting platform.
+        if ((instance.state() == GameState.WAITING || instance.state() == GameState.COUNTDOWN)
+                && instance.world() != null) {
+            Location arenaLobby = instance.arena().lobby(instance.world());
+            if (to.getY() < arenaLobby.getY() - 48) {
+                player.teleport(arenaLobby);
+                return;
+            }
+        }
+
         if (instance.state() == GameState.RUNNING && instance.frozen() && instance.isAlive(player)) {
             Location reset = from.clone();
             reset.setYaw(to.getYaw());
@@ -93,6 +114,33 @@ public final class GameListener implements Listener {
             return;
         }
         if (instance.state() == GameState.RUNNING && instance.isAlive(player)) {
+            instance.logic().onMove(player, from, to);
+        }
+    }
+
+    /**
+     * Players riding a vehicle (e.g. kart boats) do NOT fire PlayerMoveEvent - the
+     * vehicle moves, not the player. Route the vehicle's movement to the same game
+     * logic so checkpoints, item boxes and void falls work while mounted.
+     */
+    @EventHandler
+    public void onVehicleMove(VehicleMoveEvent event) {
+        if (event.getVehicle().getPassengers().isEmpty()) return;
+        Location from = event.getFrom();
+        Location to = event.getTo();
+        for (var passenger : event.getVehicle().getPassengers()) {
+            if (!(passenger instanceof Player player)) continue;
+            GameInstance instance = instanceOf(player);
+            if (instance == null || instance.state() != GameState.RUNNING || !instance.isAlive(player)) continue;
+            if (instance.frozen()) {
+                // Hold karts on the grid during the start countdown freeze.
+                event.getVehicle().setVelocity(new org.bukkit.util.Vector(0, 0, 0));
+                continue;
+            }
+            if (to.getY() < instance.logic().voidY()) {
+                instance.handleDeath(player, null);
+                continue;
+            }
             instance.logic().onMove(player, from, to);
         }
     }
@@ -168,18 +216,38 @@ public final class GameListener implements Listener {
     /** Safety net: vanilla deaths shouldn't happen, but never drop items or show a death screen. */
     @EventHandler
     public void onVanillaDeath(PlayerDeathEvent event) {
-        GameInstance instance = instanceOf(event.getEntity());
-        if (instance == null) return;
+        Player player = event.getEntity();
+        GameInstance instance = instanceOf(player);
+        // Inventories are plugin-managed everywhere on this server (lobby menu items,
+        // game kits) - a vanilla death must never scatter them on the ground.
         event.setKeepInventory(true);
         event.getDrops().clear();
         event.setShouldDropExperience(false);
-        Player player = event.getEntity();
         plugin.getServer().getScheduler().runTask(plugin, () -> {
             if (player.isOnline() && player.isDead()) player.spigot().respawn();
-            if (instance.state() == GameState.RUNNING && instance.isAlive(player)) {
+            if (instance != null && instance.state() == GameState.RUNNING && instance.isAlive(player)) {
                 instance.handleDeath(player, null);
             }
         });
+    }
+
+    @EventHandler
+    public void onRespawn(PlayerRespawnEvent event) {
+        Player player = event.getPlayer();
+        GameInstance instance = instanceOf(player);
+        if (instance == null || instance.world() == null) {
+            // Out-of-game deaths (e.g. /kill) would otherwise respawn at world spawn
+            // with an empty hotbar - put them back in the lobby with the menu items.
+            event.setRespawnLocation(plugin.lobby().lobbyLocation());
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                if (player.isOnline() && instanceOf(player) == null) {
+                    plugin.lobby().sendToLobby(player);
+                }
+            });
+            return;
+        }
+        // Keep in-game respawns inside the instance world; game logic repositions them after.
+        event.setRespawnLocation(instance.arena().spectator(instance.world()));
     }
 
     @EventHandler(ignoreCancelled = true)

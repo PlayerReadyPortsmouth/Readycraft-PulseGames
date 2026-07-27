@@ -36,6 +36,9 @@ public final class LobbyService {
     }
 
     public void sendToLobby(Player player) {
+        // A mounted player (e.g. in a kart boat) can't be teleported - dismount first,
+        // otherwise they stay behind in an instance world that then fails to unload.
+        if (player.isInsideVehicle()) player.leaveVehicle();
         player.teleport(lobbyLocation());
         player.setGameMode(org.bukkit.GameMode.ADVENTURE);
         player.setAllowFlight(true); // lobby double jump

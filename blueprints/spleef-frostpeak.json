@@ -1,0 +1,35 @@
+{
+  "arena-id": "frostpeak",
+  "game": "spleef",
+  "display-name": "<aqua>Frostpeak",
+  "modes": ["classic", "decay", "splegg"],
+  "min-players": 2,
+  "max-players": 12,
+
+  "origin": [0, 100, 0],
+
+  "shapes": [
+    {"type": "cylinder", "material": "PACKED_ICE", "center": [0, 0, 0], "radius": 26, "height": 1},
+    {"type": "cylinder", "material": "SNOW_BLOCK", "center": [0, 0, 0], "radius": 24, "height": 1},
+    {"type": "ring", "material": "BLUE_ICE", "center": [0, 0, 0], "radius": 14},
+    {"type": "box", "from": [0, 0, 0], "to": [0, 0, 0], "material": "SEA_LANTERN"}
+  ],
+
+  "lobby": [0.5, 101, 0.5, 0, 0],
+  "spectator": [0.5, 120, 0.5, 0, 0],
+
+  "spawns": [
+    [12.5, 101, 0.5, 90, 0],
+    [-11.5, 101, 0.5, -90, 0],
+    [0.5, 101, 12.5, 180, 0],
+    [0.5, 101, -11.5, 0, 0]
+  ],
+
+  "regions": {
+    "floor1": {"min": [-26, 100, -26], "max": [26, 100, 26]}
+  },
+
+  "settings": {
+    "void-y": 90
+  }
+}

@@ -31,6 +31,14 @@ public final class Commands implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        // Console-capable admin subcommands (map generation needs no player).
+        if (command.getName().equalsIgnoreCase("pulse") && args.length >= 1) {
+            String sub = args[0].toLowerCase(Locale.ROOT);
+            if (sub.equals("build") || sub.equals("blueprints")) {
+                adminConsole(sender, args);
+                return true;
+            }
+        }
         if (!(sender instanceof Player player)) {
             sender.sendMessage("In-game only.");
             return true;
@@ -131,9 +139,30 @@ public final class Commands implements CommandExecutor, TabCompleter {
         }
     }
 
+    /** Subcommands runnable from the server console as well as in-game. */
+    private void adminConsole(CommandSender sender, String[] args) {
+        if (sender instanceof Player p && !p.hasPermission("pulsegames.admin")) {
+            sender.sendMessage(Text.msg("<red>No permission."));
+            return;
+        }
+        switch (args[0].toLowerCase(Locale.ROOT)) {
+            case "blueprints" -> sender.sendMessage(Text.msg("Blueprints: <yellow>"
+                    + String.join(", ", plugin.mapBuilder().available())));
+            case "build" -> {
+                if (args.length < 2) {
+                    sender.sendMessage(Text.msg("<red>Usage: /pulse build <blueprint> "
+                            + "<gray>(see /pulse blueprints)"));
+                    return;
+                }
+                plugin.mapBuilder().build(sender, args[1]);
+            }
+            default -> { }
+        }
+    }
+
     private void admin(Player player, String[] args) {
         if (args.length == 0) {
-            player.sendMessage(Text.msg("Usage: <yellow>/pulse <setup|world|games|list|arenas|start|end|setlobby|reload>"));
+            player.sendMessage(Text.msg("Usage: <yellow>/pulse <setup|shape|build|blueprints|world|games|list|arenas|start|end|setlobby|reload>"));
             return;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
@@ -240,7 +269,10 @@ public final class Commands implements CommandExecutor, TabCompleter {
             }
             case "pulse" -> {
                 if (args.length == 1) {
-                    return List.of("setup", "shape", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
+                    return List.of("setup", "shape", "build", "blueprints", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
+                }
+                if (args.length == 2 && args[0].equalsIgnoreCase("build")) {
+                    return plugin.mapBuilder().available();
                 }
                 if (args.length == 2 && args[0].equalsIgnoreCase("shape")) {
                     return List.of("list", "paste", "undo");

@@ -94,8 +94,27 @@ public final class WorldService {
 
     /** Unloads the instance world (no save) and deletes its folder off-thread. */
     public void unloadAndDelete(World world) {
+        unloadAndDelete(world, 0);
+    }
+
+    private void unloadAndDelete(World world, int attempt) {
         File folder = world.getWorldFolder();
-        Bukkit.unloadWorld(world, false);
+        // Evacuate anyone still inside so the world can actually unload. A loaded
+        // world whose folder is deleted underneath it spams save errors every tick.
+        World fallback = Bukkit.getWorlds().get(0);
+        for (var player : world.getPlayers()) {
+            if (player.isInsideVehicle()) player.leaveVehicle();
+            player.teleport(fallback.getSpawnLocation());
+        }
+        if (!Bukkit.unloadWorld(world, false)) {
+            if (attempt >= 5) {
+                plugin.getLogger().warning("Gave up unloading " + world.getName()
+                        + " after " + attempt + " tries; not deleting its folder.");
+                return;
+            }
+            Bukkit.getScheduler().runTaskLater(plugin, () -> unloadAndDelete(world, attempt + 1), 20L);
+            return;
+        }
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> deleteRecursively(folder.toPath()));
     }
 
