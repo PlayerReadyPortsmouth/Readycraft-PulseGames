@@ -1,5 +1,6 @@
 name: PulseNetwork
-version: '0.1.1'
+version: '0.1.2'
+authors: ['AurorasChaos (on behalf of Player Ready)']
 main: uk.co.playerready.pulsenetwork.PaperBridge
 api-version: '1.21'
 softdepend: [PulseGames, AdvancedChat, ChatGames, EssentialsChat, PulseAddon]

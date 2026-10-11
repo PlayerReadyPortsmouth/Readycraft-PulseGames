@@ -119,3 +119,22 @@ not an offline mailbox: proxy restart/disconnect does not preserve the pending t
 `chat-backends` on the proxy separately restricts global-chat senders and receivers;
 `backends` still controls queue announcements and joining. This permits queues on
 Survival while its private-channel/mute/ignore chat integration remains held.
+
+## Global public chat by default (0.1.2)
+
+New configs default `chat.global-by-default: true`; `/localchat` is optional.
+Current rollout scope is **Lobby, SurvivalTest, MinigamesTest and the primary proxy**.
+Legacy Creative/Survival/SkyBlock/Minigames, Sessions and Create are excluded from
+active proxy chat/queue allowlists following Aurora's latest scope decision.
+
+Set `paper-backends` to the participating Paper backend names. Remote messages are
+sent to the destination helper, which applies native AdvancedChat ignore-all/name
+lists and Essentials UUID/name ignore lists before display. Reflection/API failures
+fail closed. Essentials mutes/vanish also block outgoing relay. AdvancedChat uses
+its explicit post-moderation public event; private/channel events, radius chat and
+cancelled messages do not relay. Ordinary Paper events retain cancellation/viewer
+checks and exclude PulseAddon city renderers even when all online players share a city.
+These adapters preserve installed-plugin behaviour; no mute/ignore database is copied
+between servers. Full human crossplay/moderation acceptance remains required.
+
+Plugin authorship from this version: AurorasChaos, on behalf of Player Ready.

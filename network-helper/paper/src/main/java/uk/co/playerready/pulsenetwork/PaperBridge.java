@@ -17,6 +17,7 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
     private Wire wire;
     private org.bukkit.configuration.file.YamlConfiguration returnLocations;
     private LocalChatGames chatGames;
+    private ChatCompatibility compatibility;
     private final Map<UUID, Boolean> global = new HashMap<>();
     private final Map<UUID, Long> lastChat = new HashMap<>();
     private final Map<String, Long> handled = new HashMap<>();
@@ -34,6 +35,7 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
         getServer().getPluginManager().registerEvents(this, this);
         getServer().getScheduler().runTaskTimer(this, this::queues, 20, 100);
         getServer().getScheduler().runTaskTimer(this, this::returns, 20, 20);
+        compatibility = new ChatCompatibility(this); compatibility.start();
         chatGames = new LocalChatGames(this);
         getServer().getScheduler().runTaskTimer(this, chatGames::tick, 20, 20);
     }
@@ -48,22 +50,29 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
     }
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void chat(AsyncChatEvent event) {
+        if (compatibility != null && compatibility.hasAdvancedChat()) return;
         // Reading after dispatch also respects cancellation/restricted viewers by later handlers.
         getServer().getScheduler().runTask(this, () -> {
             Player player = event.getPlayer(); UUID id = player.getUniqueId();
             if (event.isCancelled() || !player.isOnline() || player.getMetadata("vanished").stream().anyMatch(org.bukkit.metadata.MetadataValue::asBoolean)) return;
             // A private/local-radius/staff channel must never accidentally become public.
             if (!event.viewers().contains(player) || !event.viewers().containsAll(Bukkit.getOnlinePlayers())) return;
+            if (event.renderer() != null && event.renderer().getClass().getName().contains("CityChatListener")) return;
             String body = Wire.plain(PlainTextComponentSerializer.plainText().serialize(event.message()));
             if (body.isBlank() || body.length() > 512) return;
             if (chatGames != null && chatGames.answer(player, body)) return;
-            if (!getConfig().getBoolean("chat.enabled") || !player.hasPermission("pulsenetwork.chat")
-                    || !global.getOrDefault(id, getConfig().getBoolean("chat.global-by-default"))) return;
-            long now = System.currentTimeMillis();
-            if (now - lastChat.getOrDefault(id, 0L) < 1000) return;
-            lastChat.put(id, now);
-            send(player, "CHAT", body);
+            relayPublic(player, body);
         });
+    }
+    void relayPublic(Player player, String message) {
+        UUID id = player.getUniqueId(); String body = Wire.plain(message);
+        if (!player.isOnline() || body.isBlank() || body.length() > 512 || player.getMetadata("vanished").stream().anyMatch(org.bukkit.metadata.MetadataValue::asBoolean)) return;
+        if (!getConfig().getBoolean("chat.enabled") || !player.hasPermission("pulsenetwork.chat")
+                || !global.getOrDefault(id, getConfig().getBoolean("chat.global-by-default"))
+                || (compatibility != null && !compatibility.maySend(player))) return;
+        long now = System.currentTimeMillis();
+        if (now - lastChat.getOrDefault(id, 0L) < 1000) return;
+        lastChat.put(id, now); send(player, "CHAT", body);
     }
     @EventHandler public void quit(PlayerQuitEvent event) {
         if (returnLocations != null && !event.getPlayer().hasMetadata("NPC")) {
@@ -108,6 +117,15 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
     @Override public void onPluginMessageReceived(String channel, Player player, byte[] bytes) {
         if (!channel.equals(Wire.CHANNEL) || wire == null) return;
         var decoded = wire.decode(bytes);
+        if (decoded.isPresent() && decoded.get().kind().equals("REMOTECHAT") && decoded.get().player().equals(player.getUniqueId()) && decoded.get().fields().size() == 4) {
+            var fields = decoded.get().fields();
+            try {
+                UUID sender = UUID.fromString(fields.get(1));
+                if (getConfig().getBoolean("chat.enabled") && (compatibility == null || compatibility.mayReceive(player, sender, fields.get(2))))
+                    player.sendMessage(Component.text("[Global · " + Wire.plain(fields.get(0)) + "] " + Wire.plain(fields.get(2)) + ": " + Wire.plain(fields.get(3))));
+            } catch (IllegalArgumentException invalid) { /* reject */ }
+            return;
+        }
         if (decoded.isPresent() && decoded.get().kind().equals("RESTORE") && decoded.get().player().equals(player.getUniqueId()) && decoded.get().fields().size() == 1) {
             org.bukkit.Location saved = returnLocations == null ? null : returnLocations.getLocation(player.getUniqueId().toString());
             if (saved != null && saved.getWorld() != null) getServer().getScheduler().runTaskLater(this, () -> {
