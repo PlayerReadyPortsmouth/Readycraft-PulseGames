@@ -133,6 +133,11 @@ final class ArenaSetupMenu implements Listener {
         buttons.add(button(Material.ARMOR_STAND, "Queue bots: " + session.settings.getOrDefault("bots-enabled", false), () -> {
             session.settings.put("bots-enabled", !Boolean.TRUE.equals(session.settings.get("bots-enabled"))); open(player, session);
         }, "Toggle arena bot permission", "Only supported games can fill queues"));
+        buttons.add(button(Material.IRON_SWORD, "Bot difficulty: " + session.settings.getOrDefault("bot-difficulty", "normal"), () -> {
+            String current = String.valueOf(session.settings.getOrDefault("bot-difficulty", "normal"));
+            session.settings.put("bot-difficulty", switch (current) { case "easy" -> "normal"; case "normal" -> "hard"; default -> "easy"; });
+            open(player, session);
+        }, "Click to cycle Easy / Normal / Hard", "Normal damage and reach at every level"));
         buttons.add(button(Material.BLAZE_ROD, "Get selection wand", () -> { manager.giveWand(player); player.closeInventory(); }));
         long missing = manager.checklist(session).stream().filter(e -> e.required() && !e.done()).count();
         buttons.add(button(Material.EMERALD_BLOCK, "Review and save (" + missing + " missing)", () -> review(player, session)));
@@ -221,11 +226,28 @@ final class ArenaSetupMenu implements Listener {
         show(player, session, "Game modes", buttons, 0);
     }
     private void limits(Player player, ArenaSetupManager.Session session) {
-        show(player, session, "Player limits", List.of(
-                button(Material.PLAYER_HEAD, "Minimum: " + (session.minPlayers == null ? 2 : session.minPlayers),
-                        () -> prompt(player, session, "Minimum players (positive whole number)", value -> session.minPlayers = positive(value))),
-                button(Material.PLAYER_HEAD, "Maximum: " + (session.maxPlayers == null ? Math.max(2, session.spawns.size()) : session.maxPlayers),
-                        () -> prompt(player, session, "Maximum players (positive whole number)", value -> session.maxPlayers = positive(value)))), 0);
+        List<Button> buttons = new ArrayList<>();
+        buttons.add(button(Material.PLAYER_HEAD, "Default minimum: " + (session.minPlayers == null ? 2 : session.minPlayers),
+                () -> prompt(player, session, "Minimum players (positive whole number)", value -> session.minPlayers = positive(value))));
+        buttons.add(button(Material.PLAYER_HEAD, "Default maximum: " + (session.maxPlayers == null ? Math.max(2, session.spawns.size()) : session.maxPlayers),
+                () -> prompt(player, session, "Maximum players (positive whole number)", value -> session.maxPlayers = positive(value))));
+        session.game.modes().stream().filter(mode -> session.modes.isEmpty() || session.modes.contains(mode.id())).forEach(mode -> {
+            String prefix = "modes." + mode.id() + ".";
+            for (String key : List.of("min-players", "max-players")) {
+                buttons.add(button(Material.COMPARATOR, mode.displayName() + " " + key + ": " + session.settings.getOrDefault(prefix + key, "default"),
+                        () -> prompt(player, session, mode.displayName() + " " + key + " (number or default)", value -> {
+                            if (value.equalsIgnoreCase("default")) session.settings.remove(prefix + key);
+                            else session.settings.put(prefix + key, positive(value));
+                        }), "Overrides only this mode", "Mode minimum: " + mode.minPlayers()));
+            }
+            if (mode.isTeams()) buttons.add(button(Material.WHITE_BANNER, mode.displayName() + " teams: " + session.settings.getOrDefault(prefix + "team-count", "spawn count"),
+                    () -> prompt(player, session, "Team count (2–32, or default)", value -> {
+                        if (value.equalsIgnoreCase("default")) session.settings.remove(prefix + "team-count");
+                        else { int count = positive(value); if (count < 2 || count > 32) throw new IllegalArgumentException("Use 2–32 teams.");
+                            session.settings.put(prefix + "team-count", count); }
+                    }), mode.teamSize() + " players per team", "One spawn per team; Bedwars also needs one bed", "Duels uses two opposing teams"));
+        });
+        show(player, session, "Map capacity by mode", buttons, 0);
     }
     static int positive(String value) {
         int parsed = Integer.parseInt(value);

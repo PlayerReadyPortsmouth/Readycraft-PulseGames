@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PulseGames · Development & play-test tracker</title>
+<style>
+:root{--ink:#19302e;--muted:#5c706d;--teal:#006c61;--line:#dce5df;--paper:#fff;--bg:#f2f5f0}*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:85px}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 system-ui,-apple-system,'Segoe UI',sans-serif}a{color:var(--teal)}.toolbar{position:sticky;top:0;z-index:2;background:#ffffffed;border-bottom:1px solid var(--line);padding:12px 5%;display:flex;align-items:center;justify-content:space-between;gap:12px;backdrop-filter:blur(10px)}.brand{font-weight:800;letter-spacing:.04em}.toolbar small{color:var(--muted);margin-left:16px}button{border:0;border-radius:8px;background:var(--teal);color:white;padding:11px 18px;font:inherit;font-weight:650;cursor:pointer}button:focus-visible,a:focus-visible{outline:3px solid #da973f;outline-offset:3px}main{max-width:1240px;margin:auto;padding:48px 32px 80px}.hero{background:var(--ink);color:white;padding:42px 46px;border-radius:18px;position:relative;border-top:6px solid #b9dca5}.eyebrow{text-transform:uppercase;font-size:12px;letter-spacing:.18em;font-weight:750;color:#bcdbcc}h1{font-size:clamp(32px,4vw,50px);line-height:1.12;letter-spacing:-.04em;margin:15px 0 18px;max-width:750px}.hero p{color:#dae5dd;max-width:760px;margin-bottom:0}.meta{display:flex;gap:24px;margin-top:28px;font-size:13px;color:#d6e5db}.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:24px 0}.stat{background:white;border:1px solid var(--line);border-radius:12px;padding:22px}.stat b{display:block;font-size:30px;line-height:1.2}.stat span{color:var(--muted);font-size:14px}.notice{border-left:5px solid #b47c23;background:#fff5df;padding:18px 22px;margin:24px 0;border-radius:0 10px 10px 0}.notice p{margin:4px 0}.layout{display:grid;grid-template-columns:215px minmax(0,1fr);gap:32px;margin-top:36px}nav{align-self:start;position:sticky;top:85px;font-size:13px}nav strong{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:12px;color:var(--muted)}nav a{display:block;padding:8px 10px;text-decoration:none;border-left:2px solid var(--line);line-height:1.4}nav a:hover{background:#e3ede5;border-color:var(--teal)}.report-section{background:white;border:1px solid var(--line);border-radius:12px;padding:26px 28px;margin-bottom:24px;overflow-wrap:anywhere}.section-heading{display:flex;align-items:baseline;gap:12px;border-bottom:1px solid var(--line);padding-bottom:15px;margin-bottom:20px}.section-heading span{font-size:12px;color:var(--teal);font-weight:750}h2{font-size:23px;line-height:1.3;letter-spacing:-.02em;margin:0}h3{font-size:18px}p{margin:12px 0}li{margin:7px 0}ul,ol{padding-left:22px}table{width:100%;border-collapse:collapse;font-size:12.5px;line-height:1.55;margin:20px 0;table-layout:fixed}th{text-align:left;background:#eaf2eb;color:#24483e;font-weight:750}td,th{padding:11px 9px;border-bottom:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}tbody tr:nth-child(even){background:#f7f9f5}code{font: .88em ui-monospace,monospace;background:#eef2ed;padding:2px 4px;border-radius:3px;overflow-wrap:anywhere}#per-game-readiness th:first-child{width:13%}#per-game-readiness th:nth-child(2){width:25%}#per-game-readiness th:nth-child(3){width:13%}#per-game-readiness th:nth-child(4){width:17%}footer{font-size:12px;color:var(--muted);margin-top:25px}.print-note{font-size:13px;color:var(--muted)}
+@media(max-width:950px){.layout{display:block}nav{position:static;margin-bottom:24px;display:flex;flex-wrap:wrap;gap:4px}nav strong{width:100%}nav a{border:1px solid var(--line);border-radius:5px}main{padding:24px 16px}.hero{padding:28px}.report-section{padding:20px 16px}.toolbar small{display:none}table{font-size:11px}.summary{gap:8px}.stat{padding:14px}}
+@page{size:A4 landscape;margin:14mm 14mm 17mm}
+@media print{html{scroll-behavior:auto}body{background:white;font-size:10pt;line-height:1.5;print-color-adjust:exact;-webkit-print-color-adjust:exact}.toolbar,nav,.print-note{display:none!important}main{max-width:none;padding:0}.hero{padding:20px 28px;border-radius:0}h1{font-size:30pt}.hero p{max-width:none}.meta{margin-top:14px}.summary{margin:16px 0}.stat{padding:12px}.stat b{font-size:23pt}.notice{margin:16px 0;padding:12px 16px}.layout{display:block;margin:0}.report-section{border:0;border-radius:0;padding:0;margin:0;break-before:page}.section-heading{padding:0 0 10px;margin:0 0 16px}h2{font-size:20pt}h3{break-after:avoid}table{font-size:9pt;line-height:1.45;margin:14px 0}td,th{padding:8px}thead{display:table-header-group}tr{break-inside:avoid}p,li{orphans:3;widows:3}a{color:inherit;text-decoration:none}footer{font-size:8pt}#per-game-readiness table{font-size:8.5pt}code{font-size:.88em}}
+</style></head><body><header class="toolbar"><div><span class="brand">PULSE / GAMES</span><small>Development & play testing</small></div><button onclick="window.print()">Print / Save as PDF</button></header><main>
+<div class="hero"><div class="eyebrow">ReadyCraft · Working report</div><h1>Every game.<br>A clear next step.</h1><p>Map building, bot readiness and player testing in one shared record. Prepared changes remain separate from what is running on MinigamesTest.</p><div class="meta"><span>Updated 11 October 2026</span><span>Owner: Aurora</span><span>Snapshot, not a live server feed</span></div></div>
+<div class="summary"><div class="stat"><b>23 games</b><span>Tracked across the programme</span></div><div class="stat"><b>4 / 23</b><span>Games with current bot controllers</span></div><div class="stat"><b>5 maps</b><span>Prop Hunt batch awaiting visual review</span></div></div>
+<aside class="notice"><strong>Current priority · Prop Hunt maps</strong><p>Build larger, denser maps, complete earlier-map revisions, then Aurora visually approves all five before arena setup. Building completion alone does not authorise setup.</p></aside>
+<p class="print-note">Share this standalone HTML file, or use Print / Save as PDF for the complete report. Printing includes every section. For best results use A4 landscape with background graphics enabled.</p>
+<div class="layout"><nav aria-label="Report sections"><strong>In this report</strong><a href="#working-agreement">Working agreement</a><a href="#current-test-server-baseline">Current test-server baseline</a><a href="#prepared-update-not-deployed">Prepared update — not deployed</a><a href="#active-map-batch-prop-hunt">Active map batch: Prop Hunt</a><a href="#team-size-and-map-capacity-programme">Team-size and map-capacity programme</a><a href="#per-game-readiness">Per-game readiness</a><a href="#verified-server-arena-names">Verified server arena names</a><a href="#duels-map-and-mode-register">Duels map and mode register</a><a href="#bot-programme">Bot programme</a><a href="#map-setup-and-acceptance-template">Map setup and acceptance template</a><a href="#dated-log">Dated log</a></nav><article><section id="working-agreement" class="report-section"><div class="section-heading"><span>01</span><h2>Working agreement</h2></div><ul>
+<li>Goal: a broad mix of party, co-op, racing and competitive games, all with proper
+objective-playing queue bots, followed by map building and two-human-player tests.</li>
+<li>Test on <strong>MinigamesTest</strong>, reached through the existing primary proxy. Never use
+SurvivalTest for this work. Preserve lobby and build-world edits.</li>
+<li><strong>Ask Aurora before every server restart.</strong> The one-time permission on 11 October
+was consumed by the 0.3.2 cleanup/update. No standing restart permission exists.</li>
+<li>Use PulseContent for custom items/entities and check Java and Bedrock through
+Geyser. Do not treat a successful Java test as crossplay acceptance.</li>
+<li>A bot must perform objectives, obey game rules, handle death/respawn and finish
+rounds. Spawning or filling a slot alone does not count as support.</li>
+<li>Preserve distinctions: planned → implemented → locally checked → deployed to
+MinigamesTest → player tested → accepted. Merged does not mean deployed.</li>
+<li>Record who reported a result, date, map/mode, client, player/bot counts and any
+evidence. Write “not recorded” where details are unknown. Do not invent passes.</li>
+<li>Verify map names against the saved <code>plugins/PulseGames/arenas/*.yml</code> definitions: record <code>display-name</code>, <code>id</code>, <code>game</code> and <code>world-template</code>. Do not infer names from build-world folders. Check the template exists and record modes/spawns separately from player acceptance.</li>
+<li>Before changing a status, check current source, PR and server version. Append
+significant results to the dated log; do not erase failures to make a row green.</li>
+</ul>
+</section>
+<section id="current-test-server-baseline" class="report-section"><div class="section-heading"><span>02</span><h2>Current test-server baseline</h2></div><ul>
+<li>PulseGames <strong>0.3.2</strong> and PulseContent Paper <strong>0.3.1</strong>, last verified 11 October.</li>
+<li>Java and Bedrock can connect through the primary proxy. Access is no longer
+restricted by MinigamesTest&#39;s whitelist; proxy authentication remains in place.</li>
+<li>Lobby mob spawning disabled; 62 loaded hostile mobs removed earlier.</li>
+<li>New <code>/pulse world &lt;name&gt;</code> build worlds default to void, with a 7×7 quartz spawn
+platform. Existing worlds and edits persist. Use <code>normal</code> explicitly for terrain.</li>
+<li>Six initial test arenas existed. Three user-built Duels arenas were subsequently
+saved, and the server logged <strong>9 loaded arenas</strong> at 17:20 UTC on 11 October.</li>
+<li>Current bot controllers cover only <strong>4/23 games</strong>: Duels, KitPvP FFA, KOTH and
+Dodgeball. Global enablement, per-arena permission, capacity and feature access
+also matter. Other games are not ready simply by setting <code>bots-enabled: true</code>.</li>
+</ul>
+</section>
+<section id="prepared-update-not-deployed" class="report-section"><div class="section-heading"><span>03</span><h2>Prepared update — not deployed</h2></div><table>
+<thead>
+<tr>
+<th>Change</th>
+<th>Current status</th>
+<th>Remaining acceptance</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Arena Setup Book and interactive checklist</td>
+<td>Implemented; approved mockup; focused tests and local Paper menu probe passed</td>
+<td>Real Java/Bedrock clicks, prompts and save flow</td>
+</tr>
+<tr>
+<td>1.8-style PvP</td>
+<td>Scoped OCM candidate passed local module/attack-speed restoration check on an owned NPC</td>
+<td>Mixed human/bot damage, knockback and blocking checks on both clients</td>
+</tr>
+<tr>
+<td>Dodgeball pacing and feedback</td>
+<td>Prepared: 0.75s → 0.35s default throw delay; visible cooldown, hit sounds/messages, elimination title</td>
+<td>Player feel and crossplay feedback acceptance</td>
+</tr>
+<tr>
+<td>Prop Hunt startup failure</td>
+<td>Root cause confirmed; corrected validation accepted all 10 actual BetterModel props; tracker creation passed locally</td>
+<td>Actual disguise attachment and full two-client round</td>
+</tr>
+<tr>
+<td>Prop Hunt two-player start</td>
+<td>Prepared: both modes minimum 2; reject a solo forced start</td>
+<td>One seeker and one hider completing Classic and Infection</td>
+</tr>
+<tr>
+<td>Bot difficulty and first co-op controller</td>
+<td>Prepared Easy/Normal/Hard settings; Villager Defense wave-enemy combat and Mayor guard behaviour</td>
+<td>Full multi-wave survival, respawns, human/bot balance and crossplay</td>
+</tr>
+<tr>
+<td>PvP team sizes and map capacity</td>
+<td>Prepared solo/doubles/triples/squads for main combat games, 2v2 Duels rounds and per-mode map limits</td>
+<td>Test each mode on suitable maps; do not enable team modes on undersized maps</td>
+</tr>
+<tr>
+<td>CoBuilder command-announcement disconnect</td>
+<td>Client mod 0.4.1 prepared separately</td>
+<td>Install/relaunch client at a convenient time and retest announcements</td>
+</tr>
+<tr>
+<td>Distant lobby Trial Chamber</td>
+<td>Diagnosed; bounded cleanup tooling prepared</td>
+<td>Separate permission and fresh edit-preserving checks before cleanup</td>
+</tr>
+</tbody></table>
+<p>Draft changes currently relate to PulseGames PR4 and PulseContent PR28; neither
+is evidence that these new updates are live. See the dated log for verification.</p>
+</section>
+<section id="active-map-batch-prop-hunt" class="report-section"><div class="section-heading"><span>04</span><h2>Active map batch: Prop Hunt</h2></div><p><strong>Build five maps first. Aurora will visually inspect and approve all five before
+any of them are configured as arenas.</strong> This is an explicit user gate, recorded
+11 October 2026. Building completion is not setup permission.</p>
+<ul>
+<li>Builder agent: create five distinct permanent build worlds/maps and report their
+actual names and visit instructions here. Preserve existing lobby and maps.</li>
+<li>Review: Aurora visually verifies all five. Record her decision and requested
+changes per map; do not infer approval from elapsed time or a successful build.</li>
+<li>Only after Aurora confirms the five-map review is complete may the agent start
+<code>/pulse setup</code>, capture templates or register these maps in matchmaking.</li>
+<li>After setup, verify exact saved display names, arena IDs, modes and templates
+from the server definitions, then perform the two-human-player tests.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Map</th>
+<th>Build-world name</th>
+<th>Build state</th>
+<th>Aurora visual review</th>
+<th>Arena setup</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1 - Market Day</td>
+<td><code>rc_build_prophunt_market_day</code></td>
+<td>Expanded to 93x93; eight shops, two stock houses, eight stalls and yards. Builder visual/block checks passed (28,457 states).</td>
+<td>Larger/denser revision requested; revised version awaiting Aurora review</td>
+<td>Blocked on all-five review</td>
+</tr>
+<tr>
+<td>2 - Crooked Library</td>
+<td><code>rc_build_prophunt_crooked_library</code></td>
+<td>Expanded to 113x47 across three levels; twelve new furnished wing rooms. Builder visual/block checks passed (33,527 states).</td>
+<td>Larger/denser revision requested; revised version awaiting Aurora review</td>
+<td>Blocked on all-five review</td>
+</tr>
+<tr>
+<td>3 - Harvest Festival</td>
+<td><code>rc_build_prophunt_harvest_festival</code></td>
+<td>Initial build checked (12,279 states); larger/denser expansion next</td>
+<td>Revision requested; not accepted</td>
+<td>Blocked on all-five review</td>
+</tr>
+<tr>
+<td>4 - Smuggler&#39;s Wharf</td>
+<td><code>rc_build_prophunt_smugglers_wharf</code></td>
+<td>Built at 109x93; six furnished buildings, warehouse floors, ship/cabin and cargo yards. Builder visual/block checks passed (42,634 states).</td>
+<td>Built to revised brief; awaiting Aurora review</td>
+<td>Blocked on all-five review</td>
+</tr>
+<tr>
+<td>5 - Backstage Mayhem</td>
+<td>Not created yet; planned <code>rc_build_prophunt_backstage_mayhem</code></td>
+<td>Planned after earlier-map revisions</td>
+<td>Pending</td>
+<td>Blocked on all-five review</td>
+</tr>
+</tbody></table>
+<p>Visit a built map with <code>/pulse world &lt;build-world name&gt;</code> using the exact name above.
+These are verified permanent build worlds, not saved arena IDs or templates.
+Builder checks cover block states and actual aerial/interior images; they do not
+constitute Aurora approval, Java/Bedrock acceptance or a played Prop Hunt round.</p>
+<p>Aurora&#39;s feedback: the initial maps were too small and lacked enough hiding
+clutter. Revised order: finish the larger, denser Wharf, revise all three built
+maps, then build Backstage Mayhem. No Prop Hunt map has been registered.</p>
+</section>
+<section id="team-size-and-map-capacity-programme" class="report-section"><div class="section-heading"><span>05</span><h2>Team-size and map-capacity programme</h2></div><p>Aurora confirmed: <strong>sizes 1–4 (solo, doubles, triples, squads), with the number of
+opposing teams controlled by each map</strong>. This is separate from how many people
+are currently queued.</p>
+<ul>
+<li>Prepared variants: Duels, KitPvP, KOTH, Dodgeball, Skywars, Bedwars and Lucky Pillars.</li>
+<li>Duels stays two opposing sides (including 2v2, 3v3 and 4v4); a round ends after
+the opposing side is out, not on the first teammate death.</li>
+<li>Skywars/Bedwars use map-defined team slots, bounded by spawns and required bases.
+Solo Bedwars uses one-player teams with separate beds.</li>
+<li>Setup Book: per-mode minimum/maximum players, team count and bot difficulty.
+Existing saved arena modes and live maps have not been changed.</li>
+<li>Prop Hunt&#39;s seeker/hider roles and Party Games&#39; individual rotating competition
+remain distinct; symmetric team variants for these need a separate rules design.</li>
+<li>Team modes do not imply bot support. Live controllers still cover 4/23 games;
+Villager Defense is the fifth prepared controller, not a live/accepted fifth game.</li>
+<li>See <a href="TEAM-MODES.md">team and capacity instructions</a> for exact settings and examples.</li>
+</ul>
+</section>
+<section id="per-game-readiness" class="report-section"><div class="section-heading"><span>06</span><h2>Per-game readiness</h2></div><p>“Two humans” below describes catalogue requirements before arena limits. Where
+additional players are required, suitable bots or a deliberate test mode are still
+needed. Do not bypass team/role requirements and call that a completed test.</p>
+<table>
+<thead>
+<tr>
+<th>Game</th>
+<th>Maps / player testing</th>
+<th>Current bots</th>
+<th>Two humans</th>
+<th>Next work</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Duels</strong></td>
+<td><strong>3 user-built maps: Courtyard, Ruined Temple, Foundry. Aurora reports gameplay works.</strong> Initial trial arena also retained.</td>
+<td>Classic, OP, Sumo</td>
+<td>Yes</td>
+<td>Adjust kits/loadouts; consider Mace PvP, Crystal PvP and further modes; difficulty levels; test each map/mode</td>
+</tr>
+<tr>
+<td>KitPvP</td>
+<td>Trial arena; bot tested earlier, detailed acceptance not recorded</td>
+<td>FFA only</td>
+<td>Yes</td>
+<td>Kit balance; OITC bow/ammo bot; respawn and mixed-client tests</td>
+</tr>
+<tr>
+<td>KOTH</td>
+<td>Trial arena available; full acceptance not recorded</td>
+<td>Solo and teams</td>
+<td>Solo yes; teams currently needs 8 total</td>
+<td>Fix test arena capacity for teams; hill contesting and team balance</td>
+</tr>
+<tr>
+<td>Dodgeball</td>
+<td>Court test arena; Aurora reports cooldown too slow and hits unclear</td>
+<td>Solo and teams</td>
+<td>Yes</td>
+<td>Test prepared cooldown/feedback; dodge and lead targets; difficulty</td>
+</tr>
+<tr>
+<td>Dropper</td>
+<td>Two-drops test arena</td>
+<td>None</td>
+<td>Race yes; practice is solo</td>
+<td>Test landing/checkpoint/reset behaviour; controlled-fall bots</td>
+</tr>
+<tr>
+<td>Prop Hunt</td>
+<td><strong>Five-map build batch in progress; Aurora must visually approve all five before setup.</strong> Trial arena exists; startup fix pending deployment</td>
+<td>None</td>
+<td>Live minimum 3; prepared update lowers to 2</td>
+<td>Deploy validated startup fix; test palette, snapping and head props; fair seeker/hider bots</td>
+</tr>
+<tr>
+<td>Spleef</td>
+<td>No accepted map/test recorded</td>
+<td>None</td>
+<td>Yes</td>
+<td>Maps; safe-floor navigation and digging; Splegg projectiles</td>
+</tr>
+<tr>
+<td>TNT Run</td>
+<td>No accepted map/test recorded</td>
+<td>None</td>
+<td>Yes</td>
+<td>Maps; disappearing-floor routing and double jumps</td>
+</tr>
+<tr>
+<td>Block Party</td>
+<td>No accepted map/test recorded</td>
+<td>None</td>
+<td>Yes</td>
+<td>Maps; colour-aware movement and elimination tests</td>
+</tr>
+<tr>
+<td>Avalanche</td>
+<td>No accepted map/test recorded</td>
+<td>None</td>
+<td>Yes</td>
+<td>Maps; falling-block prediction and evasion</td>
+</tr>
+<tr>
+<td>Volcano</td>
+<td>No accepted map/test recorded</td>
+<td>None</td>
+<td>Yes</td>
+<td>Maps; climbing routes and lava/eruption avoidance</td>
+</tr>
+<tr>
+<td>Parkour</td>
+<td>No accepted map/test recorded</td>
+<td>None</td>
+<td>Sprint yes; elimination needs 3</td>
+<td>Builder-authored routes, real jumps and checkpoints</td>
+</tr>
+<tr>
+<td>Elytra Racing</td>
+<td>No accepted map/test recorded</td>
+<td>None</td>
+<td>Yes</td>
+<td>Flight routes, checkpoint passage, rockets and recovery</td>
+</tr>
+<tr>
+<td>PulseKarts</td>
+<td>No accepted map/test recorded</td>
+<td>None</td>
+<td>Yes</td>
+<td>Ice track, boat steering, checkpoints, laps and item use</td>
+</tr>
+<tr>
+<td>Skywars</td>
+<td>No accepted map/test recorded</td>
+<td>None</td>
+<td>Solo/insane yes; doubles needs 4</td>
+<td>Loot/equip, bridging, safe combat and team tests</td>
+</tr>
+<tr>
+<td>Bedwars</td>
+<td>No accepted map/test recorded</td>
+<td>None</td>
+<td>Duos needs 4; quads needs 8</td>
+<td>Resources, shops, bed defence/destruction, bridging and respawns</td>
+</tr>
+<tr>
+<td>Build Battle</td>
+<td>No accepted map/test recorded</td>
+<td>None</td>
+<td>Yes</td>
+<td>Theme-aware building in plots, phases and fair voting bots</td>
+</tr>
+<tr>
+<td>Death Run</td>
+<td>No accepted map/test recorded</td>
+<td>None</td>
+<td>Classic needs 3; double trouble 4</td>
+<td>Runner routes, Death roles and trap timing</td>
+</tr>
+<tr>
+<td>Villager Defense</td>
+<td>No accepted map/test recorded</td>
+<td>None</td>
+<td>Yes</td>
+<td>Hostile-mob targeting, Mayor defence and co-op survival bots</td>
+</tr>
+<tr>
+<td>ReadyPlayerZ</td>
+<td>No accepted map/test recorded</td>
+<td>None</td>
+<td>Yes</td>
+<td>Zombie targeting/kiting, shopping, revives and wave progression</td>
+</tr>
+<tr>
+<td>Lucky Pillars</td>
+<td>No accepted map/test recorded</td>
+<td>None</td>
+<td>Yes</td>
+<td>Item decisions, bridging and safe combat</td>
+</tr>
+<tr>
+<td>Supermarket Sweep</td>
+<td>No accepted map/test recorded</td>
+<td>None</td>
+<td>Yes</td>
+<td>Shopping-list decisions, real chest/inventory actions and checkout</td>
+</tr>
+<tr>
+<td>Party Games</td>
+<td>No accepted map/test recorded</td>
+<td>None</td>
+<td>Yes</td>
+<td>Controller switching between colour matching, sumo and sprint</td>
+</tr>
+</tbody></table>
+</section>
+<section id="verified-server-arena-names" class="report-section"><div class="section-heading"><span>07</span><h2>Verified server arena names</h2></div><p>Read directly from MinigamesTest&#39;s saved definitions on 11 October 2026. All nine
+referenced templates contain region files. Names below preserve exact spelling
+and capitalisation; no maps were renamed by this documentation check.</p>
+<table>
+<thead>
+<tr>
+<th>Game</th>
+<th>Display name</th>
+<th>Arena ID / template</th>
+<th>Definition file</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Duels</td>
+<td><code>courtyard</code></td>
+<td><code>courtyard</code></td>
+<td><code>duels-courtyard.yml</code></td>
+</tr>
+<tr>
+<td>Duels</td>
+<td><code>ruined_temple</code></td>
+<td><code>ruined_temple</code></td>
+<td><code>duels-ruined_temple.yml</code></td>
+</tr>
+<tr>
+<td>Duels</td>
+<td><code>foundry</code></td>
+<td><code>foundry</code></td>
+<td><code>duels-foundry.yml</code></td>
+</tr>
+<tr>
+<td>Duels</td>
+<td><code>Duels Test Arena</code></td>
+<td><code>trial-duels</code></td>
+<td><code>duels-trial-duels.yml</code></td>
+</tr>
+<tr>
+<td>KitPvP</td>
+<td><code>Kitpvp Test Arena</code></td>
+<td><code>trial-kitpvp</code></td>
+<td><code>kitpvp-trial-kitpvp.yml</code></td>
+</tr>
+<tr>
+<td>KOTH</td>
+<td><code>Koth Test Arena</code></td>
+<td><code>trial-koth</code></td>
+<td><code>koth-trial-koth.yml</code></td>
+</tr>
+<tr>
+<td>Dodgeball</td>
+<td><code>Dodgeball Court</code></td>
+<td><code>court</code></td>
+<td><code>dodgeball-court.yml</code></td>
+</tr>
+<tr>
+<td>Dropper</td>
+<td><code>Two Drops</code></td>
+<td><code>two-drops</code></td>
+<td><code>dropper-two-drops.yml</code></td>
+</tr>
+<tr>
+<td>Prop Hunt</td>
+<td><code>Prophunt Test Arena</code></td>
+<td><code>trial-prophunt</code></td>
+<td><code>prophunt-trial-prophunt.yml</code></td>
+</tr>
+</tbody></table>
+<p>The three new Duels definitions all enable <code>classic</code> and <code>op</code>, minimum/maximum 2,
+two spawns, a waiting lobby and spectator point, <code>bots-enabled: true</code>, and
+<code>void-y: 74</code>. This validates the saved setup fields and template presence; further
+kit/mode tuning remains a gameplay task.</p>
+</section>
+<section id="duels-map-and-mode-register" class="report-section"><div class="section-heading"><span>08</span><h2>Duels map and mode register</h2></div><p>Aurora&#39;s report on 11 October: three maps are made and Duels works; kits/loadouts
+need adjustments. The server logged saves for all three arenas. This confirms
+creation, not that every mode has been accepted on every map/client.</p>
+<table>
+<thead>
+<tr>
+<th>Arena ID</th>
+<th>Build world</th>
+<th>State</th>
+<th>Follow-up</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>courtyard</code></td>
+<td><code>rc_build_duels_courtyard</code></td>
+<td>Built and saved</td>
+<td>Kit/loadout tuning; record Classic/OP results per client</td>
+</tr>
+<tr>
+<td><code>ruined_temple</code></td>
+<td><code>rc_build_duels_ruined_temple</code></td>
+<td>Built and saved</td>
+<td>Kit/loadout tuning; record Classic/OP results per client</td>
+</tr>
+<tr>
+<td><code>foundry</code></td>
+<td><code>rc_build_duels_foundry</code></td>
+<td>Built and saved</td>
+<td>Kit/loadout tuning; record Classic/OP results per client</td>
+</tr>
+</tbody></table>
+<p>Potential modes, <strong>not implemented or promised as ready</strong>:</p>
+<ul>
+<li>Mace PvP: define loadout, arena verticality, wind charges, fall damage and combat
+timing explicitly. Do not blindly apply legacy sword rules to a mace mode.</li>
+<li>Crystal PvP: define crystals, obsidian placement/breaking, explosions, protection,
+offhand/totems and respawn cleanup; needs its own map and bot acceptance.</li>
+<li>Other modes: record the requested rules before implementing or labelling ready.</li>
+</ul>
+</section>
+<section id="bot-programme" class="report-section"><div class="section-heading"><span>09</span><h2>Bot programme</h2></div><ol>
+<li>Harden the existing four: difficulty levels, kit use, positioning, fairness and
+cleanup. Add a controller interface and shared participant lookup.</li>
+<li>Co-op: Villager Defense and ReadyPlayerZ; add KitPvP OITC ranged combat.</li>
+<li>Ground hazards: Block Party, Avalanche, Spleef, TNT Run; reuse controllers in
+Party Games where the actual rules match.</li>
+<li>Role/interaction games: Prop Hunt and Supermarket Sweep.</li>
+<li>Route games: Parkour, Volcano, Death Run, Dropper, then specialised Elytra and
+boat steering for Karts.</li>
+<li>Resource/build combat: Skywars, Lucky Pillars, Bedwars.</li>
+<li>Build Battle: separate theme/build/voting behaviour, not a combat controller.</li>
+</ol>
+<p>Shared blockers found in the source audit:</p>
+<ul>
+<li>Several games resolve participants via Bukkit&#39;s online-player lookup. Citizens
+NPCs are deliberately absent from that list. Use <code>GameInstance.player(...)</code> for
+game participants, while keeping pack readiness tied to real client sessions.</li>
+<li>Current bot actions lack reusable jump, block, inventory/shop, flight and vehicle
+control. Each game must drive its normal rules; no invisible scoring shortcuts.</li>
+<li>Current co-op targeting cannot reuse an enemy-player-only combat controller.</li>
+<li>The test server&#39;s target of 2 players and maximum 3 bots per match cannot fill
+modes needing 8 participants. Capacity, target and feature settings need an
+explicit reviewed configuration change, not just a higher bot count.</li>
+<li>Prop Hunt bots must not search using hidden hider coordinates. Define perception
+and memory limits, hiding choices and lock/unlock behaviour.</li>
+</ul>
+</section>
+<section id="map-setup-and-acceptance-template" class="report-section"><div class="section-heading"><span>10</span><h2>Map setup and acceptance template</h2></div><p>Build in a permanent world, never a disposable <code>pulse_...</code> match clone. Follow
+<a href="docs/MAP-SETUP.md">docs/MAP-SETUP.md</a> for the game&#39;s exact points and regions.
+Current commands: <code>/pulse setup start &lt;game&gt; &lt;arenaId&gt;</code>, <code>lobby</code>, <code>spectator</code>,
+<code>addspawn</code>, selection <code>wand</code> and <code>region</code>, settings, <code>check</code>, <code>save</code>.
+The prepared Setup Book will expose these actions in an inventory menu.</p>
+<p>For each new map or mode, append:</p>
+<ul>
+<li>Date / tester / game / mode / arena ID / build world:</li>
+<li>Server/plugin versions and Java/Bedrock versions:</li>
+<li>Humans and bots (counts, teams/roles, bot difficulty):</li>
+<li>Required points/regions/settings validated:</li>
+<li>Join → start → objectives → win/lose → return to lobby:</li>
+<li>Death/respawn, disconnect, late join and cleanup:</li>
+<li>Crossplay items/entities, resource pack and menu interaction:</li>
+<li>Findings, reproduction steps, screenshots/log references:</li>
+<li>Fix PR/commit, deployment evidence and retest result:</li>
+<li>Status and next action:</li>
+</ul>
+</section>
+<section id="dated-log" class="report-section"><div class="section-heading"><span>11</span><h2>Dated log</h2></div><h3>11 October 2026</h3>
+<ul>
+<li><p>Aurora reported the Duels bot works well and requested difficulty levels.</p>
+</li>
+<li><p>Three Duels maps were created/saved: Courtyard, Ruined Temple and Foundry.
+Server saves observed at 17:16, 17:19 and 17:20 UTC; nine arenas loaded afterwards.
+Aurora reports Duels works; kit/loadout tuning and possible Mace/Crystal modes
+remain requested follow-ups.</p>
+</li>
+<li><p>Arena setup menu design approved. Setup Book implementation passed a local
+Paper 26.2 rendering/action probe; not installed on MinigamesTest.</p>
+</li>
+<li><p>Aurora reported Dodgeball throw cooldown and hit clarity problems. Prepared
+pacing and feedback changes passed focused gameplay tests; no player retest yet.</p>
+</li>
+<li><p>Prop Hunt failed at 17:24:55 UTC when <code>/pulse start</code> was used with two players.
+Root exception: <code>Minigame visuals cannot contain model hitboxes</code>. PulseContent&#39;s
+validator confused ordinary visual bounds with collision bones. Fix prepared;
+live server still has the failing version. This was not caused by player count.</p>
+</li>
+<li><p>All-game source audit: 4/23 games currently have bot controllers. Universal bot
+readiness is a development programme, not an existing capability.</p>
+</li>
+<li><p>No live server changes or restarts were made while preparing these updates.</p>
+</li>
+<li><p>Aurora has moved on to building Prop Hunt maps. New map names are not yet recorded; verify saved arena definitions before adding them. Do not interrupt building with an unapproved restart.</p>
+</li>
+<li><p>Aurora specified five Prop Hunt maps, followed by her visual verification of all five before arena setup. Added an explicit blocked setup gate and per-map review register.</p>
+</li>
+</ul>
+<h3>11 October 2026 - bots, team modes and resource review</h3>
+<ul>
+<li><p>Prepared Easy/Normal/Hard bot difficulty without damage, health or reach boosts.
+Existing combat controllers recognise their new team-size variants.</p>
+</li>
+<li><p>Prepared Villager Defense bot targeting of tracked wave zombies, return to the
+Mayor and selection of earned sword upgrades. Isolated Paper/Citizens probe:
+a normal-health zombie was killed through the normal Player.attack path and the
+one-enemy test wave completed in four seconds. This was not a full multi-wave or
+human crossplay acceptance test. Initial probe did not tick its remote test
+chunks; repeating with test chunks force-loaded passed.</p>
+</li>
+<li><p>72 focused tests passed covering bots, team/map capacity, Duels team outcomes,
+damage, setup UI, queueing, Dodgeball and combat scoping. Jar build passed.</p>
+</li>
+<li><p>MinigamesTest resource review: current limits 2 CPUs / 3072 MiB container,
+2304 MiB Java heap; about 2939 MiB container usage. Host has 16 CPUs and about
+7 GiB available RAM. Recommended 4 CPUs / 5120 MiB container, automatically
+deriving a 4096 MiB Java heap. CPU throttling and memory-limit pressure observed;
+no OOM kills. Awaiting explicit one-restart approval; no resource changes made.</p>
+</li>
+<li><p>All new code remains prepared, not deployed. No live map edits or server restart.</p>
+</li>
+<li><p>Map-builder update: recorded exact permanent world names. Smuggler&#39;s Wharf
+built to the larger/denser brief; Market Day and Crooked Library expanded and
+visually/block checked. Harvest Festival expansion remains next; Backstage
+Mayhem remains planned. All Aurora approvals, arena setup and player tests
+remain pending. Preserved the initial-size feedback and all-five review gate.</p>
+</li>
+<li><p>Aurora requested that this shared tracker be kept current and pushed as map
+progress/testing changes. Update the canonical Markdown and regenerate both
+report exports; keep construction checks separate from player acceptance.</p>
+</li>
+</ul>
+</section></article></div>
+<footer>PulseGames · Source: MINIGAMES-TRACKER.md · Regenerate this report after updating the source. No server changes are performed by this document.</footer></main></body></html>

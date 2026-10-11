@@ -3,6 +3,10 @@
 Last updated: 11 October 2026. Owner: Aurora. Agents should update this file as
 work and player feedback arrive; keep it in the PulseGames repository.
 
+Readable report: [HTML](MINIGAMES-TRACKER.html) · [PDF](MINIGAMES-TRACKER.pdf).
+After editing this source, regenerate both exports with
+`node tools/render-minigames-tracker.mjs --pdf`; see [update instructions](tools/TRACKER-README.md).
+
 ## Working agreement
 
 - Goal: a broad mix of party, co-op, racing and competitive games, all with proper
@@ -46,6 +50,8 @@ work and player feedback arrive; keep it in the PulseGames repository.
 | Dodgeball pacing and feedback | Prepared: 0.75s → 0.35s default throw delay; visible cooldown, hit sounds/messages, elimination title | Player feel and crossplay feedback acceptance |
 | Prop Hunt startup failure | Root cause confirmed; corrected validation accepted all 10 actual BetterModel props; tracker creation passed locally | Actual disguise attachment and full two-client round |
 | Prop Hunt two-player start | Prepared: both modes minimum 2; reject a solo forced start | One seeker and one hider completing Classic and Infection |
+| Bot difficulty and first co-op controller | Prepared Easy/Normal/Hard settings; Villager Defense wave-enemy combat and Mayor guard behaviour | Full multi-wave survival, respawns, human/bot balance and crossplay |
+| PvP team sizes and map capacity | Prepared solo/doubles/triples/squads for main combat games, 2v2 Duels rounds and per-mode map limits | Test each mode on suitable maps; do not enable team modes on undersized maps |
 | CoBuilder command-announcement disconnect | Client mod 0.4.1 prepared separately | Install/relaunch client at a convenient time and retest announcements |
 | Distant lobby Trial Chamber | Diagnosed; bounded cleanup tooling prepared | Separate permission and fresh edit-preserving checks before cleanup |
 
@@ -69,14 +75,39 @@ any of them are configured as arenas.** This is an explicit user gate, recorded
 
 | Map | Build-world name | Build state | Aurora visual review | Arena setup |
 |---|---|---|---|---|
-| 1 | Awaiting builder report | Planned / batch in progress | Pending | Blocked on all-five review |
-| 2 | Awaiting builder report | Planned / batch in progress | Pending | Blocked on all-five review |
-| 3 | Awaiting builder report | Planned / batch in progress | Pending | Blocked on all-five review |
-| 4 | Awaiting builder report | Planned / batch in progress | Pending | Blocked on all-five review |
-| 5 | Awaiting builder report | Planned / batch in progress | Pending | Blocked on all-five review |
+| 1 - Market Day | `rc_build_prophunt_market_day` | Expanded to 93x93; eight shops, two stock houses, eight stalls and yards. Builder visual/block checks passed (28,457 states). | Larger/denser revision requested; revised version awaiting Aurora review | Blocked on all-five review |
+| 2 - Crooked Library | `rc_build_prophunt_crooked_library` | Expanded to 113x47 across three levels; twelve new furnished wing rooms. Builder visual/block checks passed (33,527 states). | Larger/denser revision requested; revised version awaiting Aurora review | Blocked on all-five review |
+| 3 - Harvest Festival | `rc_build_prophunt_harvest_festival` | Initial build checked (12,279 states); larger/denser expansion next | Revision requested; not accepted | Blocked on all-five review |
+| 4 - Smuggler's Wharf | `rc_build_prophunt_smugglers_wharf` | Built at 109x93; six furnished buildings, warehouse floors, ship/cabin and cargo yards. Builder visual/block checks passed (42,634 states). | Built to revised brief; awaiting Aurora review | Blocked on all-five review |
+| 5 - Backstage Mayhem | Not created yet; planned `rc_build_prophunt_backstage_mayhem` | Planned after earlier-map revisions | Pending | Blocked on all-five review |
 
-These placeholders are not invented map names or claims that any individual map
-has already been built. Replace them with the builder's verified names.
+Visit a built map with `/pulse world <build-world name>` using the exact name above.
+These are verified permanent build worlds, not saved arena IDs or templates.
+Builder checks cover block states and actual aerial/interior images; they do not
+constitute Aurora approval, Java/Bedrock acceptance or a played Prop Hunt round.
+
+Aurora's feedback: the initial maps were too small and lacked enough hiding
+clutter. Revised order: finish the larger, denser Wharf, revise all three built
+maps, then build Backstage Mayhem. No Prop Hunt map has been registered.
+
+## Team-size and map-capacity programme
+
+Aurora confirmed: **sizes 1–4 (solo, doubles, triples, squads), with the number of
+opposing teams controlled by each map**. This is separate from how many people
+are currently queued.
+
+- Prepared variants: Duels, KitPvP, KOTH, Dodgeball, Skywars, Bedwars and Lucky Pillars.
+- Duels stays two opposing sides (including 2v2, 3v3 and 4v4); a round ends after
+  the opposing side is out, not on the first teammate death.
+- Skywars/Bedwars use map-defined team slots, bounded by spawns and required bases.
+  Solo Bedwars uses one-player teams with separate beds.
+- Setup Book: per-mode minimum/maximum players, team count and bot difficulty.
+  Existing saved arena modes and live maps have not been changed.
+- Prop Hunt's seeker/hider roles and Party Games' individual rotating competition
+  remain distinct; symmetric team variants for these need a separate rules design.
+- Team modes do not imply bot support. Live controllers still cover 4/23 games;
+  Villager Defense is the fifth prepared controller, not a live/accepted fifth game.
+- See [team and capacity instructions](TEAM-MODES.md) for exact settings and examples.
 
 ## Per-game readiness
 
@@ -225,3 +256,32 @@ For each new map or mode, append:
 - Aurora has moved on to building Prop Hunt maps. New map names are not yet recorded; verify saved arena definitions before adding them. Do not interrupt building with an unapproved restart.
 
 - Aurora specified five Prop Hunt maps, followed by her visual verification of all five before arena setup. Added an explicit blocked setup gate and per-map review register.
+
+
+### 11 October 2026 - bots, team modes and resource review
+
+- Prepared Easy/Normal/Hard bot difficulty without damage, health or reach boosts.
+  Existing combat controllers recognise their new team-size variants.
+- Prepared Villager Defense bot targeting of tracked wave zombies, return to the
+  Mayor and selection of earned sword upgrades. Isolated Paper/Citizens probe:
+  a normal-health zombie was killed through the normal Player.attack path and the
+  one-enemy test wave completed in four seconds. This was not a full multi-wave or
+  human crossplay acceptance test. Initial probe did not tick its remote test
+  chunks; repeating with test chunks force-loaded passed.
+- 72 focused tests passed covering bots, team/map capacity, Duels team outcomes,
+  damage, setup UI, queueing, Dodgeball and combat scoping. Jar build passed.
+- MinigamesTest resource review: current limits 2 CPUs / 3072 MiB container,
+  2304 MiB Java heap; about 2939 MiB container usage. Host has 16 CPUs and about
+  7 GiB available RAM. Recommended 4 CPUs / 5120 MiB container, automatically
+  deriving a 4096 MiB Java heap. CPU throttling and memory-limit pressure observed;
+  no OOM kills. Awaiting explicit one-restart approval; no resource changes made.
+- All new code remains prepared, not deployed. No live map edits or server restart.
+
+- Map-builder update: recorded exact permanent world names. Smuggler's Wharf
+  built to the larger/denser brief; Market Day and Crooked Library expanded and
+  visually/block checked. Harvest Festival expansion remains next; Backstage
+  Mayhem remains planned. All Aurora approvals, arena setup and player tests
+  remain pending. Preserved the initial-size feedback and all-five review gate.
+- Aurora requested that this shared tracker be kept current and pushed as map
+  progress/testing changes. Update the canonical Markdown and regenerate both
+  report exports; keep construction checks separate from player acceptance.

@@ -10,6 +10,7 @@ import org.bukkit.entity.Villager;
 import org.bukkit.entity.Zombie;
 import org.bukkit.inventory.ItemStack;
 import uk.co.playerready.pulsegames.core.game.GameInstance;
+import uk.co.playerready.pulsegames.core.bot.BotObjectives;
 import uk.co.playerready.pulsegames.core.game.MiniGame;
 import uk.co.playerready.pulsegames.core.util.Cuboid;
 import uk.co.playerready.pulsegames.core.util.Text;
@@ -25,7 +26,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * Modes: easy (5 waves), hard (10 waves, tougher mobs).
  * Arena: settings villager ("x,y,z"), regions mobspawn1..N.
  */
-public final class VillagerDefenseGame extends MiniGame {
+public final class VillagerDefenseGame extends MiniGame implements BotObjectives {
 
     private Villager mayor;
     private int wave = 0;
@@ -148,6 +149,18 @@ public final class VillagerDefenseGame extends MiniGame {
         } else if (killer != null && waveZombies.contains(entity.getUniqueId())) {
             game.addScore(killer, 1);
         }
+    }
+
+    @Override
+    public List<LivingEntity> botEnemies() {
+        return waveZombies.stream().map(id -> game.world().getEntity(id))
+                .filter(entity -> entity instanceof Zombie && !entity.isDead())
+                .map(entity -> (LivingEntity) entity).toList();
+    }
+
+    @Override
+    public Location botGuardPoint() {
+        return mayor != null && !mayor.isDead() ? mayor.getLocation() : null;
     }
 
     @Override

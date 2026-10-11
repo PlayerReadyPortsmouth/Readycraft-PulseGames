@@ -57,6 +57,12 @@ public final class Arena {
     public String worldTemplate() { return worldTemplate; }
     public int minPlayers() { return minPlayers; }
     public int maxPlayers() { return maxPlayers; }
+    public int minPlayers(String mode) { return settings.getInt("modes." + mode + ".min-players", minPlayers); }
+    public int maxPlayers(String mode) { return settings.getInt("modes." + mode + ".max-players", maxPlayers); }
+    public int teamCount(String mode) {
+        return settings.getInt("modes." + mode + ".team-count", settings.getInt("team-count", spawnCount()));
+    }
+
     public ConfigurationSection settings() { return settings; }
     public Map<String, Cuboid> regions() { return regions; }
 

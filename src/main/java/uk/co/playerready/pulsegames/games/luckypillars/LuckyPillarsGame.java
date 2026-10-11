@@ -39,7 +39,7 @@ public final class LuckyPillarsGame extends MiniGame {
         super(game);
     }
 
-    private boolean isChaos() { return game.mode().id().equals("chaos"); }
+    private boolean isChaos() { return game.mode().rulesId().equals("chaos"); }
 
     private int dropInterval() {
         return game.arena().settings().getInt("drop-interval", isChaos() ? 6 : 10);

@@ -115,3 +115,6 @@ Read and update [MINIGAMES-TRACKER.md](MINIGAMES-TRACKER.md) when changing a gam
 map, bot controller or rollout status. Record player reports separately from
 verified tests, and distinguish prepared/merged changes from deployed changes.
 Aurora requires fresh approval for every MinigamesTest restart.
+
+After tracker edits, regenerate MINIGAMES-TRACKER.html and MINIGAMES-TRACKER.pdf using
+`node tools/render-minigames-tracker.mjs --pdf`; see tools/TRACKER-README.md.

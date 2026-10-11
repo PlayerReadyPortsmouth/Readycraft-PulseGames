@@ -21,7 +21,7 @@ class GameOutcomeTest {
                 ElytraRacingGame::new, PulseKartsGame::new,
                 ReadyPlayerZGame::new, VillagerDefenseGame::new, DuelsGame::new);
         for (var factory : factories) {
-            GameInstance instance = mock(GameInstance.class);
+            GameInstance instance = mock(GameInstance.class, RETURNS_DEEP_STUBS);
             when(instance.alivePlayers()).thenReturn(List.of(mock(Player.class), mock(Player.class)));
             factory.apply(instance).onTimeUp();
             verify(instance).end(eq(List.of()), startsWith("time"));
@@ -34,6 +34,7 @@ class GameOutcomeTest {
         when(winner.getUniqueId()).thenReturn(java.util.UUID.randomUUID());
         when(loser.getUniqueId()).thenReturn(java.util.UUID.randomUUID());
         when(instance.alivePlayers()).thenReturn(List.of(winner, loser));
+        when(instance.teamOf(winner)).thenReturn(null);
         when(instance.arena().settings().getInt("rounds-to-win", 2)).thenReturn(2);
         DuelsGame logic = new DuelsGame(instance);
         logic.onDeath(loser, winner);
@@ -42,7 +43,7 @@ class GameOutcomeTest {
     }
 
     @Test void survivalTimeoutStillRewardsSurvivors() {
-        GameInstance instance = mock(GameInstance.class);
+        GameInstance instance = mock(GameInstance.class, RETURNS_DEEP_STUBS);
         List<Player> survivors = List.of(mock(Player.class));
         when(instance.alivePlayers()).thenReturn(survivors);
         new MiniGame(instance) {}.onTimeUp();

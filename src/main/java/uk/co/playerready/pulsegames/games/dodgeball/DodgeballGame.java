@@ -31,7 +31,6 @@ public final class DodgeballGame extends MiniGame {
     int throwCooldownTicks() {
         return Math.max(1, Math.min(40, game.arena().settings().getInt("throw-cooldown-ticks", 7)));
     }
-    @Override public int maxTeams() { return 2; }
     @Override public boolean environmentalDamage() { return false; }
     @Override public int timeLimitSeconds() { return 240; }
     @Override public void onStart() {

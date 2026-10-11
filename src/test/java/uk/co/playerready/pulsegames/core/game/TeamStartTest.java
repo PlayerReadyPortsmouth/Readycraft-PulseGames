@@ -21,9 +21,12 @@ class TeamStartTest {
         when(plugin.parties().groupsOf(players)).thenReturn(new ArrayList<>(List.of(players)));
         Arena arena = mock(Arena.class);
         when(arena.spawnCount()).thenReturn(2);
+        when(arena.teamCount("teams")).thenReturn(2);
+        when(arena.maxPlayers("teams")).thenReturn(4);
         GameType type = mock(GameType.class);
         MiniGame logic = mock(MiniGame.class);
         when(logic.maxTeams()).thenReturn(2);
+        when(logic.arenaPlayerCap()).thenReturn(4);
         when(type.createLogic(any())).thenReturn(logic);
         GameInstance game = spy(new GameInstance(plugin, type,
                 GameMode.teams("teams", "Teams", 2, 4, 2), arena));
