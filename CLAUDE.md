@@ -108,3 +108,10 @@ Shared engineering practice lives in `~/Documents/Ready/ready-docs/engineering/`
 - **Engine changes touch all 21 games** — test at least one game per affected hook.
 - **House style here:** one service per concern, wired in `PulseGamesPlugin.onEnable`;
   Adventure MiniMessage via `Text.msg`.
+
+## Minigames readiness tracking
+
+Read and update [MINIGAMES-TRACKER.md](MINIGAMES-TRACKER.md) when changing a game,
+map, bot controller or rollout status. Record player reports separately from
+verified tests, and distinguish prepared/merged changes from deployed changes.
+Aurora requires fresh approval for every MinigamesTest restart.

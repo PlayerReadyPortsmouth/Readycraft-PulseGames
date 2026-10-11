@@ -202,6 +202,7 @@ public final class GameInstance {
         broadcast("<yellow>" + player.getName() + "</yellow> joined <gray>(" + participants.size() + "/" + maxPlayers() + ")");
         player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1f, 1.2f);
         logic.onJoin(player);
+        if (plugin.combat() != null) plugin.combat().refresh(player);
         return true;
     }
 
@@ -222,6 +223,7 @@ public final class GameInstance {
         participants.remove(player.getUniqueId());
         spectators.remove(player.getUniqueId());
         teams.forEach(t -> t.members().remove(player.getUniqueId()));
+        if (plugin.combat() != null) plugin.combat().leave(player);
         plugin.instances().unindex(player);
         logic.onQuit(player);
         if (!bot) {
@@ -446,6 +448,7 @@ public final class GameInstance {
     public void eliminate(Player player) {
         if (!alive.remove(player.getUniqueId())) return;
         spectators.add(player.getUniqueId());
+        if (plugin.combat() != null) plugin.combat().leave(player);
         Location deathSpot = player.getLocation();
         world.spawnParticle(org.bukkit.Particle.CLOUD, deathSpot.add(0, 1, 0), 30, 0.3, 0.5, 0.3, 0.05);
         world.spawnParticle(org.bukkit.Particle.FLAME, deathSpot, 15, 0.2, 0.3, 0.2, 0.02);
@@ -560,6 +563,7 @@ public final class GameInstance {
         tasks.forEach(t -> { if (!t.isCancelled()) t.cancel(); });
         tasks.clear();
         for (Player p : everyone()) {
+            if (plugin.combat() != null) plugin.combat().leave(p);
             plugin.instances().unindex(p);
             if (!isBot(p)) {
                 plugin.playerState().restore(p);

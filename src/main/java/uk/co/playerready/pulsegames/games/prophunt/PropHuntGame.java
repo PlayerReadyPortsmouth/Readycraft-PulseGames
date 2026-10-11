@@ -66,6 +66,7 @@ public final class PropHuntGame extends MiniGame {
 
     @Override
     public String startProblem(List<Player> players) {
+        if (players.size() < 2) return "Prop Hunt needs at least one seeker and one hider (2 players).";
         if (!game.plugin().getConfig().getBoolean("content.prophunt.enabled", false)) return null;
         if (players.stream().anyMatch(game::isBot)) return "Custom Prop Hunt does not support NPC props yet.";
         List<String> models = game.plugin().getConfig().getStringList("content.prophunt.props");

@@ -21,6 +21,13 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class PropLockAndMenuTest {
+    @Test void twoPlayersCanStartButSoloForceStartIsRejected() {
+        GameInstance game = mock(GameInstance.class, RETURNS_DEEP_STUBS);
+        PropHuntGame logic = new PropHuntGame(game);
+        assertNotNull(logic.startProblem(java.util.List.of(mock(Player.class))));
+        assertNull(logic.startProblem(java.util.List.of(mock(Player.class), mock(Player.class))));
+    }
+
     @Test void snapUsesBlockFloorIncludingNegativeCoordinates() {
         World world = mock(World.class);
         Location cell = PropHuntGame.snapCell(new Location(world, -0.01, 64.99, -1.01, 95, -30));

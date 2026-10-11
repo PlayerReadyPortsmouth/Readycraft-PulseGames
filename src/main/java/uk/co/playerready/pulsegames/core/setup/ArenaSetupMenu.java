@@ -154,6 +154,10 @@ final class ArenaSetupMenu implements Listener {
                     if (materials.isEmpty() || materials.stream().anyMatch(v -> Material.matchMaterial(v) == null))
                         throw new IllegalArgumentException("Use valid Minecraft material names.");
                     session.settings.put(key, materials);
+                } else if (key.equals("throw-cooldown-ticks")) {
+                    int ticks = positive(value);
+                    if (ticks > 40) throw new IllegalArgumentException("Use 1–40 ticks.");
+                    session.settings.put(key, ticks);
                 } else {
                     double number = Double.parseDouble(value);
                     if (!Double.isFinite(number)) throw new IllegalArgumentException("Use a finite number.");

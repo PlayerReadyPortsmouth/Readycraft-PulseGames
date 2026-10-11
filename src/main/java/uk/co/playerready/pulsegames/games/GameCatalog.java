@@ -48,7 +48,8 @@ public final class GameCatalog {
                         GameMode.teams("teams", "Teams", 2, 4, 2)),
                 uk.co.playerready.pulsegames.games.dodgeball.DodgeballGame::new,
                 List.of(spawns(2, "opposite ends of an enclosed court"),
-                        setting("void-y", "fall-off elimination level")), true));
+                        setting("void-y", "fall-off elimination level"),
+                        optional(setting("throw-cooldown-ticks", "throw delay in ticks (1–40; default 7)"))), true));
         registry.register(new GameType("dropper", "Dropper",
                 "Fall through obstacles and land in the water!", Material.WATER_BUCKET,
                 List.of(GameMode.ffa("practice", "Practice", 1, 1),
@@ -240,8 +241,8 @@ public final class GameCatalog {
 
         registry.register(new GameType("prophunt", "Prop Hunt",
                 "Hide as a block... or hunt them all down!", Material.HAY_BLOCK,
-                List.of(GameMode.ffa("classic", "Classic", 3, 16),
-                        GameMode.ffa("infection", "Infection", 3, 16)),
+                List.of(GameMode.ffa("classic", "Classic", 2, 16),
+                        GameMode.ffa("infection", "Infection", 2, 16)),
                 PropHuntGame::new,
                 List.of(spawns(1, "spawn 1 = seeker release point; add more for hiders")),
                 false));

@@ -42,6 +42,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
     private StatsService stats;
     private PlayService playService;
     private ArenaSetupManager setup;
+    private uk.co.playerready.pulsegames.core.combat.ClassicCombatService combat;
     private EconomyService economy;
     private CosmeticsService cosmetics;
     private TokenShopMenu tokenShop;
@@ -96,6 +97,8 @@ public final class PulseGamesPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(tokenShop, this);
         new Commands(this);
         bots.start();
+        combat = new uk.co.playerready.pulsegames.core.combat.ClassicCombatService(this);
+        combat.start();
 
         getLogger().info("PulseGames enabled with " + registry.all().size() + " games.");
     }
@@ -142,6 +145,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
     public SidebarService sidebar() { return sidebar; }
     public StatsService stats() { return stats; }
     public PlayService playService() { return playService; }
+    public uk.co.playerready.pulsegames.core.combat.ClassicCombatService combat() { return combat; }
     public ArenaSetupManager setup() { return setup; }
     public EconomyService economy() { return economy; }
     public CosmeticsService cosmetics() { return cosmetics; }
