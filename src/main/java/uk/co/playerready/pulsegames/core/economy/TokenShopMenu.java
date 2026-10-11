@@ -113,6 +113,11 @@ public final class TokenShopMenu implements Listener {
     }
 
     @EventHandler
+    public void onDrag(org.bukkit.event.inventory.InventoryDragEvent event) {
+        if (event.getView().getTopInventory().getHolder() instanceof ShopHolder) event.setCancelled(true);
+    }
+
+    @EventHandler
     public void onClick(InventoryClickEvent event) {
         if (!(event.getInventory().getHolder() instanceof ShopHolder holder)) return;
         event.setCancelled(true);

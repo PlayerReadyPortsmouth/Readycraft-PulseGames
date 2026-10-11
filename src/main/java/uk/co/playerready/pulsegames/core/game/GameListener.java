@@ -177,7 +177,8 @@ public final class GameListener implements Listener {
         }
         Player damager = resolveDamager(event);
         if (damager != null) {
-            if (!logic.pvp() || damager.equals(victim) || sameTeam(instance, victim, damager)
+            if (!logic.pvp() || (damager.equals(victim) && !logic.allowsSelfDamage(event))
+                    || (!damager.equals(victim) && sameTeam(instance, victim, damager))
                     || !instance.isActive(damager) || instance.frozen()) {
                 event.setCancelled(true);
                 return;
@@ -207,8 +208,10 @@ public final class GameListener implements Listener {
         }
         logic.onDamage(victim, event);
         if (event.isCancelled()) return;
-        if (damager != null) instance.recordDamager(victim, damager);
+        if (damager != null && !damager.equals(victim)) instance.recordDamager(victim, damager);
         if (event.getFinalDamage() >= victim.getHealth()) {
+            if (logic.allowsTotems() && (victim.getInventory().getItemInMainHand().getType() == Material.TOTEM_OF_UNDYING
+                    || victim.getInventory().getItemInOffHand().getType() == Material.TOTEM_OF_UNDYING)) return;
             event.setCancelled(true);
             instance.handleDeath(victim, damager);
         }
@@ -289,7 +292,6 @@ public final class GameListener implements Listener {
     @EventHandler(ignoreCancelled = true)
     public void onBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
-        if (plugin.bots() != null && plugin.bots().isBot(player)) return;
         GameInstance instance = instanceOf(player);
         if (instance == null) {
             if (plugin.lobby().isLobbyWorld(player.getWorld()) && !player.hasPermission("pulsegames.admin")) {
@@ -308,7 +310,6 @@ public final class GameListener implements Listener {
     @EventHandler(ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent event) {
         Player player = event.getPlayer();
-        if (plugin.bots() != null && plugin.bots().isBot(player)) return;
         GameInstance instance = instanceOf(player);
         if (instance == null) {
             if (plugin.lobby().isLobbyWorld(player.getWorld()) && !player.hasPermission("pulsegames.admin")) {
@@ -319,7 +320,25 @@ public final class GameListener implements Listener {
         if (instance.state() != GameState.RUNNING || !instance.isAlive(player) || instance.frozen()
                 || !instance.logic().canPlace(player, event.getBlock())) {
             event.setCancelled(true);
+        } else instance.logic().onBlockPlaced(event);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onEntityPlace(org.bukkit.event.entity.EntityPlaceEvent event) {
+        if (event.getPlayer() == null) return;
+        var instance = instanceOf(event.getPlayer());
+        if (instance == null) return;
+        if (instance.state() != GameState.RUNNING || !instance.isActive(event.getPlayer()) || instance.frozen()) {
+            event.setCancelled(true); return;
         }
+        instance.logic().onEntityPlace(event);
+    }
+
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
+    public void onNonPlayerDamage(EntityDamageEvent event) {
+        if (event.getEntity() instanceof Player) return;
+        var instance = plugin.instances().byWorld(event.getEntity().getWorld());
+        if (instance != null) instance.logic().onEntityDamage(event);
     }
 
     /**

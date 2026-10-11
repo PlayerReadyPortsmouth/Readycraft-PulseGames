@@ -31,6 +31,7 @@ public final class KitPvpGame extends MiniGame {
     @Override
     public void onStart() {
         game.alivePlayers().forEach(this::equip);
+        if (!isOitc()) game.broadcast("<aqua>Choose a loadout with /pulsekits. Changes apply on your next spawn.");
         game.broadcast("First to <yellow>" + targetKills() + "</yellow> kills wins!");
     }
 

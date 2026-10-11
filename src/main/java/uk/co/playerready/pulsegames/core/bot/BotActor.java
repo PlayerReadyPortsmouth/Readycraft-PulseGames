@@ -8,6 +8,8 @@ public interface BotActor {
     Player player();
     boolean valid();
     void navigate(Location destination);
+    /** Only for a controller that has validated every tile of a straight corridor. */
+    default void navigateStraight(Location destination) { navigate(destination); }
     void stopNavigation();
     void face(Location destination);
     void destroy();

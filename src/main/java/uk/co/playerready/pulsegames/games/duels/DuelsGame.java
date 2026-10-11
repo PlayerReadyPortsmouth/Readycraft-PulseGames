@@ -19,6 +19,8 @@ import java.util.UUID;
  */
 public final class DuelsGame extends MiniGame {
 
+    private final Map<org.bukkit.Location, org.bukkit.block.BlockState> placedBlocks = new HashMap<>();
+    private final Map<UUID, UUID> crystalOwners = new HashMap<>();
     private final Map<UUID, Integer> roundWins = new HashMap<>();
     private final java.util.Set<UUID> roundOut = new java.util.HashSet<>();
     private int round = 1;
@@ -51,7 +53,7 @@ public final class DuelsGame extends MiniGame {
     private void startRound() {
         roundOver = false;
         roundOut.clear();
-        Kit kit = game.plugin().kits().get(kitId());
+        resetArena();
         int i = 0;
         for (Player player : game.alivePlayers()) {
             game.plugin().playerState().reset(player);
@@ -59,6 +61,8 @@ public final class DuelsGame extends MiniGame {
             var team = game.teamOf(player);
             player.teleport(game.arena().spawn(team != null ? team.index() : i++, game.world()));
             if (game.plugin().combat() != null) game.plugin().combat().refresh(player);
+            Kit kit = game.mode().combatStyle() == uk.co.playerready.pulsegames.core.game.GameMode.CombatStyle.DEFAULT
+                    ? game.plugin().kits().get(kitId()) : game.plugin().duelMenu().kitFor(player, game.mode());
             if (kit != null) kit.apply(player);
             Text.title(player, "<yellow><b>ROUND " + round, isSumo() ? "<gray>Knock them off!" : "<gray>Fight!");
         }
@@ -70,6 +74,77 @@ public final class DuelsGame extends MiniGame {
         if (roundOver) event.setCancelled(true);
         else if (isSumo()) event.setDamage(0); // knockback only
     }
+
+    @Override public boolean allowsTotems() { return isCrystal(); }
+    private boolean isCrystal() { return game.mode().rulesId().equals("crystal"); }
+    private boolean inCombatArea(org.bukkit.Location location) {
+        var area = game.arena().region("combat");
+        return area != null && location.getWorld().equals(game.world()) && area.contains(location);
+    }
+    @Override public boolean canPlace(Player player, org.bukkit.block.Block block) {
+        return isCrystal() && !roundOver && !roundOut.contains(player.getUniqueId())
+                && block.getType() == org.bukkit.Material.OBSIDIAN && inCombatArea(block.getLocation());
+    }
+    @Override public void onBlockPlaced(org.bukkit.event.block.BlockPlaceEvent event) {
+        placedBlocks.putIfAbsent(event.getBlock().getLocation(), event.getBlockReplacedState());
+    }
+    @Override public boolean canBreak(Player player, org.bukkit.block.Block block) {
+        return isCrystal() && !roundOver && !roundOut.contains(player.getUniqueId())
+                && placedBlocks.containsKey(block.getLocation()) && inCombatArea(block.getLocation());
+    }
+    @Override public void onEntityPlace(org.bukkit.event.entity.EntityPlaceEvent event) {
+        if (!(event.getEntity() instanceof org.bukkit.entity.EnderCrystal)) return;
+        crystalOwners.keySet().removeIf(id -> game.world().getEntity(id) == null);
+        if (!isCrystal() || roundOver || !game.isActive(event.getPlayer()) || roundOut.contains(event.getPlayer().getUniqueId())
+                || !inCombatArea(event.getEntity().getLocation()) || crystalOwners.size() >= 128) {
+            event.setCancelled(true); return;
+        }
+        crystalOwners.put(event.getEntity().getUniqueId(), event.getPlayer().getUniqueId());
+    }
+    @Override public void onEntityDamage(org.bukkit.event.entity.EntityDamageEvent event) {
+        if (!(event.getEntity() instanceof org.bukkit.entity.EnderCrystal)) return;
+        if (!isCrystal() || roundOver || game.frozen() || game.state() != GameState.RUNNING
+                || !crystalOwners.containsKey(event.getEntity().getUniqueId())) { event.setCancelled(true); return; }
+        if (event instanceof EntityDamageByEntityEvent hit) {
+            Player attacker = hit.getDamager() instanceof Player p ? p
+                    : hit.getDamager() instanceof org.bukkit.entity.Projectile projectile && projectile.getShooter() instanceof Player p ? p : null;
+            if (attacker != null) {
+                if (!game.isActive(attacker) || roundOut.contains(attacker.getUniqueId())) { event.setCancelled(true); return; }
+                crystalOwners.put(event.getEntity().getUniqueId(), attacker.getUniqueId());
+            } else if (hit.getDamager() instanceof org.bukkit.entity.EnderCrystal source) {
+                var owner = crystalOwners.get(source.getUniqueId());
+                if (owner != null) crystalOwners.put(event.getEntity().getUniqueId(), owner);
+            }
+        }
+    }
+    @Override public void onDamage(Player victim, org.bukkit.event.entity.EntityDamageEvent event) {
+        if (roundOver || roundOut.contains(victim.getUniqueId()) || game.frozen()) { event.setCancelled(true); return; }
+        if (event instanceof EntityDamageByEntityEvent hit && hit.getDamager() instanceof org.bukkit.entity.EnderCrystal crystal) {
+            var owner = game.player(crystalOwners.get(crystal.getUniqueId()));
+            if (owner == null || !game.isActive(owner)) return;
+            var team = game.teamOf(owner);
+            if (!owner.equals(victim) && team != null && team.contains(victim)) { event.setCancelled(true); return; }
+            if (!owner.equals(victim)) game.recordDamager(victim, owner);
+        }
+    }
+    @Override public boolean allowsSelfDamage(org.bukkit.event.entity.EntityDamageEvent event) {
+        return game.mode().rulesId().equals("mace") && event instanceof EntityDamageByEntityEvent hit
+                && hit.getDamager() instanceof org.bukkit.entity.WindCharge;
+    }
+    @Override public void onInteract(org.bukkit.event.player.PlayerInteractEvent event) {
+        if (roundOver || game.frozen() || roundOut.contains(event.getPlayer().getUniqueId())) event.setCancelled(true);
+        if (event.getItem() != null && event.getItem().getType() == org.bukkit.Material.END_CRYSTAL
+                && (!isCrystal() || event.getClickedBlock() == null || !inCombatArea(event.getClickedBlock().getLocation()))) event.setCancelled(true);
+    }
+    private void resetArena() {
+        if (game.world() != null) {
+            crystalOwners.keySet().forEach(id -> { var entity = game.world().getEntity(id); if (entity != null) entity.remove(); });
+            game.world().getEntitiesByClass(org.bukkit.entity.Projectile.class).forEach(org.bukkit.entity.Entity::remove);
+            placedBlocks.values().forEach(state -> state.update(true, false));
+        }
+        crystalOwners.clear(); placedBlocks.clear();
+    }
+    @Override public void onCleanup() { resetArena(); }
 
     @Override
     public void onDeath(Player victim, Player killer) {

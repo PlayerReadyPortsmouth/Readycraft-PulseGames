@@ -22,7 +22,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
 
     public Commands(PulseGamesPlugin plugin) {
         this.plugin = plugin;
-        for (String name : List.of("play", "party", "lobby", "pulse", "stats", "shop")) {
+        for (String name : List.of("play", "party", "lobby", "pulse", "stats", "shop", "pulsekits", "duels")) {
             var command = plugin.getCommand(name);
             command.setExecutor(this);
             command.setTabCompleter(this);
@@ -48,6 +48,8 @@ public final class Commands implements CommandExecutor, TabCompleter {
             case "party" -> party(player, args);
             case "lobby" -> plugin.playService().leave(player);
             case "stats" -> stats(player);
+            case "duels" -> plugin.duelMenu().open(player);
+            case "pulsekits" -> plugin.kitSelection().open(player);
             case "shop" -> plugin.tokenShop().openMain(player);
             case "pulse" -> admin(player, args);
         }
@@ -69,6 +71,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
             player.sendMessage(Text.msg("<red>" + type.displayName() + " is coming soon!"));
             return;
         }
+        if (args.length == 1 && type.id().equals("duels")) { plugin.duelMenu().open(player); return; }
         GameMode mode = args.length > 1 ? type.mode(args[1]) : type.defaultMode();
         if (mode == null) {
             player.sendMessage(Text.msg("<red>Unknown mode. Modes: <yellow>"

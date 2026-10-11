@@ -50,6 +50,12 @@ public final class ClassicCombatService implements Listener {
             api = null; warn("Classic PvP integration unavailable: " + ex.getMessage());
         }
     }
+    public boolean available() { return api != null; }
+    public boolean allowsClassic(World world) {
+        if (api == null || world == null) return false;
+        try { return api.allowed(world).containsAll(Set.of(CLASSIC, MODERN)); }
+        catch (ReflectiveOperationException | RuntimeException ex) { return false; }
+    }
     public void refresh(Player player) {
         if (api == null) return;
         GameInstance instance = plugin.instances().byPlayer(player);
@@ -61,6 +67,7 @@ public final class ClassicCombatService implements Listener {
     }
     static boolean usesClassic(GameInstance instance, Player player) {
         return instance != null && instance.world() != null && instance.world().equals(player.getWorld())
+                && (instance.mode() == null || instance.mode().combatStyle() != uk.co.playerready.pulsegames.core.game.GameMode.CombatStyle.MODERN)
                 && instance.isParticipant(player) && !instance.isSpectator(player) && instance.logic().pvp();
     }
     public void leave(Player player) {

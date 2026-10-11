@@ -27,6 +27,12 @@ class ClassicCombatServiceTest {
         when(plugin.instances().byPlayer(player)).thenReturn(instance);
         when(api.allowed(world)).thenReturn(Set.of("pulse-modern", "pulse-classic"));
     }
+    @Test void modernPvpNeverGetsClassicMechanicsOrNpcMetadata() throws Exception {
+        when(instance.mode()).thenReturn(uk.co.playerready.pulsegames.core.game.GameMode.ffa("modern-classic", "Modern", 2, 2));
+        when(instance.isBot(player)).thenReturn(true);
+        service.refresh(player); verify(api).select(player, "pulse-modern");
+        verify(player,never()).setMetadata(anyString(),any());
+    }
     @Test void enablesClassicForPvpParticipantsIncludingNpcPlayers() throws Exception {
         when(player.isOnline()).thenReturn(false);
         when(instance.isBot(player)).thenReturn(true);

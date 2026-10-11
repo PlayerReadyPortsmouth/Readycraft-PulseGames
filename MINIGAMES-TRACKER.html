@@ -7,10 +7,10 @@
 @media print{html{scroll-behavior:auto}body{background:white;font-size:9.5pt;line-height:1.4;print-color-adjust:exact;-webkit-print-color-adjust:exact}.toolbar,nav,.print-note{display:none!important}main{max-width:none;padding:0}.hero{padding:20px 28px;border-radius:0}h1{font-size:30pt}.hero p{max-width:none}.meta{margin-top:14px}.summary{margin:16px 0}.stat{padding:12px}.stat b{font-size:23pt}.notice{margin:16px 0;padding:12px 16px}.layout{display:block;margin:0}.report-section{border:0;border-radius:0;padding:0;margin:0;break-before:page}.section-heading{padding:0 0 8px;margin:0 0 12px}h2{font-size:20pt}h3{break-after:avoid}table{font-size:8.5pt;line-height:1.3;margin:10px 0}td,th{padding:5px}thead{display:table-header-group}tr{break-inside:avoid}p,li{orphans:3;widows:3}a{color:inherit;text-decoration:none}footer{display:none}#active-map-batch-prop-hunt{font-size:9pt;line-height:1.3}#active-map-batch-prop-hunt p{margin:6px 0}#active-map-batch-prop-hunt li{margin:4px 0}#per-game-readiness table{font-size:8.5pt}code{font-size:.88em}}
 </style></head><body><header class="toolbar"><div><span class="brand">PULSE / GAMES</span><small>Development & play testing</small></div><button onclick="window.print()">Print / Save as PDF</button></header><main>
 <div class="hero"><div class="eyebrow">ReadyCraft · Working report</div><h1>Every game.<br>A clear next step.</h1><p>Map building, bot readiness and player testing in one shared record. Prepared changes remain separate from what is running on MinigamesTest.</p><div class="meta"><span>Updated 11 October 2026</span><span>Owner: Aurora</span><span>Snapshot, not a live server feed</span></div></div>
-<div class="summary"><div class="stat"><b>23 games</b><span>Tracked across the programme</span></div><div class="stat"><b>7 / 23</b><span>Prepared bot controllers (4 live)</span></div><div class="stat"><b>5 maps</b><span>Prop Hunt batch awaiting visual review</span></div></div>
+<div class="summary"><div class="stat"><b>23 games</b><span>Tracked across the programme</span></div><div class="stat"><b>11 / 23</b><span>Prepared bot controllers (4 live)</span></div><div class="stat"><b>5 maps</b><span>Prop Hunt batch awaiting visual review</span></div></div>
 <aside class="notice"><strong>Current priority · Prop Hunt maps</strong><p>Complete Backstage Mayhem boundary correction, then Aurora visually reviews all five larger, denser maps before arena setup. Building completion alone does not authorise setup.</p></aside>
 <p class="print-note">Share this standalone HTML file, or use Print / Save as PDF for the complete report. Printing includes every section. For best results use A4 landscape with background graphics enabled.</p>
-<div class="layout"><nav aria-label="Report sections"><strong>In this report</strong><a href="#working-agreement">Working agreement</a><a href="#current-test-server-baseline">Current test-server baseline</a><a href="#prepared-update-not-deployed">Prepared update — not deployed</a><a href="#active-map-batch-prop-hunt">Active map batch: Prop Hunt</a><a href="#team-size-and-map-capacity-programme">Team-size and map-capacity programme</a><a href="#queue-bots-and-network-helper-next-candidate">Queue bots and network helper — next candidate</a><a href="#per-game-readiness">Per-game readiness</a><a href="#verified-server-arena-names">Verified server arena names</a><a href="#duels-map-and-mode-register">Duels map and mode register</a><a href="#bot-programme">Bot programme</a><a href="#map-setup-and-acceptance-template">Map setup and acceptance template</a><a href="#dated-log">Dated log</a></nav><article><section id="working-agreement" class="report-section"><div class="section-heading"><span>01</span><h2>Working agreement</h2></div><ul>
+<div class="layout"><nav aria-label="Report sections"><strong>In this report</strong><a href="#working-agreement">Working agreement</a><a href="#current-test-server-baseline">Current test-server baseline</a><a href="#prepared-update-not-deployed">Prepared update — not deployed</a><a href="#active-map-batch-prop-hunt">Active map batch: Prop Hunt</a><a href="#team-size-and-map-capacity-programme">Team-size and map-capacity programme</a><a href="#queue-bots-and-network-helper-merged-and-staged">Queue bots and network helper — merged and staged</a><a href="#per-game-readiness">Per-game readiness</a><a href="#verified-server-arena-names">Verified server arena names</a><a href="#duels-map-and-mode-register">Duels map and mode register</a><a href="#bot-programme">Bot programme</a><a href="#map-setup-and-acceptance-template">Map setup and acceptance template</a><a href="#dated-log">Dated log</a><a href="#11-october-follow-up-staging-and-hazard-bots">11 October follow-up: staging and hazard bots</a><a href="#duels-selector-and-personal-loadouts-prepared-not-live">Duels selector and personal loadouts — prepared, not live</a></nav><article><section id="working-agreement" class="report-section"><div class="section-heading"><span>01</span><h2>Working agreement</h2></div><ul>
 <li>Goal: a broad mix of party, co-op, racing and competitive games, all with proper
 objective-playing queue bots, followed by map building and two-human-player tests.</li>
 <li>Test on <strong>MinigamesTest</strong>, reached through the existing primary proxy. Never use
@@ -84,7 +84,7 @@ also matter. Other games are not ready simply by setting <code>bots-enabled: tru
 </tr>
 <tr>
 <td>Bot queue target and Block Party</td>
-<td>Next candidate targets half of map/mode capacity, or full capacity for maxima 1–4; Block Party public-colour tile navigation locally checked</td>
+<td>Merged candidate targets half of map/mode capacity, or full capacity for maxima 1–4; Block Party public-colour tile navigation locally checked</td>
 <td>Capacity/load tests, full colour rounds and human/bot acceptance</td>
 </tr>
 <tr>
@@ -109,7 +109,7 @@ also matter. Other games are not ready simply by setting <code>bots-enabled: tru
 </tr>
 </tbody></table>
 <p>PulseGames PR4 was merged at Aurora’s request on 11 October (merge <code>0eda3bd</code>).
-PulseContent PR28 remains a draft. The next bot/helper update is prepared separately;
+PulseContent PR28 remains a draft. PR5 (merge <code>f511551</code>) is now merged and its helper bundles are staged privately for all 12 Minecraft services;
 none of these merge/build results means the update is deployed.</p>
 </section>
 <section id="active-map-batch-prop-hunt" class="report-section"><div class="section-heading"><span>04</span><h2>Active map batch: Prop Hunt</h2></div><p><strong>Build five maps first. Aurora will visually inspect and approve all five before
@@ -191,12 +191,12 @@ Existing saved arena modes and live maps have not been changed.</li>
 <li>Prop Hunt&#39;s seeker/hider roles and Party Games&#39; individual rotating competition
 remain distinct; symmetric team variants for these need a separate rules design.</li>
 <li>Team modes do not imply bot support. Live controllers still cover 4/23 games;
-Villager Defense is merged; ReadyPlayerZ and Block Party are locally checked candidates.
-This brings prepared controllers to 7/23, while live support remains 4/23.</li>
+Villager Defense, ReadyPlayerZ and Block Party are merged; the latter two passed focused local checks.
+Avalanche, Spleef, TNT Run and Volcano are prepared in draft PR6, bringing controllers to 11/23; live support remains 4/23.</li>
 <li>See <a href="TEAM-MODES.md">team and capacity instructions</a> for exact settings and examples.</li>
 </ul>
 </section>
-<section id="queue-bots-and-network-helper-next-candidate" class="report-section"><div class="section-heading"><span>06</span><h2>Queue bots and network helper — next candidate</h2></div><ul>
+<section id="queue-bots-and-network-helper-merged-and-staged" class="report-section"><div class="section-heading"><span>06</span><h2>Queue bots and network helper — merged and staged</h2></div><ul>
 <li>Requested fill target counts <strong>humans plus bots</strong>: maximum 2 → 2 total, 4 → 4,
 5 → 3, 8 → 4, 16 → 8. Odd halves round up. The playable minimum can raise
 that target. Humans reclaim bot seats before a match starts.</li>
@@ -204,7 +204,7 @@ that target. Humans reclaim bot seats before a match starts.</li>
 server-wide safety caps remain enforced. Prepared defaults allow 31 bots per
 match and 64 total; existing installations retain their configured caps.
 MinigamesTest’s smaller live caps have <strong>not</strong> been raised.</li>
-<li>Citizens skin refresh can replace the Bukkit player entity. The next candidate
+<li>Citizens skin refresh can replace the Bukkit player entity. The merged candidate
 follows the replacement instead of ending the game; its precise pathfinder
 can reach single safe tiles without teleporting.</li>
 <li>PulseNetwork is a separate helper with Paper, Velocity and NeoForge artifacts.
@@ -239,16 +239,16 @@ needed. Do not bypass team/role requirements and call that a completed test.</p>
 <tbody><tr>
 <td><strong>Duels</strong></td>
 <td><strong>3 user-built maps: Courtyard, Ruined Temple, Foundry. Aurora reports gameplay works.</strong> Initial trial arena also retained.</td>
-<td>Classic, OP, Sumo</td>
+<td>Regular/Sumo; Crystal/Mace pending</td>
 <td>Yes</td>
-<td>Adjust kits/loadouts; consider Mace PvP, Crystal PvP and further modes; difficulty levels; test each map/mode</td>
+<td>Draft: combat-style selector, individual kits and Crystal/Mace. Balance kits; test clients, team sizes and opted-in maps</td>
 </tr>
 <tr>
 <td>KitPvP</td>
-<td>Trial arena; bot tested earlier, detailed acceptance not recorded</td>
+<td>Trial arena; standalone kit picker prepared</td>
 <td>FFA only</td>
 <td>Yes</td>
-<td>Kit balance; OITC bow/ammo bot; respawn and mixed-client tests</td>
+<td>Test default/owned kit selection and respawn; kit balance; OITC bot</td>
 </tr>
 <tr>
 <td>KOTH</td>
@@ -281,16 +281,16 @@ needed. Do not bypass team/role requirements and call that a completed test.</p>
 <tr>
 <td>Spleef</td>
 <td>No accepted map/test recorded</td>
-<td>None</td>
+<td>Prepared: Classic, Decay, Splegg</td>
 <td>Yes</td>
-<td>Maps; safe-floor navigation and digging; Splegg projectiles</td>
+<td>Maps; full rounds, floor loss, projectile impacts and balance</td>
 </tr>
 <tr>
 <td>TNT Run</td>
 <td>No accepted map/test recorded</td>
-<td>None</td>
+<td>Prepared: Classic</td>
 <td>Yes</td>
-<td>Maps; disappearing-floor routing and double jumps</td>
+<td>Full rounds, corners and layers; Double Jump remains human-only</td>
 </tr>
 <tr>
 <td>Block Party</td>
@@ -302,16 +302,16 @@ needed. Do not bypass team/role requirements and call that a completed test.</p>
 <tr>
 <td>Avalanche</td>
 <td>No accepted map/test recorded</td>
-<td>None</td>
+<td>Prepared: Classic</td>
 <td>Yes</td>
-<td>Maps; falling-block prediction and evasion</td>
+<td>Maps; full falling-block rounds and survival balance</td>
 </tr>
 <tr>
 <td>Volcano</td>
 <td>No accepted map/test recorded</td>
-<td>None</td>
+<td>Prepared: Classic, Eruption</td>
 <td>Yes</td>
-<td>Maps; climbing routes and lava/eruption avoidance</td>
+<td>Full lava/rock rounds; map-specific climbing routes</td>
 </tr>
 <tr>
 <td>Parkour</td>
@@ -502,7 +502,7 @@ creation, not that every mode has been accepted on every map/client.</p>
 <td>Kit/loadout tuning; record Classic/OP results per client</td>
 </tr>
 </tbody></table>
-<p>Potential modes, <strong>not implemented or promised as ready</strong>:</p>
+<p>Additional modes <strong>prepared in draft PR6, not deployed or accepted on these maps</strong>:</p>
 <ul>
 <li>Mace PvP: define loadout, arena verticality, wind charges, fall damage and combat
 timing explicitly. Do not blindly apply legacy sword rules to a mace mode.</li>
@@ -651,12 +651,75 @@ Paper 26.2 loaded PulseNetwork and both bot probes passed with PulseGames
 0.3.4. A separate localhost-only NeoForge 21.1.248 server loaded the enabled
 adapter and reached ready state, then was shut down. No live server was restarted.</p>
 </li>
-<li><p>Next candidate is <a href="https://github.com/PlayerReadyPortsmouth/Readycraft-PulseGames/pull/5">draft PR5</a>; not merged or deployed.</p>
+<li><p><a href="https://github.com/PlayerReadyPortsmouth/Readycraft-PulseGames/pull/5">PR5</a> merged as <code>f511551</code>; built artifacts staged outside active server folders. No install or restart.</p>
 </li>
 <li><p>Backstage Mayhem built in its permanent world with ten furnished rooms and three stage sets. Exact verification: 44,608/44,608 states; actual room/stair/catwalk/facade images inspected. Final review found roof access through the rear catwalk opening; one bounded correction pass requested after the workflow limit of three passes. Map is not marked finished, approved or registered.</p>
 </li>
 <li><p>Original map revision brief: the initial maps were too small and lacked hiding clutter. Aurora requested the larger, denser Wharf, revisions of all three earlier builds, then Backstage Mayhem.</p>
 </li>
+</ul>
+</section>
+<section id="11-october-follow-up-staging-and-hazard-bots" class="report-section"><div class="section-heading"><span>13</span><h2>11 October follow-up: staging and hazard bots</h2></div><ul>
+<li>PulseNetwork 0.1.0 Paper, Velocity and NeoForge jars are staged on readyapp-vps at
+<code>/srv/ready-gamed/staging/pulsenetwork-20261011-f511551</code>, with per-server configurations,
+checksums and installation notes. Ten targets belong to the primary proxy network;
+the direct Create proxy and compatibility clone are disabled spares.</li>
+<li>Existing-plugin chat relay remains held on Survival, Creative, SurvivalTest, SkyBlock
+and legacy Minigames until channel/privacy compatibility checks pass. MinigamesTest
+is the prepared queue publisher. SurvivalTest is not a minigames test environment.</li>
+<li>All 12 staged jar checks and five existing active Pulse jar checks passed. No active
+jars changed; no live server was restarted. A later installation/restart needs Aurora&#39;s approval.</li>
+<li>PulseGames 0.3.5 candidate adds Avalanche Classic and Spleef Classic/Decay/Splegg bots.
+They use bounded ground navigation; Avalanche reacts only to visible falling blocks.
+Spleef digs through normal block protection and snowball rewards, uses earned ammunition,
+and shares the player Splegg launcher/cooldown. Difficulty controls action timing and accuracy.</li>
+<li>Validation: 29 focused tests passed, including queue filling in all four new modes,
+route boundaries/gaps, offhand launcher compatibility and NPC block protection.
+Local Paper 26.2/Citizens checked actual digging, earned snowballs, out-of-floor protection
+and visible avalanche evasion. These are focused checks, not full-match or crossplay acceptance.</li>
+<li>Remaining: play full rounds on accepted maps, check Splegg projectile impacts and Decay
+floor loss, then tune reaction times. The 0.3.5 candidate is separate from the merged/staged 0.3.4 bundle.</li>
+</ul>
+<h3>Next test batch: survival bots and kit selection</h3>
+<ul>
+<li><a href="https://github.com/PlayerReadyPortsmouth/Readycraft-PulseGames/pull/6">Draft PR6</a>
+now also prepares TNT Run Classic and Volcano Classic/Eruption. TNT uses short,
+continuously checked straight corridors under the normal eight-tick crumble timer.
+Volcano climbs reachable steps; navigation handles stair edges without teleporting.</li>
+<li>KitPvP has a standalone picker: <code>/pulsekits</code> (alias <code>/kits</code>) and buttons in the game
+menu. Select the map default or an owned Tank/Archer unlock. Locked or missing kits
+are refused. Selection takes effect at the next spawn, never refills mid-fight,
+and does not change One in the Chamber&#39;s fixed loadout. Menu item dragging is blocked.</li>
+<li>Validation: 42 focused tests passed. Local Paper/Citizens checks verified kit UI,
+ownership, next-respawn application and default selection; a two-block Volcano climb;
+and eight seconds of TNT running with 27 crumbled tiles, including a turn at the edge.
+This is not full-match or human Java/Bedrock acceptance. TNT Double Jump remains human-only.</li>
+<li>Ready for an approved test rollout, not deployed. Test accepted maps via normal queues,
+then kit selection/death/respawn on both clients. The main tracker and
+<a href="docs/QUEUE-BOTS.md">queue-bot checklist</a> remain the agent-maintained acceptance record.</li>
+<li>Duels combat profiles and loadouts are now prepared in the following section.
+More KitPvP loadouts and shop expansion remain future work.
+Floor Is Lava is not a separate registered game; Volcano is the rising-lava mode.</li>
+</ul>
+</section>
+<section id="duels-selector-and-personal-loadouts-prepared-not-live" class="report-section"><div class="section-heading"><span>14</span><h2>Duels selector and personal loadouts — prepared, not live</h2></div><ul>
+<li>PulseGames 0.3.6 / draft PR6: <code>/duels</code> or the game menu opens combat style → discipline
+→ team size, with a separate <strong>Your kit</strong> button. Each player chooses their own compatible
+kit; kit choices share a queue. Classic and Modern rules remain separate queues.</li>
+<li>Classic (1.8-style): Regular PvP and Sumo. Modern (1.9+): Regular PvP, Sumo, Crystal
+and Mace. Duels supports 1v1, 2v2, 3v3 and 4v4, subject to map capacity.</li>
+<li>Personal kit changes apply next round, without an instant refill. Tank/Archer still
+need their existing unlock. Initial Crystal/Mace kits are supplied for balancing.</li>
+<li>Existing map permissions carry over for Regular/Sumo; the setup menu can make profile
+permissions explicit. Crystal needs a combat region and <code>crystal-enabled</code>; Mace needs
+<code>mace-enabled</code>. No existing map has been enrolled into these disciplines by this work.</li>
+<li>Validation: 83 focused tests passed. Local Paper/Citizens verified distinct round kits,
+Classic/Modern attack-speed switching, Crystal placement/protection/round cleanup,
+native held-totem activation under lethal damage and a wind-charge jump. Full matches, human crossplay, kit balance and Crystal/Mace
+bot controllers remain pending. Prepared controller coverage stays 11/23; live stays 4/23.</li>
+<li>Test next: different kits on Java/Bedrock; next-round changes; team damage; Crystal
+totems/offhand/chain blasts and resets; Mace smash/fall damage. Record results per map.
+See <a href="docs/DUELS.md">Duels setup and acceptance guide</a>. No live restart or installation.</li>
 </ul>
 </section></article></div>
 <footer>PulseGames · Source: MINIGAMES-TRACKER.md · Regenerate this report after updating the source. No server changes are performed by this document.</footer></main></body></html>

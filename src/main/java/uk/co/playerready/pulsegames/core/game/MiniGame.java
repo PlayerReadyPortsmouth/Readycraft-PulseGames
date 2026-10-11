@@ -93,6 +93,9 @@ public abstract class MiniGame {
 
     public boolean pvp() { return false; }
 
+    /** Let native held-totem resurrection run before intercepting lethal damage. */
+    public boolean allowsTotems() { return false; }
+
     /**
      * Cooperative games are won or lost together, so the engine's FFA "last player
      * standing" rule must not fire when a teammate leaves or is downed.
@@ -121,6 +124,10 @@ public abstract class MiniGame {
     public boolean canBreak(Player player, Block block) { return false; }
 
     public boolean canPlace(Player player, Block block) { return false; }
+    public void onBlockPlaced(org.bukkit.event.block.BlockPlaceEvent event) {}
+    public void onEntityPlace(org.bukkit.event.entity.EntityPlaceEvent event) {}
+    public void onEntityDamage(org.bukkit.event.entity.EntityDamageEvent event) {}
+    public boolean allowsSelfDamage(org.bukkit.event.entity.EntityDamageEvent event) { return false; }
 
     /**
      * May an explosion remove this block? Games that own destructible state (Bedwars beds)

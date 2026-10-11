@@ -84,6 +84,7 @@ matching artifact version and bump `api-version` in `plugin.yml` if needed.
 | `/pulse shape list/paste/undo` | generate geometry from JSON shape files |
 | `/pulse world <name>` | load/create a build world on this server |
 | `/pulse list / arenas / games` | inspect running instances, maps, games |
+| `/pulsekits` (alias `/kits`) | choose a default or owned KitPvP loadout for the next spawn |
 | `/pulse bots` | queue-bot provider status, count and supported modes |
 | `/pulse start / end` | force-start/-end the game you're in |
 | `/pulse setlobby / reload` | hub spawn / reload configs |
@@ -109,3 +110,9 @@ See [the 11 October review](docs/REVIEW-2026-10-11.md) for verified gaps, the fi
 See [MINIGAMES-TRACKER.md](MINIGAMES-TRACKER.md) for the maintained map register,
 per-game bot readiness, two-player tests, reported issues and pending rollout work.
 Agents should update it as each item progresses.
+
+### Duels combat and personal kits (0.3.6 candidate)
+
+`/duels` opens combat style → discipline → team size, with a separate personal-kit
+picker. Each opponent chooses their own compatible kit. See [Duels setup and acceptance](docs/DUELS.md)
+for map opt-ins, compatibility and the remaining Java/Bedrock test checklist.

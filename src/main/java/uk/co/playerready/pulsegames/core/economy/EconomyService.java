@@ -134,6 +134,15 @@ public final class EconomyService {
         dirty = true;
     }
 
+    public synchronized String duelKit(Player player, String profile) {
+        return data.getString(key(player) + ".duel-kits." + profile);
+    }
+    public synchronized void duelKit(Player player, String profile, String kitId) {
+        if (player.hasMetadata("NPC")) return;
+        data.set(key(player) + ".duel-kits." + profile, kitId);
+        dirty = true;
+    }
+
     public synchronized void flush() {
         if (!dirty) return;
         try {

@@ -54,6 +54,10 @@ public final class InstanceManager {
         java.util.Collections.shuffle(candidates);
         GameInstance instance = null;
         for (Arena arena : candidates) {
+            if (type.id().equals("duels") && mode.rulesId().equals("crystal")
+                    && (!arena.settings().getBoolean("crystal-enabled", false) || arena.region("combat") == null)) continue;
+            if (type.id().equals("duels") && mode.rulesId().equals("mace")
+                    && !arena.settings().getBoolean("mace-enabled", false)) continue;
             GameInstance candidate = new GameInstance(plugin, type, mode, arena);
             if (candidate.maxPlayers() < Math.max(groupSize, candidate.minPlayers())) continue;
             if (mode.isTeams() && candidate.teamCount() < 2) continue;
