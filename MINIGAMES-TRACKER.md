@@ -341,3 +341,4 @@ For each new map or mode, append:
   Paper 26.2 loaded PulseNetwork and both bot probes passed with PulseGames
   0.3.4. A separate localhost-only NeoForge 21.1.248 server loaded the enabled
   adapter and reached ready state, then was shut down. No live server was restarted.
+- Next candidate is [draft PR5](https://github.com/PlayerReadyPortsmouth/Readycraft-PulseGames/pull/5); not merged or deployed.
