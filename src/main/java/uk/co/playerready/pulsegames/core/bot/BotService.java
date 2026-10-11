@@ -16,7 +16,8 @@ public final class BotService implements AutoCloseable {
     private static final Set<String> SUPPORTED = Set.of("duels:classic", "duels:op", "duels:sumo",
             "koth:solo", "koth:teams", "kitpvp:ffa", "dodgeball:solo", "dodgeball:teams",
             "villagerdefense:easy", "villagerdefense:hard",
-            "readyplayerz:classic", "readyplayerz:frenzy", "blockparty:classic", "blockparty:hardcore");
+            "readyplayerz:classic", "readyplayerz:frenzy", "blockparty:classic", "blockparty:hardcore",
+            "avalanche:classic", "spleef:classic", "spleef:decay", "spleef:splegg");
     private static final class Slot {
         final GameInstance game;
         final BotActor actor;
@@ -214,6 +215,8 @@ public final class BotService implements AutoCloseable {
         BotDifficulty difficulty = BotDifficulty.parse(game.arena().settings().getString("bot-difficulty",
                 plugin.getConfig().getString("bots.difficulty", "normal")));
         if (game.logic() instanceof BotMovement movement) {
+            movement.botTick(bot, tick, difficulty);
+            if (game.state() != GameState.RUNNING || !game.isActive(bot)) return;
             navigate(slot, here, movement.botDestination(bot), difficulty);
             return;
         }

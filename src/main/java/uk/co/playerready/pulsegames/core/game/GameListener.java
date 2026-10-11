@@ -289,7 +289,6 @@ public final class GameListener implements Listener {
     @EventHandler(ignoreCancelled = true)
     public void onBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
-        if (plugin.bots() != null && plugin.bots().isBot(player)) return;
         GameInstance instance = instanceOf(player);
         if (instance == null) {
             if (plugin.lobby().isLobbyWorld(player.getWorld()) && !player.hasPermission("pulsegames.admin")) {

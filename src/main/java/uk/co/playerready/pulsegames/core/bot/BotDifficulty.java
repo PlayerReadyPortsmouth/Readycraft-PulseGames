@@ -14,6 +14,10 @@ public enum BotDifficulty {
         this.pathTicks = pathTicks;
     }
 
+    public int meleeDelayTicks() { return meleeTicks; }
+    public int projectileDelayTicks() { return throwTicks; }
+    public int accuracyPercent() { return accuracy; }
+
     public static BotDifficulty parse(String value) {
         if (value == null) return NORMAL;
         try { return valueOf(value.trim().toUpperCase(Locale.ROOT)); }

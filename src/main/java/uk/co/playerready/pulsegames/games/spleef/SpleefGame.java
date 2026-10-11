@@ -21,13 +21,20 @@ import java.util.concurrent.ThreadLocalRandom;
  * Spleef: dig the floor out from under the other players.
  * Modes: classic, decay (floor rots away), splegg (egg launcher).
  */
-public final class SpleefGame extends MiniGame {
+public final class SpleefGame extends MiniGame implements uk.co.playerready.pulsegames.core.bot.BotMovement {
 
     private List<Cuboid> floors = List.of();
     private List<Block> floorBlocks = List.of();
+    private final java.util.function.IntUnaryOperator random;
+    private final java.util.Map<java.util.UUID, Long> nextAction = new java.util.HashMap<>();
 
     public SpleefGame(GameInstance game) {
+        this(game, bound -> ThreadLocalRandom.current().nextInt(bound));
+    }
+
+    SpleefGame(GameInstance game, java.util.function.IntUnaryOperator random) {
         super(game);
+        this.random = random;
     }
 
     private boolean isSplegg() { return game.mode().id().equals("splegg"); }
@@ -94,11 +101,88 @@ public final class SpleefGame extends MiniGame {
                 && event.getItem() != null && event.getItem().getType() == Material.GOLDEN_HOE) {
             event.setCancelled(true);
             Player player = event.getPlayer();
-            if (player.hasCooldown(Material.GOLDEN_HOE)) return;
-            player.setCooldown(Material.GOLDEN_HOE, 10);
-            player.launchProjectile(Egg.class, player.getLocation().getDirection().multiply(2.0));
+            throwEgg(player, player.getLocation().getDirection());
         }
     }
+
+    /** Human and NPC launchers share cooldown, equipment and projectile rules. */
+    boolean throwEgg(Player player, org.bukkit.util.Vector direction) {
+        if (!isSplegg() || game.state() != uk.co.playerready.pulsegames.core.game.GameState.RUNNING
+                || !game.isActive(player) || !player.getWorld().equals(game.world())
+                || (player.getInventory().getItemInMainHand().getType() != Material.GOLDEN_HOE
+                    && player.getInventory().getItemInOffHand().getType() != Material.GOLDEN_HOE)
+                || player.hasCooldown(Material.GOLDEN_HOE) || direction.lengthSquared() < 0.0001) return false;
+        player.setCooldown(Material.GOLDEN_HOE, 10);
+        player.launchProjectile(Egg.class, direction.clone().normalize().multiply(2.0));
+        return true;
+    }
+
+    private Player visibleOpponent(Player bot) {
+        var here = bot.getLocation();
+        return game.alivePlayers().stream().filter(p -> !p.getUniqueId().equals(bot.getUniqueId()) && game.isActive(p))
+                .filter(p -> p.getWorld().equals(bot.getWorld()) && here.distanceSquared(p.getLocation()) <= 16 * 16)
+                .filter(bot::hasLineOfSight)
+                .min(java.util.Comparator.comparingDouble(p -> here.distanceSquared(p.getLocation()))).orElse(null);
+    }
+
+    @Override
+    public org.bukkit.Location botDestination(Player bot) {
+        Player enemy = visibleOpponent(bot);
+        var here = bot.getLocation();
+        return uk.co.playerready.pulsegames.core.bot.GroundNavigation.nextStep(here,
+                point -> floors.stream().anyMatch(floor -> floor.contains(point.clone().subtract(0, 1, 0))),
+                point -> {
+                    double safety = 0;
+                    for (int[] direction : new int[][]{{1,0},{-1,0},{0,1},{0,-1}}) {
+                        var neighbour = point.clone().add(direction[0], 0, direction[1]);
+                        if (floors.stream().anyMatch(f -> f.contains(neighbour.clone().subtract(0, 1, 0)))
+                                && uk.co.playerready.pulsegames.core.bot.GroundNavigation.walkable(neighbour)) safety += 0.5;
+                    }
+                    if (enemy == null) return safety;
+                    return safety - Math.abs(Math.sqrt(point.distanceSquared(enemy.getLocation())) - 2.5) * 2;
+                });
+    }
+
+    @Override
+    public void botTick(Player bot, long tick, uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty) {
+        if (!game.isBot(bot) || !game.isActive(bot) || tick < nextAction.getOrDefault(bot.getUniqueId(), 0L)) return;
+        Player enemy = visibleOpponent(bot); if (enemy == null) return;
+        Block target = enemy.getLocation().clone().subtract(0, 1, 0).getBlock();
+        if (!inFloor(target) || target.getType().isAir()
+                || target.equals(bot.getLocation().clone().subtract(0, 1, 0).getBlock())) return;
+        org.bukkit.Location aim = target.getLocation().add(0.5, 0.5, 0.5);
+        var delta = aim.toVector().subtract(bot.getEyeLocation().toVector());
+        double distance = delta.length(); if (distance < 0.01) return;
+        nextAction.put(bot.getUniqueId(), tick + (isSplegg() ? difficulty.projectileDelayTicks() : difficulty.meleeDelayTicks()));
+        if (random.applyAsInt(100) >= difficulty.accuracyPercent()) return;
+        if (isSplegg()) {
+            if (distance <= 12) {
+                bot.getInventory().setHeldItemSlot(0);
+                throwEgg(bot, delta);
+            }
+        } else if (distance <= 4.5) {
+            var hit = bot.getWorld().rayTraceBlocks(bot.getEyeLocation(), delta.clone().normalize(), distance + 0.05,
+                    org.bukkit.FluidCollisionMode.NEVER, true);
+            if (hit != null && target.equals(hit.getHitBlock())) {
+                bot.getInventory().setHeldItemSlot(0);
+                bot.swingMainHand();
+                // Real BlockBreakEvent enforces game floor rules, protection and snowball awards.
+                bot.breakBlock(target);
+            }
+        } else if (distance <= 12 && !bot.hasCooldown(Material.SNOWBALL)) {
+            var inventory = bot.getInventory();
+            for (int slot = 0; slot < inventory.getSize(); slot++) {
+                var item = inventory.getItem(slot);
+                if (item == null || item.getType() != Material.SNOWBALL) continue;
+                if (item.getAmount() == 1) inventory.setItem(slot, null); else item.setAmount(item.getAmount() - 1);
+                bot.setCooldown(Material.SNOWBALL, 10);
+                bot.launchProjectile(org.bukkit.entity.Snowball.class, delta.normalize().multiply(1.5));
+                break;
+            }
+        }
+    }
+
+    @Override public void onCleanup() { nextAction.clear(); }
 
     @Override
     public void onProjectileHit(ProjectileHitEvent event) {

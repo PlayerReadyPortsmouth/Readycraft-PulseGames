@@ -60,6 +60,13 @@ class BotServiceTest {
         when(p.getName()).thenReturn(name);
         return p;
     }
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"avalanche,classic", "spleef,classic", "spleef,decay", "spleef,splegg"})
+    void hazardModesFillNormalQueue(String type, String mode) {
+        when(game.type().id()).thenReturn(type);when(game.mode().id()).thenReturn(mode);
+        bots.reconcile(game);bots.reconcile(game);
+        assertEquals(1,bots.count(game));verify(game).add(any());
+    }
     @Test void waitsThenAddsActualContestantToNormalInstance() {
         bots.reconcile(game); verify(provider, never()).create(any(),any());
         bots.reconcile(game);

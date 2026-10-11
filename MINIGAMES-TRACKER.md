@@ -51,14 +51,14 @@ After editing this source, regenerate both exports with
 | Prop Hunt startup failure | Root cause confirmed; corrected validation accepted all 10 actual BetterModel props; tracker creation passed locally | Actual disguise attachment and full two-client round |
 | Prop Hunt two-player start | Prepared: both modes minimum 2; reject a solo forced start | One seeker and one hider completing Classic and Infection |
 | Bot difficulty and co-op controllers | Villager Defense merged in PR4; ReadyPlayerZ fighting, earned-point purchases and revival locally checked in the next candidate | Full multi-wave survival, human/bot balance and crossplay |
-| Bot queue target and Block Party | Next candidate targets half of map/mode capacity, or full capacity for maxima 1–4; Block Party public-colour tile navigation locally checked | Capacity/load tests, full colour rounds and human/bot acceptance |
+| Bot queue target and Block Party | Merged candidate targets half of map/mode capacity, or full capacity for maxima 1–4; Block Party public-colour tile navigation locally checked | Capacity/load tests, full colour rounds and human/bot acceptance |
 | PulseNetwork helper | Paper, Velocity and Create/NeoForge adapters prepared; public chat, local fallback chat games and queue Join actions | Per-plugin moderation/privacy/ignore checks, Java click and Bedrock form acceptance; not installed |
 | PvP team sizes and map capacity | Prepared solo/doubles/triples/squads for main combat games, 2v2 Duels rounds and per-mode map limits | Test each mode on suitable maps; do not enable team modes on undersized maps |
 | CoBuilder command-announcement disconnect | Client mod 0.4.1 prepared separately | Install/relaunch client at a convenient time and retest announcements |
 | Distant lobby Trial Chamber | Diagnosed; bounded cleanup tooling prepared | Separate permission and fresh edit-preserving checks before cleanup |
 
 PulseGames PR4 was merged at Aurora’s request on 11 October (merge `0eda3bd`).
-PulseContent PR28 remains a draft. The next bot/helper update is prepared separately;
+PulseContent PR28 remains a draft. PR5 (merge `f511551`) is now merged and its helper bundles are staged privately for all 12 Minecraft services;
 none of these merge/build results means the update is deployed.
 
 ## Active map batch: Prop Hunt
@@ -109,11 +109,11 @@ are currently queued.
 - Prop Hunt's seeker/hider roles and Party Games' individual rotating competition
   remain distinct; symmetric team variants for these need a separate rules design.
 - Team modes do not imply bot support. Live controllers still cover 4/23 games;
-  Villager Defense is merged; ReadyPlayerZ and Block Party are locally checked candidates.
-  This brings prepared controllers to 7/23, while live support remains 4/23.
+  Villager Defense, ReadyPlayerZ and Block Party are merged; the latter two passed focused local checks.
+  Avalanche and Spleef are prepared in the next draft, bringing controllers to 9/23; live support remains 4/23.
 - See [team and capacity instructions](TEAM-MODES.md) for exact settings and examples.
 
-## Queue bots and network helper — next candidate
+## Queue bots and network helper — merged and staged
 
 - Requested fill target counts **humans plus bots**: maximum 2 → 2 total, 4 → 4,
   5 → 3, 8 → 4, 16 → 8. Odd halves round up. The playable minimum can raise
@@ -122,7 +122,7 @@ are currently queued.
   server-wide safety caps remain enforced. Prepared defaults allow 31 bots per
   match and 64 total; existing installations retain their configured caps.
   MinigamesTest’s smaller live caps have **not** been raised.
-- Citizens skin refresh can replace the Bukkit player entity. The next candidate
+- Citizens skin refresh can replace the Bukkit player entity. The merged candidate
   follows the replacement instead of ending the game; its precise pathfinder
   can reach single safe tiles without teleporting.
 - PulseNetwork is a separate helper with Paper, Velocity and NeoForge artifacts.
@@ -154,10 +154,10 @@ needed. Do not bypass team/role requirements and call that a completed test.
 | Dodgeball | Court test arena; Aurora reports cooldown too slow and hits unclear | Solo and teams | Yes | Test prepared cooldown/feedback; dodge and lead targets; difficulty |
 | Dropper | Two-drops test arena | None | Race yes; practice is solo | Test landing/checkpoint/reset behaviour; controlled-fall bots |
 | Prop Hunt | **Five-map build batch in progress; Aurora must visually approve all five before setup.** Trial arena exists; startup fix pending deployment | None | Live minimum 3; prepared update lowers to 2 | Deploy validated startup fix; test palette, snapping and head props; fair seeker/hider bots |
-| Spleef | No accepted map/test recorded | None | Yes | Maps; safe-floor navigation and digging; Splegg projectiles |
+| Spleef | No accepted map/test recorded | Prepared: Classic, Decay, Splegg | Yes | Maps; full rounds, floor loss, projectile impacts and balance |
 | TNT Run | No accepted map/test recorded | None | Yes | Maps; disappearing-floor routing and double jumps |
 | Block Party | No accepted map/player test recorded | Prepared Classic/Hardcore | Yes | Build maps; full rounds, elimination, difficulty and two-client tests |
-| Avalanche | No accepted map/test recorded | None | Yes | Maps; falling-block prediction and evasion |
+| Avalanche | No accepted map/test recorded | Prepared: Classic | Yes | Maps; full falling-block rounds and survival balance |
 | Volcano | No accepted map/test recorded | None | Yes | Maps; climbing routes and lava/eruption avoidance |
 | Parkour | No accepted map/test recorded | None | Sprint yes; elimination needs 3 | Builder-authored routes, real jumps and checkpoints |
 | Elytra Racing | No accepted map/test recorded | None | Yes | Flight routes, checkpoint passage, rockets and recovery |
@@ -341,4 +341,27 @@ For each new map or mode, append:
   Paper 26.2 loaded PulseNetwork and both bot probes passed with PulseGames
   0.3.4. A separate localhost-only NeoForge 21.1.248 server loaded the enabled
   adapter and reached ready state, then was shut down. No live server was restarted.
-- Next candidate is [draft PR5](https://github.com/PlayerReadyPortsmouth/Readycraft-PulseGames/pull/5); not merged or deployed.
+- [PR5](https://github.com/PlayerReadyPortsmouth/Readycraft-PulseGames/pull/5) merged as `f511551`; built artifacts staged outside active server folders. No install or restart.
+
+
+## 11 October follow-up: staging and hazard bots
+
+- PulseNetwork 0.1.0 Paper, Velocity and NeoForge jars are staged on readyapp-vps at
+  `/srv/ready-gamed/staging/pulsenetwork-20261011-f511551`, with per-server configurations,
+  checksums and installation notes. Ten targets belong to the primary proxy network;
+  the direct Create proxy and compatibility clone are disabled spares.
+- Existing-plugin chat relay remains held on Survival, Creative, SurvivalTest, SkyBlock
+  and legacy Minigames until channel/privacy compatibility checks pass. MinigamesTest
+  is the prepared queue publisher. SurvivalTest is not a minigames test environment.
+- All 12 staged jar checks and five existing active Pulse jar checks passed. No active
+  jars changed; no live server was restarted. A later installation/restart needs Aurora's approval.
+- PulseGames 0.3.5 candidate adds Avalanche Classic and Spleef Classic/Decay/Splegg bots.
+  They use bounded ground navigation; Avalanche reacts only to visible falling blocks.
+  Spleef digs through normal block protection and snowball rewards, uses earned ammunition,
+  and shares the player Splegg launcher/cooldown. Difficulty controls action timing and accuracy.
+- Validation: 29 focused tests passed, including queue filling in all four new modes,
+  route boundaries/gaps, offhand launcher compatibility and NPC block protection.
+  Local Paper 26.2/Citizens checked actual digging, earned snowballs, out-of-floor protection
+  and visible avalanche evasion. These are focused checks, not full-match or crossplay acceptance.
+- Remaining: play full rounds on accepted maps, check Splegg projectile impacts and Decay
+  floor loss, then tune reaction times. The 0.3.5 candidate is separate from the merged/staged 0.3.4 bundle.

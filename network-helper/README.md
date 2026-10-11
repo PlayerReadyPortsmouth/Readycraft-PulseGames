@@ -78,3 +78,23 @@ Unit tests cover packet authentication/replay/expiry/bounds; queue identity/with
 API references: [Paper chat events](https://docs.papermc.io/paper/dev/chat-events/), [Velocity plugin messaging](https://docs.papermc.io/velocity/dev/plugin-messaging/), [Floodgate forms](https://geysermc.org/wiki/geyser/forms/), [NeoForge 1.21.1 documentation](https://docs.neoforged.net/docs/1.21.1/).
 
 Local validation on 11 October 2026: 17 helper tests and 46 targeted PulseGames tests passed. Paper 26.2 loaded the enabled helper alongside the bot runtime probe. A separate NeoForge 21.1.248 development server loaded the enabled adapter and reached ready state. Both local servers were stopped afterwards. No Java/Bedrock end-to-end network acceptance is claimed.
+
+
+## Staging checkpoint — 11 October 2026
+
+PR5 merged as `f51155181e2e595c9fcf21c78e39ada75a880756`. Paper, Velocity and
+NeoForge 0.1.0 builds plus the merged PulseGames 0.3.4 jar are staged privately at
+`readyapp-vps:/srv/ready-gamed/staging/pulsenetwork-20261011-f511551`.
+Each of the 12 Minecraft services has an inactive payload and plan; ten are primary-network
+targets and two are disabled spares. `manifest.json` and `INSTALL-NOTES.txt` describe the
+holds and future installation. The bridge secret stays in private remote files.
+
+No active jars were changed and no server was restarted. Existing chat relays on Survival,
+Creative, SurvivalTest, SkyBlock and legacy Minigames remain held pending channel/privacy
+compatibility checks. MinigamesTest is the prepared queue publisher; legacy Minigames needs
+migration checks. Do not use SurvivalTest for minigames acceptance. The direct Create proxy
+must not become a second coordinator without a topology decision.
+
+Before activation: obtain Aurora's fresh restart approval, back up the target files, preserve
+active ownership and arena/config data, recheck the loopback port, then perform Java/Bedrock
+and existing-chat-plugin acceptance. A later bot candidate does not replace this staged bundle.
