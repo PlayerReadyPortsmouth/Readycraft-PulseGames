@@ -429,11 +429,39 @@ public final class ArenaSetupManager implements Listener {
         }, error -> player.sendMessage(Text.msg("<red>World capture failed: " + error)));
     }
 
-    /** Loads (or creates) a build world so map makers can work on this server. */
+    /** New build worlds default to void; existing worlds are never regenerated. */
     public void loadBuildWorld(Player player, String name) {
+        loadBuildWorld(player, name, true);
+    }
+
+    public void loadBuildWorld(Player player, String name, boolean empty) {
+        String instancePrefix = plugin.getConfig().getString("instances.world-prefix", "pulse_");
+        if (!name.matches("[a-z0-9_-]{1,64}") || name.startsWith(instancePrefix) || name.startsWith("pulsebuild_")) {
+            player.sendMessage(Text.msg("<red>Use a permanent build-world name containing a-z, 0-9, _ or -. Match-world names are reserved."));
+            return;
+        }
         World world = Bukkit.getWorld(name);
+        boolean created = false;
         if (world == null) {
-            world = new WorldCreator(name).createWorld();
+            WorldCreator creator = new WorldCreator(name);
+            File folder = WorldService.worldDirectory(creator);
+            boolean existing = folder.exists() || new File(Bukkit.getWorldContainer(), name).exists();
+            // Persist the generator choice so later loads cannot grow normal terrain.
+            boolean useVoid = (!existing && empty) || new File(folder, ".pulsegames-void").isFile();
+            if (useVoid) creator.generator(new WorldService.VoidGenerator()).generateStructures(false);
+            world = creator.createWorld();
+            created = !existing;
+            if (world != null && created && useVoid) {
+                initialiseEmptyBuildWorld(world);
+                try {
+                    java.nio.file.Files.writeString(world.getWorldFolder().toPath().resolve(".pulsegames-void"), "1\n");
+                } catch (java.io.IOException ex) {
+                    plugin.getLogger().severe("Cannot persist void generator for " + name + ": " + ex.getMessage());
+                    player.sendMessage(Text.msg("<red>World created, but its generator marker could not be saved. Ask an administrator before reopening it."));
+                    return;
+                }
+                world.save(true);
+            }
         }
         if (world == null) {
             player.sendMessage(Text.msg("<red>Could not load world " + name));
@@ -441,6 +469,17 @@ public final class ArenaSetupManager implements Listener {
         }
         player.setGameMode(org.bukkit.GameMode.CREATIVE);
         player.teleport(world.getSpawnLocation());
-        player.sendMessage(Text.msg("Teleported to world <yellow>" + name + "</yellow> (creative)."));
+        player.sendMessage(Text.msg((created ? "Created " : "Loaded existing ") + "world <yellow>" + name
+                + "</yellow> (creative)." + (created ? "" : " Existing terrain was preserved.")));
+    }
+
+    static void initialiseEmptyBuildWorld(World world) {
+        for (int x = -3; x <= 3; x++) {
+            for (int z = -3; z <= 3; z++) world.getBlockAt(x, 80, z).setType(Material.SMOOTH_QUARTZ, false);
+        }
+        world.setSpawnLocation(0, 81, 0);
+        world.setGameRule(org.bukkit.GameRule.DO_MOB_SPAWNING, false);
+        world.setGameRule(org.bukkit.GameRule.DO_DAYLIGHT_CYCLE, false);
+        world.setTime(6000);
     }
 }

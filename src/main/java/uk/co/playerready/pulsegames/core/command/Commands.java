@@ -189,10 +189,14 @@ public final class Commands implements CommandExecutor, TabCompleter {
             }
             case "world" -> {
                 if (args.length < 2) {
-                    player.sendMessage(Text.msg("<red>Usage: /pulse world <name> <gray>- load/create a build world"));
+                    player.sendMessage(Text.msg("<red>Usage: /pulse world <name> [void|normal] <gray>- new worlds default to void"));
                     return;
                 }
-                plugin.setup().loadBuildWorld(player, args[1]);
+                if (args.length > 3 || (args.length == 3 && !args[2].equalsIgnoreCase("void") && !args[2].equalsIgnoreCase("normal"))) {
+                    player.sendMessage(Text.msg("<red>World type must be void or normal. Existing worlds are never cleared."));
+                    return;
+                }
+                plugin.setup().loadBuildWorld(player, args[1], args.length < 3 || args[2].equalsIgnoreCase("void"));
             }
             case "games" -> {
                 player.sendMessage(Text.msg("Registered games:"));
@@ -272,6 +276,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
                 if (args.length == 1) {
                     return List.of("setup", "shape", "build", "blueprints", "bots", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
                 }
+                if (args.length == 3 && args[0].equalsIgnoreCase("world")) return List.of("void", "normal");
                 if (args.length == 2 && args[0].equalsIgnoreCase("build")) {
                     return plugin.mapBuilder().available();
                 }

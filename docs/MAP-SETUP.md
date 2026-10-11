@@ -8,7 +8,7 @@ The plugin captures the world as a template and the arena goes live immediately.
 
 1. **Get into your map world.**
    - Import: drop the world folder into the server root, then `/pulse world <foldername>`.
-   - Or build fresh: `/pulse world buildworld1` creates and teleports you there.
+   - Or build fresh: `/pulse world buildworld1 void` creates an empty world with a 7×7 starter platform and teleports you there in Creative. New worlds default to void; use `normal` explicitly for natural terrain. Existing worlds are loaded unchanged, even if you supply a different type. Choose a new name to create a different world.
 2. **Start a setup session** (standing in that world):
    ```
    /pulse setup start <game> <arenaId>     e.g. /pulse setup start spleef frosty
