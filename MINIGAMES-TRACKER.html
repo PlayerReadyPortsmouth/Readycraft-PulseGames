@@ -8,7 +8,7 @@
 </style></head><body><header class="toolbar"><div><span class="brand">PULSE / GAMES</span><small>Development & play testing</small></div><button onclick="window.print()">Print / Save as PDF</button></header><main>
 <div class="hero"><div class="eyebrow">ReadyCraft · Working report</div><h1>Every game.<br>A clear next step.</h1><p>Map building, bot readiness and player testing in one shared record. Prepared changes remain separate from what is running on MinigamesTest.</p><div class="meta"><span>Updated 11 October 2026</span><span>Owner: Aurora</span><span>Snapshot, not a live server feed</span></div></div>
 <div class="summary"><div class="stat"><b>23 games</b><span>Tracked across the programme</span></div><div class="stat"><b>11 / 23</b><span>Prepared bot controllers (4 live)</span></div><div class="stat"><b>5 maps</b><span>Prop Hunt batch awaiting visual review</span></div></div>
-<aside class="notice"><strong>Current priority · Prop Hunt maps</strong><p>Complete Backstage Mayhem boundary correction, then Aurora visually reviews all five larger, denser maps before arena setup. Building completion alone does not authorise setup.</p></aside>
+<aside class="notice"><strong>Current priority · Prop Hunt maps</strong><p>All five larger, denser maps are built. Aurora visually reviews and approves them before arena setup and gameplay testing. Building completion alone does not authorise setup.</p></aside>
 <p class="print-note">Share this standalone HTML file, or use Print / Save as PDF for the complete report. Printing includes every section. For best results use A4 landscape with background graphics enabled.</p>
 <div class="layout"><nav aria-label="Report sections"><strong>In this report</strong><a href="#working-agreement">Working agreement</a><a href="#current-test-server-baseline">Current test-server baseline</a><a href="#prepared-update-not-deployed">Prepared update — not deployed</a><a href="#active-map-batch-prop-hunt">Active map batch: Prop Hunt</a><a href="#team-size-and-map-capacity-programme">Team-size and map-capacity programme</a><a href="#queue-bots-and-network-helper-merged-and-staged">Queue bots and network helper — merged and staged</a><a href="#per-game-readiness">Per-game readiness</a><a href="#verified-server-arena-names">Verified server arena names</a><a href="#duels-map-and-mode-register">Duels map and mode register</a><a href="#bot-programme">Bot programme</a><a href="#map-setup-and-acceptance-template">Map setup and acceptance template</a><a href="#dated-log">Dated log</a><a href="#11-october-follow-up-staging-and-hazard-bots">11 October follow-up: staging and hazard bots</a><a href="#duels-selector-and-personal-loadouts-prepared-not-live">Duels selector and personal loadouts — prepared, not live</a></nav><article><section id="working-agreement" class="report-section"><div class="section-heading"><span>01</span><h2>Working agreement</h2></div><ul>
 <li>Goal: a broad mix of party, co-op, racing and competitive games, all with proper
@@ -166,8 +166,8 @@ from the server definitions, then perform the two-human-player tests.</li>
 <tr>
 <td>5 - Backstage Mayhem</td>
 <td><code>rc_build_prophunt_backstage_mayhem</code></td>
-<td>Theatre built at 101x85: ten furnished rooms, castle/forest/pirate stage sets, seating and paired catwalk stairs. All 44,608 block states match. Final boundary correction pending.</td>
-<td>Not ready for approval: close rear catwalk opening onto roof; clarify castle lamp supports</td>
+<td>Built at 101x85: ten furnished rooms, three stage sets, seating and paired catwalk stairs. Rear roof access closed; lamp supports checked. Builder visual/block checks passed (44,855 states).</td>
+<td>Built to revised brief; awaiting Aurora review</td>
 <td>Blocked on all-five review</td>
 </tr>
 </tbody></table>
@@ -273,7 +273,7 @@ needed. Do not bypass team/role requirements and call that a completed test.</p>
 </tr>
 <tr>
 <td>Prop Hunt</td>
-<td><strong>Five-map build batch in progress; Aurora must visually approve all five before setup.</strong> Trial arena exists; startup fix pending deployment</td>
+<td><strong>All five maps built; Aurora visual review pending before setup.</strong> Trial arena exists; startup fix pending deployment</td>
 <td>None</td>
 <td>Live minimum 3; prepared update lowers to 2</td>
 <td>Deploy validated startup fix; test palette, snapping and head props; fair seeker/hider bots</td>
@@ -703,23 +703,31 @@ Floor Is Lava is not a separate registered game; Volcano is the rising-lava mode
 </ul>
 </section>
 <section id="duels-selector-and-personal-loadouts-prepared-not-live" class="report-section"><div class="section-heading"><span>14</span><h2>Duels selector and personal loadouts — prepared, not live</h2></div><ul>
-<li>PulseGames 0.3.6 / draft PR6: <code>/duels</code> or the game menu opens combat style → discipline
+<li><p>PulseGames 0.3.6 / draft PR6: <code>/duels</code> or the game menu opens combat style → discipline
 → team size, with a separate <strong>Your kit</strong> button. Each player chooses their own compatible
-kit; kit choices share a queue. Classic and Modern rules remain separate queues.</li>
-<li>Classic (1.8-style): Regular PvP and Sumo. Modern (1.9+): Regular PvP, Sumo, Crystal
-and Mace. Duels supports 1v1, 2v2, 3v3 and 4v4, subject to map capacity.</li>
-<li>Personal kit changes apply next round, without an instant refill. Tank/Archer still
-need their existing unlock. Initial Crystal/Mace kits are supplied for balancing.</li>
-<li>Existing map permissions carry over for Regular/Sumo; the setup menu can make profile
+kit; kit choices share a queue. Classic and Modern rules remain separate queues.</p>
+</li>
+<li><p>Classic (1.8-style): Regular PvP and Sumo. Modern (1.9+): Regular PvP, Sumo, Crystal
+and Mace. Duels supports 1v1, 2v2, 3v3 and 4v4, subject to map capacity.</p>
+</li>
+<li><p>Personal kit changes apply next round, without an instant refill. Tank/Archer still
+need their existing unlock. Initial Crystal/Mace kits are supplied for balancing.</p>
+</li>
+<li><p>Existing map permissions carry over for Regular/Sumo; the setup menu can make profile
 permissions explicit. Crystal needs a combat region and <code>crystal-enabled</code>; Mace needs
-<code>mace-enabled</code>. No existing map has been enrolled into these disciplines by this work.</li>
-<li>Validation: 83 focused tests passed. Local Paper/Citizens verified distinct round kits,
+<code>mace-enabled</code>. No existing map has been enrolled into these disciplines by this work.</p>
+</li>
+<li><p>Validation: 83 focused tests passed. Local Paper/Citizens verified distinct round kits,
 Classic/Modern attack-speed switching, Crystal placement/protection/round cleanup,
 native held-totem activation under lethal damage and a wind-charge jump. Full matches, human crossplay, kit balance and Crystal/Mace
-bot controllers remain pending. Prepared controller coverage stays 11/23; live stays 4/23.</li>
-<li>Test next: different kits on Java/Bedrock; next-round changes; team damage; Crystal
+bot controllers remain pending. Prepared controller coverage stays 11/23; live stays 4/23.</p>
+</li>
+<li><p>Test next: different kits on Java/Bedrock; next-round changes; team damage; Crystal
 totems/offhand/chain blasts and resets; Mace smash/fall damage. Record results per map.
-See <a href="docs/DUELS.md">Duels setup and acceptance guide</a>. No live restart or installation.</li>
+See <a href="docs/DUELS.md">Duels setup and acceptance guide</a>. No live restart or installation.</p>
+</li>
+<li><p>Backstage Mayhem final correction completed at Aurora’s request: framed/glazed rear catwalk wall closes roof access; castle lamps have full stone supports. Actual close-up images inspected and all 44,855 states match, with zero missing/wrong/unloaded states. All five commissioned maps are now built and awaiting Aurora visual approval; none is registered or gameplay-tested. Review starts with Market Day, then Crooked Library, Harvest Festival, Smuggler’s Wharf and Backstage Mayhem. Server updates/restarts remain with Aurora’s other agent after review/setup.</p>
+</li>
 </ul>
 </section></article></div>
 <footer>PulseGames · Source: MINIGAMES-TRACKER.md · Regenerate this report after updating the source. No server changes are performed by this document.</footer></main></body></html>

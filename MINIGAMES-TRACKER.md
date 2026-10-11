@@ -82,7 +82,7 @@ any of them are configured as arenas.** This is an explicit user gate, recorded
 | 2 - Crooked Library | `rc_build_prophunt_crooked_library` | Expanded to 113x47 across three levels; twelve new furnished wing rooms. Builder visual/block checks passed (33,527 states). | Larger/denser revision requested; revised version awaiting Aurora review | Blocked on all-five review |
 | 3 - Harvest Festival | `rc_build_prophunt_harvest_festival` | Expanded to 93x85; four stocked outbuildings, orchard, wheat beds, hay maze and extra stalls. Builder visual/block checks passed (23,854 states). | Larger/denser revision requested; revised version awaiting Aurora review | Blocked on all-five review |
 | 4 - Smuggler's Wharf | `rc_build_prophunt_smugglers_wharf` | Built at 109x93; six furnished buildings, warehouse floors, ship/cabin and cargo yards. Builder visual/block checks passed (42,634 states). | Built to revised brief; awaiting Aurora review | Blocked on all-five review |
-| 5 - Backstage Mayhem | `rc_build_prophunt_backstage_mayhem` | Theatre built at 101x85: ten furnished rooms, castle/forest/pirate stage sets, seating and paired catwalk stairs. All 44,608 block states match. Final boundary correction pending. | Not ready for approval: close rear catwalk opening onto roof; clarify castle lamp supports | Blocked on all-five review |
+| 5 - Backstage Mayhem | `rc_build_prophunt_backstage_mayhem` | Built at 101x85: ten furnished rooms, three stage sets, seating and paired catwalk stairs. Rear roof access closed; lamp supports checked. Builder visual/block checks passed (44,855 states). | Built to revised brief; awaiting Aurora review | Blocked on all-five review |
 
 Visit a built map with `/pulse world <build-world name>` using the exact name above.
 These are verified permanent build worlds, not saved arena IDs or templates.
@@ -152,7 +152,7 @@ needed. Do not bypass team/role requirements and call that a completed test.
 | KOTH | Trial arena available; full acceptance not recorded | Solo and teams | Solo yes; teams currently needs 8 total | Fix test arena capacity for teams; hill contesting and team balance |
 | Dodgeball | Court test arena; Aurora reports cooldown too slow and hits unclear | Solo and teams | Yes | Test prepared cooldown/feedback; dodge and lead targets; difficulty |
 | Dropper | Two-drops test arena | None | Race yes; practice is solo | Test landing/checkpoint/reset behaviour; controlled-fall bots |
-| Prop Hunt | **Five-map build batch in progress; Aurora must visually approve all five before setup.** Trial arena exists; startup fix pending deployment | None | Live minimum 3; prepared update lowers to 2 | Deploy validated startup fix; test palette, snapping and head props; fair seeker/hider bots |
+| Prop Hunt | **All five maps built; Aurora visual review pending before setup.** Trial arena exists; startup fix pending deployment | None | Live minimum 3; prepared update lowers to 2 | Deploy validated startup fix; test palette, snapping and head props; fair seeker/hider bots |
 | Spleef | No accepted map/test recorded | Prepared: Classic, Decay, Splegg | Yes | Maps; full rounds, floor loss, projectile impacts and balance |
 | TNT Run | No accepted map/test recorded | Prepared: Classic | Yes | Full rounds, corners and layers; Double Jump remains human-only |
 | Block Party | No accepted map/player test recorded | Prepared Classic/Hardcore | Yes | Build maps; full rounds, elimination, difficulty and two-client tests |
@@ -411,3 +411,5 @@ For each new map or mode, append:
 - Test next: different kits on Java/Bedrock; next-round changes; team damage; Crystal
   totems/offhand/chain blasts and resets; Mace smash/fall damage. Record results per map.
   See [Duels setup and acceptance guide](docs/DUELS.md). No live restart or installation.
+
+- Backstage Mayhem final correction completed at Aurora’s request: framed/glazed rear catwalk wall closes roof access; castle lamps have full stone supports. Actual close-up images inspected and all 44,855 states match, with zero missing/wrong/unloaded states. All five commissioned maps are now built and awaiting Aurora visual approval; none is registered or gameplay-tested. Review starts with Market Day, then Crooked Library, Harvest Festival, Smuggler’s Wharf and Backstage Mayhem. Server updates/restarts remain with Aurora’s other agent after review/setup.
