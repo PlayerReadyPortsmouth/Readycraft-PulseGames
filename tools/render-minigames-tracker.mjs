@@ -1,0 +1,49 @@
+/** Regenerate the portable report after editing MINIGAMES-TRACKER.md.
+ * Usage: node tools/render-minigames-tracker.mjs
+ * Requires marked (or CODEX_NODE_MODULES pointing at a bundled node_modules).
+ * Optional PDF: browser Print > Save as PDF, A4, background graphics on.
+ */
+import fs from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath, pathToFileURL} from 'node:url';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+let marked;
+try { ({marked} = await import('marked')); }
+catch { const modules=process.env.CODEX_NODE_MODULES || '/home/ara/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules'; ({marked}=await import(pathToFileURL(path.join(modules,'marked/lib/marked.esm.js')))); }
+const md=fs.readFileSync(path.join(root,'MINIGAMES-TRACKER.md'),'utf8');
+const sections=md.split(/^## /m).slice(1).map(s=>{const i=s.indexOf('\n');const title=s.slice(0,i);return {title,id:title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/-$/,''),body:s.slice(i+1)}});
+const gameRows=sections.find(s=>s.title==='Per-game readiness').body.split('\n').filter(s=>s.startsWith('|')&&!s.startsWith('|---')).slice(1);
+const botCount=gameRows.filter(s=>s.split('|')[3].trim()!=='None').length;
+const mapCount=sections.find(s=>s.title==='Active map batch: Prop Hunt').body.split('\n').filter(s=>/^\| [0-9]+(?: - [^|]+)? \|/.test(s)).length;
+const esc=s=>s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+const date=md.match(/Last updated: ([^.]+)/)?.[1] || 'See source';
+const cards=sections.map((s,i)=>`<section id="${s.id}" class="report-section"><div class="section-heading"><span>${String(i+1).padStart(2,'0')}</span><h2>${esc(s.title)}</h2></div>${marked.parse(s.body)}</section>`).join('\n');
+const html=`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PulseGames · Development & play-test tracker</title>
+<style>
+:root{--ink:#19302e;--muted:#5c706d;--teal:#006c61;--line:#dce5df;--paper:#fff;--bg:#f2f5f0}*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:85px}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 system-ui,-apple-system,'Segoe UI',sans-serif}a{color:var(--teal)}.toolbar{position:sticky;top:0;z-index:2;background:#ffffffed;border-bottom:1px solid var(--line);padding:12px 5%;display:flex;align-items:center;justify-content:space-between;gap:12px;backdrop-filter:blur(10px)}.brand{font-weight:800;letter-spacing:.04em}.toolbar small{color:var(--muted);margin-left:16px}button{border:0;border-radius:8px;background:var(--teal);color:white;padding:11px 18px;font:inherit;font-weight:650;cursor:pointer}button:focus-visible,a:focus-visible{outline:3px solid #da973f;outline-offset:3px}main{max-width:1240px;margin:auto;padding:48px 32px 80px}.hero{background:var(--ink);color:white;padding:42px 46px;border-radius:18px;position:relative;border-top:6px solid #b9dca5}.eyebrow{text-transform:uppercase;font-size:12px;letter-spacing:.18em;font-weight:750;color:#bcdbcc}h1{font-size:clamp(32px,4vw,50px);line-height:1.12;letter-spacing:-.04em;margin:15px 0 18px;max-width:750px}.hero p{color:#dae5dd;max-width:760px;margin-bottom:0}.meta{display:flex;gap:24px;margin-top:28px;font-size:13px;color:#d6e5db}.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:24px 0}.stat{background:white;border:1px solid var(--line);border-radius:12px;padding:22px}.stat b{display:block;font-size:30px;line-height:1.2}.stat span{color:var(--muted);font-size:14px}.notice{border-left:5px solid #b47c23;background:#fff5df;padding:18px 22px;margin:24px 0;border-radius:0 10px 10px 0}.notice p{margin:4px 0}.layout{display:grid;grid-template-columns:215px minmax(0,1fr);gap:32px;margin-top:36px}nav{align-self:start;position:sticky;top:85px;font-size:13px}nav strong{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:12px;color:var(--muted)}nav a{display:block;padding:8px 10px;text-decoration:none;border-left:2px solid var(--line);line-height:1.4}nav a:hover{background:#e3ede5;border-color:var(--teal)}.report-section{background:white;border:1px solid var(--line);border-radius:12px;padding:26px 28px;margin-bottom:24px;overflow-wrap:anywhere}.section-heading{display:flex;align-items:baseline;gap:12px;border-bottom:1px solid var(--line);padding-bottom:15px;margin-bottom:20px}.section-heading span{font-size:12px;color:var(--teal);font-weight:750}h2{font-size:23px;line-height:1.3;letter-spacing:-.02em;margin:0}h3{font-size:18px}p{margin:12px 0}li{margin:7px 0}ul,ol{padding-left:22px}table{width:100%;border-collapse:collapse;font-size:12.5px;line-height:1.55;margin:20px 0;table-layout:fixed}th{text-align:left;background:#eaf2eb;color:#24483e;font-weight:750}td,th{padding:11px 9px;border-bottom:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}tbody tr:nth-child(even){background:#f7f9f5}code{font: .88em ui-monospace,monospace;background:#eef2ed;padding:2px 4px;border-radius:3px;overflow-wrap:anywhere}#per-game-readiness th:first-child{width:13%}#per-game-readiness th:nth-child(2){width:25%}#per-game-readiness th:nth-child(3){width:13%}#per-game-readiness th:nth-child(4){width:17%}footer{font-size:12px;color:var(--muted);margin-top:25px}.print-note{font-size:13px;color:var(--muted)}
+@media(max-width:950px){.layout{display:block}nav{position:static;margin-bottom:24px;display:flex;flex-wrap:wrap;gap:4px}nav strong{width:100%}nav a{border:1px solid var(--line);border-radius:5px}main{padding:24px 16px}.hero{padding:28px}.report-section{padding:20px 16px}.toolbar small{display:none}table{font-size:11px}.summary{gap:8px}.stat{padding:14px}}
+@page{size:A4 landscape;margin:14mm 14mm 17mm}
+@media print{html{scroll-behavior:auto}body{background:white;font-size:10pt;line-height:1.5;print-color-adjust:exact;-webkit-print-color-adjust:exact}.toolbar,nav,.print-note{display:none!important}main{max-width:none;padding:0}.hero{padding:20px 28px;border-radius:0}h1{font-size:30pt}.hero p{max-width:none}.meta{margin-top:14px}.summary{margin:16px 0}.stat{padding:12px}.stat b{font-size:23pt}.notice{margin:16px 0;padding:12px 16px}.layout{display:block;margin:0}.report-section{border:0;border-radius:0;padding:0;margin:0;break-before:page}.section-heading{padding:0 0 10px;margin:0 0 16px}h2{font-size:20pt}h3{break-after:avoid}table{font-size:9pt;line-height:1.45;margin:14px 0}td,th{padding:8px}thead{display:table-header-group}tr{break-inside:avoid}p,li{orphans:3;widows:3}a{color:inherit;text-decoration:none}footer{font-size:8pt}#per-game-readiness table{font-size:8.5pt}code{font-size:.88em}}
+</style></head><body><header class="toolbar"><div><span class="brand">PULSE / GAMES</span><small>Development & play testing</small></div><button onclick="window.print()">Print / Save as PDF</button></header><main>
+<div class="hero"><div class="eyebrow">ReadyCraft · Working report</div><h1>Every game.<br>A clear next step.</h1><p>Map building, bot readiness and player testing in one shared record. Prepared changes remain separate from what is running on MinigamesTest.</p><div class="meta"><span>Updated ${esc(date)}</span><span>Owner: Aurora</span><span>Snapshot, not a live server feed</span></div></div>
+<div class="summary"><div class="stat"><b>${gameRows.length} games</b><span>Tracked across the programme</span></div><div class="stat"><b>${botCount} / ${gameRows.length}</b><span>Games with current bot controllers</span></div><div class="stat"><b>${mapCount} maps</b><span>Prop Hunt batch awaiting visual review</span></div></div>
+<aside class="notice"><strong>Current priority · Prop Hunt maps</strong><p>Build larger, denser maps, complete earlier-map revisions, then Aurora visually approves all five before arena setup. Building completion alone does not authorise setup.</p></aside>
+<p class="print-note">Share this standalone HTML file, or use Print / Save as PDF for the complete report. Printing includes every section. For best results use A4 landscape with background graphics enabled.</p>
+<div class="layout"><nav aria-label="Report sections"><strong>In this report</strong>${sections.map(s=>`<a href="#${s.id}">${esc(s.title)}</a>`).join('')}</nav><article>${cards}</article></div>
+<footer>PulseGames · Source: MINIGAMES-TRACKER.md · Regenerate this report after updating the source. No server changes are performed by this document.</footer></main></body></html>`;
+fs.writeFileSync(path.join(root,'MINIGAMES-TRACKER.html'),html);
+console.log('Updated MINIGAMES-TRACKER.html');
+
+if(process.argv.includes('--pdf')) {
+  let chromium;
+  try { ({chromium}=await import('playwright')); }
+  catch { const modules=process.env.CODEX_NODE_MODULES || '/home/ara/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules'; ({chromium}=await import(pathToFileURL(path.join(modules,'playwright/index.mjs')))); }
+  const browser=await chromium.launch({headless:true,...(process.env.TRACKER_CHROMIUM ? {executablePath:process.env.TRACKER_CHROMIUM}: {})});
+  try {
+    const page=await browser.newPage();
+    await page.goto(pathToFileURL(path.join(root,'MINIGAMES-TRACKER.html')).href);
+    await page.pdf({path:path.join(root,'MINIGAMES-TRACKER.pdf'),preferCSSPageSize:true,printBackground:true,displayHeaderFooter:true,headerTemplate:'<span></span>',footerTemplate:`<div style="font-size:8px;width:100%;padding:0 14mm;color:#526760;display:flex;justify-content:space-between"><span>PulseGames · Development &amp; play-test tracker · ${esc(date)}</span><span><span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`});
+    console.log('Updated MINIGAMES-TRACKER.pdf');
+  } finally { await browser.close(); }
+}
