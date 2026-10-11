@@ -53,7 +53,7 @@ throwaway copy of a map world.
 Requires Java 21 and network access to `repo.papermc.io`:
 
 ```bash
-gradle build        # or: ./gradlew build once you add the wrapper
+./gradlew test jar  # regression tests and plugin jar
 # output: build/libs/PulseGames-<version>.jar
 ```
 
@@ -96,3 +96,7 @@ Admin permission: `pulsegames.admin`.
 
 To add a new game: subclass `MiniGame`, override the hooks you need, register it in
 `GameCatalog` with modes + setup requirements. The engine handles everything else.
+
+## Current development review
+
+See [the 11 October review](docs/REVIEW-2026-10-11.md) for verified gaps, the first foundation fixes, proposed new games, PulseContent/Geyser integration requirements and quiet-time NPC options. Custom Prop Hunt rendering and NPC contestants are not implemented yet.

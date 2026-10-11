@@ -47,7 +47,7 @@ public final class PropHuntGame extends MiniGame {
 
     @Override
     public void onStart() {
-        hidePhase = game.arena().settings().getInt("hide-seconds", 30);
+        hidePhase = Math.max(0, game.arena().settings().getInt("hide-seconds", 30));
         List<Player> players = new ArrayList<>(game.alivePlayers());
         Collections.shuffle(players);
         int seekerCount = Math.max(1, players.size() / 5);
@@ -58,7 +58,11 @@ public final class PropHuntGame extends MiniGame {
             if (i < seekerCount) {
                 seekers.add(player.getUniqueId());
                 player.teleport(seekerHold);
-                player.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, hidePhase * 20, 0));
+                if (hidePhase > 0) {
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, hidePhase * 20, 0));
+                } else {
+                    equipSeeker(player);
+                }
                 Text.title(player, "<red><b>SEEKER", "<gray>Released in " + hidePhase + "s...");
             } else {
                 hiders.add(player.getUniqueId());
@@ -83,7 +87,8 @@ public final class PropHuntGame extends MiniGame {
             // Hold seekers at spawn during the hide phase.
             for (UUID id : seekers) {
                 Player seeker = game.plugin().getServer().getPlayer(id);
-                if (seeker != null && seeker.getLocation().distanceSquared(seekerHold) > 4) {
+                if (seeker != null && (!seeker.getWorld().equals(seekerHold.getWorld())
+                        || seeker.getLocation().distanceSquared(seekerHold) > 4)) {
                     seeker.teleport(seekerHold);
                 }
             }

@@ -12,8 +12,8 @@ of a map template. No database — everything is YAML/JSON under `plugins/PulseG
 ```
 
 Needs Java 21 and network access to `repo.papermc.io`. Compiled against
-`paper-api:1.21.4-R0.1-SNAPSHOT` (`gradle.properties`). There is **no test suite** —
-verification is running the jar on a server.
+`paper-api:1.21.4-R0.1-SNAPSHOT` (`gradle.properties`). Targeted JUnit/Mockito regression tests run with `./gradlew test`.
+Live gameplay verification still requires running the jar on a server.
 
 ## Architecture
 
@@ -99,7 +99,7 @@ Shared engineering practice lives in `~/Documents/Ready/ready-docs/engineering/`
 
 **Repo-specific:**
 
-- **No test harness.** Verification = `./gradlew build` clean, copy the jar to the local
+- **Targeted regression tests.** Run `./gradlew test jar`, then copy the jar to the local
   test server, and actually play the affected flow (queue, start, win/lose, return to
   lobby). The regression check for a bug fix is a documented repro on that server:
   failing before, passing after.
