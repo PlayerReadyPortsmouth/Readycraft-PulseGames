@@ -21,7 +21,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Plugin(id="pulsenetwork", name="PulseNetwork", version="0.1.1", description="Public chat relay and minigame queue joins",
+@Plugin(id="pulsenetwork", name="PulseNetwork", version="0.1.2", description="Public chat relay and minigame queue joins", authors={"AurorasChaos (on behalf of Player Ready)"},
         dependencies = {@com.velocitypowered.api.plugin.Dependency(id="floodgate", optional=true)})
 public final class VelocityBridge {
     private static final MinecraftChannelIdentifier CHANNEL = MinecraftChannelIdentifier.from(Wire.CHANNEL);
@@ -32,6 +32,7 @@ public final class VelocityBridge {
     private LocalChatIngress ingress;
     private Set<String> backends = Set.of(), queueServers = Set.of();
     private Set<String> chatBackends;
+    private Set<String> paperBackends = Set.of();
     private record Visit(String origin, String destination, String request) {}
     private final Map<UUID, Visit> visits = new ConcurrentHashMap<>();
     private final Set<UUID> returning = ConcurrentHashMap.newKeySet();
@@ -52,6 +53,7 @@ public final class VelocityBridge {
             if (!Boolean.parseBoolean(config.getProperty("enabled"))) { logger.info("PulseNetwork is disabled until configured."); return; }
             wire = new Wire(config.getProperty("bridge-secret"));
             backends = csv(config.getProperty("backends", "")); queueServers = csv(config.getProperty("queue-servers", ""));
+            paperBackends = csv(config.getProperty("paper-backends", ""));
             chatBackends = csv(config.getProperty("chat-backends", config.getProperty("backends", "")));
             if (!backends.containsAll(chatBackends)) throw new IllegalArgumentException("Chat backends must be allowed backends");
             if (backends.isEmpty() || !backends.containsAll(queueServers)) throw new IllegalArgumentException("Queue servers must be in the backend allowlist");
@@ -131,7 +133,12 @@ public final class VelocityBridge {
         Component line = Component.text("[Global · " + server + "] ", NamedTextColor.GRAY)
                 .append(Component.text(player.getUsername() + ": ", NamedTextColor.AQUA)).append(Component.text(body, NamedTextColor.WHITE));
         for (Player receiver : proxy.getAllPlayers()) if (receiver.getCurrentServer()
-                .map(s -> chatAllowed.contains(s.getServerInfo().getName()) && !s.getServerInfo().getName().equals(server)).orElse(false)) receiver.sendMessage(line);
+                .map(s -> chatAllowed.contains(s.getServerInfo().getName()) && !s.getServerInfo().getName().equals(server)).orElse(false)) {
+            var connection = receiver.getCurrentServer().orElseThrow();
+            if (paperBackends.contains(connection.getServerInfo().getName()))
+                connection.sendPluginMessage(CHANNEL, wire.encode("REMOTECHAT", receiver.getUniqueId(), server, player.getUniqueId().toString(), player.getUsername(), body));
+            else receiver.sendMessage(line);
+        }
     }
     private Component row(QueueDirectory.Queue queue) {
         return Component.text(queue.title() + " (" + queue.players() + "/" + queue.maximum() + ") ", NamedTextColor.YELLOW)

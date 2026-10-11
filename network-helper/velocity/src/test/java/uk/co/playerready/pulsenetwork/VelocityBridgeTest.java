@@ -80,4 +80,14 @@ class VelocityBridgeTest {
         String request=UUID.randomUUID().toString();var visits=new java.util.concurrent.ConcurrentHashMap<UUID,Object>();visits.put(sender.getUniqueId(),ctor.newInstance("survival","minigamestest",request));set(bridge,"visits",visits);
         bridge.message(message("RETURN",request));verify(sender,never()).createConnectionRequest(any());assertFalse(visits.isEmpty());
     }
+
+    @Test void paperRecipientsAreDeliveredThroughTheirNativeIgnoreAdapter() throws Exception {
+        set(bridge,"paperBackends",Set.of("minigamestest"));
+        var target=remote.getCurrentServer().orElseThrow();
+        bridge.message(message("CHAT","hello"));
+        verify(remote,never()).sendMessage(any(Component.class));
+        var bytes=org.mockito.ArgumentCaptor.forClass(byte[].class);
+        verify(target).sendPluginMessage(eq(MinecraftChannelIdentifier.from(Wire.CHANNEL)),bytes.capture());
+        var decoded=new Wire(KEY).decode(bytes.getValue()).orElseThrow();assertEquals("REMOTECHAT",decoded.kind());assertEquals(remote.getUniqueId(),decoded.player());assertEquals(sender.getUniqueId().toString(),decoded.fields().get(1));
+    }
 }

@@ -3,7 +3,7 @@ enabled: false
 bridge-secret: ''
 chat:
   enabled: false
-  global-by-default: false
+  global-by-default: true
 queues:
   enabled: false
 chat-games:
