@@ -16,6 +16,7 @@ import java.util.Map;
 public final class KitService {
 
     private final JavaPlugin plugin;
+    private YamlConfiguration duelConfig = new YamlConfiguration();
     private final Map<String, Kit> kits = new LinkedHashMap<>();
 
     public KitService(JavaPlugin plugin) {
@@ -36,6 +37,13 @@ public final class KitService {
             plugin.getLogger().severe("kits.yml has no 'kits' section; keeping the "
                     + kits.size() + " kits already loaded.");
             return;
+        }
+        File duelFile = new File(plugin.getDataFolder(), "duel-kits.yml");
+        if (!duelFile.exists()) plugin.saveResource("duel-kits.yml", false);
+        var newDuelConfig = YamlConfiguration.loadConfiguration(duelFile);
+        var extra = newDuelConfig.getConfigurationSection("kits");
+        if (extra != null) for (String id : extra.getKeys(false)) {
+            if (!root.contains(id)) root.set(id, extra.get(id));
         }
         Map<String, Kit> loaded = new LinkedHashMap<>();
         for (String id : root.getKeys(false)) {
@@ -58,6 +66,7 @@ public final class KitService {
                 plugin.getLogger().severe("Skipping kit '" + id + "' in kits.yml: " + ex.getMessage());
             }
         }
+        duelConfig = newDuelConfig;
         kits.clear();
         kits.putAll(loaded);
         plugin.getLogger().info("Loaded " + kits.size() + " kits.");
@@ -94,6 +103,12 @@ public final class KitService {
 
     public Kit get(String id) {
         return id == null ? null : kits.get(id.toLowerCase(Locale.ROOT));
+    }
+
+    public List<Kit> duelChoices(uk.co.playerready.pulsegames.core.game.GameMode mode) {
+        String style = mode.combatStyle() == uk.co.playerready.pulsegames.core.game.GameMode.CombatStyle.CLASSIC ? "classic" : "modern";
+        return duelConfig.getStringList("profiles." + style + "." + mode.rulesId()).stream()
+                .map(this::get).filter(java.util.Objects::nonNull).distinct().toList();
     }
 
     public List<Kit> all() { return List.copyOf(kits.values()); }

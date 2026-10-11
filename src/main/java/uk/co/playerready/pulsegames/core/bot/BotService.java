@@ -5,6 +5,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.entity.LivingEntity;
 import uk.co.playerready.pulsegames.PulseGamesPlugin;
 import uk.co.playerready.pulsegames.core.game.GameInstance;
+import uk.co.playerready.pulsegames.core.game.GameMode;
 import uk.co.playerready.pulsegames.core.game.GameState;
 import uk.co.playerready.pulsegames.games.dodgeball.DodgeballGame;
 
@@ -249,7 +250,8 @@ public final class BotService implements AutoCloseable {
                     if (random.applyAsInt(100) < difficulty.accuracy) {
                         if (objectives != null) selectSword(bot);
                         bot.swingMainHand();
-                        bot.attack(enemy);
+                        if (game.mode().combatStyle() != GameMode.CombatStyle.MODERN || bot.getAttackCooldown() >= 0.9f)
+                            bot.attack(enemy);
                     }
                     slot.nextAttack = tick + difficulty.meleeTicks + random.applyAsInt(9);
                 }

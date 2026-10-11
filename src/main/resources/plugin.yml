@@ -18,6 +18,8 @@ commands:
     aliases: [hub, leave]
   stats:
     description: View your minigame stats.
+  duels:
+    description: Choose combat style, discipline, team size and your Duels kit.
   pulsekits:
     description: Choose your next KitPvP loadout.
     aliases: [kits]

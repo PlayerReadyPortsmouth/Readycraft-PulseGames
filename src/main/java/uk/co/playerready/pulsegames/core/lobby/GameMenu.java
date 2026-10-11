@@ -64,6 +64,7 @@ public final class GameMenu implements Listener {
     }
 
     public void openModes(Player player, GameType game) {
+        if (game.id().equals("duels")) { plugin.duelMenu().open(player); return; }
         MenuHolder holder = new MenuHolder(game);
         Inventory inv = Bukkit.createInventory(holder, 27, Text.mm("<dark_gray>" + game.displayName() + ": pick a mode"));
         holder.inventory = inv;

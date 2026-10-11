@@ -209,17 +209,23 @@ final class ArenaSetupMenu implements Listener {
                 }), region.toString())));
         show(player, session, "Saved regions", buttons, 0);
     }
+    private boolean supportsSetupMode(ArenaSetupManager.Session session, uk.co.playerready.pulsegames.core.game.GameMode mode) {
+        return session.modes.isEmpty() || session.modes.contains(mode.id())
+                || !Boolean.parseBoolean(String.valueOf(session.settings.getOrDefault("combat-profiles-explicit", false)))
+                && session.modes.contains(uk.co.playerready.pulsegames.core.game.GameMode.mapModeId(mode.id()));
+    }
     private void modes(Player player, ArenaSetupManager.Session session) {
         List<Button> buttons = new ArrayList<>();
         session.game.modes().forEach(mode -> {
-            boolean enabled = session.modes.isEmpty() || session.modes.contains(mode.id());
+            boolean enabled = supportsSetupMode(session, mode);
             buttons.add(button(enabled ? Material.LIME_DYE : Material.GRAY_DYE, mode.displayName() + (enabled ? " (on)" : " (off)"), () -> {
-                List<String> selected = new ArrayList<>(session.modes.isEmpty()
-                        ? session.game.modes().stream().map(m -> m.id()).toList() : session.modes);
+                List<String> selected = new ArrayList<>(session.game.modes().stream()
+                        .filter(m -> supportsSetupMode(session, m)).map(m -> m.id()).toList());
                 if (enabled && selected.size() == 1) {
                     player.sendMessage(Text.msg("<yellow>Keep at least one mode enabled.")); return;
                 }
                 if (enabled) selected.remove(mode.id()); else selected.add(mode.id());
+                session.settings.put("combat-profiles-explicit", true);
                 session.modes = List.copyOf(selected); modes(player, session);
             }, mode.minPlayers() + "–" + mode.maxPlayers() + " players"));
         });
@@ -231,7 +237,7 @@ final class ArenaSetupMenu implements Listener {
                 () -> prompt(player, session, "Minimum players (positive whole number)", value -> session.minPlayers = positive(value))));
         buttons.add(button(Material.PLAYER_HEAD, "Default maximum: " + (session.maxPlayers == null ? Math.max(2, session.spawns.size()) : session.maxPlayers),
                 () -> prompt(player, session, "Maximum players (positive whole number)", value -> session.maxPlayers = positive(value))));
-        session.game.modes().stream().filter(mode -> session.modes.isEmpty() || session.modes.contains(mode.id())).forEach(mode -> {
+        session.game.modes().stream().filter(mode -> supportsSetupMode(session, mode)).forEach(mode -> {
             String prefix = "modes." + mode.id() + ".";
             for (String key : List.of("min-players", "max-players")) {
                 buttons.add(button(Material.COMPARATOR, mode.displayName() + " " + key + ": " + session.settings.getOrDefault(prefix + key, "default"),

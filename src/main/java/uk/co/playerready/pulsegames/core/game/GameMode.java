@@ -12,7 +12,12 @@ public record GameMode(String id, String displayName, int minPlayers, int maxPla
         this(id, displayName, min, max, size, size > 1);
     }
 
-    public String rulesId() { return id.replaceFirst("-(doubles|triples|squads)$", ""); }
+    public enum CombatStyle { DEFAULT, CLASSIC, MODERN }
+    public CombatStyle combatStyle() {
+        return id.startsWith("legacy-") ? CombatStyle.CLASSIC : id.startsWith("modern-") ? CombatStyle.MODERN : CombatStyle.DEFAULT;
+    }
+    public static String mapModeId(String id) { return id.replaceFirst("^(legacy|modern)-", ""); }
+    public String rulesId() { return mapModeId(id).replaceFirst("-(doubles|triples|squads)$", ""); }
 
     public static GameMode ffa(String id, String displayName, int min, int max) {
         return new GameMode(id, displayName, min, max, 1, false);

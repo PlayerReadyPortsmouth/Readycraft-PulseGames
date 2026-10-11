@@ -36,6 +36,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
     private PartyManager parties;
     private LobbyService lobby;
     private GameMenu gameMenu;
+    private uk.co.playerready.pulsegames.core.lobby.DuelMenu duelMenu;
     private KitService kits;
     private uk.co.playerready.pulsegames.core.kit.KitSelectionMenu kitSelection;
     private PlayerStateService playerState;
@@ -65,6 +66,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
         lobby = new LobbyService(this);
         gameMenu = new GameMenu(this);
         kits = new KitService(this);
+        duelMenu = new uk.co.playerready.pulsegames.core.lobby.DuelMenu(this);
         kitSelection = new uk.co.playerready.pulsegames.core.kit.KitSelectionMenu(this);
         playerState = new PlayerStateService();
         sidebar = new SidebarService();
@@ -98,6 +100,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(setup, this);
         getServer().getPluginManager().registerEvents(tokenShop, this);
         getServer().getPluginManager().registerEvents(kitSelection, this);
+        getServer().getPluginManager().registerEvents(duelMenu, this);
         new Commands(this);
         bots.start();
         combat = new uk.co.playerready.pulsegames.core.combat.ClassicCombatService(this);
@@ -144,6 +147,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
     public LobbyService lobby() { return lobby; }
     public GameMenu gameMenu() { return gameMenu; }
     public uk.co.playerready.pulsegames.core.kit.KitSelectionMenu kitSelection() { return kitSelection; }
+    public uk.co.playerready.pulsegames.core.lobby.DuelMenu duelMenu() { return duelMenu; }
     public KitService kits() { return kits; }
     public PlayerStateService playerState() { return playerState; }
     public SidebarService sidebar() { return sidebar; }

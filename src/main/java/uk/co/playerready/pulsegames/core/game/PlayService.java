@@ -47,6 +47,15 @@ public final class PlayService {
             player.sendMessage(Text.msg("<red>This game is not enabled yet."));
             return;
         }
+        if ("duels".equals(type.id()) && mode.combatStyle() != GameMode.CombatStyle.DEFAULT) {
+            if (mode.combatStyle() == GameMode.CombatStyle.CLASSIC
+                    && (plugin.combat() == null || !plugin.combat().available())) {
+                player.sendMessage(Text.msg("<red>Classic combat is not available on this server yet.")); return;
+            }
+            if (plugin.kits().duelChoices(mode).isEmpty()) {
+                player.sendMessage(Text.msg("<red>No compatible loadouts are configured for this discipline.")); return;
+            }
+        }
         Party party = plugin.parties().partyOf(player);
         if (party != null && !party.isLeader(player)) {
             player.sendMessage(Text.msg("<red>Only your party leader can queue the party."));
@@ -60,6 +69,10 @@ public final class PlayService {
         if (type.wip() && group.stream().anyMatch(member -> !plugin.canUseNewFeatures(member))) {
             player.sendMessage(Text.msg("<red>This preview is limited to the configured test players."));
             return;
+        }
+        if ("duels".equals(type.id()) && mode.combatStyle() != GameMode.CombatStyle.DEFAULT
+                && group.stream().anyMatch(member -> plugin.duelMenu().kitFor(member, mode) == null)) {
+            player.sendMessage(Text.msg("<red>Someone in your party has no compatible unlocked kit for this discipline.")); return;
         }
         // A new request supersedes old requests even if no map is available for it.
         group.forEach(this::cancelPending);
@@ -119,6 +132,10 @@ public final class PlayService {
         if (!instance.joinable(ticket.group().size())) {
             retry(ticket, requeues);
             return;
+        }
+        if (ticket.mode().combatStyle() == GameMode.CombatStyle.CLASSIC
+                && (plugin.combat() == null || !plugin.combat().allowsClassic(instance.world()))) {
+            fail(ticket, "<red>This arena is not configured for Classic combat."); return;
         }
         List<Player> admitted = new ArrayList<>();
         for (Player member : ticket.group()) {

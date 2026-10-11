@@ -110,3 +110,9 @@ See [the 11 October review](docs/REVIEW-2026-10-11.md) for verified gaps, the fi
 See [MINIGAMES-TRACKER.md](MINIGAMES-TRACKER.md) for the maintained map register,
 per-game bot readiness, two-player tests, reported issues and pending rollout work.
 Agents should update it as each item progresses.
+
+### Duels combat and personal kits (0.3.6 candidate)
+
+`/duels` opens combat style → discipline → team size, with a separate personal-kit
+picker. Each opponent chooses their own compatible kit. See [Duels setup and acceptance](docs/DUELS.md)
+for map opt-ins, compatibility and the remaining Java/Bedrock test checklist.

@@ -1,0 +1,44 @@
+# Compatibility lists are separate from combat rules and team sizes.
+# Existing kits.yml entries override duplicate kit definitions here.
+profiles:
+  classic:
+    classic: [warrior, op, archer, tank]
+    sumo: [sumo]
+  modern:
+    classic: [warrior, op, archer, tank]
+    sumo: [sumo]
+    crystal: [duel-crystal, duel-crystal-mobile]
+    mace: [duel-mace, duel-mace-mobile]
+kits:
+  duel-crystal:
+    display-name: "<light_purple>Crystal · Armoured"
+    icon: END_CRYSTAL
+    helmet: NETHERITE_HELMET
+    chestplate: NETHERITE_CHESTPLATE
+    leggings: NETHERITE_LEGGINGS
+    boots: NETHERITE_BOOTS
+    items: [DIAMOND_SWORD, END_CRYSTAL:32, OBSIDIAN:32, GOLDEN_APPLE:16, TOTEM_OF_UNDYING:2]
+  duel-crystal-mobile:
+    display-name: "<light_purple>Crystal · Mobile"
+    icon: ENDER_PEARL
+    helmet: DIAMOND_HELMET
+    chestplate: DIAMOND_CHESTPLATE
+    leggings: DIAMOND_LEGGINGS
+    boots: DIAMOND_BOOTS
+    items: [DIAMOND_SWORD, END_CRYSTAL:24, OBSIDIAN:24, ENDER_PEARL:8, GOLDEN_APPLE:16, TOTEM_OF_UNDYING:2]
+  duel-mace:
+    display-name: "<aqua>Mace · Armoured"
+    icon: MACE
+    helmet: DIAMOND_HELMET
+    chestplate: DIAMOND_CHESTPLATE
+    leggings: DIAMOND_LEGGINGS
+    boots: DIAMOND_BOOTS
+    items: [MACE, WIND_CHARGE:32, GOLDEN_APPLE:4]
+  duel-mace-mobile:
+    display-name: "<aqua>Mace · Mobile"
+    icon: WIND_CHARGE
+    helmet: IRON_HELMET
+    chestplate: IRON_CHESTPLATE
+    leggings: IRON_LEGGINGS
+    boots: IRON_BOOTS
+    items: [MACE, WIND_CHARGE:64, ENDER_PEARL:4, GOLDEN_APPLE:4]
