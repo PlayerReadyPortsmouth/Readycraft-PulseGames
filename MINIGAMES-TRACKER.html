@@ -8,7 +8,7 @@
 </style></head><body><header class="toolbar"><div><span class="brand">PULSE / GAMES</span><small>Development & play testing</small></div><button onclick="window.print()">Print / Save as PDF</button></header><main>
 <div class="hero"><div class="eyebrow">ReadyCraft · Working report</div><h1>Every game.<br>A clear next step.</h1><p>Map building, bot readiness and player testing in one shared record. Prepared changes remain separate from what is running on MinigamesTest.</p><div class="meta"><span>Updated 11 October 2026</span><span>Owner: Aurora</span><span>Snapshot, not a live server feed</span></div></div>
 <div class="summary"><div class="stat"><b>23 games</b><span>Tracked across the programme</span></div><div class="stat"><b>7 / 23</b><span>Prepared bot controllers (4 live)</span></div><div class="stat"><b>5 maps</b><span>Prop Hunt batch awaiting visual review</span></div></div>
-<aside class="notice"><strong>Current priority · Prop Hunt maps</strong><p>Build larger, denser maps, complete earlier-map revisions, then Aurora visually approves all five before arena setup. Building completion alone does not authorise setup.</p></aside>
+<aside class="notice"><strong>Current priority · Prop Hunt maps</strong><p>Complete Backstage Mayhem boundary correction, then Aurora visually reviews all five larger, denser maps before arena setup. Building completion alone does not authorise setup.</p></aside>
 <p class="print-note">Share this standalone HTML file, or use Print / Save as PDF for the complete report. Printing includes every section. For best results use A4 landscape with background graphics enabled.</p>
 <div class="layout"><nav aria-label="Report sections"><strong>In this report</strong><a href="#working-agreement">Working agreement</a><a href="#current-test-server-baseline">Current test-server baseline</a><a href="#prepared-update-not-deployed">Prepared update — not deployed</a><a href="#active-map-batch-prop-hunt">Active map batch: Prop Hunt</a><a href="#team-size-and-map-capacity-programme">Team-size and map-capacity programme</a><a href="#queue-bots-and-network-helper-next-candidate">Queue bots and network helper — next candidate</a><a href="#per-game-readiness">Per-game readiness</a><a href="#verified-server-arena-names">Verified server arena names</a><a href="#duels-map-and-mode-register">Duels map and mode register</a><a href="#bot-programme">Bot programme</a><a href="#map-setup-and-acceptance-template">Map setup and acceptance template</a><a href="#dated-log">Dated log</a></nav><article><section id="working-agreement" class="report-section"><div class="section-heading"><span>01</span><h2>Working agreement</h2></div><ul>
 <li>Goal: a broad mix of party, co-op, racing and competitive games, all with proper
@@ -165,19 +165,17 @@ from the server definitions, then perform the two-human-player tests.</li>
 </tr>
 <tr>
 <td>5 - Backstage Mayhem</td>
-<td>Not created yet; planned <code>rc_build_prophunt_backstage_mayhem</code></td>
-<td>Planned after earlier-map revisions</td>
-<td>Pending</td>
+<td><code>rc_build_prophunt_backstage_mayhem</code></td>
+<td>Theatre built at 101x85: ten furnished rooms, castle/forest/pirate stage sets, seating and paired catwalk stairs. All 44,608 block states match. Final boundary correction pending.</td>
+<td>Not ready for approval: close rear catwalk opening onto roof; clarify castle lamp supports</td>
 <td>Blocked on all-five review</td>
 </tr>
 </tbody></table>
 <p>Visit a built map with <code>/pulse world &lt;build-world name&gt;</code> using the exact name above.
 These are verified permanent build worlds, not saved arena IDs or templates.
 Builder checks cover block states and actual aerial/interior images; they do not
-constitute Aurora approval, Java/Bedrock acceptance or a played Prop Hunt round.</p>
-<p>Aurora&#39;s feedback: the initial maps were too small and lacked enough hiding
-clutter. Revised order: finish the larger, denser Wharf, revise all three built
-maps, then build Backstage Mayhem. No Prop Hunt map has been registered.</p>
+constitute Aurora approval, Java/Bedrock acceptance or a played Prop Hunt round.
+No commissioned Prop Hunt map is registered.</p>
 </section>
 <section id="team-size-and-map-capacity-programme" class="report-section"><div class="section-heading"><span>05</span><h2>Team-size and map-capacity programme</h2></div><p>Aurora confirmed: <strong>sizes 1–4 (solo, doubles, triples, squads), with the number of
 opposing teams controlled by each map</strong>. This is separate from how many people
@@ -627,27 +625,38 @@ report exports; keep construction checks separate from player acceptance.</p>
 </ul>
 <h3>11 October — merged baseline, next bots and network helper</h3>
 <ul>
-<li>PulseGames PR4 merged (<code>0eda3bd</code>), after combining current map-agent tracker
-progress and regenerating its PDF. No deployment/restart followed the merge.</li>
-<li>Prepared PulseGames 0.3.4: half-capacity/full-small-lobby bot filling,
+<li><p>PulseGames PR4 merged (<code>0eda3bd</code>), after combining current map-agent tracker
+progress and regenerating its PDF. No deployment/restart followed the merge.</p>
+</li>
+<li><p>Prepared PulseGames 0.3.4: half-capacity/full-small-lobby bot filling,
 ReadyPlayerZ and Block Party controllers, exact network queue admission,
-Citizens entity-refresh handling and precise navigation.</li>
-<li>Isolated Paper 26.2/Citizens probe: normal-health zombie killed through regular
+Citizens entity-refresh handling and precise navigation.</p>
+</li>
+<li><p>Isolated Paper 26.2/Citizens probe: normal-health zombie killed through regular
 attacks; paid healing and iron sword checked; kill points and offline-NPC
 round revival checked. Block Party bot walked four blocks onto a single
 publicly called red tile, with no teleport. These are focused probes, not
-complete games or human crossplay acceptance.</li>
-<li>PulseNetwork 0.1.0 prepared for Paper, Velocity and the confirmed Create
+complete games or human crossplay acceptance.</p>
+</li>
+<li><p>PulseNetwork 0.1.0 prepared for Paper, Velocity and the confirmed Create
 NeoForge 21.1.248 backend. Authentication/replay, queue expiry/admission,
 cancelled/private chat, fallback coexistence and loopback transport tests
 passed. Installed AdvancedChat/Essentials/ChatGames integration and Java/Bedrock
-end-to-end checks remain outstanding.</li>
-<li>Preserve all-five Prop Hunt visual approval gate and existing map/lobby edits.</li>
-<li>Final candidate checks: 46 targeted PulseGames tests and 17 helper tests passed.
+end-to-end checks remain outstanding.</p>
+</li>
+<li><p>Preserve all-five Prop Hunt visual approval gate and existing map/lobby edits.</p>
+</li>
+<li><p>Final candidate checks: 46 targeted PulseGames tests and 17 helper tests passed.
 Paper 26.2 loaded PulseNetwork and both bot probes passed with PulseGames
 0.3.4. A separate localhost-only NeoForge 21.1.248 server loaded the enabled
-adapter and reached ready state, then was shut down. No live server was restarted.</li>
-<li>Next candidate is <a href="https://github.com/PlayerReadyPortsmouth/Readycraft-PulseGames/pull/5">draft PR5</a>; not merged or deployed.</li>
+adapter and reached ready state, then was shut down. No live server was restarted.</p>
+</li>
+<li><p>Next candidate is <a href="https://github.com/PlayerReadyPortsmouth/Readycraft-PulseGames/pull/5">draft PR5</a>; not merged or deployed.</p>
+</li>
+<li><p>Backstage Mayhem built in its permanent world with ten furnished rooms and three stage sets. Exact verification: 44,608/44,608 states; actual room/stair/catwalk/facade images inspected. Final review found roof access through the rear catwalk opening; one bounded correction pass requested after the workflow limit of three passes. Map is not marked finished, approved or registered.</p>
+</li>
+<li><p>Original map revision brief: the initial maps were too small and lacked hiding clutter. Aurora requested the larger, denser Wharf, revisions of all three earlier builds, then Backstage Mayhem.</p>
+</li>
 </ul>
 </section></article></div>
 <footer>PulseGames · Source: MINIGAMES-TRACKER.md · Regenerate this report after updating the source. No server changes are performed by this document.</footer></main></body></html>

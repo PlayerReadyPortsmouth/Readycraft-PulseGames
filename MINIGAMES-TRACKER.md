@@ -82,16 +82,15 @@ any of them are configured as arenas.** This is an explicit user gate, recorded
 | 2 - Crooked Library | `rc_build_prophunt_crooked_library` | Expanded to 113x47 across three levels; twelve new furnished wing rooms. Builder visual/block checks passed (33,527 states). | Larger/denser revision requested; revised version awaiting Aurora review | Blocked on all-five review |
 | 3 - Harvest Festival | `rc_build_prophunt_harvest_festival` | Expanded to 93x85; four stocked outbuildings, orchard, wheat beds, hay maze and extra stalls. Builder visual/block checks passed (23,854 states). | Larger/denser revision requested; revised version awaiting Aurora review | Blocked on all-five review |
 | 4 - Smuggler's Wharf | `rc_build_prophunt_smugglers_wharf` | Built at 109x93; six furnished buildings, warehouse floors, ship/cabin and cargo yards. Builder visual/block checks passed (42,634 states). | Built to revised brief; awaiting Aurora review | Blocked on all-five review |
-| 5 - Backstage Mayhem | Not created yet; planned `rc_build_prophunt_backstage_mayhem` | Planned after earlier-map revisions | Pending | Blocked on all-five review |
+| 5 - Backstage Mayhem | `rc_build_prophunt_backstage_mayhem` | Theatre built at 101x85: ten furnished rooms, castle/forest/pirate stage sets, seating and paired catwalk stairs. All 44,608 block states match. Final boundary correction pending. | Not ready for approval: close rear catwalk opening onto roof; clarify castle lamp supports | Blocked on all-five review |
 
 Visit a built map with `/pulse world <build-world name>` using the exact name above.
 These are verified permanent build worlds, not saved arena IDs or templates.
 Builder checks cover block states and actual aerial/interior images; they do not
 constitute Aurora approval, Java/Bedrock acceptance or a played Prop Hunt round.
+No commissioned Prop Hunt map is registered.
 
-Aurora's feedback: the initial maps were too small and lacked enough hiding
-clutter. Revised order: finish the larger, denser Wharf, revise all three built
-maps, then build Backstage Mayhem. No Prop Hunt map has been registered.
+
 
 ## Team-size and map-capacity programme
 
@@ -342,3 +341,7 @@ For each new map or mode, append:
   0.3.4. A separate localhost-only NeoForge 21.1.248 server loaded the enabled
   adapter and reached ready state, then was shut down. No live server was restarted.
 - Next candidate is [draft PR5](https://github.com/PlayerReadyPortsmouth/Readycraft-PulseGames/pull/5); not merged or deployed.
+
+- Backstage Mayhem built in its permanent world with ten furnished rooms and three stage sets. Exact verification: 44,608/44,608 states; actual room/stair/catwalk/facade images inspected. Final review found roof access through the rear catwalk opening; one bounded correction pass requested after the workflow limit of three passes. Map is not marked finished, approved or registered.
+
+- Original map revision brief: the initial maps were too small and lacked hiding clutter. Aurora requested the larger, denser Wharf, revisions of all three earlier builds, then Backstage Mayhem.
