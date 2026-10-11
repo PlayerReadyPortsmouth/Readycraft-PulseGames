@@ -10,10 +10,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
-import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import uk.co.playerready.pulsegames.PulseGamesPlugin;
 import uk.co.playerready.pulsegames.core.game.GameType;
@@ -64,10 +61,12 @@ public final class ArenaSetupManager implements Listener {
     }
 
     private final PulseGamesPlugin plugin;
+    private final ArenaSetupMenu menu;
     private final Map<UUID, Session> sessions = new HashMap<>();
 
     public ArenaSetupManager(PulseGamesPlugin plugin) {
         this.plugin = plugin;
+        this.menu = new ArenaSetupMenu(plugin, this);
     }
 
     public Session session(Player player) {
@@ -77,8 +76,13 @@ public final class ArenaSetupManager implements Listener {
     // ---- subcommand dispatch (called from /pulse setup ...) ----------------------
 
     public void handle(Player player, String[] args) {
+        if (!player.hasPermission("pulsegames.admin")) return;
         if (args.length == 0) {
             help(player);
+            return;
+        }
+        if (session(player) != null && menu.saving(session(player))) {
+            player.sendMessage(Text.msg("<yellow>Wait for the current world capture to finish."));
             return;
         }
         String sub = args[0].toLowerCase(Locale.ROOT);
@@ -101,6 +105,7 @@ public final class ArenaSetupManager implements Listener {
         }
         switch (sub) {
             case "wand" -> giveWand(player);
+            case "book" -> menu.giveBook(player);
             case "lobby" -> {
                 session.lobby = LocUtil.serialize(player.getLocation());
                 player.sendMessage(Text.msg("<green>Waiting lobby set here."));
@@ -177,7 +182,7 @@ public final class ArenaSetupManager implements Listener {
                 player.sendMessage(Text.msg("<green>Set <yellow>" + key + "</yellow> = <white>" + value));
             }
             case "check" -> sendChecklist(player, session);
-            case "gui" -> openChecklistGui(player, session);
+            case "gui" -> menu.open(player, session);
             case "save" -> save(player, session);
             case "cancel" -> {
                 sessions.remove(player.getUniqueId());
@@ -223,6 +228,7 @@ public final class ArenaSetupManager implements Listener {
         Session session = new Session(game, arenaId, player.getWorld());
         sessions.put(player.getUniqueId(), session);
         giveWand(player);
+        menu.giveBook(player);
         player.sendMessage(Text.msg("<green>Setting up <yellow>" + game.displayName() + "</yellow> arena <yellow>"
                 + session.arenaId + "</yellow> in world <yellow>" + player.getWorld().getName() + "</yellow>."));
         sendChecklist(player, session);
@@ -232,7 +238,7 @@ public final class ArenaSetupManager implements Listener {
         player.sendMessage(Text.msg("Arena setup commands:"));
         for (String line : List.of(
                 "start <game> <arenaId> <dark_gray>- begin in your map world",
-                "wand <dark_gray>- region selection wand",
+                "wand / book <dark_gray>- recover setup tools",
                 "lobby / spectator / addspawn <dark_gray>- set points where you stand",
                 "region <name> <dark_gray>- save wand selection as region",
                 "setloc <key> / addloc <key> <dark_gray>- location settings",
@@ -255,7 +261,7 @@ public final class ArenaSetupManager implements Listener {
     public void onWandUse(PlayerInteractEvent event) {
         Player player = event.getPlayer();
         Session session = session(player);
-        if (session == null || event.getClickedBlock() == null) return;
+        if (session == null || !player.hasPermission("pulsegames.admin") || menu.saving(session) || event.getClickedBlock() == null) return;
         ItemStack item = event.getItem();
         if (item == null || item.getType() != Material.BLAZE_ROD || !item.hasItemMeta()) return;
         event.setCancelled(true);
@@ -280,9 +286,9 @@ public final class ArenaSetupManager implements Listener {
 
     // ---- checklist -------------------------------------------------------------------
 
-    private record CheckEntry(String label, String command, boolean done, boolean required) {}
+    record CheckEntry(String label, String command, boolean done, boolean required) {}
 
-    private List<CheckEntry> checklist(Session session) {
+    List<CheckEntry> checklist(Session session) {
         List<CheckEntry> entries = new ArrayList<>();
         entries.add(new CheckEntry("Waiting lobby", "/pulse setup lobby", session.lobby != null, true));
         entries.add(new CheckEntry("Spectator point", "/pulse setup spectator", session.spectator != null, true));
@@ -325,61 +331,10 @@ public final class ArenaSetupManager implements Listener {
         player.sendMessage(Text.mm(" <gray>Then: <click:suggest_command:'/pulse setup save'><yellow>/pulse setup save</yellow></click>"));
     }
 
-    private static final class ChecklistHolder implements InventoryHolder {
-        Session session;
-        List<CheckEntry> entries;
-        Inventory inventory;
-        @Override public Inventory getInventory() { return inventory; }
-    }
-
-    private void openChecklistGui(Player player, Session session) {
-        ChecklistHolder holder = new ChecklistHolder();
-        holder.session = session;
-        holder.entries = checklist(session);
-        int rows = Math.min(6, holder.entries.size() / 9 + 2);
-        Inventory inv = Bukkit.createInventory(holder, rows * 9,
-                Text.mm("<dark_gray>Setup: " + session.game.displayName() + " / " + session.arenaId));
-        holder.inventory = inv;
-        for (int i = 0; i < holder.entries.size() && i < rows * 9 - 1; i++) {
-            CheckEntry entry = holder.entries.get(i);
-            ItemStack item = new ItemStack(entry.done() ? Material.LIME_STAINED_GLASS_PANE
-                    : entry.required() ? Material.RED_STAINED_GLASS_PANE : Material.GRAY_STAINED_GLASS_PANE);
-            item.editMeta(meta -> {
-                meta.displayName(Text.mm((entry.done() ? "<green>" : "<red>") + entry.label()));
-                meta.lore(List.of(Text.mm("<gray>Click to get: <yellow>" + entry.command())));
-            });
-            inv.setItem(i, item);
-        }
-        ItemStack save = new ItemStack(Material.EMERALD_BLOCK);
-        save.editMeta(meta -> {
-            meta.displayName(Text.mm("<green><b>SAVE ARENA"));
-            meta.lore(List.of(Text.mm("<gray>Captures this world as the map template")));
-        });
-        inv.setItem(rows * 9 - 1, save);
-        player.openInventory(inv);
-    }
-
-    @EventHandler
-    public void onChecklistClick(InventoryClickEvent event) {
-        if (!(event.getInventory().getHolder() instanceof ChecklistHolder holder)) return;
-        event.setCancelled(true);
-        if (!(event.getWhoClicked() instanceof Player player)) return;
-        int slot = event.getSlot();
-        if (event.getClickedInventory() != event.getInventory()) return;
-        if (slot == event.getInventory().getSize() - 1) {
-            player.closeInventory();
-            save(player, holder.session);
-        } else if (slot >= 0 && slot < holder.entries.size()) {
-            player.closeInventory();
-            CheckEntry entry = holder.entries.get(slot);
-            player.sendMessage(Text.msg("Run: <click:suggest_command:'" + entry.command() + "'><yellow>"
-                    + entry.command() + "</yellow></click> <gray>(click to prefill)"));
-        }
-    }
-
     // ---- save --------------------------------------------------------------------------
 
-    private void save(Player player, Session session) {
+    void save(Player player, Session session) {
+        if (!player.hasPermission("pulsegames.admin") || session(player) != session || menu.saving(session)) return;
         List<CheckEntry> missing = checklist(session).stream()
                 .filter(e -> e.required() && !e.done()).toList();
         if (!missing.isEmpty()) {
@@ -390,6 +345,12 @@ public final class ArenaSetupManager implements Listener {
         if (!player.getWorld().equals(session.world)) {
             player.sendMessage(Text.msg("<red>You must be in the map world (<yellow>"
                     + session.world.getName() + "</yellow>) to save."));
+            return;
+        }
+        int minimum = session.minPlayers != null ? session.minPlayers : 2;
+        int maximum = session.maxPlayers != null ? session.maxPlayers : Math.max(session.spawns.size(), 2);
+        if (minimum < 1 || maximum < minimum) {
+            player.sendMessage(Text.msg("<red>Player limits must be positive, with maximum at least minimum."));
             return;
         }
         YamlConfiguration yml = new YamlConfiguration();
@@ -421,12 +382,17 @@ public final class ArenaSetupManager implements Listener {
         }
         player.sendMessage(Text.msg("Arena file saved. Capturing world template <yellow>"
                 + session.arenaId + "</yellow>..."));
+        menu.setSaving(session, true);
         plugin.worlds().saveAsTemplate(session.world, session.arenaId, () -> {
-            sessions.remove(player.getUniqueId());
+            menu.setSaving(session, false);
+            sessions.remove(player.getUniqueId(), session);
             plugin.arenas().load();
             player.sendMessage(Text.msg("<green><b>Arena " + session.arenaId + " is live!</b> <gray>Try: <yellow>/play "
                     + session.game.id()));
-        }, error -> player.sendMessage(Text.msg("<red>World capture failed: " + error)));
+        }, error -> {
+            menu.setSaving(session, false);
+            player.sendMessage(Text.msg("<red>World capture failed: " + error));
+        });
     }
 
     /** New build worlds default to void; existing worlds are never regenerated. */

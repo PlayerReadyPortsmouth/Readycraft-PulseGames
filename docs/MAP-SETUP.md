@@ -236,3 +236,23 @@ Do not design head-sized crawl spaces: the small head target retains player
 walking clearance. Palette/asset setup and client acceptance are documented in
 [PULSECONTENT.md](PULSECONTENT.md). Temporary native props belong only in the
 throwaway game world; never capture a template while a match is running.
+
+### Setup Book (0.3.3)
+
+`/pulse setup start <game> <arenaId>` gives a selection wand and a tagged **Arena
+Setup Book**. Right-click the book to open the checklist; `/pulse setup book`
+recovers it and `/pulse setup gui` opens the same menu. These controls require
+`pulsegames.admin` and an active setup session.
+
+Green entries are complete, red entries are required, and grey entries are optional.
+Click position entries while standing at the desired point. Region entries save
+the wand's two selected corners; numbered requirements choose the next unused
+number. The menu also manages spawns and regions, selects supported modes, sets
+player limits and bot permission, and accepts game-specific values through a
+private chat prompt (`cancel` backs out). Prompts expire after two minutes.
+
+Review shows the checklist before saving and explicitly labels replacement of an
+existing saved arena/template. Saving still refuses missing required entries and
+invalid player limits. Closing the menu keeps the session. Discarding it requires
+confirmation. Sessions are not saved across server restarts; this menu configures
+new sessions and does not import an existing arena for editing.
