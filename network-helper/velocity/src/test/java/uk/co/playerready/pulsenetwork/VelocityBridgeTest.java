@@ -55,4 +55,29 @@ class VelocityBridgeTest {
         var field=VelocityBridge.class.getDeclaredField("queues");field.setAccessible(true);var directory=(QueueDirectory)field.get(bridge);
         String token=directory.list().getFirst().token();bridge.message(message("WITHDRAW","abc_duels"));assertTrue(directory.find(token).isEmpty());
     }
+
+    @Test void chatHoldDoesNotDisableQueueAnnouncements() throws Exception {
+        set(bridge,"chatBackends",Set.of("minigamestest"));
+        bridge.message(message("CHAT","must stay local"));verify(remote,never()).sendMessage(any(Component.class));
+        source=connection(sender,"minigamestest");bridge.message(message("QUEUE","game1","Duels","1","4"));
+        verify(remote).sendMessage(any(Component.class));
+    }
+    @Test void authenticatedReturnUsesSavedOriginAndRejectsWrongRequest() throws Exception {
+        Class<?> visitClass=Class.forName(VelocityBridge.class.getName()+"$Visit");
+        var ctor=visitClass.getDeclaredConstructors()[0];ctor.setAccessible(true);
+        String request=UUID.randomUUID().toString();
+        var visits=new java.util.concurrent.ConcurrentHashMap<UUID,Object>();visits.put(sender.getUniqueId(),ctor.newInstance("survival","minigamestest",request));set(bridge,"visits",visits);
+        var target=mock(RegisteredServer.class);when(proxy.getServer("survival")).thenReturn(Optional.of(target));
+        var builder=mock(ConnectionRequestBuilder.class);when(sender.createConnectionRequest(target)).thenReturn(builder);
+        var result=mock(ConnectionRequestBuilder.Result.class);when(result.isSuccessful()).thenReturn(true);
+        when(builder.connect()).thenReturn(java.util.concurrent.CompletableFuture.completedFuture(result));
+        source=connection(sender,"minigamestest");bridge.message(message("RETURN","wrong"));verify(sender,never()).createConnectionRequest(any());
+        bridge.message(message("RETURN",request));verify(sender).createConnectionRequest(target);assertTrue(visits.isEmpty());
+        bridge.message(message("RETURN",request));verify(sender,times(1)).createConnectionRequest(target);
+    }
+    @Test void returnCannotBeRequestedByDifferentBackend() throws Exception {
+        Class<?> cls=Class.forName(VelocityBridge.class.getName()+"$Visit");var ctor=cls.getDeclaredConstructors()[0];ctor.setAccessible(true);
+        String request=UUID.randomUUID().toString();var visits=new java.util.concurrent.ConcurrentHashMap<UUID,Object>();visits.put(sender.getUniqueId(),ctor.newInstance("survival","minigamestest",request));set(bridge,"visits",visits);
+        bridge.message(message("RETURN",request));verify(sender,never()).createConnectionRequest(any());assertFalse(visits.isEmpty());
+    }
 }

@@ -40,4 +40,20 @@ class PaperBridgeTest {
         config.set("chat.global-by-default",false);dispatch();verify(sender,never()).sendPluginMessage(any(),any(),any());
         config.set("chat.global-by-default",true);var hidden=mock(org.bukkit.metadata.MetadataValue.class);when(hidden.asBoolean()).thenReturn(true);when(sender.getMetadata("vanished")).thenReturn(List.of(hidden));dispatch();verify(sender,never()).sendPluginMessage(any(),any(),any());
     }
+
+    @Test void restoreWorksOnSourceWithQueuePublishingDisabled() throws Exception {
+        var locations=new YamlConfiguration();var world=mock(World.class);when(world.getUID()).thenReturn(UUID.randomUUID());
+        var location=new Location(world,123.5,78,-45.5,90,12);locations.set(sender.getUniqueId().toString(),location);set(bridge,"returnLocations",locations);
+        config.set("queues.enabled",false);
+        var scheduler=bridge.getServer().getScheduler();
+        doAnswer(i->{tasks.add(i.getArgument(1));return null;}).when(scheduler).runTaskLater(eq(bridge),any(Runnable.class),eq(20L));
+        var wire=new Wire("test-only-not-a-deployment-secret-0123456789");
+        bridge.onPluginMessageReceived(Wire.CHANNEL,sender,wire.encode("RESTORE",sender.getUniqueId(),UUID.randomUUID().toString()));
+        assertEquals(1,tasks.size());tasks.forEach(Runnable::run);verify(sender).teleportAsync(location);
+    }
+    @Test void restoreForAnotherPlayerIsRejected() throws Exception {
+        var wire=new Wire("test-only-not-a-deployment-secret-0123456789");
+        bridge.onPluginMessageReceived(Wire.CHANNEL,sender,wire.encode("RESTORE",UUID.randomUUID(),"wrong-player"));
+        assertTrue(tasks.isEmpty());verify(sender,never()).teleportAsync(any());
+    }
 }

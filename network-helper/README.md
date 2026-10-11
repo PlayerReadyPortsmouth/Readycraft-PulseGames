@@ -98,3 +98,24 @@ must not become a second coordinator without a topology decision.
 Before activation: obtain Aurora's fresh restart approval, back up the target files, preserve
 active ownership and arena/config data, recheck the loopback port, then perform Java/Bedrock
 and existing-chat-plugin acceptance. A later bot candidate does not replace this staged bundle.
+
+## Queue return trips (0.1.1)
+
+The proxy remembers a player's origin when a network queue transfers them. The
+MinigamesTest adapter waits until PulseGames has neither pending admission nor an
+active match before requesting return. Leaving a queue, finishing cleanup or a
+rejected join therefore returns the visitor. Same-server joins create no return trip.
+Authenticated request IDs and current-backend checks prevent stale or forged returns.
+Manual server changes/disconnection clear the trip; an unavailable origin leaves the
+player safely in the minigames lobby with a message.
+
+Paper helpers save each player's departure location locally in return-locations.yml.
+After a successful return the proxy requests restoration, delayed one second after
+connection so ordinary join handling can finish. The origin world must still be
+loaded. Install the helper on source Paper backends even with chat/queue publishing
+disabled. NeoForge uses its normal persisted player position. This is a session trip,
+not an offline mailbox: proxy restart/disconnect does not preserve the pending trip.
+
+`chat-backends` on the proxy separately restricts global-chat senders and receivers;
+`backends` still controls queue announcements and joining. This permits queues on
+Survival while its private-channel/mute/ignore chat integration remains held.

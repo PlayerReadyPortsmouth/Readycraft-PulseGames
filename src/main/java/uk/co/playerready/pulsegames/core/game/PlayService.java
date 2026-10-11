@@ -21,6 +21,8 @@ public final class PlayService {
     /** One ticket owns the entire group until admission succeeds or someone cancels. */
     private record QueueTicket(List<Player> group, GameType type, GameMode mode, GameInstance preferred) {}
 
+    public boolean hasPending(Player player) { return pending.containsKey(player.getUniqueId()); }
+
     public PlayService(PulseGamesPlugin plugin) {
         this.plugin = plugin;
     }
