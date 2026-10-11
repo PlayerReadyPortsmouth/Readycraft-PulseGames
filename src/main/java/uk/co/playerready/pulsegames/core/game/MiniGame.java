@@ -135,9 +135,9 @@ public abstract class MiniGame {
         return game.arena().settings().getDouble("void-y", -64);
     }
 
-    /** Time limit reached. Default: draw between everyone still alive. */
+    /** Survival games reward survivors; co-op objectives must actually be completed. */
     public void onTimeUp() {
-        game.end(game.alivePlayers(), "time");
+        game.end(cooperative() ? List.of() : game.alivePlayers(), "time");
     }
 
     // ---- event hooks -------------------------------------------------------

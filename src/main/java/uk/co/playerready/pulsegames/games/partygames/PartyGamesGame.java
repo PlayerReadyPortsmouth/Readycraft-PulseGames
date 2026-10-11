@@ -239,7 +239,9 @@ public final class PartyGamesGame extends MiniGame {
 
     @Override
     public void onDamageByPlayer(Player victim, Player damager, EntityDamageByEntityEvent event) {
-        if (current != Micro.SUMO) {
+        if (current != Micro.SUMO || roundDone
+                || !roundAlive.contains(victim.getUniqueId())
+                || !roundAlive.contains(damager.getUniqueId())) {
             event.setCancelled(true);
         } else {
             event.setDamage(0); // sumo = knockback only

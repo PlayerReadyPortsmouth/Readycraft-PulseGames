@@ -59,7 +59,8 @@ public final class DuelsGame extends MiniGame {
 
     @Override
     public void onDamageByPlayer(Player victim, Player damager, EntityDamageByEntityEvent event) {
-        if (isSumo()) event.setDamage(0); // knockback only
+        if (roundOver) event.setCancelled(true);
+        else if (isSumo()) event.setDamage(0); // knockback only
     }
 
     @Override
@@ -90,6 +91,15 @@ public final class DuelsGame extends MiniGame {
             if (victim.isOnline()) victim.setGameMode(playGameMode());
             startRound();
         });
+    }
+
+    @Override
+    public void onTimeUp() {
+        List<Player> players = game.alivePlayers();
+        int best = players.stream().mapToInt(p -> roundWins.getOrDefault(p.getUniqueId(), 0)).max().orElse(0);
+        List<Player> leaders = players.stream()
+                .filter(p -> roundWins.getOrDefault(p.getUniqueId(), 0) == best).toList();
+        game.end(best > 0 && leaders.size() == 1 ? leaders : List.of(), "time");
     }
 
     @Override

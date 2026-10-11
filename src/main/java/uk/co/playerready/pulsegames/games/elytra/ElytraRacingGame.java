@@ -57,6 +57,10 @@ public final class ElytraRacingGame extends CheckpointRaceGame {
         }
     }
 
+    // Let the listener reach onDamage, which cancels the damage and resets the racer.
+    @Override
+    public boolean fallDamage() { return true; }
+
     @Override
     public int startFreezeSeconds() { return 5; }
 

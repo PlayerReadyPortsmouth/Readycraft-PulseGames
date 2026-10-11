@@ -5,85 +5,132 @@ import uk.co.playerready.pulsegames.PulseGamesPlugin;
 import uk.co.playerready.pulsegames.core.party.Party;
 import uk.co.playerready.pulsegames.core.util.Text;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 /** Matchmaking entry point: routes players (and their whole party) into instances. */
 public final class PlayService {
 
-    /** A broken arena rejects every join, so re-queueing must not be able to spin forever. */
     private static final int MAX_REQUEUES = 3;
-
     private final PulseGamesPlugin plugin;
+    private final Map<UUID, QueueTicket> pending = new HashMap<>();
+
+    /** One ticket owns the entire group until admission succeeds or someone cancels. */
+    private record QueueTicket(List<Player> group, GameType type, GameMode mode) {}
 
     public PlayService(PulseGamesPlugin plugin) {
         this.plugin = plugin;
     }
 
     public void join(Player player, GameType type, GameMode mode) {
-        join(player, type, mode, 0);
-    }
-
-    private void join(Player player, GameType type, GameMode mode, int requeues) {
         Party party = plugin.parties().partyOf(player);
-        List<Player> group;
-        if (party != null) {
-            if (!party.isLeader(player)) {
-                player.sendMessage(Text.msg("<red>Only your party leader can queue the party."));
-                return;
-            }
-            group = party.onlineMembers();
-        } else {
-            group = List.of(player);
+        if (party != null && !party.isLeader(player)) {
+            player.sendMessage(Text.msg("<red>Only your party leader can queue the party."));
+            return;
         }
-        if (group.size() > Math.min(mode.maxPlayers(), 64)) {
+        List<Player> group = party == null ? List.of(player) : List.copyOf(party.onlineMembers());
+        if (group.isEmpty() || group.size() > Math.min(mode.maxPlayers(), 64)) {
             player.sendMessage(Text.msg("<red>Your party is too big for this mode."));
             return;
         }
-        GameInstance instance = plugin.instances().findOrCreate(type, mode, group.size());
-        if (instance == null) {
-            player.sendMessage(Text.msg("<red>No maps available for " + type.displayName() + " <gray>("
-                    + mode.displayName() + ")</gray><red> right now."));
-            return;
-        }
-        // Only leave the current game once the new one is secured - a failed queue used to
-        // strand the player inside an instance world with no way back to the lobby.
-        for (Player member : group) {
-            GameInstance current = plugin.instances().byPlayer(member);
-            if (current != null) current.remove(member, false);
-        }
-        joinWhenReady(instance, group, 0, requeues);
+        // A new request supersedes old requests even if no map is available for it.
+        group.forEach(this::cancelPending);
+        QueueTicket ticket = new QueueTicket(group, type, mode);
+        group.forEach(member -> pending.put(member.getUniqueId(), ticket));
+        findDestination(ticket, 0);
     }
 
-    /** Instances clone their world async; poll briefly until the lobby is open. */
-    private void joinWhenReady(GameInstance instance, List<Player> group, int attempts, int requeues) {
-        if (instance.state() == GameState.LOADING) {
-            if (attempts > 60) {
-                group.forEach(p -> p.sendMessage(Text.msg("<red>The game took too long to load, try again.")));
-                return;
-            }
-            if (attempts == 0) {
-                group.forEach(p -> p.sendMessage(Text.msg("Loading <yellow>" + instance.arena().displayName() + "</yellow>...")));
-            }
-            plugin.getServer().getScheduler().runTaskLater(plugin,
-                    () -> joinWhenReady(instance, group, attempts + 1, requeues), 10L);
+    private boolean current(QueueTicket ticket) {
+        return ticket.group().stream().allMatch(p -> pending.get(p.getUniqueId()) == ticket);
+    }
+
+    private void release(QueueTicket ticket) {
+        ticket.group().forEach(p -> pending.remove(p.getUniqueId(), ticket));
+    }
+
+    /** Called on quit as well as /lobby; reconnecting must not resurrect a queued join. */
+    public void cancelPending(Player player) {
+        QueueTicket ticket = pending.get(player.getUniqueId());
+        if (ticket != null) release(ticket);
+    }
+
+    private boolean readyGroup(QueueTicket ticket) {
+        if (!current(ticket)) return false;
+        if (ticket.group().stream().allMatch(Player::isOnline)) return true;
+        fail(ticket, "<red>A queued player left. Please queue your party again.");
+        return false;
+    }
+
+    private void findDestination(QueueTicket ticket, int requeues) {
+        if (!readyGroup(ticket)) return;
+        GameInstance instance = plugin.instances().findOrCreate(ticket.type(), ticket.mode(), ticket.group().size());
+        if (instance == null) {
+            fail(ticket, "<red>No maps available for " + ticket.type().displayName() + " <gray>("
+                    + ticket.mode().displayName() + ")</gray><red> right now.");
             return;
         }
-        for (Player member : group) {
-            if (!member.isOnline()) continue;
-            if (instance.add(member)) continue;
-            if (requeues >= MAX_REQUEUES) {
-                member.sendMessage(Text.msg("<red>Couldn't get you into " + instance.type().displayName()
-                        + " right now - please try again shortly."));
-                plugin.lobby().sendToLobby(member);
+        joinWhenReady(instance, ticket, 0, requeues);
+    }
+
+    /** Keep the current game until the destination can accept the whole group. */
+    private void joinWhenReady(GameInstance instance, QueueTicket ticket, int attempts, int requeues) {
+        if (!readyGroup(ticket)) return;
+        if (instance.state() == GameState.LOADING) {
+            if (attempts >= 60) {
+                fail(ticket, "<red>The game took too long to load, try again.");
                 return;
             }
-            member.sendMessage(Text.msg("<red>That game filled up. Re-queueing..."));
-            join(member, instance.type(), instance.mode(), requeues + 1);
+            if (attempts == 0) ticket.group().forEach(p -> p.sendMessage(Text.msg(
+                    "Loading <yellow>" + instance.arena().displayName() + "</yellow>...")));
+            plugin.getServer().getScheduler().runTaskLater(plugin,
+                    () -> joinWhenReady(instance, ticket, attempts + 1, requeues), 10L);
             return;
+        }
+        // Main-thread preflight reserves the group's capacity for this admission: no
+        // scheduler callback can insert another party between this check and the adds.
+        if (!instance.joinable(ticket.group().size())) {
+            retry(ticket, requeues);
+            return;
+        }
+        List<Player> admitted = new ArrayList<>();
+        for (Player member : ticket.group()) {
+            GameInstance old = plugin.instances().byPlayer(member);
+            if (old != null) old.remove(member, true);
+            if (!instance.add(member)) {
+                // Never leave a partially admitted party split between two queues.
+                admitted.forEach(p -> instance.remove(p, true));
+                retry(ticket, requeues);
+                return;
+            }
+            admitted.add(member);
+        }
+        release(ticket);
+    }
+
+    private void retry(QueueTicket ticket, int requeues) {
+        if (requeues >= MAX_REQUEUES) {
+            fail(ticket, "<red>Couldn't get your group into " + ticket.type().displayName()
+                    + " right now - please try again shortly.");
+            return;
+        }
+        findDestination(ticket, requeues + 1);
+    }
+
+    private void fail(QueueTicket ticket, String message) {
+        if (!current(ticket)) return;
+        release(ticket);
+        for (Player member : ticket.group()) {
+            if (!member.isOnline()) continue;
+            member.sendMessage(Text.msg(message));
+            if (plugin.instances().byPlayer(member) == null) plugin.lobby().sendToLobby(member);
         }
     }
 
     public void leave(Player player) {
+        cancelPending(player);
         GameInstance instance = plugin.instances().byPlayer(player);
         if (instance == null) {
             plugin.lobby().sendToLobby(player);

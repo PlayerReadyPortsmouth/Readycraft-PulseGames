@@ -16,6 +16,10 @@ repositories {
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:${providers.gradleProperty("paperApiVersion").get()}")
+    testImplementation("io.papermc.paper:paper-api:${providers.gradleProperty("paperApiVersion").get()}")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    testImplementation("org.mockito:mockito-core:5.15.2")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.processResources {
@@ -26,4 +30,8 @@ tasks.processResources {
 
 tasks.jar {
     archiveBaseName.set("PulseGames")
+}
+
+tasks.test {
+    useJUnitPlatform()
 }

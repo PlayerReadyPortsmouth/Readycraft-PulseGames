@@ -96,6 +96,12 @@ public abstract class CheckpointRaceGame extends MiniGame {
         game.end(List.of(player), "finish");
     }
 
+    @Override
+    public void onTimeUp() {
+        game.broadcast("<yellow>Time is up. Nobody completed the course.");
+        game.end(List.of(), "time-unfinished");
+    }
+
     /** Send a player back to their last checkpoint. */
     protected void sendBack(Player player) {
         Progress p = progress.get(player.getUniqueId());

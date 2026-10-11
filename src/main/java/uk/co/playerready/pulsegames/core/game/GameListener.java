@@ -61,6 +61,7 @@ public final class GameListener implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         GameInstance instance = instanceOf(event.getPlayer());
         if (instance != null) instance.remove(event.getPlayer(), false);
+        plugin.playService().cancelPending(event.getPlayer());
         plugin.parties().handleQuit(event.getPlayer());
     }
 
@@ -174,7 +175,6 @@ public final class GameListener implements Listener {
                 event.setCancelled(true);
                 return;
             }
-            instance.recordDamager(victim, damager);
             logic.onDamageByPlayer(victim, damager, (EntityDamageByEntityEvent) event);
             if (event.isCancelled()) return;
         } else {
@@ -200,6 +200,7 @@ public final class GameListener implements Listener {
         }
         logic.onDamage(victim, event);
         if (event.isCancelled()) return;
+        if (damager != null) instance.recordDamager(victim, damager);
         if (event.getFinalDamage() >= victim.getHealth()) {
             event.setCancelled(true);
             instance.handleDeath(victim, damager);
