@@ -78,11 +78,11 @@ any of them are configured as arenas.** This is an explicit user gate, recorded
 
 | Map | Build-world name | Build state | Aurora visual review | Arena setup |
 |---|---|---|---|---|
-| 1 - Market Day | `rc_build_prophunt_market_day` | Expanded to 93x93; eight shops, two stock houses, eight stalls and yards. Builder visual/block checks passed (28,457 states). | Larger/denser revision requested; revised version awaiting Aurora review | Blocked on all-five review |
-| 2 - Crooked Library | `rc_build_prophunt_crooked_library` | Expanded to 113x47 across three levels; twelve new furnished wing rooms. Builder visual/block checks passed (33,527 states). | Larger/denser revision requested; revised version awaiting Aurora review | Blocked on all-five review |
-| 3 - Harvest Festival | `rc_build_prophunt_harvest_festival` | Expanded to 93x85; four stocked outbuildings, orchard, wheat beds, hay maze and extra stalls. Builder visual/block checks passed (23,854 states). | Larger/denser revision requested; revised version awaiting Aurora review | Blocked on all-five review |
-| 4 - Smuggler's Wharf | `rc_build_prophunt_smugglers_wharf` | Built at 109x93; six furnished buildings, warehouse floors, ship/cabin and cargo yards. Builder visual/block checks passed (42,634 states). | Built to revised brief; awaiting Aurora review | Blocked on all-five review |
-| 5 - Backstage Mayhem | `rc_build_prophunt_backstage_mayhem` | Built at 101x85: ten furnished rooms, three stage sets, seating and paired catwalk stairs. Rear roof access closed; lamp supports checked. Builder visual/block checks passed (44,855 states). | Built to revised brief; awaiting Aurora review | Blocked on all-five review |
+| 1 - Market Day | `rc_build_prophunt_market_day` | 93x93; eight furnished ladder lofts and two stock-house mezzanines. Invisible perimeter/ceiling verified. Builder checks passed (47,794 states). | Aurora approved for setup; requested upper areas and barriers added | Approval recorded; registration pending batch review |
+| 2 - Crooked Library | `rc_build_prophunt_crooked_library` | 113x47; three furnished levels with paired stairs. Barrier containment preserves solid roof edges. Builder checks passed (49,062 states). | Awaiting Aurora review | Blocked on remaining-map review |
+| 3 - Harvest Festival | `rc_build_prophunt_harvest_festival` | 93x85; seven upper-area/barrier additions attempted. Final verification pending return to farm world; last accepted build 23,854 states. | Awaiting completed revision and Aurora review | Blocked on remaining-map review |
+| 4 - Smuggler's Wharf | `rc_build_prophunt_smugglers_wharf` | 109x93; six buildings, warehouse floors, ship/cabin and cargo yards. Accepted builder checks: 42,634 states. Shared upper-area/barrier revisions next. | Awaiting revision and Aurora review | Blocked on remaining-map review |
+| 5 - Backstage Mayhem | `rc_build_prophunt_backstage_mayhem` | 101x85; ten rooms, three stage sets and safe catwalk. Accepted builder checks: 44,855 states. Shared room mezzanine/barrier revisions next. | Awaiting revision and Aurora review | Blocked on remaining-map review |
 
 Visit a built map with `/pulse world <build-world name>` using the exact name above.
 These are verified permanent build worlds, not saved arena IDs or templates.
@@ -152,7 +152,7 @@ needed. Do not bypass team/role requirements and call that a completed test.
 | KOTH | Trial arena available; full acceptance not recorded | Solo and teams | Solo yes; teams currently needs 8 total | Fix test arena capacity for teams; hill contesting and team balance |
 | Dodgeball | Court test arena; Aurora reports cooldown too slow and hits unclear | Solo and teams | Yes | Test prepared cooldown/feedback; dodge and lead targets; difficulty |
 | Dropper | Two-drops test arena | None | Race yes; practice is solo | Test landing/checkpoint/reset behaviour; controlled-fall bots |
-| Prop Hunt | **All five maps built; Aurora visual review pending before setup.** Trial arena exists; startup fix pending deployment | None | Live minimum 3; prepared update lowers to 2 | Deploy validated startup fix; test palette, snapping and head props; fair seeker/hider bots |
+| Prop Hunt | **Shared upper-hiding/barrier revisions in progress; Market Day approved, remaining reviews pending.** Trial arena exists; startup fix pending deployment | None | Live minimum 3; prepared update lowers to 2 | Deploy validated startup fix; test palette, snapping and head props; fair seeker/hider bots |
 | Spleef | No accepted map/test recorded | Prepared: Classic, Decay, Splegg | Yes | Maps; full rounds, floor loss, projectile impacts and balance |
 | TNT Run | No accepted map/test recorded | Prepared: Classic | Yes | Full rounds, corners and layers; Double Jump remains human-only |
 | Block Party | No accepted map/player test recorded | Prepared Classic/Hardcore | Yes | Build maps; full rounds, elimination, difficulty and two-client tests |
@@ -413,3 +413,5 @@ For each new map or mode, append:
   See [Duels setup and acceptance guide](docs/DUELS.md). No live restart or installation.
 
 - Backstage Mayhem final correction completed at Aurora’s request: framed/glazed rear catwalk wall closes roof access; castle lamps have full stone supports. Actual close-up images inspected and all 44,855 states match, with zero missing/wrong/unloaded states. All five commissioned maps are now built and awaiting Aurora visual approval; none is registered or gameplay-tested. Review starts with Market Day, then Crooked Library, Harvest Festival, Smuggler’s Wharf and Backstage Mayhem. Server updates/restarts remain with Aurora’s other agent after review/setup.
+
+- Aurora approved Market Day for setup and specified reachable upper hiding areas across all five maps, plus barrier containment to prevent escaping. Market Day now has eight ladder lofts and two mezzanines with complete barrier enclosure (47,794 checked states). Crooked Library already has reachable furnished upper levels; containment and roof preservation checked (49,062 states). Harvest Festival additions require fresh verification in the farm world after the player returned to the lobby during the build. Wharf and Backstage upper-area/containment revisions remain next. No arena registration or restart performed.
