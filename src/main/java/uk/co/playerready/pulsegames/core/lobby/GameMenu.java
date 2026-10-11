@@ -49,12 +49,12 @@ public final class GameMenu implements Listener {
         for (GameType game : games) {
             ItemStack item = new ItemStack(game.icon());
             item.editMeta(meta -> {
-                meta.displayName(Text.mm("<yellow><b>" + game.displayName() + (game.wip() ? " <red>(soon)" : "")));
+                meta.displayName(Text.mm("<yellow><b>" + game.displayName() + (!plugin.gameAvailable(game) ? " <red>(soon)" : "")));
                 List<Component> lore = new ArrayList<>();
                 lore.add(Text.mm("<gray>" + game.description()));
                 lore.add(Text.mm(""));
                 lore.add(Text.mm("<gray>Modes: <white>" + game.modes().size()));
-                lore.add(Text.mm(game.wip() ? "<red>Coming soon!" : "<green>Click to play!"));
+                lore.add(Text.mm(!plugin.gameAvailable(game) ? "<red>Coming soon!" : "<green>Click to play!"));
                 meta.lore(lore);
             });
             inv.setItem(slot++, item);
@@ -98,7 +98,7 @@ public final class GameMenu implements Listener {
             int index = event.getSlot();
             if (index >= games.size()) return;
             GameType game = games.get(index);
-            if (game.wip()) {
+            if (!plugin.gameAvailable(game)) {
                 player.sendMessage(Text.msg("<red>" + game.displayName() + " is coming soon!"));
                 return;
             }

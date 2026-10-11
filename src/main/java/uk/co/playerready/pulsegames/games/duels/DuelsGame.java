@@ -27,6 +27,9 @@ public final class DuelsGame extends MiniGame {
         super(game);
     }
 
+    @Override
+    public boolean acceptsDeath(Player player) { return !roundOver; }
+
     private boolean isSumo() { return game.mode().id().equals("sumo"); }
 
     private int roundsToWin() { return game.arena().settings().getInt("rounds-to-win", 2); }
@@ -88,7 +91,7 @@ public final class DuelsGame extends MiniGame {
             // The match can be decided in this window (a disconnect ends it), and
             // restarting a round mid-ENDING wipes the winner's inventory.
             if (game.state() != GameState.RUNNING) return;
-            if (victim.isOnline()) victim.setGameMode(playGameMode());
+            if (game.player(victim.getUniqueId()) != null) victim.setGameMode(playGameMode());
             startRound();
         });
     }

@@ -47,8 +47,16 @@ public final class EconomyService {
         return data.getInt(key(player) + ".tokens");
     }
 
+    public void addMatchTokens(Player player, int amount, String reason) {
+        if (plugin instanceof uk.co.playerready.pulsegames.PulseGamesPlugin games) {
+            var instance = games.instances().byPlayer(player);
+            if (instance != null && !instance.ranked()) return;
+        }
+        addTokens(player, amount, reason);
+    }
+
     public void addTokens(Player player, int amount, String reason) {
-        if (amount <= 0) return;
+        if (amount <= 0 || player.hasMetadata("NPC")) return;
         if (boosterActive(player)) amount *= 2;
         synchronized (this) {
             data.set(key(player) + ".tokens", tokens(player) + amount);

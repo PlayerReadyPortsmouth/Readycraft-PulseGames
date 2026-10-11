@@ -42,6 +42,23 @@ public final class GameCatalog {
     }
 
     public static void registerAll(GameRegistry registry) {
+        registry.register(new GameType("dodgeball", "Dodgeball",
+                "Dodge, aim and throw! Three hits and you are out.", Material.SNOWBALL,
+                List.of(GameMode.ffa("solo", "Solo", 2, 12),
+                        GameMode.teams("teams", "Teams", 2, 4, 2)),
+                uk.co.playerready.pulsegames.games.dodgeball.DodgeballGame::new,
+                List.of(spawns(2, "opposite ends of an enclosed court"),
+                        setting("void-y", "fall-off elimination level")), true));
+        registry.register(new GameType("dropper", "Dropper",
+                "Fall through obstacles and land in the water!", Material.WATER_BUCKET,
+                List.of(GameMode.ffa("practice", "Practice", 1, 1),
+                        GameMode.ffa("race", "Race", 2, 12)),
+                uk.co.playerready.pulsegames.games.dropper.DropperGame::new,
+                List.of(spawns(1, "first launch platform"),
+                        region("finish", "final water landing pool"),
+                        optional(regions("checkpoint", 1, "intermediate water pools, in order")),
+                        optional(location("checkpoint-spawn1", "next launch after checkpoint1; repeat per checkpoint")),
+                        setting("void-y", "missed landing retry level")), true));
         registry.register(new GameType("spleef", "Spleef",
                 "Dig the floor out from under everyone else!", Material.DIAMOND_SHOVEL,
                 List.of(GameMode.ffa("classic", "Classic", 2, 12),

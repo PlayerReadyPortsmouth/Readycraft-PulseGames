@@ -1,10 +1,10 @@
 # PulseGames
 
-A complete multi-instance minigame engine for the Readycraft network, built as a single
+A multi-instance minigame engine for the Readycraft network, built as a single
 Paper plugin. One Minecraft server runs many simultaneous games, each in its own
 throwaway copy of a map world.
 
-## Games (21)
+## Games (23, including two opt-in previews)
 
 | Game | `/play` id | Modes |
 |---|---|---|
@@ -29,6 +29,8 @@ throwaway copy of a map world.
 | Elytra Racing | `elytra` | sprint, grandprix |
 | Supermarket Sweep | `supermarket` | classic, rush |
 | PulseKarts (kart racing) | `karts` | sprint, cup |
+| Dodgeball (preview) | `dodgeball` | solo, teams |
+| Dropper (preview) | `dropper` | practice, race |
 
 ## Core features
 
@@ -82,6 +84,7 @@ matching artifact version and bump `api-version` in `plugin.yml` if needed.
 | `/pulse shape list/paste/undo` | generate geometry from JSON shape files |
 | `/pulse world <name>` | load/create a build world on this server |
 | `/pulse list / arenas / games` | inspect running instances, maps, games |
+| `/pulse bots` | queue-bot provider status, count and supported modes |
 | `/pulse start / end` | force-start/-end the game you're in |
 | `/pulse setlobby / reload` | hub spawn / reload configs |
 
@@ -99,4 +102,4 @@ To add a new game: subclass `MiniGame`, override the hooks you need, register it
 
 ## Current development review
 
-See [the 11 October review](docs/REVIEW-2026-10-11.md) for verified gaps, the first foundation fixes, proposed new games, PulseContent/Geyser integration requirements and quiet-time NPC options. Custom Prop Hunt rendering and NPC contestants are not implemented yet.
+See [the 11 October review](docs/REVIEW-2026-10-11.md) for verified gaps, the first foundation fixes, proposed new games, PulseContent/Geyser integration requirements and quiet-time NPC options. This branch adds [automatic queue-filling bots](docs/QUEUE-BOTS.md), Dodgeball and Dropper previews, and an experimental [PulseContent Prop Hunt palette, block snapping and head disguises](docs/PULSECONTENT.md). All three are off by default and require an explicit trial configuration. The companion rendering API needs mixed Java/Bedrock client acceptance before it can be enabled.

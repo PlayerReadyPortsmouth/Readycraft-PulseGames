@@ -1,0 +1,146 @@
+{
+  "origin": [
+    0,
+    0,
+    0
+  ],
+  "display-name": "Dodgeball Court",
+  "arena-id": "court",
+  "game": "dodgeball",
+  "modes": [
+    "solo",
+    "teams"
+  ],
+  "min-players": 2,
+  "max-players": 12,
+  "lobby": [
+    0.5,
+    81,
+    0.5
+  ],
+  "spectator": [
+    0.5,
+    90,
+    0.5
+  ],
+  "spawns": [
+    [
+      -10.5,
+      81,
+      0.5,
+      -90,
+      0
+    ],
+    [
+      10.5,
+      81,
+      0.5,
+      90,
+      0
+    ],
+    [
+      0.5,
+      81,
+      -8.5,
+      0,
+      0
+    ],
+    [
+      0.5,
+      81,
+      8.5,
+      180,
+      0
+    ]
+  ],
+  "regions": {},
+  "settings": {
+    "void-y": 75
+  },
+  "shapes": [
+    {
+      "type": "box",
+      "from": [
+        -15,
+        80,
+        -12
+      ],
+      "to": [
+        15,
+        80,
+        12
+      ],
+      "material": "SMOOTH_QUARTZ"
+    },
+    {
+      "type": "box",
+      "from": [
+        -15,
+        81,
+        -12
+      ],
+      "to": [
+        -15,
+        85,
+        12
+      ],
+      "material": "BLUE_STAINED_GLASS"
+    },
+    {
+      "type": "box",
+      "from": [
+        15,
+        81,
+        -12
+      ],
+      "to": [
+        15,
+        85,
+        12
+      ],
+      "material": "RED_STAINED_GLASS"
+    },
+    {
+      "type": "box",
+      "from": [
+        -15,
+        81,
+        -12
+      ],
+      "to": [
+        15,
+        85,
+        -12
+      ],
+      "material": "GLASS"
+    },
+    {
+      "type": "box",
+      "from": [
+        -15,
+        81,
+        12
+      ],
+      "to": [
+        15,
+        85,
+        12
+      ],
+      "material": "GLASS"
+    },
+    {
+      "type": "box",
+      "from": [
+        0,
+        80,
+        -11
+      ],
+      "to": [
+        0,
+        80,
+        11
+      ],
+      "material": "YELLOW_CONCRETE"
+    }
+  ]
+}

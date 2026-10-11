@@ -21,7 +21,7 @@ class GameDamageTest {
         when(plugin.instances().byPlayer(victim)).thenReturn(instance);
         when(instance.logic()).thenReturn(logic);
         when(instance.state()).thenReturn(GameState.RUNNING);
-        when(instance.isAlive(any())).thenReturn(true);
+        when(instance.isActive(any())).thenReturn(true);
         when(logic.pvp()).thenReturn(true);
         when(event.getEntity()).thenReturn(victim);
         when(event.getDamager()).thenReturn(attacker);
@@ -41,7 +41,7 @@ class GameDamageTest {
         when(plugin.instances().byPlayer(racer)).thenReturn(instance);
         when(instance.logic()).thenReturn(new ElytraRacingGame(instance));
         when(instance.state()).thenReturn(GameState.RUNNING);
-        when(instance.isAlive(racer)).thenReturn(true);
+        when(instance.isActive(racer)).thenReturn(true);
         when(instance.spawnFor(racer)).thenReturn(checkpoint);
         when(event.getEntity()).thenReturn(racer);
         when(event.getCause()).thenReturn(EntityDamageEvent.DamageCause.FALL);

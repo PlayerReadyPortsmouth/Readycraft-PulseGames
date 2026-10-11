@@ -1,0 +1,373 @@
+{
+  "arena-id": "two-drops",
+  "game": "dropper",
+  "display-name": "Two Drops",
+  "modes": [
+    "practice",
+    "race"
+  ],
+  "min-players": 1,
+  "max-players": 12,
+  "origin": [
+    0,
+    0,
+    0
+  ],
+  "lobby": [
+    0.5,
+    121,
+    0.5
+  ],
+  "spectator": [
+    15.5,
+    130,
+    0.5
+  ],
+  "spawns": [
+    [
+      0.5,
+      121,
+      0.5
+    ]
+  ],
+  "regions": {
+    "checkpoint1": {
+      "min": [
+        3,
+        61,
+        -2
+      ],
+      "max": [
+        7,
+        62,
+        2
+      ]
+    },
+    "finish": {
+      "min": [
+        33,
+        61,
+        -2
+      ],
+      "max": [
+        37,
+        62,
+        2
+      ]
+    }
+  },
+  "settings": {
+    "void-y": 50,
+    "checkpoint-spawn1": "30.5,121,0.5,0,0"
+  },
+  "shapes": [
+    {
+      "type": "box",
+      "from": [
+        -2,
+        120,
+        -2
+      ],
+      "to": [
+        2,
+        120,
+        2
+      ],
+      "material": "QUARTZ_BLOCK"
+    },
+    {
+      "type": "box",
+      "from": [
+        -8,
+        60,
+        -8
+      ],
+      "to": [
+        12,
+        60,
+        8
+      ],
+      "material": "STONE"
+    },
+    {
+      "type": "box",
+      "from": [
+        3,
+        61,
+        -2
+      ],
+      "to": [
+        7,
+        62,
+        2
+      ],
+      "material": "WATER"
+    },
+    {
+      "type": "box",
+      "from": [
+        -8,
+        90,
+        -8
+      ],
+      "to": [
+        2,
+        90,
+        8
+      ],
+      "material": "ORANGE_CONCRETE"
+    },
+    {
+      "type": "box",
+      "from": [
+        8,
+        90,
+        -8
+      ],
+      "to": [
+        12,
+        90,
+        8
+      ],
+      "material": "ORANGE_CONCRETE"
+    },
+    {
+      "type": "box",
+      "from": [
+        3,
+        90,
+        -8
+      ],
+      "to": [
+        7,
+        90,
+        -3
+      ],
+      "material": "ORANGE_CONCRETE"
+    },
+    {
+      "type": "box",
+      "from": [
+        3,
+        90,
+        3
+      ],
+      "to": [
+        7,
+        90,
+        8
+      ],
+      "material": "ORANGE_CONCRETE"
+    },
+    {
+      "type": "box",
+      "from": [
+        2,
+        61,
+        -3
+      ],
+      "to": [
+        8,
+        62,
+        -3
+      ],
+      "material": "QUARTZ_BLOCK"
+    },
+    {
+      "type": "box",
+      "from": [
+        2,
+        61,
+        3
+      ],
+      "to": [
+        8,
+        62,
+        3
+      ],
+      "material": "QUARTZ_BLOCK"
+    },
+    {
+      "type": "box",
+      "from": [
+        2,
+        61,
+        -2
+      ],
+      "to": [
+        2,
+        62,
+        2
+      ],
+      "material": "QUARTZ_BLOCK"
+    },
+    {
+      "type": "box",
+      "from": [
+        8,
+        61,
+        -2
+      ],
+      "to": [
+        8,
+        62,
+        2
+      ],
+      "material": "QUARTZ_BLOCK"
+    },
+    {
+      "type": "box",
+      "from": [
+        28,
+        120,
+        -2
+      ],
+      "to": [
+        32,
+        120,
+        2
+      ],
+      "material": "QUARTZ_BLOCK"
+    },
+    {
+      "type": "box",
+      "from": [
+        22,
+        60,
+        -8
+      ],
+      "to": [
+        42,
+        60,
+        8
+      ],
+      "material": "STONE"
+    },
+    {
+      "type": "box",
+      "from": [
+        33,
+        61,
+        -2
+      ],
+      "to": [
+        37,
+        62,
+        2
+      ],
+      "material": "WATER"
+    },
+    {
+      "type": "box",
+      "from": [
+        22,
+        90,
+        -8
+      ],
+      "to": [
+        32,
+        90,
+        8
+      ],
+      "material": "ORANGE_CONCRETE"
+    },
+    {
+      "type": "box",
+      "from": [
+        38,
+        90,
+        -8
+      ],
+      "to": [
+        42,
+        90,
+        8
+      ],
+      "material": "ORANGE_CONCRETE"
+    },
+    {
+      "type": "box",
+      "from": [
+        33,
+        90,
+        -8
+      ],
+      "to": [
+        37,
+        90,
+        -3
+      ],
+      "material": "ORANGE_CONCRETE"
+    },
+    {
+      "type": "box",
+      "from": [
+        33,
+        90,
+        3
+      ],
+      "to": [
+        37,
+        90,
+        8
+      ],
+      "material": "ORANGE_CONCRETE"
+    },
+    {
+      "type": "box",
+      "from": [
+        32,
+        61,
+        -3
+      ],
+      "to": [
+        38,
+        62,
+        -3
+      ],
+      "material": "QUARTZ_BLOCK"
+    },
+    {
+      "type": "box",
+      "from": [
+        32,
+        61,
+        3
+      ],
+      "to": [
+        38,
+        62,
+        3
+      ],
+      "material": "QUARTZ_BLOCK"
+    },
+    {
+      "type": "box",
+      "from": [
+        32,
+        61,
+        -2
+      ],
+      "to": [
+        32,
+        62,
+        2
+      ],
+      "material": "QUARTZ_BLOCK"
+    },
+    {
+      "type": "box",
+      "from": [
+        38,
+        61,
+        -2
+      ],
+      "to": [
+        38,
+        62,
+        2
+      ],
+      "material": "QUARTZ_BLOCK"
+    }
+  ]
+}

@@ -26,6 +26,10 @@ public final class PlayService {
     }
 
     public void join(Player player, GameType type, GameMode mode) {
+        if (!plugin.gameAvailable(type)) {
+            player.sendMessage(Text.msg("<red>This game is not enabled yet."));
+            return;
+        }
         Party party = plugin.parties().partyOf(player);
         if (party != null && !party.isLeader(player)) {
             player.sendMessage(Text.msg("<red>Only your party leader can queue the party."));
@@ -34,6 +38,10 @@ public final class PlayService {
         List<Player> group = party == null ? List.of(player) : List.copyOf(party.onlineMembers());
         if (group.isEmpty() || group.size() > Math.min(mode.maxPlayers(), 64)) {
             player.sendMessage(Text.msg("<red>Your party is too big for this mode."));
+            return;
+        }
+        if (type.wip() && group.stream().anyMatch(member -> !plugin.canUseNewFeatures(member))) {
+            player.sendMessage(Text.msg("<red>This preview is limited to the configured test players."));
             return;
         }
         // A new request supersedes old requests even if no map is available for it.

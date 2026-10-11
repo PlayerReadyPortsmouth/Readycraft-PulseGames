@@ -50,6 +50,7 @@ class PlayServiceTest {
         leader = player();
         type = mock(GameType.class);
         when(type.displayName()).thenReturn("Test Game");
+        when(plugin.gameAvailable(type)).thenReturn(true);
         service = new PlayService(plugin);
     }
 

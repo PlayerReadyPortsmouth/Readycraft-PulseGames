@@ -41,7 +41,13 @@ public abstract class MiniGame {
     public void onCountdownTick(int secondsLeft) {}
 
     /** Players have been teleported to their spawns; the round begins. */
+    /** A non-null reason keeps the lobby waiting; no kits, statistics or models are started. */
+    public String startProblem(List<Player> players) { return null; }
+
     public void onStart() {}
+
+    /** Always called before removing players/world, including shutdown and aborted startup. */
+    public void onCleanup() {}
 
     /** Called every second while RUNNING, with seconds elapsed since start. */
     public void onSecond(int gameTime) {}
@@ -70,6 +76,9 @@ public abstract class MiniGame {
             game.eliminate(victim);
         }
     }
+
+    /** Reject duplicate life-ending events during a game's own intermission. */
+    public boolean acceptsDeath(Player player) { return true; }
 
     public boolean respawnable() { return false; }
 
@@ -142,10 +151,17 @@ public abstract class MiniGame {
 
     // ---- event hooks -------------------------------------------------------
 
+    /** Every player move, before block-change filtering; may constrain a stationary disguise. */
+    public void onPlayerMove(org.bukkit.event.player.PlayerMoveEvent event) {}
+
+    public void onInventoryDrag(org.bukkit.entity.Player player, org.bukkit.event.inventory.InventoryDragEvent event) {}
+
     /** Block-change moves only (not head rotation). */
     public void onMove(Player player, Location from, Location to) {}
 
     public void onInteract(PlayerInteractEvent event) {}
+
+    public void onSwing(Player player) {}
 
     public void onInteractEntity(Player player, Entity clicked) {}
 
