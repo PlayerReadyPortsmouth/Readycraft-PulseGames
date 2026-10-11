@@ -21,7 +21,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Plugin(id="pulsenetwork", name="PulseNetwork", version="0.1.0", description="Public chat relay and minigame queue joins",
+@Plugin(id="pulsenetwork", name="PulseNetwork", version="0.1.1", description="Public chat relay and minigame queue joins",
         dependencies = {@com.velocitypowered.api.plugin.Dependency(id="floodgate", optional=true)})
 public final class VelocityBridge {
     private static final MinecraftChannelIdentifier CHANNEL = MinecraftChannelIdentifier.from(Wire.CHANNEL);
@@ -31,6 +31,10 @@ public final class VelocityBridge {
     private Wire wire;
     private LocalChatIngress ingress;
     private Set<String> backends = Set.of(), queueServers = Set.of();
+    private Set<String> chatBackends;
+    private record Visit(String origin, String destination, String request) {}
+    private final Map<UUID, Visit> visits = new ConcurrentHashMap<>();
+    private final Set<UUID> returning = ConcurrentHashMap.newKeySet();
     private final QueueDirectory queues = new QueueDirectory();
     private final Map<UUID, Pending> pending = new ConcurrentHashMap<>();
     private final Map<UUID, Long> chatTimes = new ConcurrentHashMap<>(), joinTimes = new ConcurrentHashMap<>();
@@ -48,6 +52,8 @@ public final class VelocityBridge {
             if (!Boolean.parseBoolean(config.getProperty("enabled"))) { logger.info("PulseNetwork is disabled until configured."); return; }
             wire = new Wire(config.getProperty("bridge-secret"));
             backends = csv(config.getProperty("backends", "")); queueServers = csv(config.getProperty("queue-servers", ""));
+            chatBackends = csv(config.getProperty("chat-backends", config.getProperty("backends", "")));
+            if (!backends.containsAll(chatBackends)) throw new IllegalArgumentException("Chat backends must be allowed backends");
             if (backends.isEmpty() || !backends.containsAll(queueServers)) throw new IllegalArgumentException("Queue servers must be in the backend allowlist");
             int ingressPort = Integer.parseInt(config.getProperty("local-ingress-port", "0"));
             if (ingressPort != 0) {
@@ -103,6 +109,10 @@ public final class VelocityBridge {
                         if (!known) announce(q);
                     }
                     case "WITHDRAW" -> { if (queueServers.contains(server) && m.fields().size() == 1) queues.remove(server, m.fields().getFirst()); }
+                    case "RETURN" -> {
+                        Visit visit = visits.get(carrier.getUniqueId());
+                        if (visit != null && visit.destination().equals(server) && m.fields().equals(List.of(visit.request()))) returnHome(carrier, visit);
+                    }
                     case "ACK" -> {
                         Pending request = pending.get(carrier.getUniqueId());
                         if (request != null && request.queue().server().equals(server) && m.fields().equals(List.of(request.request()))) pending.remove(carrier.getUniqueId(), request);
@@ -113,13 +123,15 @@ public final class VelocityBridge {
         });
     }
     private void chat(Player player, String server, String body) {
+        Set<String> chatAllowed = chatBackends == null ? backends : chatBackends;
+        if (!chatAllowed.contains(server)) return;
         body = Wire.plain(body); if (body.isBlank() || body.length() > 512) return;
         long now = System.currentTimeMillis();
         Long previous = chatTimes.put(player.getUniqueId(), now); if (previous != null && now - previous < 1000) return;
         Component line = Component.text("[Global · " + server + "] ", NamedTextColor.GRAY)
                 .append(Component.text(player.getUsername() + ": ", NamedTextColor.AQUA)).append(Component.text(body, NamedTextColor.WHITE));
         for (Player receiver : proxy.getAllPlayers()) if (receiver.getCurrentServer()
-                .map(s -> backends.contains(s.getServerInfo().getName()) && !s.getServerInfo().getName().equals(server)).orElse(false)) receiver.sendMessage(line);
+                .map(s -> chatAllowed.contains(s.getServerInfo().getName()) && !s.getServerInfo().getName().equals(server)).orElse(false)) receiver.sendMessage(line);
     }
     private Component row(QueueDirectory.Queue queue) {
         return Component.text(queue.title() + " (" + queue.players() + "/" + queue.maximum() + ") ", NamedTextColor.YELLOW)
@@ -159,18 +171,45 @@ public final class VelocityBridge {
         var target = proxy.getServer(queue.server()).orElse(null);
         if (target == null) { player.sendMessage(Component.text("The minigame server is unavailable.")); return; }
         Pending request = new Pending(UUID.randomUUID().toString(), queue, now + 15_000);
+        String current = player.getCurrentServer().map(c -> c.getServerInfo().getName()).orElse("");
+        if (!current.equals(queue.server())) visits.put(player.getUniqueId(), new Visit(current, queue.server(), request.request()));
+        else visits.computeIfPresent(player.getUniqueId(), (id, old) -> new Visit(old.origin(), queue.server(), request.request()));
         pending.put(player.getUniqueId(), request);
         if (player.getCurrentServer().map(s -> s.getServerInfo().getName().equals(queue.server())).orElse(false)) { deliver(player, request); return; }
         player.sendMessage(Component.text("Connecting to " + queue.title() + "…"));
         player.createConnectionRequest(target).connect().whenComplete((result, failure) -> {
             if (failure != null || !result.isSuccessful()) {
-                if (pending.remove(player.getUniqueId(), request)) player.sendMessage(Component.text("Could not connect. Your current server has been kept."));
+                if (pending.remove(player.getUniqueId(), request)) {
+                    visits.computeIfPresent(player.getUniqueId(), (id, visit) -> visit.request().equals(request.request()) ? null : visit);
+                    player.sendMessage(Component.text("Could not connect. Your current server has been kept."));
+                }
             }
         });
     }
     @Subscribe public void connected(ServerPostConnectEvent event) {
         Player player = event.getPlayer(); Pending request = pending.get(player.getUniqueId());
+        Visit visit = visits.get(player.getUniqueId());
+        if (visit != null && player.getCurrentServer().map(c -> !c.getServerInfo().getName().equals(visit.destination())).orElse(false)) {
+            visits.remove(player.getUniqueId(), visit); returning.remove(player.getUniqueId()); pending.remove(player.getUniqueId()); return;
+        }
         if (request != null) deliver(player, request);
+    }
+    private void returnHome(Player player, Visit visit) {
+        var target = proxy.getServer(visit.origin()).orElse(null);
+        if (target == null || !backends.contains(visit.origin()) || !returning.add(player.getUniqueId())) return;
+        pending.remove(player.getUniqueId());
+        player.createConnectionRequest(target).connect().whenComplete((result, failure) -> {
+            returning.remove(player.getUniqueId());
+            if (failure == null && result.isSuccessful()) {
+                visits.remove(player.getUniqueId(), visit);
+                player.getCurrentServer().filter(c -> c.getServerInfo().getName().equals(visit.origin()))
+                        .ifPresent(c -> c.sendPluginMessage(CHANNEL, wire.encode("RESTORE", player.getUniqueId(), visit.request())));
+            }
+            else {
+                visits.remove(player.getUniqueId(), visit);
+                player.sendMessage(Component.text("Your previous server is unavailable. You are safe in the minigames lobby; use /server " + visit.origin() + " to return later."));
+            }
+        });
     }
     private void deliver(Player player, Pending request) {
         if (pending.get(player.getUniqueId()) != request) return;
@@ -182,12 +221,16 @@ public final class VelocityBridge {
         pending.forEach((id, request) -> {
             Player player = proxy.getPlayer(id).orElse(null);
             if (player == null || request.expires() < now) {
-                if (pending.remove(id, request) && player != null) player.sendMessage(Component.text("Queue join timed out. Use /queues to try again."));
+                if (pending.remove(id, request) && player != null) {
+                    player.sendMessage(Component.text("Queue join timed out. Returning to your previous server where possible."));
+                    Visit visit = visits.get(id);
+                    if (visit != null && player.getCurrentServer().map(c -> c.getServerInfo().getName().equals(visit.destination())).orElse(false)) returnHome(player, visit);
+                }
             } else deliver(player, request);
         });
     }
     @Subscribe public void quit(DisconnectEvent event) {
-        UUID id = event.getPlayer().getUniqueId(); pending.remove(id); chatTimes.remove(id); joinTimes.remove(id);
+        UUID id = event.getPlayer().getUniqueId(); visits.remove(id); returning.remove(id); pending.remove(id); chatTimes.remove(id); joinTimes.remove(id);
     }
     @Subscribe public void stop(com.velocitypowered.api.event.proxy.ProxyShutdownEvent event) {
         if (ingress != null) ingress.close();

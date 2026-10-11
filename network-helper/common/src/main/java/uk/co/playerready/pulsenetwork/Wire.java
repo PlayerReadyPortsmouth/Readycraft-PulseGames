@@ -54,7 +54,7 @@ public final class Wire {
             int count = in.readInt(); if (count < 0 || count > 12) return Optional.empty();
             var fields = new ArrayList<String>();
             for (int i = 0; i < count; i++) { String f = in.readUTF(); if (f.length() > 1024) return Optional.empty(); fields.add(f); }
-            if (in.available() != 0 || !Set.of("CHAT", "QUEUE", "WITHDRAW", "JOIN", "ACK").contains(kind)) return Optional.empty();
+            if (in.available() != 0 || !Set.of("CHAT", "QUEUE", "WITHDRAW", "JOIN", "ACK", "RETURN", "RESTORE").contains(kind)) return Optional.empty();
             seen.values().removeIf(expiry -> expiry < now);
             if (seen.containsKey(nonce) || seen.size() >= 10000) return Optional.empty();
             seen.put(nonce, time + 30_000);

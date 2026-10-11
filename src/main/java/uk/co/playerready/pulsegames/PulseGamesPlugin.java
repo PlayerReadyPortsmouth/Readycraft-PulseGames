@@ -171,6 +171,10 @@ public final class PulseGamesPlugin extends JavaPlugin {
                 .toList();
     }
 
+    public boolean networkPlayerBusy(org.bukkit.entity.Player player) {
+        return instances().byPlayer(player) != null || playService().hasPending(player);
+    }
+
     public void joinNetworkQueue(org.bukkit.entity.Player player, String instanceId) {
         playService().joinNetworkQueue(player, instanceId);
     }

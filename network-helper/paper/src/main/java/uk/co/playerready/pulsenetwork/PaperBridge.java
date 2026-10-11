@@ -15,13 +15,17 @@ import java.util.*;
 /** Observe final local chat; never cancel, rewrite, or replay chat events. */
 public final class PaperBridge extends JavaPlugin implements Listener, PluginMessageListener {
     private Wire wire;
+    private org.bukkit.configuration.file.YamlConfiguration returnLocations;
     private LocalChatGames chatGames;
     private final Map<UUID, Boolean> global = new HashMap<>();
     private final Map<UUID, Long> lastChat = new HashMap<>();
     private final Map<String, Long> handled = new HashMap<>();
+    private record Visit(String request, long joinedAt) {}
+    private final Map<UUID, Visit> visits = new HashMap<>();
     private Set<String> advertised = Set.of();
     @Override public void onEnable() {
         saveDefaultConfig();
+        returnLocations = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(new java.io.File(getDataFolder(), "return-locations.yml"));
         if (!getConfig().getBoolean("enabled")) { getLogger().info("PulseNetwork is disabled until configured."); return; }
         try { wire = new Wire(getConfig().getString("bridge-secret", "")); }
         catch (IllegalArgumentException e) { getLogger().severe(e.getMessage()); return; }
@@ -29,6 +33,7 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
         getServer().getMessenger().registerIncomingPluginChannel(this, Wire.CHANNEL, this);
         getServer().getPluginManager().registerEvents(this, this);
         getServer().getScheduler().runTaskTimer(this, this::queues, 20, 100);
+        getServer().getScheduler().runTaskTimer(this, this::returns, 20, 20);
         chatGames = new LocalChatGames(this);
         getServer().getScheduler().runTaskTimer(this, chatGames::tick, 20, 20);
     }
@@ -60,7 +65,12 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
             send(player, "CHAT", body);
         });
     }
-    @EventHandler public void quit(PlayerQuitEvent event) { global.remove(event.getPlayer().getUniqueId()); lastChat.remove(event.getPlayer().getUniqueId()); }
+    @EventHandler public void quit(PlayerQuitEvent event) {
+        if (returnLocations != null && !event.getPlayer().hasMetadata("NPC")) {
+            returnLocations.set(event.getPlayer().getUniqueId().toString(), event.getPlayer().getLocation());
+            try { returnLocations.save(new java.io.File(getDataFolder(), "return-locations.yml")); }
+            catch (java.io.IOException ex) { getLogger().warning("Could not save queue return location."); }
+        } visits.remove(event.getPlayer().getUniqueId()); global.remove(event.getPlayer().getUniqueId()); lastChat.remove(event.getPlayer().getUniqueId()); }
     private void send(Player carrier, String kind, String... fields) { carrier.sendPluginMessage(this, Wire.CHANNEL, wire.encode(kind, carrier.getUniqueId(), fields)); }
 
     @SuppressWarnings("unchecked") private void queues() {
@@ -83,9 +93,30 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
             getLogger().warning("Queue sharing disabled: this PulseGames build does not provide the network queue API.");
         }
     }
+    private void returns() {
+        var games = getServer().getPluginManager().getPlugin("PulseGames");
+        if (games == null || !games.isEnabled()) return;
+        for (var entry : visits.entrySet()) {
+            Player player = Bukkit.getPlayer(entry.getKey());
+            if (player == null || System.currentTimeMillis() - entry.getValue().joinedAt() < 2000) continue;
+            try {
+                if (Boolean.FALSE.equals(games.getClass().getMethod("networkPlayerBusy", Player.class).invoke(games, player)))
+                    send(player, "RETURN", entry.getValue().request());
+            } catch (ReflectiveOperationException e) { return; }
+        }
+    }
     @Override public void onPluginMessageReceived(String channel, Player player, byte[] bytes) {
-        if (!channel.equals(Wire.CHANNEL) || wire == null || !getConfig().getBoolean("queues.enabled")) return;
-        wire.decode(bytes).filter(m -> m.kind().equals("JOIN") && m.player().equals(player.getUniqueId()) && m.fields().size() == 2).ifPresent(m -> {
+        if (!channel.equals(Wire.CHANNEL) || wire == null) return;
+        var decoded = wire.decode(bytes);
+        if (decoded.isPresent() && decoded.get().kind().equals("RESTORE") && decoded.get().player().equals(player.getUniqueId()) && decoded.get().fields().size() == 1) {
+            org.bukkit.Location saved = returnLocations == null ? null : returnLocations.getLocation(player.getUniqueId().toString());
+            if (saved != null && saved.getWorld() != null) getServer().getScheduler().runTaskLater(this, () -> {
+                if (player.isOnline()) player.teleportAsync(saved);
+            }, 20L);
+            return;
+        }
+        if (!getConfig().getBoolean("queues.enabled")) return;
+        decoded.filter(m -> m.kind().equals("JOIN") && m.player().equals(player.getUniqueId()) && m.fields().size() == 2).ifPresent(m -> {
             String request = m.fields().get(0), instance = m.fields().get(1);
             if (!Wire.id(instance)) return;
             try { UUID.fromString(request); } catch (IllegalArgumentException e) { return; }
@@ -97,6 +128,7 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
                 if (games == null || !games.isEnabled()) { player.sendMessage(Component.text("Minigame queues are unavailable.")); return; }
                 try {
                     games.getClass().getMethod("joinNetworkQueue", Player.class, String.class).invoke(games, player, instance);
+                    visits.put(player.getUniqueId(), new Visit(request, now));
                     handled.put(key, now + 30_000);
                 } catch (ReflectiveOperationException e) { player.sendMessage(Component.text("This server needs the queue support update.")); return; }
             }
