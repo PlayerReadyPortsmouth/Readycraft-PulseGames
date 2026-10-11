@@ -205,4 +205,33 @@ class PlayServiceTest {
         verify(lobby).sendToLobby(leader);
         verify(target, never()).add(any());
     }
+
+    private GameInstance networkTarget() {
+        GameInstance target = destination(GameState.WAITING);
+        when(target.id()).thenReturn("queue_one"); when(target.type()).thenReturn(type); when(target.mode()).thenReturn(mode);
+        when(instances.all()).thenReturn(List.of(target)); return target;
+    }
+    @Test void networkJoinUsesExactInstanceAndNormalPartyAdmission() {
+        Player member = party(); GameInstance target = networkTarget();
+        service.joinNetworkQueue(leader, "queue_one");
+        verify(target).add(leader); verify(target).add(member);
+        verify(instances, never()).findOrCreate(any(), any(), anyInt());
+    }
+    @Test void staleNetworkQueueDoesNotMovePlayerOrCreateAnotherGame() {
+        GameInstance current = destination(GameState.RUNNING), target = networkTarget();
+        when(instances.byPlayer(leader)).thenReturn(current); when(target.joinable(1)).thenReturn(false);
+        service.joinNetworkQueue(leader, "queue_one");
+        verify(current, never()).remove(any(), anyBoolean()); verify(target, never()).add(any());
+        verify(instances, never()).findOrCreate(any(), any(), anyInt());
+    }
+    @Test void networkQueueCapacityIsCheckedForWholeParty() {
+        party(); GameInstance target = networkTarget(); when(target.joinable(2)).thenReturn(false);
+        service.joinNetworkQueue(leader, "queue_one");
+        verify(target, never()).add(any()); verify(instances, never()).findOrCreate(any(), any(), anyInt());
+    }
+    @Test void networkQueueCannotBypassPreviewPermission() {
+        GameInstance target = networkTarget(); when(type.wip()).thenReturn(true);
+        when(plugin.canUseNewFeatures(leader)).thenReturn(false);
+        service.joinNetworkQueue(leader, "queue_one"); verify(target, never()).add(any());
+    }
 }

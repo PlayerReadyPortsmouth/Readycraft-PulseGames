@@ -152,4 +152,18 @@ public final class PulseGamesPlugin extends JavaPlugin {
     public TokenShopMenu tokenShop() { return tokenShop; }
     public ShapeService shapes() { return shapes; }
     public MapBuilder mapBuilder() { return mapBuilder; }
+    /** Public optional bridge API; called on the server thread by PulseNetwork. */
+    public java.util.List<java.util.Map<String, String>> networkQueues() {
+        return instances().all().stream()
+                .filter(g -> (g.state() == uk.co.playerready.pulsegames.core.game.GameState.WAITING
+                        || g.state() == uk.co.playerready.pulsegames.core.game.GameState.COUNTDOWN)
+                        && g.humanCount() > 0 && g.joinable(1) && !g.type().wip() && gameAvailable(g.type()))
+                .map(g -> java.util.Map.of("id", g.id(), "title", g.type().displayName() + " / " + g.mode().displayName(),
+                        "players", Integer.toString(g.players().size()), "maximum", Integer.toString(g.maxPlayers())))
+                .toList();
+    }
+
+    public void joinNetworkQueue(org.bukkit.entity.Player player, String instanceId) {
+        playService().joinNetworkQueue(player, instanceId);
+    }
 }

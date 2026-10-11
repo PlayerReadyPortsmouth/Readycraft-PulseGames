@@ -1,0 +1,13 @@
+# Enable only after proxy/backend compatibility checks. Same private secret on the proxy.
+enabled: false
+bridge-secret: ''
+chat:
+  enabled: false
+  global-by-default: false
+queues:
+  enabled: false
+chat-games:
+  enabled: false
+  minimum-players: 2
+  interval-seconds: 300
+  external-provider-plugins: [ChatGames, ChatGames-Premium, PulseAddon]

@@ -8,4 +8,5 @@ import java.util.Collection;
 public interface BotObjectives {
     Collection<? extends LivingEntity> botEnemies();
     Location botGuardPoint();
+    default void botTick(org.bukkit.entity.Player bot) {}
 }

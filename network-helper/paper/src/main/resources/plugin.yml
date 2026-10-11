@@ -1,0 +1,15 @@
+name: PulseNetwork
+version: '0.1.0'
+main: uk.co.playerready.pulsenetwork.PaperBridge
+api-version: '1.21'
+softdepend: [PulseGames, AdvancedChat, ChatGames, EssentialsChat, PulseAddon]
+commands:
+  globalchat:
+    description: Toggle relaying your normal public chat across the network
+    aliases: [g]
+    permission: pulsenetwork.chat
+  localchat:
+    description: Keep your normal chat on this server
+permissions:
+  pulsenetwork.chat:
+    default: true

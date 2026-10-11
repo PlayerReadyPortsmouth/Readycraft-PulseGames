@@ -33,7 +33,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * Modes: classic (15 rounds), frenzy (faster, 10 rounds).
  * Arena: regions mobspawn1..N.
  */
-public final class ReadyPlayerZGame extends MiniGame {
+public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerready.pulsegames.core.bot.BotObjectives {
 
     private static final class ShopHolder implements InventoryHolder {
         Inventory inventory;
@@ -83,7 +83,7 @@ public final class ReadyPlayerZGame extends MiniGame {
                 + "- spend them in the <green>Mystery Shop</green> (emerald).");
     }
 
-    private void equipBase(Player player) {
+    void equipBase(Player player) {
         player.getInventory().setItem(0, new ItemStack(Material.WOODEN_SWORD));
         ItemStack shop = new ItemStack(Material.EMERALD);
         shop.editMeta(meta -> meta.displayName(Text.mm("<green><b>Mystery Shop</b> <gray>(right-click)")));
@@ -94,6 +94,13 @@ public final class ReadyPlayerZGame extends MiniGame {
     @Override
     public void onSecond(int gameTime) {
         if (roundActive) {
+            for (LivingEntity enemy : botEnemies()) if (enemy instanceof Zombie zombie) {
+                Player nearest = game.alivePlayers().stream().filter(game::isActive)
+                        .filter(p -> p.getWorld().equals(zombie.getWorld()) && zombie.hasLineOfSight(p))
+                        .filter(p -> p.getLocation().distanceSquared(zombie.getLocation()) <= 24 * 24)
+                        .min(java.util.Comparator.comparingDouble(p -> p.getLocation().distanceSquared(zombie.getLocation()))).orElse(null);
+                if (nearest != null) zombie.setTarget(nearest);
+            }
             zombies.removeIf(id -> {
                 var entity = game.world().getEntity(id);
                 return entity == null || entity.isDead();
@@ -142,9 +149,9 @@ public final class ReadyPlayerZGame extends MiniGame {
 
     private void reviveDowned() {
         for (UUID id : new HashSet<>(downed)) {
-            Player player = Bukkit.getPlayer(id);
+            Player player = game.player(id);
             downed.remove(id);
-            if (player != null && player.isOnline() && game.isParticipant(player)) {
+            if (player != null && game.isParticipant(player)) {
                 player.setGameMode(playGameMode());
                 player.teleport(game.spawnFor(player));
                 game.plugin().playerState().reset(player);
@@ -252,6 +259,35 @@ public final class ReadyPlayerZGame extends MiniGame {
     }
 
     @Override
+    public List<LivingEntity> botEnemies() {
+        return zombies.stream().map(id -> game.world().getEntity(id))
+                .filter(entity -> entity instanceof Zombie && !entity.isDead())
+                .map(entity -> (LivingEntity) entity).toList();
+    }
+
+    @Override
+    public Location botGuardPoint() { return game.arena().spawn(0, game.world()); }
+
+    @Override
+    public void botTick(Player bot) {
+        if (!game.isBot(bot) || !game.isActive(bot)) return;
+        if (bot.getHealth() <= 10 && purchase(bot, 6)) return;
+        var inventory = bot.getInventory();
+        if (!inventory.contains(Material.DIAMOND_SWORD) && game.score(bot) >= 500) purchase(bot, 2);
+        else if (!inventory.contains(Material.DIAMOND_SWORD) && !inventory.contains(Material.IRON_SWORD)
+                && game.score(bot) >= 150) purchase(bot, 1);
+        else if (!inventory.contains(Material.DIAMOND_SWORD) && !inventory.contains(Material.IRON_SWORD)
+                && !inventory.contains(Material.STONE_SWORD) && game.score(bot) >= 50) purchase(bot, 0);
+        else if ((inventory.getChestplate() == null || inventory.getChestplate().getType() != Material.IRON_CHESTPLATE)
+                && game.score(bot) >= 300) purchase(bot, 5);
+        for (UUID id : new HashSet<>(powerupItems.keySet())) {
+            if (game.world().getEntity(id) instanceof org.bukkit.entity.Item item
+                    && item.isValid() && item.getLocation().distanceSquared(bot.getLocation()) <= 1.5 * 1.5)
+                itemPickup(bot, item);
+        }
+    }
+
+    @Override
     public boolean cooperative() { return true; }
 
     // ---- shop ------------------------------------------------------------------
@@ -287,15 +323,21 @@ public final class ReadyPlayerZGame extends MiniGame {
         event.setCancelled(true);
         int slot = event.getSlot();
         if (event.getClickedInventory() != event.getInventory() || slot < 0 || slot >= upgrades.size()) return;
+        if (!purchase(player, slot)) player.sendMessage(Text.msg("<red>Purchase unavailable. Check your points and inventory space."));
+    }
+
+    /** Shared shop action: bots pay exactly the same prices and obey active-player checks. */
+    boolean purchase(Player player, int slot) {
+        if (slot < 0 || slot >= upgrades.size() || game.state() != GameState.RUNNING
+                || !game.isActive(player) || player.getWorld() != game.world()) return false;
         Upgrade upgrade = upgrades.get(slot);
-        if (game.score(player) < upgrade.cost()) {
-            player.sendMessage(Text.msg("<red>Not enough points! <gray>(" + game.score(player) + "/" + upgrade.cost() + ")"));
-            return;
-        }
+        if (game.score(player) < upgrade.cost()) return false;
+        if (slot <= 4 && player.getInventory().firstEmpty() < 0) return false;
         game.addScore(player, -upgrade.cost());
         upgrade.apply().accept(player);
-        player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1.2f);
+        player.playSound(player.getLocation(), "minecraft:entity.experience_orb.pickup", 1f, 1.2f);
         player.sendMessage(Text.msg("<green>Bought " + upgrade.name() + "!"));
+        return true;
     }
 
     @Override
