@@ -57,6 +57,30 @@ public final class PulseContentBridge implements AutoCloseable {
         catch (ReflectiveOperationException | IllegalStateException e) { return false; }
     }
 
+    public boolean blockPropsReady() {
+        try {
+            Api current = api();
+            return Boolean.TRUE.equals(current.blocks().ready.invoke(current.provider));
+        } catch (ReflectiveOperationException | IllegalStateException e) { return false; }
+    }
+
+    public boolean isBlockPropActive(Player subject) {
+        try { Api current = api(); return Boolean.TRUE.equals(current.blocks().active.invoke(current.provider, subject)); }
+        catch (ReflectiveOperationException | IllegalStateException e) { return false; }
+    }
+
+    public AutoCloseable attachBlockProp(Player subject, org.bukkit.Material material,
+                                         org.bukkit.Location position, Collection<UUID> viewers) {
+        try {
+            Api current = api();
+            Object result = current.blocks().attach.invoke(current.provider, plugin, subject, material, position, List.copyOf(viewers));
+            if (!(result instanceof AutoCloseable visual)) throw new IllegalStateException("No block prop handle returned");
+            OwnedVisual owned = new OwnedVisual(visual);
+            handles.add(owned);
+            return owned;
+        } catch (ReflectiveOperationException e) { throw new IllegalStateException("Cannot lock prop here", e); }
+    }
+
     private Api api() throws ReflectiveOperationException {
         Plugin provider = plugin.getServer().getPluginManager().getPlugin("PulseContent");
         if (provider == null || !provider.isEnabled()) throw new IllegalStateException("PulseContent unavailable");
@@ -88,6 +112,11 @@ public final class PulseContentBridge implements AutoCloseable {
     private static final class Api {
         final Plugin provider;
         final Method ready, hasVisual, attach, active;
+        private BlockApi blockApi;
+        BlockApi blocks() throws ReflectiveOperationException {
+            if (blockApi == null) blockApi = new BlockApi(provider);
+            return blockApi;
+        }
         Api(Plugin provider) throws ReflectiveOperationException {
             this.provider = provider;
             Class<?> type = provider.getClass();
@@ -99,4 +128,17 @@ public final class PulseContentBridge implements AutoCloseable {
             attach = type.getMethod("attachVisual", Plugin.class, String.class, Player.class, Collection.class);
         }
     }
+    private static final class BlockApi {
+        final Method ready, active, attach;
+        BlockApi(Plugin provider) throws ReflectiveOperationException {
+            Class<?> type = provider.getClass();
+            if (!Integer.valueOf(1).equals(type.getMethod("blockPropsApiVersion").invoke(provider)))
+                throw new IllegalStateException("Unsupported PulseContent block-prop API");
+            ready = type.getMethod("blockPropsReady");
+            active = type.getMethod("isBlockPropActive", Player.class);
+            attach = type.getMethod("attachBlockProp", Plugin.class, Player.class,
+                    org.bukkit.Material.class, org.bukkit.Location.class, Collection.class);
+        }
+    }
+
 }

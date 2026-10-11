@@ -20,14 +20,23 @@ class PulseContentBridgeTest {
         boolean isVisualActive(Player player);
         AutoCloseable attachVisual(Plugin owner, String id, Player player, Collection<UUID> viewers);
     }
+    public interface BlockApi {
+        int blockPropsApiVersion();
+        boolean blockPropsReady();
+        boolean isBlockPropActive(Player player);
+        AutoCloseable attachBlockProp(Plugin owner, Player player, org.bukkit.Material material,
+                                      org.bukkit.Location location, Collection<UUID> viewers);
+    }
     private record Fixture(PulseContentBridge bridge, PulseGamesPlugin plugin, Plugin provider, ContentApi api, Player player) {}
-    private Fixture fixture() {
+    private Fixture fixture() { return fixture(false); }
+    private Fixture fixture(boolean blocks) {
         PulseGamesPlugin plugin = mock(PulseGamesPlugin.class);
         Server server = mock(Server.class);
         PluginManager manager = mock(PluginManager.class);
         when(plugin.getServer()).thenReturn(server);
         when(server.getPluginManager()).thenReturn(manager);
-        Plugin provider = mock(Plugin.class, withSettings().extraInterfaces(ContentApi.class));
+        Plugin provider = mock(Plugin.class, withSettings().extraInterfaces(blocks
+                ? new Class<?>[]{ContentApi.class, BlockApi.class} : new Class<?>[]{ContentApi.class}));
         ContentApi api = (ContentApi) provider;
         when(manager.getPlugin("PulseContent")).thenReturn(provider);
         when(provider.isEnabled()).thenReturn(true);
@@ -81,4 +90,30 @@ class PulseContentBridgeTest {
         when(f.api.attachVisual(any(), any(), any(), any())).thenThrow(new IllegalStateException("missing model"));
         assertThrows(IllegalStateException.class, () -> f.bridge.attach("props:barrel", f.player, List.of(UUID.randomUUID())));
     }
+    @Test void absentBlockCapabilityDoesNotBreakMovingVisualReadiness() {
+        Fixture f = fixture();
+        assertFalse(f.bridge.blockPropsReady());
+        assertFalse(f.bridge.isBlockPropActive(f.player));
+        assertNull(f.bridge.startProblem(List.of("props:barrel"), List.of(f.player)));
+    }
+    @Test void blockCapabilityPreservesOwnerAndCleanupAndReadsLiveFlag() throws Exception {
+        Fixture f = fixture(true);
+        BlockApi blockApi = (BlockApi) f.provider;
+        when(blockApi.blockPropsApiVersion()).thenReturn(1);
+        when(blockApi.blockPropsReady()).thenReturn(true);
+        when(blockApi.isBlockPropActive(f.player)).thenReturn(true);
+        var cell = new org.bukkit.Location(null, 1, 64, 2);
+        var viewers = List.of(UUID.randomUUID());
+        AutoCloseable actual = mock(AutoCloseable.class);
+        when(blockApi.attachBlockProp(f.plugin, f.player, org.bukkit.Material.PLAYER_HEAD, cell, viewers)).thenReturn(actual);
+        assertTrue(f.bridge.blockPropsReady());
+        assertTrue(f.bridge.isBlockPropActive(f.player));
+        var lease = f.bridge.attachBlockProp(f.player, org.bukkit.Material.PLAYER_HEAD, cell, viewers);
+        lease.close(); lease.close(); f.bridge.close();
+        verify(actual, times(1)).close();
+        when(blockApi.blockPropsReady()).thenReturn(false);
+        assertFalse(f.bridge.blockPropsReady());
+        verify(blockApi, times(1)).blockPropsApiVersion();
+    }
+
 }

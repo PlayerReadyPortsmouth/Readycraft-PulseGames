@@ -71,3 +71,47 @@ content:
   prophunt:
     enabled: false
     props: []
+    # Selectable native block locks; requires the companion block-prop API.
+    # Models must match the native cube/head dimensions and be centred at the feet.
+    block-snapping: false
+    block-palette:
+      hay:
+        name: Hay bale
+        material: HAY_BLOCK
+        model: readycraft:prop_hay
+      workbench:
+        name: Crafting table
+        material: CRAFTING_TABLE
+        model: readycraft:prop_workbench
+      bookshelf:
+        name: Bookshelf
+        material: BOOKSHELF
+        model: readycraft:prop_bookshelf
+      melon:
+        name: Melon
+        material: MELON
+        model: readycraft:prop_melon
+      pumpkin:
+        name: Pumpkin
+        material: PUMPKIN
+        model: readycraft:prop_pumpkin
+      log:
+        name: Oak log
+        material: OAK_LOG
+        model: readycraft:prop_log
+      stone:
+        name: Stone
+        material: STONE
+        model: readycraft:prop_stone
+      bricks:
+        name: Bricks
+        material: BRICKS
+        model: readycraft:prop_bricks
+      moss:
+        name: Moss
+        material: MOSS_BLOCK
+        model: readycraft:prop_moss
+      head:
+        name: Player head
+        material: PLAYER_HEAD
+        model: readycraft:prop_head

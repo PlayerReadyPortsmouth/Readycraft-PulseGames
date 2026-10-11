@@ -151,10 +151,17 @@ public abstract class MiniGame {
 
     // ---- event hooks -------------------------------------------------------
 
+    /** Every player move, before block-change filtering; may constrain a stationary disguise. */
+    public void onPlayerMove(org.bukkit.event.player.PlayerMoveEvent event) {}
+
+    public void onInventoryDrag(org.bukkit.entity.Player player, org.bukkit.event.inventory.InventoryDragEvent event) {}
+
     /** Block-change moves only (not head rotation). */
     public void onMove(Player player, Location from, Location to) {}
 
     public void onInteract(PlayerInteractEvent event) {}
+
+    public void onSwing(Player player) {}
 
     public void onInteractEntity(Player player, Entity clicked) {}
 

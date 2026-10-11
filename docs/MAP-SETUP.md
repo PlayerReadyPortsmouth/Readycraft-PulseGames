@@ -222,3 +222,14 @@ and floors to contain water. Do not overlap launch points and landing regions.
 `blueprints/dropper-two-drops.json` supplies two 60-block drops with obstacle gates
 and offset water pools. Build and playtest blueprints before enabling these WIP
 catalog entries; neither is a record of a production map deployment.
+
+
+### Prop Hunt block palette trial
+
+`content.prophunt.block-snapping` adds a book selector and slime-ball lock control
+when custom PulseContent Prop Hunt is enabled. Provide wide solid floor areas,
+three-block-high clear cells, and decorative examples of the allowed palette.
+Do not design head-sized crawl spaces: the small head target retains player
+walking clearance. Palette/asset setup and client acceptance are documented in
+[PULSECONTENT.md](PULSECONTENT.md). Temporary native props belong only in the
+throwaway game world; never capture a template while a match is running.
