@@ -79,14 +79,14 @@ checks alone remain insufficient permission to register an unapproved map.
 | 1 - Market Day | `rc_build_prophunt_market_day` | 93x93; eight ladder lofts, two mezzanines and containment. Builder checks passed (47,794 states). | Approved for setup; requested additions completed | Saved/live: `market_day`; template `market_day` |
 | 2 - Crooked Library | `rc_build_prophunt_crooked_library` | 113x47; three furnished levels, paired stairs and containment with preserved roof edges. Builder checks passed (49,062 states). | Awaiting Aurora review | Not registered; needs approval |
 | 3 - Harvest Festival | `rc_build_prophunt_harvest_festival` | 93x85; six barn/mill mezzanines, farmhouse loft and containment. Builder checks passed (42,945 states). | Approved in farm world; setup requested | Saved/live: `harvest_festival`; template `harvest_festival` |
-| 4 - Smuggler's Wharf | `rc_build_prophunt_smugglers_wharf` | 109x93; warehouse upper floors, four mezzanines, cabin roof hiding and containment. Builder checks passed (67,514 states). | Current map for Aurora review | Not registered; needs approval |
-| 5 - Backstage Mayhem | `rc_build_prophunt_backstage_mayhem` | 101x85; ten room mezzanines, repaired catwalk and containment. Builder checks passed (66,024 states). | Awaiting Aurora review | Not registered; needs approval |
+| 4 - Smuggler's Wharf | `rc_build_prophunt_smugglers_wharf` | 109x93; warehouse upper floors, four mezzanines, cabin roof hiding and containment. Builder checks passed (67,514 states). | Approved by Aurora | Saved/live: `smugglers_wharf`; template `smugglers_wharf` |
+| 5 - Backstage Mayhem | `rc_build_prophunt_backstage_mayhem` | 101x85; ten room mezzanines, repaired catwalk and containment. Builder checks passed (66,024 states). | Current map for Aurora review | Not registered; needs approval |
 
 Visit with `/pulse world <build-world name>`. These names identify permanent build
 worlds; the saved arena/template IDs are separately recorded above. Each registered
 map has Classic and Infection, 2-16 configured players, seven spawns (one seeker,
 six hider scatter points), enclosed waiting/spectator platforms, `void-y: 74` and
-`bots-enabled: false`. Setup checklists passed and `/pulse arenas` confirmed both
+`bots-enabled: false`. Setup checklists passed and `/pulse arenas` confirmed all three
 saved IDs/templates loaded. Gameplay and crossplay tests remain pending.
 
 ## Team-size and map-capacity programme
@@ -149,7 +149,7 @@ needed. Do not bypass team/role requirements and call that a completed test.
 | KOTH | Trial arena available; full acceptance not recorded | Solo and teams | Solo yes; teams currently needs 8 total | Fix test arena capacity for teams; hill contesting and team balance |
 | Dodgeball | Court test arena; Aurora reports cooldown too slow and hits unclear | Solo and teams | Yes | Test prepared cooldown/feedback; dodge and lead targets; difficulty |
 | Dropper | Two-drops test arena | None | Race yes; practice is solo | Test landing/checkpoint/reset behaviour; controlled-fall bots |
-| Prop Hunt | **All five upper-area/barrier revisions checked; Market Day and Harvest Festival registered, three reviews pending.** Trial arena exists; startup fix pending deployment | None | Live minimum 3; prepared update lowers to 2 | Deploy validated startup fix; test palette, snapping and head props; fair seeker/hider bots |
+| Prop Hunt | **All five upper-area/barrier revisions checked; Market Day, Harvest Festival and Smuggler’s Wharf registered; two reviews pending.** Trial arena exists; startup fix pending deployment | None | Live minimum 3; prepared update lowers to 2 | Deploy validated startup fix; test palette, snapping and head props; fair seeker/hider bots |
 | Spleef | No accepted map/test recorded | Prepared: Classic, Decay, Splegg | Yes | Maps; full rounds, floor loss, projectile impacts and balance |
 | TNT Run | No accepted map/test recorded | Prepared: Classic | Yes | Full rounds, corners and layers; Double Jump remains human-only |
 | Block Party | No accepted map/player test recorded | Prepared Classic/Hardcore | Yes | Build maps; full rounds, elimination, difficulty and two-client tests |
@@ -414,3 +414,5 @@ For each new map or mode, append:
 - Aurora approved Market Day for setup and specified reachable upper hiding areas across all five maps, plus barrier containment to prevent escaping. Market Day now has eight ladder lofts and two mezzanines with complete barrier enclosure (47,794 checked states). Crooked Library already has reachable furnished upper levels; containment and roof preservation checked (49,062 states). Harvest Festival additions require fresh verification in the farm world after the player returned to the lobby during the build. Wharf and Backstage upper-area/containment revisions remain next. No arena registration or restart performed.
 
 - Prop Hunt setup update: Aurora requested saving the approved map and proceeding to the next. Farm verification was repeated in the correct world (42,945 states), resolving the earlier lobby mismatch. Registered Harvest Festival and the previously approved Market Day; checklists passed and `/pulse arenas` lists both saved IDs/templates. Settings: classic/infection, configured 2-16, seven spawns, bots disabled, void-y74. Wharf (67,514 states) and Backstage (66,024 states) upper additions/containment are now checked. Player is in Smuggler’s Wharf for review; Crooked Library and Backstage approvals remain pending. No match, restart or deployment performed.
+
+- Aurora approved Smuggler’s Wharf; registered `smugglers_wharf` with Classic/Infection, configured 2-16, seven spawns, bots disabled and void-y74. Checklist passed; live-save message and `/pulse arenas` confirm registration/template loading. Corrected the earlier Market Day/Harvest Festival negative-coordinate spawn and spectator points: old cells intersected walls; new cells have solid floors and clear air. Re-saved both with every setting preserved. Backstage Mayhem is now loaded for review; Crooked Library still needs approval. Gameplay/crossplay tests and restarts remain pending.

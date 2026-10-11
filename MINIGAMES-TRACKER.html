@@ -8,7 +8,7 @@
 </style></head><body><header class="toolbar"><div><span class="brand">PULSE / GAMES</span><small>Development & play testing</small></div><button onclick="window.print()">Print / Save as PDF</button></header><main>
 <div class="hero"><div class="eyebrow">ReadyCraft · Working report</div><h1>Every game.<br>A clear next step.</h1><p>Map building, bot readiness and player testing in one shared record. Prepared changes remain separate from what is running on MinigamesTest.</p><div class="meta"><span>Updated 11 October 2026</span><span>Owner: Aurora</span><span>Snapshot, not a live server feed</span></div></div>
 <div class="summary"><div class="stat"><b>23 games</b><span>Tracked across the programme</span></div><div class="stat"><b>11 / 23</b><span>Prepared bot controllers (4 live)</span></div><div class="stat"><b>5 maps</b><span>Prop Hunt batch awaiting visual review</span></div></div>
-<aside class="notice"><strong>Current priority · Prop Hunt maps</strong><p>Market Day and Harvest Festival are registered. Review Smuggler’s Wharf, Backstage Mayhem and Crooked Library; register each approved map, then complete gameplay tests. Building completion alone does not authorise setup.</p></aside>
+<aside class="notice"><strong>Current priority · Prop Hunt maps</strong><p>Three maps are registered. Review Backstage Mayhem and Crooked Library; register each approved map, then complete gameplay tests. Building completion alone does not authorise setup.</p></aside>
 <p class="print-note">Share this standalone HTML file, or use Print / Save as PDF for the complete report. Printing includes every section. For best results use A4 landscape with background graphics enabled.</p>
 <div class="layout"><nav aria-label="Report sections"><strong>In this report</strong><a href="#working-agreement">Working agreement</a><a href="#current-test-server-baseline">Current test-server baseline</a><a href="#prepared-update-not-deployed">Prepared update — not deployed</a><a href="#active-map-batch-prop-hunt">Active map batch: Prop Hunt</a><a href="#team-size-and-map-capacity-programme">Team-size and map-capacity programme</a><a href="#queue-bots-and-network-helper-merged-and-staged">Queue bots and network helper — merged and staged</a><a href="#per-game-readiness">Per-game readiness</a><a href="#verified-server-arena-names">Verified server arena names</a><a href="#duels-map-and-mode-register">Duels map and mode register</a><a href="#bot-programme">Bot programme</a><a href="#map-setup-and-acceptance-template">Map setup and acceptance template</a><a href="#dated-log">Dated log</a><a href="#11-october-follow-up-staging-and-hazard-bots">11 October follow-up: staging and hazard bots</a><a href="#duels-selector-and-personal-loadouts-prepared-not-live">Duels selector and personal loadouts — prepared, not live</a></nav><article><section id="working-agreement" class="report-section"><div class="section-heading"><span>01</span><h2>Working agreement</h2></div><ul>
 <li>Goal: a broad mix of party, co-op, racing and competitive games, all with proper
@@ -158,14 +158,14 @@ updates/restarts remain with Aurora&#39;s other agent; no restart was made here.
 <td>4 - Smuggler&#39;s Wharf</td>
 <td><code>rc_build_prophunt_smugglers_wharf</code></td>
 <td>109x93; warehouse upper floors, four mezzanines, cabin roof hiding and containment. Builder checks passed (67,514 states).</td>
-<td>Current map for Aurora review</td>
-<td>Not registered; needs approval</td>
+<td>Approved by Aurora</td>
+<td>Saved/live: <code>smugglers_wharf</code>; template <code>smugglers_wharf</code></td>
 </tr>
 <tr>
 <td>5 - Backstage Mayhem</td>
 <td><code>rc_build_prophunt_backstage_mayhem</code></td>
 <td>101x85; ten room mezzanines, repaired catwalk and containment. Builder checks passed (66,024 states).</td>
-<td>Awaiting Aurora review</td>
+<td>Current map for Aurora review</td>
 <td>Not registered; needs approval</td>
 </tr>
 </tbody></table>
@@ -173,7 +173,7 @@ updates/restarts remain with Aurora&#39;s other agent; no restart was made here.
 worlds; the saved arena/template IDs are separately recorded above. Each registered
 map has Classic and Infection, 2-16 configured players, seven spawns (one seeker,
 six hider scatter points), enclosed waiting/spectator platforms, <code>void-y: 74</code> and
-<code>bots-enabled: false</code>. Setup checklists passed and <code>/pulse arenas</code> confirmed both
+<code>bots-enabled: false</code>. Setup checklists passed and <code>/pulse arenas</code> confirmed all three
 saved IDs/templates loaded. Gameplay and crossplay tests remain pending.</p>
 </section>
 <section id="team-size-and-map-capacity-programme" class="report-section"><div class="section-heading"><span>05</span><h2>Team-size and map-capacity programme</h2></div><p>Aurora confirmed: <strong>sizes 1–4 (solo, doubles, triples, squads), with the number of
@@ -272,7 +272,7 @@ needed. Do not bypass team/role requirements and call that a completed test.</p>
 </tr>
 <tr>
 <td>Prop Hunt</td>
-<td><strong>All five upper-area/barrier revisions checked; Market Day and Harvest Festival registered, three reviews pending.</strong> Trial arena exists; startup fix pending deployment</td>
+<td><strong>All five upper-area/barrier revisions checked; Market Day, Harvest Festival and Smuggler’s Wharf registered; two reviews pending.</strong> Trial arena exists; startup fix pending deployment</td>
 <td>None</td>
 <td>Live minimum 3; prepared update lowers to 2</td>
 <td>Deploy validated startup fix; test palette, snapping and head props; fair seeker/hider bots</td>
@@ -730,6 +730,8 @@ See <a href="docs/DUELS.md">Duels setup and acceptance guide</a>. No live restar
 <li><p>Aurora approved Market Day for setup and specified reachable upper hiding areas across all five maps, plus barrier containment to prevent escaping. Market Day now has eight ladder lofts and two mezzanines with complete barrier enclosure (47,794 checked states). Crooked Library already has reachable furnished upper levels; containment and roof preservation checked (49,062 states). Harvest Festival additions require fresh verification in the farm world after the player returned to the lobby during the build. Wharf and Backstage upper-area/containment revisions remain next. No arena registration or restart performed.</p>
 </li>
 <li><p>Prop Hunt setup update: Aurora requested saving the approved map and proceeding to the next. Farm verification was repeated in the correct world (42,945 states), resolving the earlier lobby mismatch. Registered Harvest Festival and the previously approved Market Day; checklists passed and <code>/pulse arenas</code> lists both saved IDs/templates. Settings: classic/infection, configured 2-16, seven spawns, bots disabled, void-y74. Wharf (67,514 states) and Backstage (66,024 states) upper additions/containment are now checked. Player is in Smuggler’s Wharf for review; Crooked Library and Backstage approvals remain pending. No match, restart or deployment performed.</p>
+</li>
+<li><p>Aurora approved Smuggler’s Wharf; registered <code>smugglers_wharf</code> with Classic/Infection, configured 2-16, seven spawns, bots disabled and void-y74. Checklist passed; live-save message and <code>/pulse arenas</code> confirm registration/template loading. Corrected the earlier Market Day/Harvest Festival negative-coordinate spawn and spectator points: old cells intersected walls; new cells have solid floors and clear air. Re-saved both with every setting preserved. Backstage Mayhem is now loaded for review; Crooked Library still needs approval. Gameplay/crossplay tests and restarts remain pending.</p>
 </li>
 </ul>
 </section></article></div>
