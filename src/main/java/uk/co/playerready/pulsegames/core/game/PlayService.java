@@ -19,13 +19,30 @@ public final class PlayService {
     private final Map<UUID, QueueTicket> pending = new HashMap<>();
 
     /** One ticket owns the entire group until admission succeeds or someone cancels. */
-    private record QueueTicket(List<Player> group, GameType type, GameMode mode) {}
+    private record QueueTicket(List<Player> group, GameType type, GameMode mode, GameInstance preferred) {}
 
     public PlayService(PulseGamesPlugin plugin) {
         this.plugin = plugin;
     }
 
     public void join(Player player, GameType type, GameMode mode) {
+        join(player, type, mode, null);
+    }
+
+    public void joinNetworkQueue(Player player, String instanceId) {
+        GameInstance instance = plugin.instances().all().stream().filter(g -> g.id().equals(instanceId)).findFirst().orElse(null);
+        if (instance == null || !instance.joinable(1)) {
+            player.sendMessage(Text.msg("<red>That queue has closed. Use /queues to choose another."));
+            return;
+        }
+        if (plugin.instances().byPlayer(player) == instance) {
+            player.sendMessage(Text.msg("<yellow>You are already in that queue."));
+            return;
+        }
+        join(player, instance.type(), instance.mode(), instance);
+    }
+
+    private void join(Player player, GameType type, GameMode mode, GameInstance preferred) {
         if (!plugin.gameAvailable(type)) {
             player.sendMessage(Text.msg("<red>This game is not enabled yet."));
             return;
@@ -46,7 +63,7 @@ public final class PlayService {
         }
         // A new request supersedes old requests even if no map is available for it.
         group.forEach(this::cancelPending);
-        QueueTicket ticket = new QueueTicket(group, type, mode);
+        QueueTicket ticket = new QueueTicket(group, type, mode, preferred);
         group.forEach(member -> pending.put(member.getUniqueId(), ticket));
         findDestination(ticket, 0);
     }
@@ -74,7 +91,7 @@ public final class PlayService {
 
     private void findDestination(QueueTicket ticket, int requeues) {
         if (!readyGroup(ticket)) return;
-        GameInstance instance = plugin.instances().findOrCreate(ticket.type(), ticket.mode(), ticket.group().size());
+        GameInstance instance = ticket.preferred() != null ? ticket.preferred() : plugin.instances().findOrCreate(ticket.type(), ticket.mode(), ticket.group().size());
         if (instance == null) {
             fail(ticket, "<red>No maps available for " + ticket.type().displayName() + " <gray>("
                     + ticket.mode().displayName() + ")</gray><red> right now.");
@@ -119,6 +136,10 @@ public final class PlayService {
     }
 
     private void retry(QueueTicket ticket, int requeues) {
+        if (ticket.preferred() != null) {
+            fail(ticket, "<red>That queue has started or no longer has room for your party. Use /queues again.");
+            return;
+        }
         if (requeues >= MAX_REQUEUES) {
             fail(ticket, "<red>Couldn't get your group into " + ticket.type().displayName()
                     + " right now - please try again shortly.");

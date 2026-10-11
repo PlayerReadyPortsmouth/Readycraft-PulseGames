@@ -4,13 +4,13 @@
 :root{--ink:#19302e;--muted:#5c706d;--teal:#006c61;--line:#dce5df;--paper:#fff;--bg:#f2f5f0}*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:85px}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 system-ui,-apple-system,'Segoe UI',sans-serif}a{color:var(--teal)}.toolbar{position:sticky;top:0;z-index:2;background:#ffffffed;border-bottom:1px solid var(--line);padding:12px 5%;display:flex;align-items:center;justify-content:space-between;gap:12px;backdrop-filter:blur(10px)}.brand{font-weight:800;letter-spacing:.04em}.toolbar small{color:var(--muted);margin-left:16px}button{border:0;border-radius:8px;background:var(--teal);color:white;padding:11px 18px;font:inherit;font-weight:650;cursor:pointer}button:focus-visible,a:focus-visible{outline:3px solid #da973f;outline-offset:3px}main{max-width:1240px;margin:auto;padding:48px 32px 80px}.hero{background:var(--ink);color:white;padding:42px 46px;border-radius:18px;position:relative;border-top:6px solid #b9dca5}.eyebrow{text-transform:uppercase;font-size:12px;letter-spacing:.18em;font-weight:750;color:#bcdbcc}h1{font-size:clamp(32px,4vw,50px);line-height:1.12;letter-spacing:-.04em;margin:15px 0 18px;max-width:750px}.hero p{color:#dae5dd;max-width:760px;margin-bottom:0}.meta{display:flex;gap:24px;margin-top:28px;font-size:13px;color:#d6e5db}.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:24px 0}.stat{background:white;border:1px solid var(--line);border-radius:12px;padding:22px}.stat b{display:block;font-size:30px;line-height:1.2}.stat span{color:var(--muted);font-size:14px}.notice{border-left:5px solid #b47c23;background:#fff5df;padding:18px 22px;margin:24px 0;border-radius:0 10px 10px 0}.notice p{margin:4px 0}.layout{display:grid;grid-template-columns:215px minmax(0,1fr);gap:32px;margin-top:36px}nav{align-self:start;position:sticky;top:85px;font-size:13px}nav strong{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:12px;color:var(--muted)}nav a{display:block;padding:8px 10px;text-decoration:none;border-left:2px solid var(--line);line-height:1.4}nav a:hover{background:#e3ede5;border-color:var(--teal)}.report-section{background:white;border:1px solid var(--line);border-radius:12px;padding:26px 28px;margin-bottom:24px;overflow-wrap:anywhere}.section-heading{display:flex;align-items:baseline;gap:12px;border-bottom:1px solid var(--line);padding-bottom:15px;margin-bottom:20px}.section-heading span{font-size:12px;color:var(--teal);font-weight:750}h2{font-size:23px;line-height:1.3;letter-spacing:-.02em;margin:0}h3{font-size:18px}p{margin:12px 0}li{margin:7px 0}ul,ol{padding-left:22px}table{width:100%;border-collapse:collapse;font-size:12.5px;line-height:1.55;margin:20px 0;table-layout:fixed}th{text-align:left;background:#eaf2eb;color:#24483e;font-weight:750}td,th{padding:11px 9px;border-bottom:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}tbody tr:nth-child(even){background:#f7f9f5}code{font: .88em ui-monospace,monospace;background:#eef2ed;padding:2px 4px;border-radius:3px;overflow-wrap:anywhere}#per-game-readiness th:first-child{width:13%}#per-game-readiness th:nth-child(2){width:25%}#per-game-readiness th:nth-child(3){width:13%}#per-game-readiness th:nth-child(4){width:17%}footer{font-size:12px;color:var(--muted);margin-top:25px}.print-note{font-size:13px;color:var(--muted)}
 @media(max-width:950px){.layout{display:block}nav{position:static;margin-bottom:24px;display:flex;flex-wrap:wrap;gap:4px}nav strong{width:100%}nav a{border:1px solid var(--line);border-radius:5px}main{padding:24px 16px}.hero{padding:28px}.report-section{padding:20px 16px}.toolbar small{display:none}table{font-size:11px}.summary{gap:8px}.stat{padding:14px}}
 @page{size:A4 landscape;margin:14mm 14mm 17mm}
-@media print{html{scroll-behavior:auto}body{background:white;font-size:10pt;line-height:1.5;print-color-adjust:exact;-webkit-print-color-adjust:exact}.toolbar,nav,.print-note{display:none!important}main{max-width:none;padding:0}.hero{padding:20px 28px;border-radius:0}h1{font-size:30pt}.hero p{max-width:none}.meta{margin-top:14px}.summary{margin:16px 0}.stat{padding:12px}.stat b{font-size:23pt}.notice{margin:16px 0;padding:12px 16px}.layout{display:block;margin:0}.report-section{border:0;border-radius:0;padding:0;margin:0;break-before:page}.section-heading{padding:0 0 10px;margin:0 0 16px}h2{font-size:20pt}h3{break-after:avoid}table{font-size:9pt;line-height:1.45;margin:14px 0}td,th{padding:8px}thead{display:table-header-group}tr{break-inside:avoid}p,li{orphans:3;widows:3}a{color:inherit;text-decoration:none}footer{font-size:8pt}#per-game-readiness table{font-size:8.5pt}code{font-size:.88em}}
+@media print{html{scroll-behavior:auto}body{background:white;font-size:9.5pt;line-height:1.4;print-color-adjust:exact;-webkit-print-color-adjust:exact}.toolbar,nav,.print-note{display:none!important}main{max-width:none;padding:0}.hero{padding:20px 28px;border-radius:0}h1{font-size:30pt}.hero p{max-width:none}.meta{margin-top:14px}.summary{margin:16px 0}.stat{padding:12px}.stat b{font-size:23pt}.notice{margin:16px 0;padding:12px 16px}.layout{display:block;margin:0}.report-section{border:0;border-radius:0;padding:0;margin:0;break-before:page}.section-heading{padding:0 0 8px;margin:0 0 12px}h2{font-size:20pt}h3{break-after:avoid}table{font-size:8.5pt;line-height:1.3;margin:10px 0}td,th{padding:5px}thead{display:table-header-group}tr{break-inside:avoid}p,li{orphans:3;widows:3}a{color:inherit;text-decoration:none}footer{display:none}#active-map-batch-prop-hunt{font-size:9pt;line-height:1.3}#active-map-batch-prop-hunt p{margin:6px 0}#active-map-batch-prop-hunt li{margin:4px 0}#per-game-readiness table{font-size:8.5pt}code{font-size:.88em}}
 </style></head><body><header class="toolbar"><div><span class="brand">PULSE / GAMES</span><small>Development & play testing</small></div><button onclick="window.print()">Print / Save as PDF</button></header><main>
 <div class="hero"><div class="eyebrow">ReadyCraft · Working report</div><h1>Every game.<br>A clear next step.</h1><p>Map building, bot readiness and player testing in one shared record. Prepared changes remain separate from what is running on MinigamesTest.</p><div class="meta"><span>Updated 11 October 2026</span><span>Owner: Aurora</span><span>Snapshot, not a live server feed</span></div></div>
-<div class="summary"><div class="stat"><b>23 games</b><span>Tracked across the programme</span></div><div class="stat"><b>4 / 23</b><span>Games with current bot controllers</span></div><div class="stat"><b>5 maps</b><span>Prop Hunt batch awaiting visual review</span></div></div>
+<div class="summary"><div class="stat"><b>23 games</b><span>Tracked across the programme</span></div><div class="stat"><b>7 / 23</b><span>Prepared bot controllers (4 live)</span></div><div class="stat"><b>5 maps</b><span>Prop Hunt batch awaiting visual review</span></div></div>
 <aside class="notice"><strong>Current priority · Prop Hunt maps</strong><p>Build larger, denser maps, complete earlier-map revisions, then Aurora visually approves all five before arena setup. Building completion alone does not authorise setup.</p></aside>
 <p class="print-note">Share this standalone HTML file, or use Print / Save as PDF for the complete report. Printing includes every section. For best results use A4 landscape with background graphics enabled.</p>
-<div class="layout"><nav aria-label="Report sections"><strong>In this report</strong><a href="#working-agreement">Working agreement</a><a href="#current-test-server-baseline">Current test-server baseline</a><a href="#prepared-update-not-deployed">Prepared update — not deployed</a><a href="#active-map-batch-prop-hunt">Active map batch: Prop Hunt</a><a href="#team-size-and-map-capacity-programme">Team-size and map-capacity programme</a><a href="#per-game-readiness">Per-game readiness</a><a href="#verified-server-arena-names">Verified server arena names</a><a href="#duels-map-and-mode-register">Duels map and mode register</a><a href="#bot-programme">Bot programme</a><a href="#map-setup-and-acceptance-template">Map setup and acceptance template</a><a href="#dated-log">Dated log</a></nav><article><section id="working-agreement" class="report-section"><div class="section-heading"><span>01</span><h2>Working agreement</h2></div><ul>
+<div class="layout"><nav aria-label="Report sections"><strong>In this report</strong><a href="#working-agreement">Working agreement</a><a href="#current-test-server-baseline">Current test-server baseline</a><a href="#prepared-update-not-deployed">Prepared update — not deployed</a><a href="#active-map-batch-prop-hunt">Active map batch: Prop Hunt</a><a href="#team-size-and-map-capacity-programme">Team-size and map-capacity programme</a><a href="#queue-bots-and-network-helper-next-candidate">Queue bots and network helper — next candidate</a><a href="#per-game-readiness">Per-game readiness</a><a href="#verified-server-arena-names">Verified server arena names</a><a href="#duels-map-and-mode-register">Duels map and mode register</a><a href="#bot-programme">Bot programme</a><a href="#map-setup-and-acceptance-template">Map setup and acceptance template</a><a href="#dated-log">Dated log</a></nav><article><section id="working-agreement" class="report-section"><div class="section-heading"><span>01</span><h2>Working agreement</h2></div><ul>
 <li>Goal: a broad mix of party, co-op, racing and competitive games, all with proper
 objective-playing queue bots, followed by map building and two-human-player tests.</li>
 <li>Test on <strong>MinigamesTest</strong>, reached through the existing primary proxy. Never use
@@ -78,9 +78,19 @@ also matter. Other games are not ready simply by setting <code>bots-enabled: tru
 <td>One seeker and one hider completing Classic and Infection</td>
 </tr>
 <tr>
-<td>Bot difficulty and first co-op controller</td>
-<td>Prepared Easy/Normal/Hard settings; Villager Defense wave-enemy combat and Mayor guard behaviour</td>
-<td>Full multi-wave survival, respawns, human/bot balance and crossplay</td>
+<td>Bot difficulty and co-op controllers</td>
+<td>Villager Defense merged in PR4; ReadyPlayerZ fighting, earned-point purchases and revival locally checked in the next candidate</td>
+<td>Full multi-wave survival, human/bot balance and crossplay</td>
+</tr>
+<tr>
+<td>Bot queue target and Block Party</td>
+<td>Next candidate targets half of map/mode capacity, or full capacity for maxima 1–4; Block Party public-colour tile navigation locally checked</td>
+<td>Capacity/load tests, full colour rounds and human/bot acceptance</td>
+</tr>
+<tr>
+<td>PulseNetwork helper</td>
+<td>Paper, Velocity and Create/NeoForge adapters prepared; public chat, local fallback chat games and queue Join actions</td>
+<td>Per-plugin moderation/privacy/ignore checks, Java click and Bedrock form acceptance; not installed</td>
 </tr>
 <tr>
 <td>PvP team sizes and map capacity</td>
@@ -98,8 +108,9 @@ also matter. Other games are not ready simply by setting <code>bots-enabled: tru
 <td>Separate permission and fresh edit-preserving checks before cleanup</td>
 </tr>
 </tbody></table>
-<p>Draft changes currently relate to PulseGames PR4 and PulseContent PR28; neither
-is evidence that these new updates are live. See the dated log for verification.</p>
+<p>PulseGames PR4 was merged at Aurora’s request on 11 October (merge <code>0eda3bd</code>).
+PulseContent PR28 remains a draft. The next bot/helper update is prepared separately;
+none of these merge/build results means the update is deployed.</p>
 </section>
 <section id="active-map-batch-prop-hunt" class="report-section"><div class="section-heading"><span>04</span><h2>Active map batch: Prop Hunt</h2></div><p><strong>Build five maps first. Aurora will visually inspect and approve all five before
 any of them are configured as arenas.</strong> This is an explicit user gate, recorded
@@ -141,8 +152,8 @@ from the server definitions, then perform the two-human-player tests.</li>
 <tr>
 <td>3 - Harvest Festival</td>
 <td><code>rc_build_prophunt_harvest_festival</code></td>
-<td>Initial build checked (12,279 states); larger/denser expansion next</td>
-<td>Revision requested; not accepted</td>
+<td>Expanded to 93x85; four stocked outbuildings, orchard, wheat beds, hay maze and extra stalls. Builder visual/block checks passed (23,854 states).</td>
+<td>Larger/denser revision requested; revised version awaiting Aurora review</td>
 <td>Blocked on all-five review</td>
 </tr>
 <tr>
@@ -182,11 +193,39 @@ Existing saved arena modes and live maps have not been changed.</li>
 <li>Prop Hunt&#39;s seeker/hider roles and Party Games&#39; individual rotating competition
 remain distinct; symmetric team variants for these need a separate rules design.</li>
 <li>Team modes do not imply bot support. Live controllers still cover 4/23 games;
-Villager Defense is the fifth prepared controller, not a live/accepted fifth game.</li>
+Villager Defense is merged; ReadyPlayerZ and Block Party are locally checked candidates.
+This brings prepared controllers to 7/23, while live support remains 4/23.</li>
 <li>See <a href="TEAM-MODES.md">team and capacity instructions</a> for exact settings and examples.</li>
 </ul>
 </section>
-<section id="per-game-readiness" class="report-section"><div class="section-heading"><span>06</span><h2>Per-game readiness</h2></div><p>“Two humans” below describes catalogue requirements before arena limits. Where
+<section id="queue-bots-and-network-helper-next-candidate" class="report-section"><div class="section-heading"><span>06</span><h2>Queue bots and network helper — next candidate</h2></div><ul>
+<li>Requested fill target counts <strong>humans plus bots</strong>: maximum 2 → 2 total, 4 → 4,
+5 → 3, 8 → 4, 16 → 8. Odd halves round up. The playable minimum can raise
+that target. Humans reclaim bot seats before a match starts.</li>
+<li>No human means no bot-only queue. Per-arena permission, feature access and
+server-wide safety caps remain enforced. Prepared defaults allow 31 bots per
+match and 64 total; existing installations retain their configured caps.
+MinigamesTest’s smaller live caps have <strong>not</strong> been raised.</li>
+<li>Citizens skin refresh can replace the Bukkit player entity. The next candidate
+follows the replacement instead of ending the game; its precise pathfinder
+can reach single safe tiles without teleporting.</li>
+<li>PulseNetwork is a separate helper with Paper, Velocity and NeoForge artifacts.
+<code>/g</code> toggles global public chat; <code>/localchat</code> restores local chat. Local chat
+plugins retain their own events and formatting. Optional local maths/scramble
+games defer to existing chat-game providers.</li>
+<li>Waiting queues advertise a Java <strong>Join</strong> action; Bedrock gets a native
+<code>/queues</code> form and <code>/queues chat</code> fallback. Exact-instance joins retain normal
+party/capacity/preview checks; expired links cannot create another match.</li>
+<li>Global chat is a distinct channel: synchronising third-party mute/ignore lists
+and custom private-channel rules needs compatibility acceptance. All helper
+features default off; nothing is installed on the network yet.</li>
+<li>Resource increase proposal remains pending separate restart approval:
+MinigamesTest 2 → 4 CPU quota, 3 → 5 GiB container RAM (4 GiB derived heap).
+No resource change or server restart was performed for this candidate.</li>
+<li>Implementation and acceptance checklist: <a href="network-helper/README.md">PulseNetwork guide</a>.</li>
+</ul>
+</section>
+<section id="per-game-readiness" class="report-section"><div class="section-heading"><span>07</span><h2>Per-game readiness</h2></div><p>“Two humans” below describes catalogue requirements before arena limits. Where
 additional players are required, suitable bots or a deliberate test mode are still
 needed. Do not bypass team/role requirements and call that a completed test.</p>
 <table>
@@ -257,10 +296,10 @@ needed. Do not bypass team/role requirements and call that a completed test.</p>
 </tr>
 <tr>
 <td>Block Party</td>
-<td>No accepted map/test recorded</td>
-<td>None</td>
+<td>No accepted map/player test recorded</td>
+<td>Prepared Classic/Hardcore</td>
 <td>Yes</td>
-<td>Maps; colour-aware movement and elimination tests</td>
+<td>Build maps; full rounds, elimination, difficulty and two-client tests</td>
 </tr>
 <tr>
 <td>Avalanche</td>
@@ -327,17 +366,17 @@ needed. Do not bypass team/role requirements and call that a completed test.</p>
 </tr>
 <tr>
 <td>Villager Defense</td>
-<td>No accepted map/test recorded</td>
-<td>None</td>
+<td>No accepted map/player test recorded</td>
+<td>Merged Easy/Hard</td>
 <td>Yes</td>
-<td>Hostile-mob targeting, Mayor defence and co-op survival bots</td>
+<td>Full multi-wave survival, Mayor defence, co-op and two-client tests</td>
 </tr>
 <tr>
 <td>ReadyPlayerZ</td>
-<td>No accepted map/test recorded</td>
-<td>None</td>
+<td>No accepted map/player test recorded</td>
+<td>Prepared Classic/Frenzy</td>
 <td>Yes</td>
-<td>Zombie targeting/kiting, shopping, revives and wave progression</td>
+<td>Full matches, kiting/balance, power-ups and two-client tests</td>
 </tr>
 <tr>
 <td>Lucky Pillars</td>
@@ -362,7 +401,7 @@ needed. Do not bypass team/role requirements and call that a completed test.</p>
 </tr>
 </tbody></table>
 </section>
-<section id="verified-server-arena-names" class="report-section"><div class="section-heading"><span>07</span><h2>Verified server arena names</h2></div><p>Read directly from MinigamesTest&#39;s saved definitions on 11 October 2026. All nine
+<section id="verified-server-arena-names" class="report-section"><div class="section-heading"><span>08</span><h2>Verified server arena names</h2></div><p>Read directly from MinigamesTest&#39;s saved definitions on 11 October 2026. All nine
 referenced templates contain region files. Names below preserve exact spelling
 and capitalisation; no maps were renamed by this documentation check.</p>
 <table>
@@ -434,7 +473,7 @@ two spawns, a waiting lobby and spectator point, <code>bots-enabled: true</code>
 <code>void-y: 74</code>. This validates the saved setup fields and template presence; further
 kit/mode tuning remains a gameplay task.</p>
 </section>
-<section id="duels-map-and-mode-register" class="report-section"><div class="section-heading"><span>08</span><h2>Duels map and mode register</h2></div><p>Aurora&#39;s report on 11 October: three maps are made and Duels works; kits/loadouts
+<section id="duels-map-and-mode-register" class="report-section"><div class="section-heading"><span>09</span><h2>Duels map and mode register</h2></div><p>Aurora&#39;s report on 11 October: three maps are made and Duels works; kits/loadouts
 need adjustments. The server logged saves for all three arenas. This confirms
 creation, not that every mode has been accepted on every map/client.</p>
 <table>
@@ -474,7 +513,7 @@ offhand/totems and respawn cleanup; needs its own map and bot acceptance.</li>
 <li>Other modes: record the requested rules before implementing or labelling ready.</li>
 </ul>
 </section>
-<section id="bot-programme" class="report-section"><div class="section-heading"><span>09</span><h2>Bot programme</h2></div><ol>
+<section id="bot-programme" class="report-section"><div class="section-heading"><span>10</span><h2>Bot programme</h2></div><ol>
 <li>Harden the existing four: difficulty levels, kit use, positioning, fairness and
 cleanup. Add a controller interface and shared participant lookup.</li>
 <li>Co-op: Villager Defense and ReadyPlayerZ; add KitPvP OITC ranged combat.</li>
@@ -501,7 +540,7 @@ explicit reviewed configuration change, not just a higher bot count.</li>
 and memory limits, hiding choices and lock/unlock behaviour.</li>
 </ul>
 </section>
-<section id="map-setup-and-acceptance-template" class="report-section"><div class="section-heading"><span>10</span><h2>Map setup and acceptance template</h2></div><p>Build in a permanent world, never a disposable <code>pulse_...</code> match clone. Follow
+<section id="map-setup-and-acceptance-template" class="report-section"><div class="section-heading"><span>11</span><h2>Map setup and acceptance template</h2></div><p>Build in a permanent world, never a disposable <code>pulse_...</code> match clone. Follow
 <a href="docs/MAP-SETUP.md">docs/MAP-SETUP.md</a> for the game&#39;s exact points and regions.
 Current commands: <code>/pulse setup start &lt;game&gt; &lt;arenaId&gt;</code>, <code>lobby</code>, <code>spectator</code>,
 <code>addspawn</code>, selection <code>wand</code> and <code>region</code>, settings, <code>check</code>, <code>save</code>.
@@ -520,7 +559,7 @@ The prepared Setup Book will expose these actions in an inventory menu.</p>
 <li>Status and next action:</li>
 </ul>
 </section>
-<section id="dated-log" class="report-section"><div class="section-heading"><span>11</span><h2>Dated log</h2></div><h3>11 October 2026</h3>
+<section id="dated-log" class="report-section"><div class="section-heading"><span>12</span><h2>Dated log</h2></div><h3>11 October 2026</h3>
 <ul>
 <li><p>Aurora reported the Duels bot works well and requested difficulty levels.</p>
 </li>
@@ -583,6 +622,31 @@ remain pending. Preserved the initial-size feedback and all-five review gate.</p
 progress/testing changes. Update the canonical Markdown and regenerate both
 report exports; keep construction checks separate from player acceptance.</p>
 </li>
+<li><p>Harvest Festival expansion completed: enlarged grounds, richer indoor storage, orchard/crops/hay maze and clear shed approaches. Builder images and all 23,854 block states checked; Aurora review, registration and gameplay tests remain pending. All three earlier-map revisions are now complete; Backstage Mayhem remains next.</p>
+</li>
+</ul>
+<h3>11 October — merged baseline, next bots and network helper</h3>
+<ul>
+<li>PulseGames PR4 merged (<code>0eda3bd</code>), after combining current map-agent tracker
+progress and regenerating its PDF. No deployment/restart followed the merge.</li>
+<li>Prepared PulseGames 0.3.4: half-capacity/full-small-lobby bot filling,
+ReadyPlayerZ and Block Party controllers, exact network queue admission,
+Citizens entity-refresh handling and precise navigation.</li>
+<li>Isolated Paper 26.2/Citizens probe: normal-health zombie killed through regular
+attacks; paid healing and iron sword checked; kill points and offline-NPC
+round revival checked. Block Party bot walked four blocks onto a single
+publicly called red tile, with no teleport. These are focused probes, not
+complete games or human crossplay acceptance.</li>
+<li>PulseNetwork 0.1.0 prepared for Paper, Velocity and the confirmed Create
+NeoForge 21.1.248 backend. Authentication/replay, queue expiry/admission,
+cancelled/private chat, fallback coexistence and loopback transport tests
+passed. Installed AdvancedChat/Essentials/ChatGames integration and Java/Bedrock
+end-to-end checks remain outstanding.</li>
+<li>Preserve all-five Prop Hunt visual approval gate and existing map/lobby edits.</li>
+<li>Final candidate checks: 46 targeted PulseGames tests and 17 helper tests passed.
+Paper 26.2 loaded PulseNetwork and both bot probes passed with PulseGames
+0.3.4. A separate localhost-only NeoForge 21.1.248 server loaded the enabled
+adapter and reached ready state, then was shut down. No live server was restarted.</li>
 </ul>
 </section></article></div>
 <footer>PulseGames · Source: MINIGAMES-TRACKER.md · Regenerate this report after updating the source. No server changes are performed by this document.</footer></main></body></html>

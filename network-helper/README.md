@@ -1,0 +1,80 @@
+# PulseNetwork
+
+Prepared network helper, not installed on any live server. Three server-side artifacts:
+
+- `paper/build/libs/PulseNetwork-paper-0.1.0.jar`: Paper backends.
+- `velocity/build/libs/PulseNetwork-velocity-0.1.0.jar`: the primary Velocity proxy.
+- `neoforge/build/libs/PulseNetwork-neoforge-0.1.0.jar`: Create / `aoc`, NeoForge 21.1.248 (Minecraft 1.21.1). No additional client mod.
+
+Build from the PulseGames repository with `./gradlew -p network-helper :common:test :paper:test :velocity:test :paper:jar :velocity:jar :neoforge:jar`.
+Java 21; NeoForge's first build downloads/remaps Minecraft. This is a separate Gradle build so normal PulseGames builds stay small.
+
+## Player experience
+
+- `/g` or `/globalchat` toggles sending ordinary **public** chat globally. `/localchat` switches it off. `/g` is a toggle, not a text-command moderation bypass. The initial default is local; `global-by-default` can change it after Aurora chooses.
+- Local formatting is retained. Remote messages appear as `[Global · survival] Player: message` system messages, with no signed-chat rewriting and no click/format parsing of player text.
+- A waiting queue announces `Minigame queue: Duels / Doubles (2/4) [Join]  Bedrock: /queues`.
+- Java: click **Join**, or run `/queues` to choose a queue.
+- Bedrock: `/queues` opens a native Floodgate form. `/queues chat` explicitly shows plain commands if the form is unavailable. `/joinqueue <id>` works as a fallback.
+- Queue links expire. Starting/closing a match withdraws its listing; the destination rechecks the exact instance, capacity, party leadership and preview access. A stale click never creates an unrelated match.
+- Existing backend parties are admitted together by the existing PulseGames path. This is **not** a new cross-server party synchronisation service; a player on another server transfers individually.
+- Optional maths and word-scramble rounds run locally, with a 30-second answer window and no economy rewards. Paper defers to enabled ChatGames/PulseAddon installations. Create can list any external chat-game mod IDs to suppress the fallback. Default off.
+
+## Compatibility contract
+
+Paper observes the completed `AsyncChatEvent` without cancelling it, replacing its renderer or replaying it elsewhere. Cancelled events, restricted recipient sets, vanished players, denied chat permission and local-mode messages are not relayed. Local chat-game listeners still receive the original event. Remote messages never enter another backend's chat-answer event pipeline.
+
+This is a separate global channel: existing per-server formatting, local channels and local answers remain intact. It does **not** magically synchronise another plugin's `/ignore`, channel membership, mute database or private-message state across servers. Recipient-side global ignores and custom channel/moderation adapters need explicit integration where required. A formatter which cancels normal chat and rebroadcasts privately will cause the helper to skip it, not bypass it. A recipient set alone cannot prove a custom channel's privacy policy (for example, when everyone online belongs to a staff channel). **Do not enable global relay for such a channel until an adapter or an explicitly public-only backend event has been verified.** Never solve compatibility by ignoring cancelled events.
+
+The NeoForge adapter similarly observes the final `ServerChatEvent` after cancellation/moderation and does not replace it. It supports the confirmed Create backend (no chat mods found during the read-only inventory); custom private-channel mods require their own compatibility check. System broadcasts are never treated as player answers.
+
+Verified inventory, 11 October 2026:
+
+| Backend | Existing chat integration | Acceptance still required |
+|---|---|---|
+| Survival | AdvancedChat 1.11.1; ChatGames Premium 1.9.9 | Public channel, private/staff channels, mute, recipient ignore, winning/losing answers |
+| Creative | EssentialsXChat | Formatting, mute, ignore, normal public chat |
+| SurvivalTest | PulseAddon chat games | Read-only inventory only; no testing or installation authorised here |
+| Lobby / SkyBlock / Sessions / Minigames(Test) | Paper helper | Normal chat, local fallback if wanted, permissions |
+| Create (`aoc`) | NeoForge 21.1.248; no chat mods in inventory | Modded-client chat, proxy queue transfer and reconnection |
+
+Compatibility with these installed plugin combinations is **not yet player-accepted**. Keep each backend's relay disabled until its checks pass. SurvivalTest remains excluded from this task's test environment.
+
+## Transport and limits
+
+Paper uses a bounded HMAC-SHA256 authenticated plugin-message channel. Velocity consumes the channel before checking its source, rejects client-origin packets, checks the current backend connection/carrier UUID and applies configured backend/queue-origin allowlists. Packet timestamps and nonces prevent stale/replayed commands. Queue IDs are generated by the proxy, not supplied as arbitrary commands or backend addresses. Payloads are limited to 8 KiB, 12 fields and 1,024 characters per field; chat is capped at 512 characters and one message per second.
+
+Create sends authenticated chat to a proxy HTTP listener bound **only to 127.0.0.1**. This avoids optional-mod payload negotiation and requires no client changes. The proxy also checks the signed backend name against its modded allowlist and the sender's current connection. The listener is off unless `local-ingress-port` is configured, uses bounded workers/body size and accepts chat only. All relevant ready-gamed Minecraft containers currently share host networking; do not expose this port publicly when changing that arrangement.
+
+No payload, player message or shared secret is logged. Generate a fresh random secret of at least 32 characters privately during approved installation; never commit it. Use the same secret across these helpers and restrict configuration file access.
+
+Snapshots refresh every five seconds and expire after twenty seconds. Withdrawals stop advertisements when games start/close. Announcements are limited to once per game/mode/server per minute. Bots do not create advertisements without a human. Preview/WIP games are not advertised publicly. Full rosters may still offer joining when humans can reclaim bot seats. Backend admission remains authoritative.
+
+Join handoff retries for up to fifteen seconds after normal Velocity connection approval. Signed request IDs make retries idempotent on the destination. Server bans/whitelists/proxy connection restrictions still apply. An unavailable destination leaves the player on their current server; a destination which accepts the transfer but refuses the stale queue leaves them safely on that backend's lobby.
+
+## Installation plan (requires separate rollout and restart approval)
+
+1. Back up proxy/backend configs and jars. Choose an unused loopback ingress port if including Create. No live writes were made by this implementation task.
+2. Install Velocity jar and Paper jar on the agreed canary backends; add the NeoForge jar to Create's `mods` only when that server's rollout is authorised.
+3. Start once to generate disabled configuration, or prepare those exact configurations before the approved restart. Set `enabled=true` and the private shared secret. Keep individual Paper `chat.enabled`, `queues.enabled` and `chat-games.enabled` off until testing them.
+4. Proxy: restrict `backends`, `queue-servers` (initially only `minigamestest`) and, for Create, `local-ingress-backends=aoc`, `local-ingress-port=25581` (verify unused first). NeoForge `proxy-port` must match. No public firewall opening is needed.
+5. Paper: queue sharing needs the PulseGames `networkQueues`/`joinNetworkQueue` API from this change. Older versions disable queue publishing with a clear warning; chat remains independently configurable.
+6. Run the matrix below with Java and Bedrock before widening. Roll back jars/configs with another explicitly approved restart if needed.
+
+## Acceptance checklist
+
+- [ ] Two Java users on separate canary backends: public global chat once, local-only chat local, normal formatting unchanged.
+- [ ] Cancelled/muted messages and each private/staff/radius channel never leak globally. Verify recipient ignore policy explicitly.
+- [ ] Existing chat games still recognise local answers; relayed answers cannot win remotely; fallback does not run alongside them.
+- [ ] Queue creation announces once; refresh does not spam; start/leave/server stop expires the link.
+- [ ] Java Join click transfers and joins the exact queue; bot seat reclaimed; party capacity and preview gates retained.
+- [ ] Bedrock `/queues` form, selection, cancellation and `/queues chat` fallback work through Geyser/Floodgate.
+- [ ] Full, stale, stopped, denied and unreachable destinations fail clearly; repeated clicks do not duplicate admission.
+- [ ] Create adapter relays moderated normal chat through loopback; modded client can transfer to a minigame and return.
+- [ ] Restart/disconnect during handoff does not resurrect an old queue request.
+
+Unit tests cover packet authentication/replay/expiry/bounds; queue identity/withdrawal/expiry; proxy client-spoof/carrier/origin checks; actual loopback transport; read-only Paper public/restricted/cancelled chat handling; fallback provider suppression and one-winner rules. PulseGames tests cover exact-instance joins, whole parties, stale/full queues and preview permissions. These do not replace the live plugin/client matrix.
+
+API references: [Paper chat events](https://docs.papermc.io/paper/dev/chat-events/), [Velocity plugin messaging](https://docs.papermc.io/velocity/dev/plugin-messaging/), [Floodgate forms](https://geysermc.org/wiki/geyser/forms/), [NeoForge 1.21.1 documentation](https://docs.neoforged.net/docs/1.21.1/).
+
+Local validation on 11 October 2026: 17 helper tests and 46 targeted PulseGames tests passed. Paper 26.2 loaded the enabled helper alongside the bot runtime probe. A separate NeoForge 21.1.248 development server loaded the enabled adapter and reached ready state. Both local servers were stopped afterwards. No Java/Bedrock end-to-end network acceptance is claimed.

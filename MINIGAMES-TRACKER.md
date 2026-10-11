@@ -50,13 +50,16 @@ After editing this source, regenerate both exports with
 | Dodgeball pacing and feedback | Prepared: 0.75s → 0.35s default throw delay; visible cooldown, hit sounds/messages, elimination title | Player feel and crossplay feedback acceptance |
 | Prop Hunt startup failure | Root cause confirmed; corrected validation accepted all 10 actual BetterModel props; tracker creation passed locally | Actual disguise attachment and full two-client round |
 | Prop Hunt two-player start | Prepared: both modes minimum 2; reject a solo forced start | One seeker and one hider completing Classic and Infection |
-| Bot difficulty and first co-op controller | Prepared Easy/Normal/Hard settings; Villager Defense wave-enemy combat and Mayor guard behaviour | Full multi-wave survival, respawns, human/bot balance and crossplay |
+| Bot difficulty and co-op controllers | Villager Defense merged in PR4; ReadyPlayerZ fighting, earned-point purchases and revival locally checked in the next candidate | Full multi-wave survival, human/bot balance and crossplay |
+| Bot queue target and Block Party | Next candidate targets half of map/mode capacity, or full capacity for maxima 1–4; Block Party public-colour tile navigation locally checked | Capacity/load tests, full colour rounds and human/bot acceptance |
+| PulseNetwork helper | Paper, Velocity and Create/NeoForge adapters prepared; public chat, local fallback chat games and queue Join actions | Per-plugin moderation/privacy/ignore checks, Java click and Bedrock form acceptance; not installed |
 | PvP team sizes and map capacity | Prepared solo/doubles/triples/squads for main combat games, 2v2 Duels rounds and per-mode map limits | Test each mode on suitable maps; do not enable team modes on undersized maps |
 | CoBuilder command-announcement disconnect | Client mod 0.4.1 prepared separately | Install/relaunch client at a convenient time and retest announcements |
 | Distant lobby Trial Chamber | Diagnosed; bounded cleanup tooling prepared | Separate permission and fresh edit-preserving checks before cleanup |
 
-Draft changes currently relate to PulseGames PR4 and PulseContent PR28; neither
-is evidence that these new updates are live. See the dated log for verification.
+PulseGames PR4 was merged at Aurora’s request on 11 October (merge `0eda3bd`).
+PulseContent PR28 remains a draft. The next bot/helper update is prepared separately;
+none of these merge/build results means the update is deployed.
 
 ## Active map batch: Prop Hunt
 
@@ -77,7 +80,7 @@ any of them are configured as arenas.** This is an explicit user gate, recorded
 |---|---|---|---|---|
 | 1 - Market Day | `rc_build_prophunt_market_day` | Expanded to 93x93; eight shops, two stock houses, eight stalls and yards. Builder visual/block checks passed (28,457 states). | Larger/denser revision requested; revised version awaiting Aurora review | Blocked on all-five review |
 | 2 - Crooked Library | `rc_build_prophunt_crooked_library` | Expanded to 113x47 across three levels; twelve new furnished wing rooms. Builder visual/block checks passed (33,527 states). | Larger/denser revision requested; revised version awaiting Aurora review | Blocked on all-five review |
-| 3 - Harvest Festival | `rc_build_prophunt_harvest_festival` | Initial build checked (12,279 states); larger/denser expansion next | Revision requested; not accepted | Blocked on all-five review |
+| 3 - Harvest Festival | `rc_build_prophunt_harvest_festival` | Expanded to 93x85; four stocked outbuildings, orchard, wheat beds, hay maze and extra stalls. Builder visual/block checks passed (23,854 states). | Larger/denser revision requested; revised version awaiting Aurora review | Blocked on all-five review |
 | 4 - Smuggler's Wharf | `rc_build_prophunt_smugglers_wharf` | Built at 109x93; six furnished buildings, warehouse floors, ship/cabin and cargo yards. Builder visual/block checks passed (42,634 states). | Built to revised brief; awaiting Aurora review | Blocked on all-five review |
 | 5 - Backstage Mayhem | Not created yet; planned `rc_build_prophunt_backstage_mayhem` | Planned after earlier-map revisions | Pending | Blocked on all-five review |
 
@@ -106,8 +109,36 @@ are currently queued.
 - Prop Hunt's seeker/hider roles and Party Games' individual rotating competition
   remain distinct; symmetric team variants for these need a separate rules design.
 - Team modes do not imply bot support. Live controllers still cover 4/23 games;
-  Villager Defense is the fifth prepared controller, not a live/accepted fifth game.
+  Villager Defense is merged; ReadyPlayerZ and Block Party are locally checked candidates.
+  This brings prepared controllers to 7/23, while live support remains 4/23.
 - See [team and capacity instructions](TEAM-MODES.md) for exact settings and examples.
+
+## Queue bots and network helper — next candidate
+
+- Requested fill target counts **humans plus bots**: maximum 2 → 2 total, 4 → 4,
+  5 → 3, 8 → 4, 16 → 8. Odd halves round up. The playable minimum can raise
+  that target. Humans reclaim bot seats before a match starts.
+- No human means no bot-only queue. Per-arena permission, feature access and
+  server-wide safety caps remain enforced. Prepared defaults allow 31 bots per
+  match and 64 total; existing installations retain their configured caps.
+  MinigamesTest’s smaller live caps have **not** been raised.
+- Citizens skin refresh can replace the Bukkit player entity. The next candidate
+  follows the replacement instead of ending the game; its precise pathfinder
+  can reach single safe tiles without teleporting.
+- PulseNetwork is a separate helper with Paper, Velocity and NeoForge artifacts.
+  `/g` toggles global public chat; `/localchat` restores local chat. Local chat
+  plugins retain their own events and formatting. Optional local maths/scramble
+  games defer to existing chat-game providers.
+- Waiting queues advertise a Java **Join** action; Bedrock gets a native
+  `/queues` form and `/queues chat` fallback. Exact-instance joins retain normal
+  party/capacity/preview checks; expired links cannot create another match.
+- Global chat is a distinct channel: synchronising third-party mute/ignore lists
+  and custom private-channel rules needs compatibility acceptance. All helper
+  features default off; nothing is installed on the network yet.
+- Resource increase proposal remains pending separate restart approval:
+  MinigamesTest 2 → 4 CPU quota, 3 → 5 GiB container RAM (4 GiB derived heap).
+  No resource change or server restart was performed for this candidate.
+- Implementation and acceptance checklist: [PulseNetwork guide](network-helper/README.md).
 
 ## Per-game readiness
 
@@ -125,7 +156,7 @@ needed. Do not bypass team/role requirements and call that a completed test.
 | Prop Hunt | **Five-map build batch in progress; Aurora must visually approve all five before setup.** Trial arena exists; startup fix pending deployment | None | Live minimum 3; prepared update lowers to 2 | Deploy validated startup fix; test palette, snapping and head props; fair seeker/hider bots |
 | Spleef | No accepted map/test recorded | None | Yes | Maps; safe-floor navigation and digging; Splegg projectiles |
 | TNT Run | No accepted map/test recorded | None | Yes | Maps; disappearing-floor routing and double jumps |
-| Block Party | No accepted map/test recorded | None | Yes | Maps; colour-aware movement and elimination tests |
+| Block Party | No accepted map/player test recorded | Prepared Classic/Hardcore | Yes | Build maps; full rounds, elimination, difficulty and two-client tests |
 | Avalanche | No accepted map/test recorded | None | Yes | Maps; falling-block prediction and evasion |
 | Volcano | No accepted map/test recorded | None | Yes | Maps; climbing routes and lava/eruption avoidance |
 | Parkour | No accepted map/test recorded | None | Sprint yes; elimination needs 3 | Builder-authored routes, real jumps and checkpoints |
@@ -135,8 +166,8 @@ needed. Do not bypass team/role requirements and call that a completed test.
 | Bedwars | No accepted map/test recorded | None | Duos needs 4; quads needs 8 | Resources, shops, bed defence/destruction, bridging and respawns |
 | Build Battle | No accepted map/test recorded | None | Yes | Theme-aware building in plots, phases and fair voting bots |
 | Death Run | No accepted map/test recorded | None | Classic needs 3; double trouble 4 | Runner routes, Death roles and trap timing |
-| Villager Defense | No accepted map/test recorded | None | Yes | Hostile-mob targeting, Mayor defence and co-op survival bots |
-| ReadyPlayerZ | No accepted map/test recorded | None | Yes | Zombie targeting/kiting, shopping, revives and wave progression |
+| Villager Defense | No accepted map/player test recorded | Merged Easy/Hard | Yes | Full multi-wave survival, Mayor defence, co-op and two-client tests |
+| ReadyPlayerZ | No accepted map/player test recorded | Prepared Classic/Frenzy | Yes | Full matches, kiting/balance, power-ups and two-client tests |
 | Lucky Pillars | No accepted map/test recorded | None | Yes | Item decisions, bridging and safe combat |
 | Supermarket Sweep | No accepted map/test recorded | None | Yes | Shopping-list decisions, real chest/inventory actions and checkout |
 | Party Games | No accepted map/test recorded | None | Yes | Controller switching between colour matching, sumo and sprint |
@@ -285,3 +316,28 @@ For each new map or mode, append:
 - Aurora requested that this shared tracker be kept current and pushed as map
   progress/testing changes. Update the canonical Markdown and regenerate both
   report exports; keep construction checks separate from player acceptance.
+
+- Harvest Festival expansion completed: enlarged grounds, richer indoor storage, orchard/crops/hay maze and clear shed approaches. Builder images and all 23,854 block states checked; Aurora review, registration and gameplay tests remain pending. All three earlier-map revisions are now complete; Backstage Mayhem remains next.
+
+### 11 October — merged baseline, next bots and network helper
+
+- PulseGames PR4 merged (`0eda3bd`), after combining current map-agent tracker
+  progress and regenerating its PDF. No deployment/restart followed the merge.
+- Prepared PulseGames 0.3.4: half-capacity/full-small-lobby bot filling,
+  ReadyPlayerZ and Block Party controllers, exact network queue admission,
+  Citizens entity-refresh handling and precise navigation.
+- Isolated Paper 26.2/Citizens probe: normal-health zombie killed through regular
+  attacks; paid healing and iron sword checked; kill points and offline-NPC
+  round revival checked. Block Party bot walked four blocks onto a single
+  publicly called red tile, with no teleport. These are focused probes, not
+  complete games or human crossplay acceptance.
+- PulseNetwork 0.1.0 prepared for Paper, Velocity and the confirmed Create
+  NeoForge 21.1.248 backend. Authentication/replay, queue expiry/admission,
+  cancelled/private chat, fallback coexistence and loopback transport tests
+  passed. Installed AdvancedChat/Essentials/ChatGames integration and Java/Bedrock
+  end-to-end checks remain outstanding.
+- Preserve all-five Prop Hunt visual approval gate and existing map/lobby edits.
+- Final candidate checks: 46 targeted PulseGames tests and 17 helper tests passed.
+  Paper 26.2 loaded PulseNetwork and both bot probes passed with PulseGames
+  0.3.4. A separate localhost-only NeoForge 21.1.248 server loaded the enabled
+  adapter and reached ready state, then was shut down. No live server was restarted.
