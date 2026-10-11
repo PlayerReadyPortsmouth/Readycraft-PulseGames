@@ -15,11 +15,13 @@ import java.util.concurrent.ThreadLocalRandom;
 public final class BotService implements AutoCloseable {
     private static final Set<String> SUPPORTED = Set.of("duels:classic", "duels:op", "duels:sumo",
             "koth:solo", "koth:teams", "kitpvp:ffa", "dodgeball:solo", "dodgeball:teams",
-            "villagerdefense:easy", "villagerdefense:hard");
+            "villagerdefense:easy", "villagerdefense:hard",
+            "readyplayerz:classic", "readyplayerz:frenzy", "blockparty:classic", "blockparty:hardcore");
     private static final class Slot {
         final GameInstance game;
         final BotActor actor;
         Location lastPosition, destination;
+        Player entity;
         long nextAttack, nextPath;
         Slot(GameInstance game, BotActor actor) { this.game = game; this.actor = actor; }
     }
@@ -102,9 +104,8 @@ public final class BotService implements AutoCloseable {
         if (elapsed < Math.max(1, plugin.getConfig().getInt("bots.wait-seconds", 30))) return;
         int current = count(game);
         int desired = QueueFillPolicy.desiredBots(game.humanCount(), game.minPlayers(), game.maxPlayers(),
-                plugin.getConfig().getInt("bots.target-players", 4),
-                Math.max(0, Math.min(16, plugin.getConfig().getInt("bots.max-per-match", 7))),
-                Math.max(0, Math.min(64, plugin.getConfig().getInt("bots.max-total", 24))) - slots.size() + current);
+                Math.max(0, Math.min(63, plugin.getConfig().getInt("bots.max-per-match", 31))),
+                Math.max(0, Math.min(64, plugin.getConfig().getInt("bots.max-total", 64))) - slots.size() + current);
         while (count(game) > desired) removeOne(game);
         for (int i = count(game); i < desired; i++) {
             try {
@@ -177,6 +178,12 @@ public final class BotService implements AutoCloseable {
     private void control(Slot slot) {
         GameInstance game = slot.game;
         Player bot = slot.actor.player();
+        if (slot.entity != bot) {
+            slot.entity = bot;
+            slot.destination = null;
+            slot.lastPosition = null;
+            slot.nextPath = 0;
+        }
         if (!slot.actor.valid()) {
             game.forceEnd();
             game.remove(bot, false);
@@ -206,7 +213,12 @@ public final class BotService implements AutoCloseable {
         if (game.state() != GameState.RUNNING || !game.isActive(bot)) return;
         BotDifficulty difficulty = BotDifficulty.parse(game.arena().settings().getString("bot-difficulty",
                 plugin.getConfig().getString("bots.difficulty", "normal")));
+        if (game.logic() instanceof BotMovement movement) {
+            navigate(slot, here, movement.botDestination(bot), difficulty);
+            return;
+        }
         BotObjectives objectives = game.logic() instanceof BotObjectives coop ? coop : null;
+        if (objectives != null) objectives.botTick(bot);
         LivingEntity enemy = objectives != null
                 ? objectives.botEnemies().stream()
                     .filter(e -> e.isValid() && !e.isDead() && e.getWorld().equals(here.getWorld()))
@@ -248,10 +260,19 @@ public final class BotService implements AutoCloseable {
         if (goal == null && enemy == null) {
             goal = objectives != null ? objectives.botGuardPoint() : game.arena().spawn((int) ((tick / 100 + bot.getEntityId()) % Math.max(1, game.arena().spawnCount())), game.world());
         }
-        if (goal == null || here.distanceSquared(goal) < 1) {
+        navigate(slot, here, goal, difficulty);
+    }
+
+    private void navigate(Slot slot, Location here, Location goal, BotDifficulty difficulty) {
+        if (goal != null && !here.getWorld().equals(goal.getWorld())) {
             slot.actor.stopNavigation();
             slot.destination = null;
-        } else if (tick >= slot.nextPath && (slot.destination == null || slot.destination.distanceSquared(goal) > 2 || tick % 100 == 0)) {
+            return;
+        }
+        if (goal == null || here.distanceSquared(goal) < (slot.game.logic() instanceof BotMovement ? 0.04 : 1)) {
+            slot.actor.stopNavigation();
+            slot.destination = null;
+        } else if (tick >= slot.nextPath && (slot.destination == null || slot.destination.distanceSquared(goal) > (slot.game.logic() instanceof BotMovement ? 0.01 : 2) || tick % 100 == 0)) {
             slot.actor.navigate(goal);
             slot.destination = goal.clone();
             slot.nextPath = tick + difficulty.pathTicks;

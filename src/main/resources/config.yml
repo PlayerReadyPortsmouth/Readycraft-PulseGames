@@ -57,9 +57,10 @@ bots:
   # easy, normal or hard; arena settings.bot-difficulty overrides this.
   difficulty: normal
   wait-seconds: 30
-  target-players: 4
-  max-per-match: 7
-  max-total: 24
+  # Target total roster: full for capacities <=4, otherwise ceil(max/2), at least mode minimum.
+  # Humans count towards that target; hard bot caps below remain in force.
+  max-per-match: 31
+  max-total: 64
 
 # Trial access for preview games, queue bots and modeled Prop Hunt. UUIDs only.
 # Owner Aurora / ReadyCraft; review 2026-10-25. Empty list grants nobody access.

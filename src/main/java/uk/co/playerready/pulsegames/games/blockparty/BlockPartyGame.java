@@ -17,7 +17,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * Block Party: the floor turns to colors, stand on the called color before the rest vanishes.
  * Modes: classic, hardcore (faster, more colors).
  */
-public final class BlockPartyGame extends MiniGame {
+public final class BlockPartyGame extends MiniGame implements uk.co.playerready.pulsegames.core.bot.BotMovement {
 
     private static final Material[] COLORS = {
             Material.RED_WOOL, Material.BLUE_WOOL, Material.LIME_WOOL, Material.YELLOW_WOOL,
@@ -119,6 +119,28 @@ public final class BlockPartyGame extends MiniGame {
         }
         game.alivePlayers().forEach(p ->
                 p.playSound(p.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, 0.4f, 1.8f));
+    }
+
+    @Override
+    public org.bukkit.Location botDestination(Player bot) {
+        if (floor == null || target == null || phase == Phase.SHUFFLE) return null;
+        var here = bot.getLocation();
+        org.bukkit.Location best = null;
+        double distance = Double.MAX_VALUE;
+        int y = floor.maxY();
+        // The called colour is public, including when Hardcore hides the inventory hint.
+        // Keep scanning bounded independently of the builder's total floor dimensions.
+        for (int x = Math.max(floor.minX(), here.getBlockX() - 12); x <= Math.min(floor.maxX(), here.getBlockX() + 12); x++) {
+            for (int z = Math.max(floor.minZ(), here.getBlockZ() - 12); z <= Math.min(floor.maxZ(), here.getBlockZ() + 12); z++) {
+                if (game.world().getBlockAt(x, y, z).getType() != target
+                        || !game.world().getBlockAt(x, y + 1, z).isPassable()
+                        || !game.world().getBlockAt(x, y + 2, z).isPassable()) continue;
+                var point = new org.bukkit.Location(game.world(), x + 0.5, y + 1, z + 0.5);
+                double candidate = here.distanceSquared(point);
+                if (candidate < distance) { best = point; distance = candidate; }
+            }
+        }
+        return best;
     }
 
     @Override

@@ -67,7 +67,14 @@ public final class CitizensBotProvider implements BotProvider {
             Object entity = call(api.entity, npc);
             if (!(entity instanceof Player player))
                 throw new IllegalStateException("Citizens did not spawn a player NPC");
-            Actor actor = new Actor(npc, call(api.navigator, npc), player);
+            Object navigator = call(api.navigator, npc);
+            Object parameters = call(api.parameters, navigator);
+            // One-block safe tiles need an actual arrival, not Citizens' broad default margin.
+            call(api.distanceMargin, parameters, 0.15);
+            call(api.pathDistanceMargin, parameters, 0.0);
+            call(api.useNewPathfinder, parameters, true);
+            call(api.teleportMargin, parameters, -1.0);
+            Actor actor = new Actor(npc, navigator, player);
             return actor;
         } catch (RuntimeException | LinkageError failure) {
             try { remove(npc); }
@@ -106,7 +113,7 @@ public final class CitizensBotProvider implements BotProvider {
     private final class Actor implements BotActor {
         private final Object npc;
         private final Object navigator;
-        private final Player player;
+        private Player player;
         private boolean destroyed;
 
         private Actor(Object npc, Object navigator, Player player) {
@@ -114,9 +121,15 @@ public final class CitizensBotProvider implements BotProvider {
             this.navigator = navigator;
             this.player = player;
         }
-        @Override public Player player() { return player; }
+        @Override public Player player() {
+            // Citizens can replace the Bukkit entity after an asynchronous skin respawn.
+            // The contestant UUID survives; retaining the removed entity falsely ends the match.
+            Object current = call(api.entity, npc);
+            if (current instanceof Player replacement) player = replacement;
+            return player;
+        }
         @Override public boolean valid() {
-            return !destroyed && owned.contains(npc) && player.isValid() && !player.isDead();
+            return !destroyed && owned.contains(npc) && player().isValid() && !player().isDead();
         }
         @Override public void navigate(Location destination) {
             if (valid()) call(api.target, navigator, destination.clone());
@@ -145,7 +158,7 @@ public final class CitizensBotProvider implements BotProvider {
     }
 
     private static final class Api {
-        final Method create, data, set, spawn, entity, navigator, destroy, target, cancel, face;
+        final Method create, data, set, spawn, entity, navigator, destroy, target, cancel, face, parameters, distanceMargin, pathDistanceMargin, teleportMargin, useNewPathfinder;
         final java.util.Map<String, Object> metadataKeys = new java.util.HashMap<>();
         Api(ClassLoader loader) throws ReflectiveOperationException {
             Class<?> npc = loader.loadClass("net.citizensnpcs.api.npc.NPC");
@@ -167,6 +180,12 @@ public final class CitizensBotProvider implements BotProvider {
             navigator = npc.getMethod("getNavigator");
             destroy = npc.getMethod("destroy");
             face = npc.getMethod("faceLocation", Location.class);
+            parameters = nav.getMethod("getDefaultParameters");
+            Class<?> params = loader.loadClass("net.citizensnpcs.api.ai.NavigatorParameters");
+            useNewPathfinder = params.getMethod("useNewPathfinder", boolean.class);
+            distanceMargin = params.getMethod("distanceMargin", double.class);
+            pathDistanceMargin = params.getMethod("pathDistanceMargin", double.class);
+            teleportMargin = params.getMethod("destinationTeleportMargin", double.class);
             target = nav.getMethod("setTarget", Location.class);
             cancel = nav.getMethod("cancelNavigation");
         }
