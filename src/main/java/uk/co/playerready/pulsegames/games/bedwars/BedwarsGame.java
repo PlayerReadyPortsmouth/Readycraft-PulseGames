@@ -353,7 +353,7 @@ public final class BedwarsGame extends MiniGame {
         // Apply to every online teammate immediately (without resetting their gear).
         if (team != null) {
             for (java.util.UUID member : team.members()) {
-                Player teammate = Bukkit.getPlayer(member);
+                Player teammate = game.player(member);
                 if (teammate != null && game.isAlive(teammate)) applyUpgrades(teammate, teamIndex);
             }
         }
@@ -373,7 +373,7 @@ public final class BedwarsGame extends MiniGame {
     public List<String> sidebar(Player player) {
         List<String> lines = new ArrayList<>();
         for (GameTeam team : game.teams()) {
-            boolean alive = team.members().stream().map(Bukkit::getPlayer)
+            boolean alive = team.members().stream().map(game::player)
                     .anyMatch(p -> p != null && game.isAlive(p));
             String bed = bedAlive.getOrDefault(team.index(), false) ? "<green>✔" : (alive ? "<red>✘" : "<dark_gray>✖");
             lines.add(team.coloredName() + "<gray>: " + bed);

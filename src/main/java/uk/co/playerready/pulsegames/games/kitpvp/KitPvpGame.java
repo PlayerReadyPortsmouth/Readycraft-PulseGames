@@ -22,7 +22,7 @@ public final class KitPvpGame extends MiniGame {
         super(game);
     }
 
-    private boolean isOitc() { return game.mode().id().equals("oitc"); }
+    private boolean isOitc() { return game.mode().rulesId().equals("oitc"); }
 
     private int targetKills() {
         return game.arena().settings().getInt("target-kills", isOitc() ? 20 : 15);
@@ -72,8 +72,8 @@ public final class KitPvpGame extends MiniGame {
             if (isOitc()) {
                 killer.getInventory().addItem(new ItemStack(Material.ARROW, 1));
             }
-            if (game.score(killer) >= targetKills()) {
-                game.end(List.of(killer), "kills");
+            if (sideScore(killer) >= targetKills()) {
+                game.end(sideMembers(killer), "kills");
                 return;
             }
         } else {
@@ -84,19 +84,24 @@ public final class KitPvpGame extends MiniGame {
 
     @Override
     public void onTimeUp() {
-        var top = game.topScores();
-        if (top.isEmpty()) {
-            game.end(List.of(), "time");
-            return;
-        }
-        Player best = game.player(top.get(0).getKey());
-        game.end(best == null ? List.of() : List.of(best), "time");
+        int best = game.players().stream().mapToInt(this::sideScore).max().orElse(0);
+        List<Player> leaders = game.players().stream().filter(p -> sideScore(p) == best).toList();
+        boolean oneSide = game.mode().isTeams() ? leaders.stream().map(game::teamOf).distinct().count() == 1 : leaders.size() == 1;
+        game.end(best > 0 && oneSide ? leaders : List.of(), "time");
     }
+
+    private List<Player> sideMembers(Player player) {
+        var team = game.teamOf(player);
+        return team == null ? List.of(player) : game.players().stream().filter(team::contains).toList();
+    }
+
+    private int sideScore(Player player) { return sideMembers(player).stream().mapToInt(game::score).sum(); }
 
     @Override
     public List<String> sidebar(Player player) {
         List<String> lines = new ArrayList<>();
         lines.add("<gray>Your kills: <white>" + game.score(player));
+        if (game.mode().isTeams()) lines.add("<gray>Team kills: <white>" + sideScore(player));
         lines.add("<gray>Target: <yellow>" + targetKills());
         game.topScores().stream().limit(3).forEach(e -> {
             Player p = game.player(e.getKey());

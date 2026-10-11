@@ -107,20 +107,20 @@ public final class GameInstance {
      * than the mode allows must not admit players it has nowhere to put.
      */
     public int maxPlayers() {
-        int cap = Math.min(arena.maxPlayers(), mode.maxPlayers());
+        int cap = Math.min(arena.maxPlayers(mode.id()), mode.maxPlayers());
         cap = Math.min(cap, logic.arenaPlayerCap());
         if (mode.isTeams()) cap = Math.min(cap, teamCount() * mode.teamSize());
-        return Math.max(cap, mode.isTeams() ? 2 : 1);
+        return Math.max(0, cap);
     }
 
-    public int minPlayers() { return Math.max(arena.minPlayers(), mode.minPlayers()); }
+    public int minPlayers() { return Math.max(arena.minPlayers(mode.id()), mode.minPlayers()); }
 
     /**
-     * Teams this arena can host: never below 2 (a single team can't fight itself) and
-     * never more than the map has spawns, or game-specific per-team features, for.
+     * Available team groups, capped by configured slots, spawns and game features.
+     * Fewer than two groups is invalid and rejected before a team match starts.
      */
     public int teamCount() {
-        return Math.max(2, Math.min(arena.spawnCount(), logic.maxTeams()));
+        return Math.max(0, Math.min(32, Math.min(arena.teamCount(mode.id()), Math.min(arena.spawnCount(), logic.maxTeams()))));
     }
 
     public boolean joinable(int count) {
@@ -202,6 +202,7 @@ public final class GameInstance {
         broadcast("<yellow>" + player.getName() + "</yellow> joined <gray>(" + participants.size() + "/" + maxPlayers() + ")");
         player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1f, 1.2f);
         logic.onJoin(player);
+        if (plugin.combat() != null) plugin.combat().refresh(player);
         return true;
     }
 
@@ -222,6 +223,7 @@ public final class GameInstance {
         participants.remove(player.getUniqueId());
         spectators.remove(player.getUniqueId());
         teams.forEach(t -> t.members().remove(player.getUniqueId()));
+        if (plugin.combat() != null) plugin.combat().leave(player);
         plugin.instances().unindex(player);
         logic.onQuit(player);
         if (!bot) {
@@ -355,6 +357,17 @@ public final class GameInstance {
         // wins and tokens, and a LOADING one has no world to teleport into.
         if (state != GameState.WAITING && state != GameState.COUNTDOWN) return;
         if (humanCount() == 0) { cleanup(); return; }
+        if (mode.isTeams() && teamCount() < 2) {
+            state = GameState.WAITING;
+            broadcast("<red>This map needs at least two complete team spawn/base groups.");
+            return;
+        }
+        if (players().size() > maxPlayers() || minPlayers() > maxPlayers()
+                || (mode.isTeams() && players().size() < mode.minPlayers())) {
+            state = GameState.WAITING;
+            broadcast("<red>This map's player limits do not fit the selected mode.");
+            return;
+        }
         String problem = logic.startProblem(players());
         if (problem != null) {
             state = GameState.WAITING;
@@ -446,6 +459,7 @@ public final class GameInstance {
     public void eliminate(Player player) {
         if (!alive.remove(player.getUniqueId())) return;
         spectators.add(player.getUniqueId());
+        if (plugin.combat() != null) plugin.combat().leave(player);
         Location deathSpot = player.getLocation();
         world.spawnParticle(org.bukkit.Particle.CLOUD, deathSpot.add(0, 1, 0), 30, 0.3, 0.5, 0.3, 0.05);
         world.spawnParticle(org.bukkit.Particle.FLAME, deathSpot, 15, 0.2, 0.3, 0.2, 0.02);
@@ -560,6 +574,7 @@ public final class GameInstance {
         tasks.forEach(t -> { if (!t.isCancelled()) t.cancel(); });
         tasks.clear();
         for (Player p : everyone()) {
+            if (plugin.combat() != null) plugin.combat().leave(p);
             plugin.instances().unindex(p);
             if (!isBot(p)) {
                 plugin.playerState().restore(p);

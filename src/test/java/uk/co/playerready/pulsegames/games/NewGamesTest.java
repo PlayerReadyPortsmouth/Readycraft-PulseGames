@@ -17,14 +17,14 @@ import static org.mockito.Mockito.*;
 
 class NewGamesTest {
     @Test void unfinishedNewGamesNeverAwardTimeoutWins() {
-        GameInstance game = mock(GameInstance.class);
+        GameInstance game = mock(GameInstance.class, RETURNS_DEEP_STUBS);
         new DropperGame(game).onTimeUp();
         verify(game).end(List.of(), "time-unfinished");
         new DodgeballGame(game).onTimeUp();
         verify(game).end(List.of(), "time-draw");
     }
     @Test void onlyTrackedThrowsCanEliminateAndCooldownBoundsThrows() {
-        GameInstance game = mock(GameInstance.class);
+        GameInstance game = mock(GameInstance.class, RETURNS_DEEP_STUBS);
         World world = mock(World.class);
         Player shooter = mock(Player.class), victim = mock(Player.class);
         when(shooter.getUniqueId()).thenReturn(UUID.randomUUID());
@@ -36,6 +36,9 @@ class NewGamesTest {
         when(game.isActive(shooter)).thenReturn(true);
         when(game.isActive(victim)).thenReturn(true);
         when(shooter.getEyeLocation()).thenReturn(new Location(world,0,80,0));
+        when(shooter.getLocation()).thenReturn(new Location(world,0,80,0));
+        when(victim.getLocation()).thenReturn(new Location(world,1,80,0));
+        when(game.teamOf(shooter)).thenReturn(null);
         Snowball ball = mock(Snowball.class);
         when(ball.getUniqueId()).thenReturn(UUID.randomUUID());
         when(ball.getShooter()).thenReturn(shooter);
@@ -55,7 +58,7 @@ class NewGamesTest {
         verify(shooter, times(1)).launchProjectile(eq(Snowball.class), any());
     }
     @Test void frozenOrEliminatedPlayersCannotThrow() {
-        GameInstance game = mock(GameInstance.class);
+        GameInstance game = mock(GameInstance.class, RETURNS_DEEP_STUBS);
         Player player = mock(Player.class);
         when(game.state()).thenReturn(GameState.RUNNING);
         DodgeballGame logic = new DodgeballGame(game);
@@ -134,7 +137,7 @@ class NewGamesTest {
         verify(game, never()).end(anyList(), anyString());
     }
     private static final class DodgeFixture {
-        final GameInstance game = mock(GameInstance.class);
+        final GameInstance game = mock(GameInstance.class, RETURNS_DEEP_STUBS);
         final World world = mock(World.class);
         final Player victim = mock(Player.class);
         final DodgeballGame logic = new DodgeballGame(game);
@@ -152,6 +155,8 @@ class NewGamesTest {
             when(game.teamOf(shooter)).thenReturn(team);
             when(shooter.getWorld()).thenReturn(world);
             when(shooter.getEyeLocation()).thenReturn(new Location(world,0,80,0));
+        when(shooter.getLocation()).thenReturn(new Location(world,0,80,0));
+        when(victim.getLocation()).thenReturn(new Location(world,1,80,0));
             Snowball ball = mock(Snowball.class);
             when(ball.getUniqueId()).thenReturn(UUID.randomUUID());
             when(ball.getShooter()).thenReturn(shooter);

@@ -8,7 +8,7 @@ The plugin captures the world as a template and the arena goes live immediately.
 
 1. **Get into your map world.**
    - Import: drop the world folder into the server root, then `/pulse world <foldername>`.
-   - Or build fresh: `/pulse world buildworld1` creates and teleports you there.
+   - Or build fresh: `/pulse world buildworld1 void` creates an empty world with a 7×7 starter platform and teleports you there in Creative. New worlds default to void; use `normal` explicitly for natural terrain. Existing worlds are loaded unchanged, even if you supply a different type. Choose a new name to create a different world.
 2. **Start a setup session** (standing in that world):
    ```
    /pulse setup start <game> <arenaId>     e.g. /pulse setup start spleef frosty
@@ -193,8 +193,11 @@ volcano1`, touch up by hand, run setup, save.
 ## How worlds are stored
 
 - Templates live in `plugins/PulseGames/maps/<arenaId>/` (written by `/pulse setup save`).
-- Each running instance copies its template to `pulse_<id>/` in the server root,
-  loads it with a void generator, and deletes it after the game. Nothing you do in a
+- Each running instance copies its template into a separate world and deletes it
+  after the game. Paper before 26.1 uses `pulse_<id>/` in the server root; Paper
+  26.1+ uses `<level>/dimensions/minecraft/pulse_<id>/`. Templates captured on
+  older servers must be imported and re-captured after upgrading to modern Paper.
+  Capture flushes pending saves before copying, and clones receive new world UUIDs. Nothing you do in a
   match ever touches the template.
 - Arena definitions are written to `plugins/PulseGames/arenas/<game>-<arenaId>.yml`;
   they're human-readable if you ever want to tweak a number, then `/pulse reload`.
@@ -233,3 +236,89 @@ Do not design head-sized crawl spaces: the small head target retains player
 walking clearance. Palette/asset setup and client acceptance are documented in
 [PULSECONTENT.md](PULSECONTENT.md). Temporary native props belong only in the
 throwaway game world; never capture a template while a match is running.
+
+### Setup Book (0.3.3)
+
+`/pulse setup start <game> <arenaId>` gives a selection wand and a tagged **Arena
+Setup Book**. Right-click the book to open the checklist; `/pulse setup book`
+recovers it and `/pulse setup gui` opens the same menu. These controls require
+`pulsegames.admin` and an active setup session.
+
+Green entries are complete, red entries are required, and grey entries are optional.
+Click position entries while standing at the desired point. Region entries save
+the wand's two selected corners; numbered requirements choose the next unused
+number. The menu also manages spawns and regions, selects supported modes, sets
+player limits and bot permission, and accepts game-specific values through a
+private chat prompt (`cancel` backs out). Prompts expire after two minutes.
+
+Review shows the checklist before saving and explicitly labels replacement of an
+existing saved arena/template. Saving still refuses missing required entries and
+invalid player limits. Closing the menu keeps the session. Discarding it requires
+confirmation. Sessions are not saved across server restarts; this menu configures
+new sessions and does not import an existing arena for editing.
+
+
+## Team sizes, map capacity and bot difficulty (prepared update)
+
+Competitive combat games now expose solo plus doubles, triples and squads. Existing
+mode IDs remain valid. Duels variants include `classic-doubles`, `op-doubles` and
+`sumo-doubles`, with equivalent `-triples` and `-squads` variants. Duels always has
+**two opposing teams** and best-of-rounds scoring; losing one teammate does not lose
+the round. KitPvP team variants combine teammate kills. Skywars solo uses one-player
+island teams; Bedwars adds `solo` and `triples` alongside `duos` and `quads`.
+KOTH, Dodgeball and Lucky Pillars also expose team-size variants of their solo rules.
+Prop Hunt keeps seeker/hider roles and Party Games keeps its rotating individual
+competition; these are not interchangeable with symmetric combat teams.
+
+In the Setup Book, **Player limits** now offers defaults plus separate minimum,
+maximum and team count for each enabled mode. The map controls the available
+opposing teams (2–32), limited by spawn count and required game features. Place one
+spawn per team/base, not one per player. Bedwars needs a matching bed region per
+team. Duels needs two sufficiently large team spawn areas. Build islands/pillars
+large enough for the chosen team size.
+
+Example: one six-base Bedwars map supporting solo, doubles and triples:
+
+```yaml
+modes: [solo, duos, triples]
+min-players: 2
+max-players: 18
+settings:
+  team-count: 6
+  modes:
+    solo:
+      min-players: 2
+      max-players: 6
+    duos:
+      min-players: 4
+      max-players: 12
+    triples:
+      min-players: 6
+      max-players: 18
+```
+
+The engine may start with fewer occupied teams than the map's maximum. To require
+all six full teams, set minimum players to 6, 12 and 18 respectively. Queues skip
+maps that cannot meet a mode's minimum/capacity; a forced start cannot invent
+missing bases. Existing arena mode lists are preserved, so your three existing
+Duels maps do not automatically opt into doubles. To use one, enable the new mode
+and explicitly set its capacity, for example:
+
+```
+/pulse setup set modes.classic-doubles.min-players 4
+/pulse setup set modes.classic-doubles.max-players 4
+/pulse setup set modes.classic-doubles.team-count 2
+```
+
+These commands act on the active setup session; the book does not import existing
+saved definitions. Preserve templates and use the existing recapture workflow.
+
+Bot difficulty: `bots.difficulty: easy|normal|hard` sets the default; arena
+`settings.bot-difficulty` overrides it. The Setup Book cycles the three levels.
+Difficulty changes attack/throw timing, melee accuracy and path update cadence;
+health, reach and damage are unchanged. Villager Defense Easy/Hard now have a
+prepared co-op controller, using only tracked wave zombies and the Mayor's guard
+position; existing combat controllers also recognise their team-size variants.
+Bedwars, Skywars and other objective bots remain outstanding. Team modes do not
+imply bot support. Global/arena enablement and existing canary permissions still
+apply. Live configuration and server restarts require separate approval.

@@ -2,6 +2,7 @@ package uk.co.playerready.pulsegames.core.bot;
 
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.LivingEntity;
 import uk.co.playerready.pulsegames.PulseGamesPlugin;
 import uk.co.playerready.pulsegames.core.game.GameInstance;
 import uk.co.playerready.pulsegames.core.game.GameState;
@@ -13,7 +14,8 @@ import java.util.concurrent.ThreadLocalRandom;
 /** Owns ephemeral contestants and bounded game-specific decisions, all on the server thread. */
 public final class BotService implements AutoCloseable {
     private static final Set<String> SUPPORTED = Set.of("duels:classic", "duels:op", "duels:sumo",
-            "koth:solo", "koth:teams", "kitpvp:ffa", "dodgeball:solo", "dodgeball:teams");
+            "koth:solo", "koth:teams", "kitpvp:ffa", "dodgeball:solo", "dodgeball:teams",
+            "villagerdefense:easy", "villagerdefense:hard");
     private static final class Slot {
         final GameInstance game;
         final BotActor actor;
@@ -28,6 +30,7 @@ public final class BotService implements AutoCloseable {
     private boolean failed;
     private int sequence;
     private long tick;
+    private java.util.function.IntUnaryOperator random = bound -> ThreadLocalRandom.current().nextInt(bound);
 
     public BotService(PulseGamesPlugin plugin) {
         this.plugin = plugin;
@@ -42,6 +45,11 @@ public final class BotService implements AutoCloseable {
     BotService(PulseGamesPlugin plugin, BotProvider provider) {
         this.plugin = plugin;
         this.provider = provider;
+    }
+
+    BotService(PulseGamesPlugin plugin, BotProvider provider, java.util.function.IntUnaryOperator random) {
+        this(plugin, provider);
+        this.random = random;
     }
 
     private void connect() {
@@ -69,7 +77,7 @@ public final class BotService implements AutoCloseable {
         return plugin.getConfig().getBoolean("bots.enabled", false)
                 && game.arena().settings().getBoolean("bots-enabled", false)
                 && game.players().stream().filter(p -> !isBot(p)).allMatch(plugin::canUseNewFeatures)
-                && SUPPORTED.contains(game.type().id() + ":" + game.mode().id());
+                && SUPPORTED.contains(game.type().id() + ":" + game.mode().rulesId());
     }
 
     /** Called once per second by the instance before its lobby state transition. */
@@ -196,7 +204,15 @@ public final class BotService implements AutoCloseable {
         }
         slot.lastPosition = here.clone();
         if (game.state() != GameState.RUNNING || !game.isActive(bot)) return;
-        Player enemy = game.alivePlayers().stream()
+        BotDifficulty difficulty = BotDifficulty.parse(game.arena().settings().getString("bot-difficulty",
+                plugin.getConfig().getString("bots.difficulty", "normal")));
+        BotObjectives objectives = game.logic() instanceof BotObjectives coop ? coop : null;
+        LivingEntity enemy = objectives != null
+                ? objectives.botEnemies().stream()
+                    .filter(e -> e.isValid() && !e.isDead() && e.getWorld().equals(here.getWorld()))
+                    .filter(e -> here.distanceSquared(e.getLocation()) <= 24 * 24 && bot.hasLineOfSight(e))
+                    .min(Comparator.comparingDouble(e -> here.distanceSquared(e.getLocation()))).orElse(null)
+                : game.alivePlayers().stream()
                 .filter(p -> !p.equals(bot) && game.isActive(p) && p.getWorld().equals(here.getWorld()))
                 .filter(p -> game.teamOf(bot) == null || !game.teamOf(bot).contains(p))
                 .filter(p -> here.distanceSquared(p.getLocation()) <= 24 * 24 && bot.hasLineOfSight(p))
@@ -209,17 +225,18 @@ public final class BotService implements AutoCloseable {
                 if (distance < 22 * 22 && tick >= slot.nextAttack) {
                     // Real throws use the game's cooldown and projectile/hit rules.
                     dodgeball.throwBall(bot);
-                    slot.nextAttack = tick + 20 + ThreadLocalRandom.current().nextInt(16);
+                    slot.nextAttack = tick + difficulty.throwTicks + random.applyAsInt(16);
                 }
                 if (distance > 9 * 9) goal = enemy.getLocation();
                 else if (distance > 0.01 && distance < 4 * 4) goal = here.clone().add(here.toVector().subtract(enemy.getLocation().toVector()).normalize().multiply(3));
             } else {
                 if (distance <= 2.8 * 2.8 && tick >= slot.nextAttack) {
-                    if (ThreadLocalRandom.current().nextInt(100) < 80) {
+                    if (random.applyAsInt(100) < difficulty.accuracy) {
+                        if (objectives != null) selectSword(bot);
                         bot.swingMainHand();
                         bot.attack(enemy);
                     }
-                    slot.nextAttack = tick + 14 + ThreadLocalRandom.current().nextInt(9);
+                    slot.nextAttack = tick + difficulty.meleeTicks + random.applyAsInt(9);
                 }
                 if (distance > 2.3 * 2.3) goal = enemy.getLocation();
             }
@@ -229,7 +246,7 @@ public final class BotService implements AutoCloseable {
             if (hill != null) goal = hill.center(game.world());
         }
         if (goal == null && enemy == null) {
-            goal = game.arena().spawn((int) ((tick / 100 + bot.getEntityId()) % Math.max(1, game.arena().spawnCount())), game.world());
+            goal = objectives != null ? objectives.botGuardPoint() : game.arena().spawn((int) ((tick / 100 + bot.getEntityId()) % Math.max(1, game.arena().spawnCount())), game.world());
         }
         if (goal == null || here.distanceSquared(goal) < 1) {
             slot.actor.stopNavigation();
@@ -237,8 +254,26 @@ public final class BotService implements AutoCloseable {
         } else if (tick >= slot.nextPath && (slot.destination == null || slot.destination.distanceSquared(goal) > 2 || tick % 100 == 0)) {
             slot.actor.navigate(goal);
             slot.destination = goal.clone();
-            slot.nextPath = tick + 20;
+            slot.nextPath = tick + difficulty.pathTicks;
         }
+    }
+
+    static void selectSword(Player bot) {
+        int bestSlot = -1, bestRank = 0;
+        for (int i = 0; i < 9; i++) {
+            var item = bot.getInventory().getItem(i);
+            if (item == null) continue;
+            int rank = switch (item.getType()) {
+                case WOODEN_SWORD, GOLDEN_SWORD -> 1;
+                case STONE_SWORD -> 2;
+                case IRON_SWORD -> 3;
+                case DIAMOND_SWORD -> 4;
+                case NETHERITE_SWORD -> 5;
+                default -> 0;
+            };
+            if (rank > bestRank) { bestRank = rank; bestSlot = i; }
+        }
+        if (bestSlot >= 0) bot.getInventory().setHeldItemSlot(bestSlot);
     }
 
     @Override public void close() {

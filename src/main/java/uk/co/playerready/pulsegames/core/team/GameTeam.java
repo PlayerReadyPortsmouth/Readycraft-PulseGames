@@ -34,7 +34,7 @@ public final class GameTeam {
 
     public int index() { return index; }
     public Palette palette() { return palette; }
-    public String coloredName() { return palette.chatColor() + palette.name(); }
+    public String coloredName() { return palette.chatColor() + palette.name() + (index >= PALETTES.length ? " " + (index / PALETTES.length + 1) : ""); }
     public Set<UUID> members() { return members; }
 
     public void add(Player player) { members.add(player.getUniqueId()); }

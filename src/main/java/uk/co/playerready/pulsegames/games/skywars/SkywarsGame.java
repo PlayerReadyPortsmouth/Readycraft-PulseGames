@@ -49,7 +49,7 @@ public final class SkywarsGame extends MiniGame {
         super(game);
     }
 
-    private boolean isInsane() { return game.mode().id().equals("insane"); }
+    private boolean isInsane() { return game.mode().rulesId().equals("insane"); }
 
     @Override
     public void onStart() {

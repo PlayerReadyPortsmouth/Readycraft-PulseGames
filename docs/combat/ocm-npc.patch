@@ -1,0 +1,34 @@
+diff --git a/src/main/java/kernitus/plugin/OldCombatMechanics/module/OCMModule.java b/src/main/java/kernitus/plugin/OldCombatMechanics/module/OCMModule.java
+index 7b1e780..19702ce 100644
+--- a/src/main/java/kernitus/plugin/OldCombatMechanics/module/OCMModule.java
++++ b/src/main/java/kernitus/plugin/OldCombatMechanics/module/OCMModule.java
+@@ -66,15 +66,27 @@ public abstract class OCMModule implements Listener {
+         return Config.moduleEnabled(configName, world);
+     }
+ 
++    private boolean isPulseGamesActor(HumanEntity entity) {
++        if (!entity.isValid() || !entity.hasMetadata("NPC")) return false;
++        return entity.getMetadata("pulsegames-classic-combat").stream().anyMatch(value ->
++                value.asBoolean() && value.getOwningPlugin() != null
++                        && value.getOwningPlugin().isEnabled()
++                        && "PulseGames".equals(value.getOwningPlugin().getName()));
++    }
++
+     /**
+      * Whether this module should be enabled for this player given his current modeset
+      */
+     public boolean isEnabled(@NotNull HumanEntity humanEntity) {
+-        if (humanEntity instanceof OfflinePlayer && !((OfflinePlayer) humanEntity).isOnline()) {
++        if (humanEntity instanceof OfflinePlayer && !((OfflinePlayer) humanEntity).isOnline()
++                && !isPulseGamesActor(humanEntity)) {
+             return false;
+         }
+ 
+-        final PlayerModuleOverride playerOverride = PlayerModuleOverrides.getOverride(humanEntity, configName);
++        // The upstream override store deliberately only accepts network sessions.
++        // Owned NPCs use configured modesets and never enter that store.
++        final PlayerModuleOverride playerOverride = isPulseGamesActor(humanEntity)
++                ? PlayerModuleOverride.DEFAULT : PlayerModuleOverrides.getOverride(humanEntity, configName);
+         if (playerOverride == PlayerModuleOverride.FORCE_ENABLED) {
+             return true;
+         }

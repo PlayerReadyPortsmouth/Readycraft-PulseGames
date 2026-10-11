@@ -19,6 +19,8 @@ public final class TeamAllocator {
      *                 damaged and every player "wins" the moment the clock runs out.
      */
     public static List<GameTeam> allocate(List<Player> players, int teamSize, int maxTeams, PartyManager parties) {
+        if (teamSize < 1 || maxTeams < 2 || players.size() > (long) teamSize * maxTeams)
+            throw new IllegalArgumentException("Players exceed the available team capacity");
         int wanted = (int) Math.ceil(players.size() / (double) teamSize);
         int teamCount = Math.max(2, Math.min(wanted, maxTeams));
         List<GameTeam> teams = new ArrayList<>();
@@ -34,11 +36,7 @@ public final class TeamAllocator {
                         // Prefer the team that already has this player's group-mates.
                         .max(Comparator.comparingInt(t -> (int) group.stream().filter(t::contains).count() * 100
                                 - t.members().size()))
-                        // Teams can be capped below players/teamSize, so fall back to the
-                        // emptiest team rather than piling everyone onto team 1.
-                        .orElseGet(() -> teams.stream()
-                                .min(Comparator.comparingInt(t -> t.members().size()))
-                                .orElseThrow());
+                        .orElseThrow(() -> new IllegalStateException("No team seat available"));
                 best.add(player);
             }
         }

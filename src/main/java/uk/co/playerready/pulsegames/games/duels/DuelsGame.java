@@ -20,6 +20,7 @@ import java.util.UUID;
 public final class DuelsGame extends MiniGame {
 
     private final Map<UUID, Integer> roundWins = new HashMap<>();
+    private final java.util.Set<UUID> roundOut = new java.util.HashSet<>();
     private int round = 1;
     private boolean roundOver;
 
@@ -28,14 +29,14 @@ public final class DuelsGame extends MiniGame {
     }
 
     @Override
-    public boolean acceptsDeath(Player player) { return !roundOver; }
+    public boolean acceptsDeath(Player player) { return !roundOver && !roundOut.contains(player.getUniqueId()); }
 
-    private boolean isSumo() { return game.mode().id().equals("sumo"); }
+    private boolean isSumo() { return game.mode().rulesId().equals("sumo"); }
 
     private int roundsToWin() { return game.arena().settings().getInt("rounds-to-win", 2); }
 
     private String kitId() {
-        return switch (game.mode().id()) {
+        return switch (game.mode().rulesId()) {
             case "op" -> "op";
             case "sumo" -> "sumo";
             default -> game.arena().settings().getString("kit", "warrior");
@@ -49,11 +50,15 @@ public final class DuelsGame extends MiniGame {
 
     private void startRound() {
         roundOver = false;
+        roundOut.clear();
         Kit kit = game.plugin().kits().get(kitId());
         int i = 0;
         for (Player player : game.alivePlayers()) {
             game.plugin().playerState().reset(player);
-            player.teleport(game.arena().spawn(i++, game.world()));
+            player.setGameMode(playGameMode());
+            var team = game.teamOf(player);
+            player.teleport(game.arena().spawn(team != null ? team.index() : i++, game.world()));
+            if (game.plugin().combat() != null) game.plugin().combat().refresh(player);
             if (kit != null) kit.apply(player);
             Text.title(player, "<yellow><b>ROUND " + round, isSumo() ? "<gray>Knock them off!" : "<gray>Fight!");
         }
@@ -69,29 +74,30 @@ public final class DuelsGame extends MiniGame {
     @Override
     public void onDeath(Player victim, Player killer) {
         if (roundOver) return;
-        roundOver = true;
-        Player winner = killer != null ? killer
-                : game.alivePlayers().stream().filter(p -> !p.equals(victim)).findFirst().orElse(null);
-        if (winner == null) {
-            game.end(List.of(), "draw");
-            return;
-        }
-        int wins = roundWins.merge(winner.getUniqueId(), 1, Integer::sum);
-        game.broadcast("<yellow>" + winner.getName() + "</yellow> wins round <yellow>" + round + "</yellow>! <gray>("
-                + wins + "/" + roundsToWin() + ")");
-        if (wins >= roundsToWin()) {
-            game.end(List.of(winner), "rounds");
-            return;
-        }
-        round++;
-        // Park the loser safely until the next round starts.
+        roundOut.add(victim.getUniqueId());
         victim.teleport(game.arena().spectator(game.world()));
         victim.setGameMode(org.bukkit.GameMode.SPECTATOR);
+        if (game.plugin().combat() != null) game.plugin().combat().leave(victim);
+        List<Player> remaining = game.alivePlayers().stream()
+                .filter(p -> !roundOut.contains(p.getUniqueId())).toList();
+        if (game.mode().isTeams()) {
+            if (remaining.stream().map(game::teamOf).distinct().count() > 1) return;
+        } else if (remaining.size() > 1) return;
+        roundOver = true;
+        if (remaining.isEmpty()) { game.end(List.of(), "draw"); return; }
+        Player winner = remaining.getFirst();
+        var winningTeam = game.teamOf(winner);
+        List<Player> winners = winningTeam == null ? List.of(winner)
+                : game.players().stream().filter(winningTeam::contains).toList();
+        int wins = winners.stream().mapToInt(p -> roundWins.merge(p.getUniqueId(), 1, Integer::sum)).max().orElse(0);
+        game.broadcast("<yellow>" + (winningTeam == null ? winner.getName() : winningTeam.coloredName())
+                + "</yellow> wins round <yellow>" + round + "</yellow>! <gray>(" + wins + "/" + roundsToWin() + ")");
+        if (wins >= roundsToWin()) { game.end(winners, "rounds"); return; }
+        round++;
         game.runLater(60L, () -> {
             // The match can be decided in this window (a disconnect ends it), and
             // restarting a round mid-ENDING wipes the winner's inventory.
             if (game.state() != GameState.RUNNING) return;
-            if (game.player(victim.getUniqueId()) != null) victim.setGameMode(playGameMode());
             startRound();
         });
     }
@@ -102,7 +108,8 @@ public final class DuelsGame extends MiniGame {
         int best = players.stream().mapToInt(p -> roundWins.getOrDefault(p.getUniqueId(), 0)).max().orElse(0);
         List<Player> leaders = players.stream()
                 .filter(p -> roundWins.getOrDefault(p.getUniqueId(), 0) == best).toList();
-        game.end(best > 0 && leaders.size() == 1 ? leaders : List.of(), "time");
+        boolean oneSide = game.mode().isTeams() ? leaders.stream().map(game::teamOf).distinct().count() == 1 : leaders.size() == 1;
+        game.end(best > 0 && oneSide ? leaders : List.of(), "time");
     }
 
     @Override
@@ -119,6 +126,9 @@ public final class DuelsGame extends MiniGame {
         }
         return lines;
     }
+
+    @Override
+    public int maxTeams() { return 2; }
 
     @Override
     public boolean pvp() { return true; }

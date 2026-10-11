@@ -149,7 +149,7 @@ public final class MapBuilder {
             msg(sender, "<gray>Cleared a previous build world; run the command again in a moment.");
             return;
         }
-        File leftover = new File(Bukkit.getWorldContainer(), worldName);
+        File leftover = WorldService.worldDirectory(new WorldCreator(worldName));
         if (leftover.exists()) {
             msg(sender, "<red>Build world folder still exists; try again shortly.");
             return;

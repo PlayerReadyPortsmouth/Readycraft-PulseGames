@@ -50,9 +50,17 @@ public final class InstanceManager {
         }
         int max = plugin.getConfig().getInt("instances.max-concurrent", 20);
         if (instances.size() >= max) return null;
-        Arena arena = plugin.arenas().pickRandom(type.id(), mode.id());
-        if (arena == null) return null;
-        GameInstance instance = new GameInstance(plugin, type, mode, arena);
+        var candidates = new ArrayList<>(plugin.arenas().forGame(type.id(), mode.id()));
+        java.util.Collections.shuffle(candidates);
+        GameInstance instance = null;
+        for (Arena arena : candidates) {
+            GameInstance candidate = new GameInstance(plugin, type, mode, arena);
+            if (candidate.maxPlayers() < Math.max(groupSize, candidate.minPlayers())) continue;
+            if (mode.isTeams() && candidate.teamCount() < 2) continue;
+            instance = candidate;
+            break;
+        }
+        if (instance == null) return null;
         instances.add(instance);
         instance.init();
         return instance;

@@ -37,6 +37,7 @@ class BotServiceTest {
         when(game.humanCount()).thenAnswer(c -> roster.contains(human) ? 1 : 0);
         when(game.type().id()).thenReturn("duels");
         when(game.mode().id()).thenReturn("classic");
+        when(game.mode().rulesId()).thenAnswer(c -> game.mode().id().replaceFirst("-(doubles|triples|squads)$", ""));
         when(game.state()).thenReturn(GameState.WAITING);
         when(game.arena().settings().getBoolean("bots-enabled",false)).thenReturn(true);
         when(game.minPlayers()).thenReturn(2); when(game.maxPlayers()).thenReturn(2);
@@ -113,5 +114,100 @@ class BotServiceTest {
         when(game.arena().settings().getBoolean("bots-enabled",false)).thenReturn(false);
         for(int i=0;i<5;i++) bots.reconcile(game);
         verifyNoInteractions(provider);
+    }
+
+    BotActor activeCoop(org.bukkit.entity.Zombie zombie, Location guard) {
+        bots = new BotService(plugin, provider, bound -> 0);
+        when(game.type().id()).thenReturn("villagerdefense");
+        when(game.mode().id()).thenReturn("easy");
+        BotActor actor = mock(BotActor.class);
+        Player bot = player("Defender");
+        when(actor.player()).thenReturn(bot);
+        when(actor.valid()).thenReturn(true);
+        when(provider.create(anyString(), any())).thenReturn(actor);
+        when(bot.getLocation()).thenReturn(new Location(world, 0, 70, 0));
+        when(bot.getWorld()).thenReturn(world);
+        when(bot.getInventory()).thenReturn(mock(org.bukkit.inventory.PlayerInventory.class));
+        when(bot.hasLineOfSight(any(org.bukkit.entity.Entity.class))).thenReturn(true);
+        MiniGame logic = mock(MiniGame.class, withSettings().extraInterfaces(BotObjectives.class));
+        when(logic.acceptsDeath(bot)).thenReturn(true);
+        when(logic.voidY()).thenReturn(0.0);
+        when(game.logic()).thenReturn(logic);
+        when(((BotObjectives) logic).botEnemies()).thenAnswer(c -> zombie == null ? List.of() : List.of(zombie));
+        when(((BotObjectives) logic).botGuardPoint()).thenReturn(guard);
+        if (zombie != null) {
+            when(zombie.isValid()).thenReturn(true);
+            when(zombie.getWorld()).thenReturn(world);
+            when(zombie.getLocation()).thenReturn(new Location(world, 2, 70, 0));
+            when(zombie.getEyeLocation()).thenReturn(new Location(world, 2, 71, 0));
+        }
+        bots.reconcile(game); bots.reconcile(game);
+        when(game.state()).thenReturn(GameState.RUNNING);
+        when(game.isActive(bot)).thenReturn(true);
+        when(game.alivePlayers()).thenReturn(List.of(bot, human));
+        return actor;
+    }
+
+    @Test void coopAttacksWaveEnemyThroughNormalPlayerCombatNotAllies() {
+        var zombie = mock(org.bukkit.entity.Zombie.class);
+        BotActor actor = activeCoop(zombie, null);
+        bots.think();
+        verify(actor.player()).attack(zombie);
+        verify(actor.player(), never()).attack(human);
+    }
+
+    @Test void coopReturnsToMayorWhenNoWaveEnemyIsVisible() {
+        Location guard = new Location(world, 10, 70, 0);
+        BotActor actor = activeCoop(null, guard);
+        bots.think();
+        verify(actor).navigate(guard);
+        verify(actor.player(), never()).attack(any());
+    }
+
+    @Test void coopNeverAttacksThroughWallsOrAcrossWorlds() {
+        var zombie = mock(org.bukkit.entity.Zombie.class);
+        Location guard = new Location(world, 10, 70, 0);
+        BotActor actor = activeCoop(zombie, guard);
+        when(actor.player().hasLineOfSight(zombie)).thenReturn(false);
+        bots.think();
+        verify(actor.player(), never()).attack(any());
+        when(actor.player().hasLineOfSight(zombie)).thenReturn(true);
+        when(zombie.getWorld()).thenReturn(mock(World.class));
+        bots.think();
+        verify(actor.player(), never()).attack(any());
+    }
+
+    @Test void deadAndRespawningDefendersStopActing() {
+        var zombie = mock(org.bukkit.entity.Zombie.class);
+        BotActor actor = activeCoop(zombie, null);
+        when(game.logic().acceptsDeath(actor.player())).thenReturn(false);
+        bots.think();
+        verify(actor).stopNavigation();
+        verify(actor.player(), never()).attack(any());
+    }
+
+    @Test void easyAttacksLessFrequentlyThanHardWithoutChangingDamage() {
+        var zombie = mock(org.bukkit.entity.Zombie.class);
+        BotActor actor = activeCoop(zombie, null);
+        when(game.arena().settings().getString(eq("bot-difficulty"), anyString())).thenReturn("easy");
+        for (int i = 0; i < 6; i++) bots.think();
+        verify(actor.player(), times(1)).attack(zombie);
+        when(game.arena().settings().getString(eq("bot-difficulty"), anyString())).thenReturn("hard");
+        for (int i = 0; i < 5; i++) bots.think();
+        verify(actor.player(), times(4)).attack(zombie);
+    }
+
+    @Test void defenderEquipsEarnedUpgradeFromHotbar() {
+        Player bot = mock(Player.class);
+        var inventory = mock(org.bukkit.inventory.PlayerInventory.class);
+        when(bot.getInventory()).thenReturn(inventory);
+        var stone = mock(org.bukkit.inventory.ItemStack.class);
+        var diamond = mock(org.bukkit.inventory.ItemStack.class);
+        when(stone.getType()).thenReturn(org.bukkit.Material.STONE_SWORD);
+        when(diamond.getType()).thenReturn(org.bukkit.Material.DIAMOND_SWORD);
+        when(inventory.getItem(0)).thenReturn(stone);
+        when(inventory.getItem(4)).thenReturn(diamond);
+        BotService.selectSword(bot);
+        verify(inventory).setHeldItemSlot(4);
     }
 }
