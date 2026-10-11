@@ -89,7 +89,7 @@ public final class KitPvpGame extends MiniGame {
             game.end(List.of(), "time");
             return;
         }
-        Player best = game.plugin().getServer().getPlayer(top.get(0).getKey());
+        Player best = game.player(top.get(0).getKey());
         game.end(best == null ? List.of() : List.of(best), "time");
     }
 
@@ -99,7 +99,7 @@ public final class KitPvpGame extends MiniGame {
         lines.add("<gray>Your kills: <white>" + game.score(player));
         lines.add("<gray>Target: <yellow>" + targetKills());
         game.topScores().stream().limit(3).forEach(e -> {
-            Player p = game.plugin().getServer().getPlayer(e.getKey());
+            Player p = game.player(e.getKey());
             if (p != null) lines.add("<gray>" + p.getName() + ": <white>" + e.getValue());
         });
         return lines;

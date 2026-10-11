@@ -54,6 +54,10 @@ public final class GameInstance {
     private int logicFailures;
 
     private final Set<UUID> participants = new LinkedHashSet<>();
+    private final Set<UUID> botIds = new LinkedHashSet<>();
+    private final Set<UUID> respawning = new LinkedHashSet<>();
+    private final Set<UUID> handlingDeaths = new LinkedHashSet<>();
+    private boolean botRound;
     private final Set<UUID> alive = new LinkedHashSet<>();
     private final Set<UUID> spectators = new LinkedHashSet<>();
     private final List<GameTeam> teams = new ArrayList<>();
@@ -121,21 +125,36 @@ public final class GameInstance {
 
     public boolean joinable(int count) {
         return (state == GameState.WAITING || state == GameState.COUNTDOWN)
-                && participants.size() + count <= maxPlayers();
+                && participants.size() - botIds.size() + count <= maxPlayers();
     }
 
     public List<Player> players() {
-        return participants.stream().map(Bukkit::getPlayer).filter(p -> p != null && p.isOnline()).toList();
+        return participants.stream().map(this::player).filter(java.util.Objects::nonNull).toList();
     }
 
     public List<Player> alivePlayers() {
-        return alive.stream().map(Bukkit::getPlayer).filter(p -> p != null && p.isOnline()).toList();
+        return alive.stream().map(this::player).filter(java.util.Objects::nonNull).toList();
     }
 
     public List<Player> everyone() {
         Set<UUID> all = new LinkedHashSet<>(participants);
         all.addAll(spectators);
-        return all.stream().map(Bukkit::getPlayer).filter(p -> p != null && p.isOnline()).toList();
+        return all.stream().map(this::player).filter(java.util.Objects::nonNull).toList();
+    }
+
+    public Player player(UUID id) {
+        if (id == null) return null;
+        if (botIds.contains(id)) return plugin.bots() == null ? null : plugin.bots().player(id);
+        Player player = plugin.getServer().getPlayer(id);
+        return player != null && player.isOnline() ? player : null;
+    }
+
+    public boolean isBot(Player player) { return botIds.contains(player.getUniqueId()); }
+    public int humanCount() { return (int) participants.stream().filter(id -> !botIds.contains(id)).count(); }
+    public boolean ranked() { return !botRound; }
+    public boolean isActive(Player player) {
+        return isAlive(player) && !respawning.contains(player.getUniqueId())
+                && player.getGameMode() != org.bukkit.GameMode.SPECTATOR;
     }
 
     public boolean isAlive(Player player) { return alive.contains(player.getUniqueId()); }
@@ -168,13 +187,18 @@ public final class GameInstance {
     // ---- joining / leaving ---------------------------------------------------
 
     public boolean add(Player player) {
-        if (!joinable(1) || world == null) return false;
+        boolean bot = plugin.bots() != null && plugin.bots().isBot(player);
+        if (!joinable(1) || world == null || participants.contains(player.getUniqueId())) return false;
+        if (bot && participants.size() >= maxPlayers()) return false;
+        if (!bot && plugin.bots() != null) plugin.bots().beforeHumanJoin(this, player);
+        if (bot) botIds.add(player.getUniqueId());
         participants.add(player.getUniqueId());
         plugin.instances().index(player, this);
-        plugin.playerState().save(player);
+        if (bot) plugin.playerState().reset(player);
+        else plugin.playerState().save(player);
         player.setGameMode(org.bukkit.GameMode.ADVENTURE);
         player.teleport(arena.lobby(world));
-        giveLeaveItem(player);
+        if (!bot) giveLeaveItem(player);
         broadcast("<yellow>" + player.getName() + "</yellow> joined <gray>(" + participants.size() + "/" + maxPlayers() + ")");
         player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1f, 1.2f);
         logic.onJoin(player);
@@ -189,16 +213,28 @@ public final class GameInstance {
 
     /** Removes a player at any stage (quit, /lobby, kicked). */
     public void remove(Player player, boolean teleportToLobby) {
+        if (!participants.contains(player.getUniqueId()) && !spectators.contains(player.getUniqueId())) return;
+        boolean bot = isBot(player);
         boolean wasAlive = alive.remove(player.getUniqueId());
+        respawning.remove(player.getUniqueId());
+        lastDamager.remove(player.getUniqueId());
+        lastDamagerAt.remove(player.getUniqueId());
         participants.remove(player.getUniqueId());
         spectators.remove(player.getUniqueId());
         teams.forEach(t -> t.members().remove(player.getUniqueId()));
         plugin.instances().unindex(player);
         logic.onQuit(player);
-        plugin.playerState().restore(player);
-        plugin.sidebar().clear(player);
-        if (teleportToLobby && player.isOnline()) {
-            plugin.lobby().sendToLobby(player);
+        if (!bot) {
+            plugin.playerState().restore(player);
+            plugin.sidebar().clear(player);
+            if (teleportToLobby && player.isOnline()) plugin.lobby().sendToLobby(player);
+        } else {
+            plugin.bots().destroy(player.getUniqueId());
+            botIds.remove(player.getUniqueId());
+        }
+        if (humanCount() == 0 && !botIds.isEmpty()) {
+            cleanup();
+            return;
         }
         if (state == GameState.WAITING || state == GameState.COUNTDOWN) {
             broadcast("<yellow>" + player.getName() + "</yellow> left <gray>(" + participants.size() + "/" + maxPlayers() + ")");
@@ -216,7 +252,8 @@ public final class GameInstance {
 
     private void tick() {
         tasks.removeIf(BukkitTask::isCancelled);
-        if (reapIfAbandoned()) return;
+        if (plugin.bots() != null) plugin.bots().reconcile(this);
+        if (state == GameState.RESETTING || reapIfAbandoned()) return;
         switch (state) {
             case WAITING -> {
                 if (participants.size() >= minPlayers()) {
@@ -275,7 +312,7 @@ public final class GameInstance {
         } catch (Exception ex) {
             plugin.getLogger().log(java.util.logging.Level.SEVERE,
                     "Game logic error in " + type.id() + "." + hook + " (instance " + id + ")", ex);
-            if (++logicFailures < MAX_LOGIC_FAILURES) return;
+            if (++logicFailures < MAX_LOGIC_FAILURES && !hook.equals("onStart")) return;
             broadcast("<red>This game hit an error and had to be stopped.");
             try {
                 forceEnd();
@@ -317,14 +354,29 @@ public final class GameInstance {
         // Only a pre-start lobby may start: replaying a RUNNING/ENDING round re-awards
         // wins and tokens, and a LOADING one has no world to teleport into.
         if (state != GameState.WAITING && state != GameState.COUNTDOWN) return;
+        if (humanCount() == 0) { cleanup(); return; }
+        String problem = logic.startProblem(players());
+        if (problem != null) {
+            state = GameState.WAITING;
+            broadcast("<red>Cannot start: " + problem);
+            return;
+        }
+        if (mode.isTeams()) {
+            teams.clear();
+            teams.addAll(TeamAllocator.allocate(players(), mode.teamSize(), teamCount(), plugin.parties()));
+            if (teams.stream().filter(team -> !team.members().isEmpty()).count() < 2) {
+                teams.clear();
+                state = GameState.WAITING;
+                broadcast("<yellow>Waiting for an opposing team.");
+                return;
+            }
+        }
+        botRound = !botIds.isEmpty();
+        if (botRound) broadcast("<yellow>This match includes bots. Competitive records and match token rewards are disabled.");
         state = GameState.RUNNING;
         gameTime = 0;
         alive.clear();
         alive.addAll(participants);
-        if (mode.isTeams()) {
-            teams.clear();
-            teams.addAll(TeamAllocator.allocate(players(), mode.teamSize(), teamCount(), plugin.parties()));
-        }
         int i = 0;
         for (Player p : players()) {
             plugin.playerState().reset(p);
@@ -339,7 +391,7 @@ public final class GameInstance {
         if (mode.isTeams()) {
             for (GameTeam team : teams) {
                 for (UUID member : team.members()) {
-                    Player p = Bukkit.getPlayer(member);
+                    Player p = player(member);
                     if (p != null) p.sendMessage(Text.msg("You are on team " + team.coloredName()));
                 }
             }
@@ -366,21 +418,29 @@ public final class GameInstance {
     public Player killerOf(Player victim) {
         Long at = lastDamagerAt.get(victim.getUniqueId());
         if (at == null || System.currentTimeMillis() - at > 8000) return null;
-        Player killer = Bukkit.getPlayer(lastDamager.get(victim.getUniqueId()));
+        Player killer = player(lastDamager.get(victim.getUniqueId()));
         return killer != null && killer != victim ? killer : null;
     }
 
     public void handleDeath(Player victim, Player killer) {
-        if (state != GameState.RUNNING || !isAlive(victim)) return;
-        victim.setFallDistance(0);
-        victim.setFireTicks(0);
-        Player resolvedKiller = killer != null ? killer : killerOf(victim);
-        if (resolvedKiller != null) {
-            plugin.cosmetics().playKillEffect(resolvedKiller, victim.getLocation());
-            plugin.economy().addTokens(resolvedKiller,
-                    plugin.getConfig().getInt("economy.kill-reward", 5), "kill");
+        if (state != GameState.RUNNING || !isActive(victim) || !logic.acceptsDeath(victim)
+                || !handlingDeaths.add(victim.getUniqueId())) return;
+        try {
+            victim.setFallDistance(0);
+            victim.setFireTicks(0);
+            Player resolvedKiller = killer != null ? killer : killerOf(victim);
+            if (resolvedKiller != null && (!isParticipant(resolvedKiller) || resolvedKiller.equals(victim))) resolvedKiller = null;
+            lastDamager.remove(victim.getUniqueId());
+            lastDamagerAt.remove(victim.getUniqueId());
+            if (resolvedKiller != null && ranked() && !isBot(resolvedKiller)) {
+                plugin.cosmetics().playKillEffect(resolvedKiller, victim.getLocation());
+                plugin.economy().addMatchTokens(resolvedKiller,
+                        plugin.getConfig().getInt("economy.kill-reward", 5), "kill");
+            }
+            logic.onDeath(victim, resolvedKiller);
+        } finally {
+            handlingDeaths.remove(victim.getUniqueId());
         }
-        logic.onDeath(victim, resolvedKiller);
     }
 
     public void eliminate(Player player) {
@@ -404,12 +464,13 @@ public final class GameInstance {
     }
 
     public void respawn(Player player, int delaySeconds) {
-        if (state != GameState.RUNNING) return;
+        if (state != GameState.RUNNING || !respawning.add(player.getUniqueId())) return;
         player.setGameMode(org.bukkit.GameMode.SPECTATOR);
         player.teleport(arena.spectator(world));
         Text.title(player, "<red>You died!", "<gray>Respawning in " + delaySeconds + "s");
         runLater(delaySeconds * 20L, () -> {
-            if (state != GameState.RUNNING || !participants.contains(player.getUniqueId()) || !player.isOnline()) return;
+            if (state != GameState.RUNNING || !participants.contains(player.getUniqueId()) || player(player.getUniqueId()) == null) return;
+            respawning.remove(player.getUniqueId());
             plugin.playerState().reset(player);
             player.setGameMode(logic.playGameMode());
             player.teleport(logic.respawnLocation(player));
@@ -440,15 +501,16 @@ public final class GameInstance {
                 : String.join("<gray>, </gray><yellow>", winners.stream().map(Player::getName).toList());
         broadcast("<gold><b>GAME OVER!</b></gold> <gray>Winner(s): <yellow>" + names);
         for (Player p : everyone()) {
+            if (isBot(p)) { p.setGameMode(org.bukkit.GameMode.SPECTATOR); continue; }
             if (winners.contains(p)) {
                 Text.title(p, "<gold><b>VICTORY!", "<gray>You won " + type.displayName());
                 p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
                 plugin.stats().addWin(p, type.id());
-                plugin.economy().addTokens(p, plugin.getConfig().getInt("economy.win-reward", 50), "victory");
+                plugin.economy().addMatchTokens(p, plugin.getConfig().getInt("economy.win-reward", 50), "victory");
                 spawnFirework(p.getLocation());
             } else {
                 if (isParticipant(p)) {
-                    plugin.economy().addTokens(p,
+                    plugin.economy().addMatchTokens(p,
                             plugin.getConfig().getInt("economy.participation-reward", 10), "game played");
                 }
                 Text.title(p, "<red><b>GAME OVER", "<gray>Winner(s): " + names);
@@ -462,7 +524,7 @@ public final class GameInstance {
         // Celebration: fireworks rain on the winners until cleanup.
         runRepeating(20L, 30L, () -> {
             for (Player winner : winners) {
-                if (!winner.isOnline() || winner.getWorld() != world) continue;
+                if (isBot(winner) || !winner.isOnline() || winner.getWorld() != world) continue;
                 spawnFirework(winner.getLocation());
                 plugin.cosmetics().playWinEffect(winner);
             }
@@ -493,14 +555,21 @@ public final class GameInstance {
     public void cleanup() {
         if (state == GameState.RESETTING) return;
         state = GameState.RESETTING;
+        try { logic.onCleanup(); }
+        catch (RuntimeException ex) { plugin.getLogger().log(java.util.logging.Level.WARNING, "Game cleanup hook failed", ex); }
         tasks.forEach(t -> { if (!t.isCancelled()) t.cancel(); });
         tasks.clear();
         for (Player p : everyone()) {
             plugin.instances().unindex(p);
-            plugin.playerState().restore(p);
-            plugin.sidebar().clear(p);
-            plugin.lobby().sendToLobby(p);
+            if (!isBot(p)) {
+                plugin.playerState().restore(p);
+                plugin.sidebar().clear(p);
+                plugin.lobby().sendToLobby(p);
+            }
         }
+        if (plugin.bots() != null) plugin.bots().forget(this);
+        botIds.clear();
+        respawning.clear();
         participants.clear();
         alive.clear();
         spectators.clear();
@@ -516,12 +585,12 @@ public final class GameInstance {
 
     public void broadcast(String miniMessage) {
         Component component = Text.msg(miniMessage);
-        for (Player p : everyone()) p.sendMessage(component);
+        for (Player p : everyone()) if (!isBot(p)) p.sendMessage(component);
     }
 
     public void broadcastRaw(String miniMessage) {
         Component component = Text.mm(miniMessage);
-        for (Player p : everyone()) p.sendMessage(component);
+        for (Player p : everyone()) if (!isBot(p)) p.sendMessage(component);
     }
 
     /**
@@ -548,6 +617,7 @@ public final class GameInstance {
     private void updateSidebars() {
         String title = "<gradient:#ff5f6d:#ffc371><b>" + type.displayName().toUpperCase() + "</b></gradient>";
         for (Player p : everyone()) {
+            if (isBot(p)) continue;
             List<String> lines = new ArrayList<>();
             lines.add("<dark_gray>" + arena.displayName());
             lines.add("");
@@ -572,6 +642,7 @@ public final class GameInstance {
                 default -> { }
             }
             lines.add("");
+            if (!botIds.isEmpty()) lines.add("<gray>Bots: <yellow>" + botIds.size());
             lines.add("<gray>Mode: <yellow>" + mode.displayName());
             lines.add("<dark_gray>readycraft");
             plugin.sidebar().show(p, title, lines);

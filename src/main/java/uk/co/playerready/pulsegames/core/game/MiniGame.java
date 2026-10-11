@@ -41,7 +41,13 @@ public abstract class MiniGame {
     public void onCountdownTick(int secondsLeft) {}
 
     /** Players have been teleported to their spawns; the round begins. */
+    /** A non-null reason keeps the lobby waiting; no kits, statistics or models are started. */
+    public String startProblem(List<Player> players) { return null; }
+
     public void onStart() {}
+
+    /** Always called before removing players/world, including shutdown and aborted startup. */
+    public void onCleanup() {}
 
     /** Called every second while RUNNING, with seconds elapsed since start. */
     public void onSecond(int gameTime) {}
@@ -70,6 +76,9 @@ public abstract class MiniGame {
             game.eliminate(victim);
         }
     }
+
+    /** Reject duplicate life-ending events during a game's own intermission. */
+    public boolean acceptsDeath(Player player) { return true; }
 
     public boolean respawnable() { return false; }
 

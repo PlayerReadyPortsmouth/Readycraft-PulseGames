@@ -18,6 +18,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -36,6 +38,9 @@ public final class PropHuntGame extends MiniGame {
 
     private final Set<UUID> seekers = new HashSet<>();
     private final Set<UUID> hiders = new HashSet<>();
+    private final Map<UUID, AutoCloseable> visuals = new HashMap<>();
+    private Set<UUID> visualAudience = Set.of();
+    private boolean customProps;
     private int hidePhase;
     private Location seekerHold;
 
@@ -46,7 +51,21 @@ public final class PropHuntGame extends MiniGame {
     private boolean isInfection() { return game.mode().id().equals("infection"); }
 
     @Override
+    public String startProblem(List<Player> players) {
+        if (!game.plugin().getConfig().getBoolean("content.prophunt.enabled", false)) return null;
+        if (players.stream().anyMatch(game::isBot)) return "Custom Prop Hunt does not support NPC props yet.";
+        return game.plugin().content().startProblem(game.plugin().getConfig().getStringList("content.prophunt.props"), players);
+    }
+
+    @Override
     public void onStart() {
+        customProps = game.plugin().getConfig().getBoolean("content.prophunt.enabled", false);
+        List<String> props = game.plugin().getConfig().getStringList("content.prophunt.props");
+        if (customProps) {
+            String problem = startProblem(game.everyone());
+            if (problem != null) throw new IllegalStateException(problem);
+            visualAudience = game.everyone().stream().map(Player::getUniqueId).collect(java.util.stream.Collectors.toUnmodifiableSet());
+        }
         hidePhase = Math.max(0, game.arena().settings().getInt("hide-seconds", 30));
         List<Player> players = new ArrayList<>(game.alivePlayers());
         Collections.shuffle(players);
@@ -66,14 +85,22 @@ public final class PropHuntGame extends MiniGame {
                 Text.title(player, "<red><b>SEEKER", "<gray>Released in " + hidePhase + "s...");
             } else {
                 hiders.add(player.getUniqueId());
-                Material disguise = DISGUISES[random.nextInt(DISGUISES.length)];
-                player.getInventory().setHelmet(new ItemStack(disguise));
-                player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY,
-                        PotionEffect.INFINITE_DURATION, 0, false, false));
+                String disguiseName;
+                if (customProps) {
+                    String id = props.get(random.nextInt(props.size()));
+                    visuals.put(player.getUniqueId(), game.plugin().content().attach(id, player, visualAudience));
+                    disguiseName = "custom prop";
+                } else {
+                    Material disguise = DISGUISES[random.nextInt(DISGUISES.length)];
+                    player.getInventory().setHelmet(new ItemStack(disguise));
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY,
+                            PotionEffect.INFINITE_DURATION, 0, false, false));
+                    disguiseName = disguise.name().toLowerCase().replace('_', ' ');
+                }
                 ItemStack taunt = new ItemStack(Material.NOTE_BLOCK);
                 taunt.editMeta(meta -> meta.displayName(Text.mm("<yellow><b>Taunt</b> <gray>(right-click... if you dare)")));
                 player.getInventory().setItem(4, taunt);
-                Text.title(player, "<green><b>HIDER", "<gray>Disguise: " + disguise.name().toLowerCase().replace('_', ' '));
+                Text.title(player, "<green><b>HIDER", "<gray>Disguise: " + disguiseName);
             }
         }
         game.broadcast("<yellow>" + seekerCount + " seeker(s)</yellow> will be released in <red>"
@@ -82,6 +109,19 @@ public final class PropHuntGame extends MiniGame {
 
     @Override
     public void onSecond(int gameTime) {
+        if (customProps) {
+            Set<UUID> currentAudience = game.everyone().stream().map(Player::getUniqueId).collect(java.util.stream.Collectors.toSet());
+            boolean valid = currentAudience.equals(visualAudience);
+            for (UUID id : hiders) {
+                Player hider = game.plugin().getServer().getPlayer(id);
+                valid &= hider != null && game.plugin().content().isActive(hider);
+            }
+            if (!valid) {
+                game.broadcast("<yellow>Custom Prop Hunt stopped because its content or viewing players changed. Please queue again.");
+                game.forceEnd();
+                return;
+            }
+        }
         if (hidePhase > 0) {
             hidePhase--;
             // Hold seekers at spawn during the hide phase.
@@ -150,6 +190,7 @@ public final class PropHuntGame extends MiniGame {
             return;
         }
         if (!hiders.remove(victim.getUniqueId())) return;
+        closeVisual(victim.getUniqueId());
         if (isInfection()) {
             seekers.add(victim.getUniqueId());
             game.plugin().playerState().reset(victim);
@@ -171,10 +212,35 @@ public final class PropHuntGame extends MiniGame {
      */
     @Override
     public void onQuit(Player player) {
+        closeVisual(player.getUniqueId());
         boolean wasSeeker = seekers.remove(player.getUniqueId());
         boolean wasHider = hiders.remove(player.getUniqueId());
-        if ((!wasSeeker && !wasHider) || game.state() != GameState.RUNNING) return;
+        if (game.state() != GameState.RUNNING) return;
+        if (customProps) {
+            game.broadcast("<yellow>Custom Prop Hunt stopped because its viewing players changed. Please queue again.");
+            game.forceEnd();
+            return;
+        }
+        if (!wasSeeker && !wasHider) return;
         checkWin();
+    }
+
+    private void closeVisual(UUID id) {
+        AutoCloseable visual = visuals.get(id);
+        if (visual == null) return;
+        try { visual.close(); visuals.remove(id); }
+        catch (Exception e) { throw new IllegalStateException("Could not remove a Prop Hunt visual", e); }
+    }
+
+    @Override public void onEliminated(Player player) { closeVisual(player.getUniqueId()); }
+    @Override public void onEnd(List<Player> winners) { onCleanup(); }
+    @Override public void onCleanup() {
+        RuntimeException failure = null;
+        for (UUID id : Set.copyOf(visuals.keySet())) {
+            try { closeVisual(id); }
+            catch (RuntimeException e) { if (failure == null) failure = e; else failure.addSuppressed(e); }
+        }
+        if (failure != null) throw failure;
     }
 
     private void checkWin() {

@@ -198,3 +198,27 @@ volcano1`, touch up by hand, run setup, save.
   match ever touches the template.
 - Arena definitions are written to `plugins/PulseGames/arenas/<game>-<arenaId>.yml`;
   they're human-readable if you ever want to tweak a number, then `/pulse reload`.
+
+### Dodgeball (local validation required)
+
+Modes: `solo` (2–12), `teams` (2–4, two teams). Provide at least two opposite
+spawns (first two are team bases), an enclosed court and `void-y`. No region is
+required. Players receive a blaze rod: right-click throws one snowball every
+0.75 seconds. Three enemy hits eliminate; friendly hits do nothing. Balls expire
+after five seconds. The last player/team wins; the four-minute timeout is a draw.
+`blueprints/dodgeball-court.json` supplies a simple enclosed court.
+
+### Dropper (local validation required)
+
+Modes: `practice` (one player), `race` (2–12). Provide a first launch spawn,
+a `finish` region covering the final **water blocks**, and `void-y` below the
+lowest landing. Optional `checkpoint1..N` regions cover intermediate water pools,
+in numeric order. **Each** requires a `checkpoint-spawnN` location setting for
+the next stage's safe launch platform. Reaching a pool advances and teleports to
+that launch; damage or falling below `void-y` retries the current stage. The first
+player to complete all pools and the finish wins. Timeouts award no winner.
+Pools must be reachable with ordinary falling and steering; provide solid rims
+and floors to contain water. Do not overlap launch points and landing regions.
+`blueprints/dropper-two-drops.json` supplies two 60-block drops with obstacle gates
+and offset water pools. Build and playtest blueprints before enabling these WIP
+catalog entries; neither is a record of a production map deployment.

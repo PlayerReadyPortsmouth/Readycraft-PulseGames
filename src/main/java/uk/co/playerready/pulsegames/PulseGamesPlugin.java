@@ -27,6 +27,8 @@ import java.io.File;
 
 public final class PulseGamesPlugin extends JavaPlugin {
 
+    private uk.co.playerready.pulsegames.core.bot.BotService bots;
+    private uk.co.playerready.pulsegames.core.content.PulseContentBridge content;
     private GameRegistry registry;
     private ArenaService arenas;
     private WorldService worlds;
@@ -51,10 +53,12 @@ public final class PulseGamesPlugin extends JavaPlugin {
         saveDefaultConfig();
         new File(getDataFolder(), "maps").mkdirs();
 
+        content = new uk.co.playerready.pulsegames.core.content.PulseContentBridge(this);
         registry = new GameRegistry();
         arenas = new ArenaService(this);
         worlds = new WorldService(this);
         instances = new InstanceManager(this);
+        bots = new uk.co.playerready.pulsegames.core.bot.BotService(this);
         parties = new PartyManager(this);
         lobby = new LobbyService(this);
         gameMenu = new GameMenu(this);
@@ -90,6 +94,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(setup, this);
         getServer().getPluginManager().registerEvents(tokenShop, this);
         new Commands(this);
+        bots.start();
 
         getLogger().info("PulseGames enabled with " + registry.all().size() + " games.");
     }
@@ -103,9 +108,26 @@ public final class PulseGamesPlugin extends JavaPlugin {
         } catch (Throwable ex) {
             getLogger().severe("Instance shutdown failed: " + ex);
         }
+        try { if (content != null) content.close(); }
+        catch (RuntimeException ex) { getLogger().log(java.util.logging.Level.SEVERE, "Content shutdown failed", ex); }
+        try { if (bots != null) bots.close(); }
+        catch (RuntimeException ex) { getLogger().log(java.util.logging.Level.SEVERE, "Bot shutdown failed", ex); }
         if (stats != null) stats.flush();
         if (economy != null) economy.flush();
     }
+
+    public uk.co.playerready.pulsegames.core.bot.BotService bots() { return bots; }
+
+    public boolean canUseNewFeatures(org.bukkit.entity.Player player) {
+        return getConfig().getBoolean("features.broad", false)
+                || getConfig().getStringList("features.canary-players").contains(player.getUniqueId().toString());
+    }
+
+    public boolean gameAvailable(uk.co.playerready.pulsegames.core.game.GameType type) {
+        return !type.wip() || getConfig().getStringList("games.preview").contains(type.id());
+    }
+
+    public uk.co.playerready.pulsegames.core.content.PulseContentBridge content() { return content; }
 
     public GameRegistry registry() { return registry; }
     public ArenaService arenas() { return arenas; }

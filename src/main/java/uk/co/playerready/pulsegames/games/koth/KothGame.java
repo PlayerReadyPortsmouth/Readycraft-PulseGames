@@ -49,6 +49,7 @@ public final class KothGame extends MiniGame {
     public void onSecond(int gameTime) {
         if (hill == null) return;
         List<Player> onHill = game.alivePlayers().stream()
+                .filter(game::isActive)
                 .filter(p -> hill.contains(p.getLocation())).toList();
         // One point per team per second, not per player: stacking the hill would otherwise
         // scale a team's capture rate with its size and win in a fraction of the time.
@@ -116,7 +117,7 @@ public final class KothGame extends MiniGame {
         } else {
             lines.add("<gray>You: <white>" + game.score(player));
             game.topScores().stream().limit(3).forEach(e -> {
-                Player p = game.plugin().getServer().getPlayer(e.getKey());
+                Player p = game.player(e.getKey());
                 if (p != null) lines.add("<gray>" + p.getName() + ": <white>" + e.getValue());
             });
         }

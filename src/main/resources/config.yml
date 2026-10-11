@@ -44,3 +44,30 @@ economy:
   playtime-interval-minutes: 15
   # ...first login of the day
   daily-bonus: 100
+
+# Experimental games become queueable only when named here; add maps before enabling.
+games:
+  preview: []
+
+# Owner: Aurora / ReadyCraft. Review: 2026-10-25.
+# Keep as an operational switch; enable only on tested arenas and compatible Citizens.
+bots:
+  enabled: false
+  # Each arena must also set settings.bots-enabled: true.
+  wait-seconds: 30
+  target-players: 4
+  max-per-match: 7
+  max-total: 24
+
+# Trial access for preview games, queue bots and modeled Prop Hunt. UUIDs only.
+# Owner Aurora / ReadyCraft; review 2026-10-25. Empty list grants nobody access.
+features:
+  broad: false
+  canary-players: []
+
+# Requires PulseContent minigames API v1 and approved no-hitbox model IDs.
+# Owner Aurora / ReadyCraft; review 2026-10-25; keep off until mixed-client acceptance.
+content:
+  prophunt:
+    enabled: false
+    props: []

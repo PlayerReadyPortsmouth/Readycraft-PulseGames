@@ -23,6 +23,11 @@ public final class StatsService {
     }
 
     private void bump(Player player, String game, String key) {
+        if (player.hasMetadata("NPC")) return;
+        if (plugin instanceof uk.co.playerready.pulsegames.PulseGamesPlugin games) {
+            var instance = games.instances().byPlayer(player);
+            if (instance != null && !instance.ranked()) return;
+        }
         String path = player.getUniqueId() + "." + game + "." + key;
         synchronized (this) {
             data.set(path, data.getInt(path) + 1);

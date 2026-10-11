@@ -2,6 +2,7 @@ name: PulseGames
 version: "${version}"
 main: uk.co.playerready.pulsegames.PulseGamesPlugin
 api-version: '1.21'
+softdepend: [Citizens, PulseContent]
 author: PlayerReady
 description: Multi-instance minigame engine for the Readycraft network.
 commands:

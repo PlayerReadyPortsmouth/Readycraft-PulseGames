@@ -34,7 +34,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
         // Console-capable admin subcommands (map generation needs no player).
         if (command.getName().equalsIgnoreCase("pulse") && args.length >= 1) {
             String sub = args[0].toLowerCase(Locale.ROOT);
-            if (sub.equals("build") || sub.equals("blueprints")) {
+            if (sub.equals("build") || sub.equals("blueprints") || sub.equals("bots")) {
                 adminConsole(sender, args);
                 return true;
             }
@@ -65,7 +65,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
                     + String.join(", ", plugin.registry().all().stream().map(GameType::id).toList())));
             return;
         }
-        if (type.wip()) {
+        if (!plugin.gameAvailable(type)) {
             player.sendMessage(Text.msg("<red>" + type.displayName() + " is coming soon!"));
             return;
         }
@@ -146,6 +146,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
             return;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
+            case "bots" -> sender.sendMessage(Text.msg(plugin.bots().status()));
             case "blueprints" -> sender.sendMessage(Text.msg("Blueprints: <yellow>"
                     + String.join(", ", plugin.mapBuilder().available())));
             case "build" -> {
@@ -269,7 +270,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
             }
             case "pulse" -> {
                 if (args.length == 1) {
-                    return List.of("setup", "shape", "build", "blueprints", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
+                    return List.of("setup", "shape", "build", "blueprints", "bots", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
                 }
                 if (args.length == 2 && args[0].equalsIgnoreCase("build")) {
                     return plugin.mapBuilder().available();
