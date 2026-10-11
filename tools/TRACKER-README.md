@@ -1,6 +1,6 @@
 # Updating the shared minigames report
 
-Edit `../MINIGAMES-TRACKER.md` as the canonical record, then regenerate the HTML and PDF together before handing the tracker back. Do not edit the generated HTML or PDF directly. Preserve the distinction between prepared and deployed work and Aurora’s all-five Prop Hunt visual approval gate.
+Edit `../MINIGAMES-TRACKER.md` as the canonical record, then regenerate the HTML and PDF together before handing the tracker back. Do not edit the generated HTML or PDF directly. Preserve the distinction between prepared and deployed work and Aurora’s recorded per-map Prop Hunt approval requirement.
 
 From the PulseGames directory:
 
