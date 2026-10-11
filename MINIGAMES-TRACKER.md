@@ -77,7 +77,7 @@ checks alone remain insufficient permission to register an unapproved map.
 | Map | Build-world name | Build state | Aurora visual review | Arena setup |
 |---|---|---|---|---|
 | 1 - Market Day | `rc_build_prophunt_market_day` | 93x93; eight ladder lofts, two mezzanines and containment. Builder checks passed (47,794 states). | Approved for setup; requested additions completed | Saved/live: `market_day`; template `market_day` |
-| 2 - Crooked Library | `rc_build_prophunt_crooked_library` | 113x47; three furnished levels, paired stairs, 18 additional archive clutter groups and containment with preserved roof edges. Builder checks passed (49,242 states). | Current map for Aurora review | Not registered; needs approval |
+| 2 - Crooked Library | `rc_build_prophunt_crooked_library` | 113x47; three furnished levels, paired stairs, 18 additional archive clutter groups and containment with preserved roof edges. Builder checks passed (49,242 states). | Approved by Aurora after archive clutter revision | Saved/live: `crooked_library`; template `crooked_library` |
 | 3 - Harvest Festival | `rc_build_prophunt_harvest_festival` | 93x85; six barn/mill mezzanines, farmhouse loft and containment. Builder checks passed (42,945 states). | Approved in farm world; setup requested | Saved/live: `harvest_festival`; template `harvest_festival` |
 | 4 - Smuggler's Wharf | `rc_build_prophunt_smugglers_wharf` | 109x93; warehouse upper floors, four mezzanines, cabin roof hiding and containment. Builder checks passed (67,514 states). | Approved by Aurora | Saved/live: `smugglers_wharf`; template `smugglers_wharf` |
 | 5 - Backstage Mayhem | `rc_build_prophunt_backstage_mayhem` | 101x85; ten room mezzanines, repaired catwalk, corrected stage-facing seats and containment. Builder checks passed (66,024 states). | Approved; requested seating correction completed | Saved/live: `backstage_mayhem`; template `backstage_mayhem` |
@@ -85,8 +85,9 @@ checks alone remain insufficient permission to register an unapproved map.
 Visit with `/pulse world <build-world name>`. These names identify permanent build
 worlds; the saved arena/template IDs are separately recorded above. Each registered
 map has Classic and Infection, 2-16 configured players, seven spawns (one seeker,
-six hider scatter points), enclosed waiting/spectator platforms, `void-y: 74` and
-`bots-enabled: false`. Setup checklists passed and `/pulse arenas` confirmed all four
+six hider scatter points), enclosed waiting/spectator platforms and
+`bots-enabled: false`. Void-y is 74 for the four floor-80 maps and 67 for Crooked
+Library, below its archive floor at y73. Setup checklists passed and `/pulse arenas` confirmed all five
 saved IDs/templates loaded. Gameplay and crossplay tests remain pending.
 
 ## Team-size and map-capacity programme
@@ -149,7 +150,7 @@ needed. Do not bypass team/role requirements and call that a completed test.
 | KOTH | Trial arena available; full acceptance not recorded | Solo and teams | Solo yes; teams currently needs 8 total | Fix test arena capacity for teams; hill contesting and team balance |
 | Dodgeball | Court test arena; Aurora reports cooldown too slow and hits unclear | Solo and teams | Yes | Test prepared cooldown/feedback; dodge and lead targets; difficulty |
 | Dropper | Two-drops test arena | None | Race yes; practice is solo | Test landing/checkpoint/reset behaviour; controlled-fall bots |
-| Prop Hunt | **All five upper-area/barrier revisions checked; Market Day, Harvest Festival, Smuggler’s Wharf and Backstage Mayhem registered; Crooked Library review pending.** Trial arena exists; startup fix pending deployment | None | Live minimum 3; prepared update lowers to 2 | Deploy validated startup fix; test palette, snapping and head props; fair seeker/hider bots |
+| Prop Hunt | **All five upper-area/barrier revisions checked; All five maps approved and registered; gameplay tests pending.** Trial arena exists; startup fix pending deployment | None | Live minimum 3; prepared update lowers to 2 | Deploy validated startup fix; test palette, snapping and head props; fair seeker/hider bots |
 | Spleef | No accepted map/test recorded | Prepared: Classic, Decay, Splegg | Yes | Maps; full rounds, floor loss, projectile impacts and balance |
 | TNT Run | No accepted map/test recorded | Prepared: Classic | Yes | Full rounds, corners and layers; Double Jump remains human-only |
 | Block Party | No accepted map/player test recorded | Prepared Classic/Hardcore | Yes | Build maps; full rounds, elimination, difficulty and two-client tests |
@@ -420,3 +421,5 @@ For each new map or mode, append:
 - Aurora approved Backstage Mayhem subject to audience seating correction: all 80 wooden seats now look toward the stage with red wool behind; actual interior images inspected and all 66,024 states match. Registered `backstage_mayhem`; seven clear-floor spawns, enclosed waiting/spectator points, Classic/Infection, configured 2-16, bots disabled and void-y74. Checklist/live-save and `/pulse arenas` confirm template loading. Crooked Library is loaded for the final review. Played rounds, crossplay acceptance and server restart remain pending.
 
 - Crooked Library review revision: Aurora requested more random clutter in the bottom area. Added 18 varied groups of book sorting piles, barrel cabinets, repair desks, lecterns and supplies (180 blocks), preserving existing shelves and stair approaches. Actual archive images reviewed; all 49,242 states match. Map remains in Aurora review and is not registered.
+
+- Aurora approved Crooked Library after the archive clutter revision. Registered `crooked_library` with Classic/Infection, configured 2-16, seven clear-floor spawns across all three levels, bots disabled and void-y67 below the archive floor at y73. Waiting/spectator points are in the enclosed upper galleries. Checklist passed; live-save and `/pulse arenas` confirm all five commissioned Prop Hunt arena/template IDs loaded. All visual reviews and registrations are complete; played rounds, Java/Bedrock acceptance and server updates/restarts remain pending with the other agent.

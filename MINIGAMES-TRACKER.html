@@ -8,7 +8,7 @@
 </style></head><body><header class="toolbar"><div><span class="brand">PULSE / GAMES</span><small>Development & play testing</small></div><button onclick="window.print()">Print / Save as PDF</button></header><main>
 <div class="hero"><div class="eyebrow">ReadyCraft · Working report</div><h1>Every game.<br>A clear next step.</h1><p>Map building, bot readiness and player testing in one shared record. Prepared changes remain separate from what is running on MinigamesTest.</p><div class="meta"><span>Updated 11 October 2026</span><span>Owner: Aurora</span><span>Snapshot, not a live server feed</span></div></div>
 <div class="summary"><div class="stat"><b>23 games</b><span>Tracked across the programme</span></div><div class="stat"><b>11 / 23</b><span>Prepared bot controllers (4 live)</span></div><div class="stat"><b>5 maps</b><span>Prop Hunt batch awaiting visual review</span></div></div>
-<aside class="notice"><strong>Current priority · Prop Hunt maps</strong><p>Four maps are registered. Review Crooked Library; register each approved map, then complete gameplay tests. Building completion alone does not authorise setup.</p></aside>
+<aside class="notice"><strong>Current priority · Prop Hunt maps</strong><p>All five maps are approved and registered. Complete gameplay and Java/Bedrock tests after the planned server updates/restart.</p></aside>
 <p class="print-note">Share this standalone HTML file, or use Print / Save as PDF for the complete report. Printing includes every section. For best results use A4 landscape with background graphics enabled.</p>
 <div class="layout"><nav aria-label="Report sections"><strong>In this report</strong><a href="#working-agreement">Working agreement</a><a href="#current-test-server-baseline">Current test-server baseline</a><a href="#prepared-update-not-deployed">Prepared update — not deployed</a><a href="#active-map-batch-prop-hunt">Active map batch: Prop Hunt</a><a href="#team-size-and-map-capacity-programme">Team-size and map-capacity programme</a><a href="#queue-bots-and-network-helper-merged-and-staged">Queue bots and network helper — merged and staged</a><a href="#per-game-readiness">Per-game readiness</a><a href="#verified-server-arena-names">Verified server arena names</a><a href="#duels-map-and-mode-register">Duels map and mode register</a><a href="#bot-programme">Bot programme</a><a href="#map-setup-and-acceptance-template">Map setup and acceptance template</a><a href="#dated-log">Dated log</a><a href="#11-october-follow-up-staging-and-hazard-bots">11 October follow-up: staging and hazard bots</a><a href="#duels-selector-and-personal-loadouts-prepared-not-live">Duels selector and personal loadouts — prepared, not live</a></nav><article><section id="working-agreement" class="report-section"><div class="section-heading"><span>01</span><h2>Working agreement</h2></div><ul>
 <li>Goal: a broad mix of party, co-op, racing and competitive games, all with proper
@@ -144,8 +144,8 @@ updates/restarts remain with Aurora&#39;s other agent; no restart was made here.
 <td>2 - Crooked Library</td>
 <td><code>rc_build_prophunt_crooked_library</code></td>
 <td>113x47; three furnished levels, paired stairs, 18 additional archive clutter groups and containment with preserved roof edges. Builder checks passed (49,242 states).</td>
-<td>Current map for Aurora review</td>
-<td>Not registered; needs approval</td>
+<td>Approved by Aurora after archive clutter revision</td>
+<td>Saved/live: <code>crooked_library</code>; template <code>crooked_library</code></td>
 </tr>
 <tr>
 <td>3 - Harvest Festival</td>
@@ -172,8 +172,9 @@ updates/restarts remain with Aurora&#39;s other agent; no restart was made here.
 <p>Visit with <code>/pulse world &lt;build-world name&gt;</code>. These names identify permanent build
 worlds; the saved arena/template IDs are separately recorded above. Each registered
 map has Classic and Infection, 2-16 configured players, seven spawns (one seeker,
-six hider scatter points), enclosed waiting/spectator platforms, <code>void-y: 74</code> and
-<code>bots-enabled: false</code>. Setup checklists passed and <code>/pulse arenas</code> confirmed all four
+six hider scatter points), enclosed waiting/spectator platforms and
+<code>bots-enabled: false</code>. Void-y is 74 for the four floor-80 maps and 67 for Crooked
+Library, below its archive floor at y73. Setup checklists passed and <code>/pulse arenas</code> confirmed all five
 saved IDs/templates loaded. Gameplay and crossplay tests remain pending.</p>
 </section>
 <section id="team-size-and-map-capacity-programme" class="report-section"><div class="section-heading"><span>05</span><h2>Team-size and map-capacity programme</h2></div><p>Aurora confirmed: <strong>sizes 1–4 (solo, doubles, triples, squads), with the number of
@@ -272,7 +273,7 @@ needed. Do not bypass team/role requirements and call that a completed test.</p>
 </tr>
 <tr>
 <td>Prop Hunt</td>
-<td><strong>All five upper-area/barrier revisions checked; Market Day, Harvest Festival, Smuggler’s Wharf and Backstage Mayhem registered; Crooked Library review pending.</strong> Trial arena exists; startup fix pending deployment</td>
+<td><strong>All five upper-area/barrier revisions checked; All five maps approved and registered; gameplay tests pending.</strong> Trial arena exists; startup fix pending deployment</td>
 <td>None</td>
 <td>Live minimum 3; prepared update lowers to 2</td>
 <td>Deploy validated startup fix; test palette, snapping and head props; fair seeker/hider bots</td>
@@ -736,6 +737,8 @@ See <a href="docs/DUELS.md">Duels setup and acceptance guide</a>. No live restar
 <li><p>Aurora approved Backstage Mayhem subject to audience seating correction: all 80 wooden seats now look toward the stage with red wool behind; actual interior images inspected and all 66,024 states match. Registered <code>backstage_mayhem</code>; seven clear-floor spawns, enclosed waiting/spectator points, Classic/Infection, configured 2-16, bots disabled and void-y74. Checklist/live-save and <code>/pulse arenas</code> confirm template loading. Crooked Library is loaded for the final review. Played rounds, crossplay acceptance and server restart remain pending.</p>
 </li>
 <li><p>Crooked Library review revision: Aurora requested more random clutter in the bottom area. Added 18 varied groups of book sorting piles, barrel cabinets, repair desks, lecterns and supplies (180 blocks), preserving existing shelves and stair approaches. Actual archive images reviewed; all 49,242 states match. Map remains in Aurora review and is not registered.</p>
+</li>
+<li><p>Aurora approved Crooked Library after the archive clutter revision. Registered <code>crooked_library</code> with Classic/Infection, configured 2-16, seven clear-floor spawns across all three levels, bots disabled and void-y67 below the archive floor at y73. Waiting/spectator points are in the enclosed upper galleries. Checklist passed; live-save and <code>/pulse arenas</code> confirm all five commissioned Prop Hunt arena/template IDs loaded. All visual reviews and registrations are complete; played rounds, Java/Bedrock acceptance and server updates/restarts remain pending with the other agent.</p>
 </li>
 </ul>
 </section></article></div>
