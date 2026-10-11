@@ -16,11 +16,12 @@ import java.util.concurrent.ThreadLocalRandom;
  * Volcano: the lava rises - climb for your life!
  * Modes: classic, eruption (faster lava + flaming rocks).
  */
-public final class VolcanoGame extends MiniGame {
+public final class VolcanoGame extends MiniGame implements uk.co.playerready.pulsegames.core.bot.BotMovement {
 
     /** Block writes per tick while a layer floods; a whole plane in one tick stalls the server. */
     private static final int BLOCKS_PER_TICK = 1024;
 
+    private final uk.co.playerready.pulsegames.core.bot.SurfaceMemory memory = new uk.co.playerready.pulsegames.core.bot.SurfaceMemory();
     private Cuboid area;
     private int lavaY;
     private boolean flooding;
@@ -84,6 +85,23 @@ public final class VolcanoGame extends MiniGame {
             floodSlice(y, toX + 1);
         });
     }
+
+    @Override
+    public Location botDestination(Player bot) {
+        if (area == null || !bot.getWorld().equals(game.world())) return null;
+        memory.remember(bot);
+        Location here = bot.getLocation();
+        var rocks = game.world().getNearbyEntities(here, 12, 24, 12).stream()
+                .filter(e -> e instanceof org.bukkit.entity.FallingBlock && e.isValid())
+                .filter(e -> e.getLocation().getY() > here.getY() - 1 && bot.hasLineOfSight(e))
+                .limit(128).map(e -> e.getLocation()).toList();
+        return memory.nextStep(bot, area::contains,
+                p -> p.getY() * 12 - memory.penalty(bot, p) - rocks.stream().mapToDouble(rock -> {
+                    double dx = p.getX() - rock.getX(), dz = p.getZ() - rock.getZ();
+                    return 100.0 / Math.max(0.25, dx * dx + dz * dz);
+                }).sum());
+    }
+    @Override public void onCleanup() { memory.clear(); }
 
     @Override
     public void onDamage(Player victim, EntityDamageEvent event) {

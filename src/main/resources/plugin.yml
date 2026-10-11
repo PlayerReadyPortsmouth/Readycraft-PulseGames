@@ -18,6 +18,9 @@ commands:
     aliases: [hub, leave]
   stats:
     description: View your minigame stats.
+  pulsekits:
+    description: Choose your next KitPvP loadout.
+    aliases: [kits]
   shop:
     description: Open the token shop.
     aliases: [tokens, cosmetics]

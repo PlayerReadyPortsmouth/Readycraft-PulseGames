@@ -17,7 +17,7 @@ public final class BotService implements AutoCloseable {
             "koth:solo", "koth:teams", "kitpvp:ffa", "dodgeball:solo", "dodgeball:teams",
             "villagerdefense:easy", "villagerdefense:hard",
             "readyplayerz:classic", "readyplayerz:frenzy", "blockparty:classic", "blockparty:hardcore",
-            "avalanche:classic", "spleef:classic", "spleef:decay", "spleef:splegg");
+            "tntrun:classic", "volcano:classic", "volcano:eruption", "avalanche:classic", "spleef:classic", "spleef:decay", "spleef:splegg");
     private static final class Slot {
         final GameInstance game;
         final BotActor actor;
@@ -276,9 +276,11 @@ public final class BotService implements AutoCloseable {
             slot.actor.stopNavigation();
             slot.destination = null;
         } else if (tick >= slot.nextPath && (slot.destination == null || slot.destination.distanceSquared(goal) > (slot.game.logic() instanceof BotMovement ? 0.01 : 2) || tick % 100 == 0)) {
-            slot.actor.navigate(goal);
+            if (slot.game.logic() instanceof BotMovement movement && movement.straightNavigation()) slot.actor.navigateStraight(goal);
+            else slot.actor.navigate(goal);
             slot.destination = goal.clone();
-            slot.nextPath = tick + difficulty.pathTicks;
+            slot.nextPath = tick + (slot.game.logic() instanceof BotMovement movement
+                    ? Math.max(5, movement.navigationIntervalTicks(difficulty)) : difficulty.pathTicks);
         }
     }
 

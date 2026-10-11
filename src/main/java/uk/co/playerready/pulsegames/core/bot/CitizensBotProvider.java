@@ -134,6 +134,12 @@ public final class CitizensBotProvider implements BotProvider {
         @Override public void navigate(Location destination) {
             if (valid()) call(api.target, navigator, destination.clone());
         }
+        @Override public void navigateStraight(Location destination) {
+            if (valid()) {
+                call(api.face, npc, destination.clone());
+                call(api.straightTarget, navigator, destination.clone());
+            }
+        }
         @Override public void stopNavigation() {
             if (!destroyed && owned.contains(npc)) call(api.cancel, navigator);
         }
@@ -158,7 +164,7 @@ public final class CitizensBotProvider implements BotProvider {
     }
 
     private static final class Api {
-        final Method create, data, set, spawn, entity, navigator, destroy, target, cancel, face, parameters, distanceMargin, pathDistanceMargin, teleportMargin, useNewPathfinder;
+        final Method create, data, set, spawn, entity, navigator, destroy, target, straightTarget, cancel, face, parameters, distanceMargin, pathDistanceMargin, teleportMargin, useNewPathfinder;
         final java.util.Map<String, Object> metadataKeys = new java.util.HashMap<>();
         Api(ClassLoader loader) throws ReflectiveOperationException {
             Class<?> npc = loader.loadClass("net.citizensnpcs.api.npc.NPC");
@@ -187,6 +193,7 @@ public final class CitizensBotProvider implements BotProvider {
             pathDistanceMargin = params.getMethod("pathDistanceMargin", double.class);
             teleportMargin = params.getMethod("destinationTeleportMargin", double.class);
             target = nav.getMethod("setTarget", Location.class);
+            straightTarget = nav.getMethod("setStraightLineTarget", Location.class);
             cancel = nav.getMethod("cancelNavigation");
         }
     }

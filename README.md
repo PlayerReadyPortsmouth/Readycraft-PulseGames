@@ -84,6 +84,7 @@ matching artifact version and bump `api-version` in `plugin.yml` if needed.
 | `/pulse shape list/paste/undo` | generate geometry from JSON shape files |
 | `/pulse world <name>` | load/create a build world on this server |
 | `/pulse list / arenas / games` | inspect running instances, maps, games |
+| `/pulsekits` (alias `/kits`) | choose a default or owned KitPvP loadout for the next spawn |
 | `/pulse bots` | queue-bot provider status, count and supported modes |
 | `/pulse start / end` | force-start/-end the game you're in |
 | `/pulse setlobby / reload` | hub spawn / reload configs |

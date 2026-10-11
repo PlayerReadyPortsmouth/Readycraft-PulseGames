@@ -6,5 +6,7 @@ import org.bukkit.entity.Player;
 /** A movement objective follows the same public cues as players; navigation never teleports. */
 public interface BotMovement {
     Location botDestination(Player bot);
+    default boolean straightNavigation() { return false; }
+    default int navigationIntervalTicks(BotDifficulty difficulty) { return difficulty.pathTicks; }
     default void botTick(Player bot, long tick, BotDifficulty difficulty) {}
 }

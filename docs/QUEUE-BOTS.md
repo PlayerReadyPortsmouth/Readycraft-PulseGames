@@ -16,11 +16,20 @@ and destroys its bots; bots never create unattended matches.
 | Kit PvP | ffa | visible opponents, melee, normal respawn |
 | King of the Hill | solo, teams | capture hill, fight visible opponents, respawn |
 | Dodgeball preview | solo, teams | approach/retreat and the same projectile throw as humans |
+| Villager Defense | easy, hard | defend objective, fight wave enemies |
+| ReadyPlayerZ | classic, frenzy | wave combat, earned-point purchases, revival |
+| Block Party | classic, hardcore | navigate to publicly called colour |
+| Avalanche | classic | evade visible falling blocks |
+| Spleef | classic, decay, splegg | safe floor navigation, protected digging, earned ammunition and shared egg launcher |
+| TNT Run | classic | continuous routes across surviving floor; no double-jump controller yet |
+| Volcano | classic, eruption | climb reachable ground, avoid lava and visible falling rocks |
 
 Other modes stay human-only. In particular, no Prop Hunt, racing, building, OITC,
-parkour or co-op bot controller is claimed. Bots do not discover hidden players,
+parkour or TNT Run Double Jump bot controller is claimed. The table describes the
+prepared source, not the deployed server; consult the tracker for live status. Bots do not discover hidden players,
 attack through walls, teleport out of stuck paths, or receive custom damage.
-Decision work runs four times per second, paths at most once per second; attacks
+Decision work runs four times per second, with difficulty-based navigation intervals
+and faster replanning for TNT Run; attacks
 have a delay and melee has a miss chance. These are basic controllers, not tuned
 human-level opponents. Difficult terrain needs a playtest before map opt-in.
 
@@ -39,10 +48,16 @@ features:
 bots:
   enabled: true
   wait-seconds: 30
-  target-players: 4
-  max-per-match: 7
-  max-total: 24
+  max-per-match: 31
+  max-total: 64
+  difficulty: normal
 ```
+
+The fill target is half the mode/map capacity, rounded up, or the full capacity
+when its maximum is four or fewer. The playable minimum can raise that target.
+Configured match/server caps still apply; existing installation caps are not
+silently increased by an update. Difficulty may be overridden per arena with
+`bot-difficulty: easy|normal|hard`.
 
 All humans in a match must be trial members. An empty canary list admits nobody.
 `features.broad: true` is a deliberate wider rollout. In each approved arena's
@@ -73,3 +88,20 @@ Neither substitutes for a human Java/Bedrock match or performance testing under
 many simultaneous games. See the PR's verification record for exact builds and
 results. The source still compiles against Paper 1.21.4; the modern local smoke
 stack does not establish compatibility with every deployed Minecraft version.
+
+
+## Next test session
+
+Use accepted maps with `bots-enabled: true` and the normal `/play` queue. For TNT
+Run, check sustained movement, layers, turns and holes before raising capacity;
+Double Jump remains human-only. Volcano needs connected, climbable paths: the
+controller does not teleport or invent bridges to disconnected ledges. Test both
+Classic lava rises and Eruption rocks. Full human rounds and mixed Java/Bedrock
+acceptance remain required even after local NPC probes pass.
+
+KitPvP now has `/pulsekits` (alias `/kits`) plus a button in the game menu. Choose
+the map default or an owned shop kit; locked kits remain locked. Selection is saved
+for the next KitPvP spawn, never applied mid-fight. One in the Chamber keeps its
+fixed loadout. On servers with another `/kits` command, use `/pulsekits` explicitly.
+Check selecting, death/respawn, switching back to the default and reconnecting on
+both clients. More Duels presets and shop inventory are separate follow-ups.

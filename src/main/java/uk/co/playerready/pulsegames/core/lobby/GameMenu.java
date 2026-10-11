@@ -59,6 +59,7 @@ public final class GameMenu implements Listener {
             });
             inv.setItem(slot++, item);
         }
+        addKitButton(holder, inv);
         player.openInventory(inv);
     }
 
@@ -79,7 +80,21 @@ public final class GameMenu implements Listener {
             inv.setItem(slot++, item);
             if (slot % 9 == 8) slot += 3;
         }
+        addKitButton(holder, inv);
         player.openInventory(inv);
+    }
+
+    private void addKitButton(MenuHolder holder, Inventory inv) {
+        if (holder.gameOrNull != null && !holder.gameOrNull.id().equals("kitpvp")) return;
+        var kits = new ItemStack(Material.CHEST);
+        kits.editMeta(meta -> { meta.displayName(Text.mm("<aqua>Choose KitPvP loadout"));
+            meta.lore(List.of(Text.mm("<gray>Select your default or owned kit"), Text.mm("<gray>Applies at your next KitPvP spawn"))); });
+        inv.setItem(holder.gameOrNull == null ? inv.getSize() - 1 : 4, kits);
+    }
+
+    @EventHandler
+    public void onDrag(org.bukkit.event.inventory.InventoryDragEvent event) {
+        if (event.getView().getTopInventory().getHolder() instanceof MenuHolder) event.setCancelled(true);
     }
 
     @EventHandler
@@ -93,6 +108,10 @@ public final class GameMenu implements Listener {
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getType() == Material.AIR) return;
 
+        if ((holder.gameOrNull == null && event.getSlot() == event.getInventory().getSize() - 1)
+                || (holder.gameOrNull != null && holder.gameOrNull.id().equals("kitpvp") && event.getSlot() == 4)) {
+            plugin.kitSelection().open(player); return;
+        }
         if (holder.gameOrNull == null) {
             List<GameType> games = new ArrayList<>(plugin.registry().all());
             int index = event.getSlot();

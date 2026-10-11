@@ -110,7 +110,7 @@ are currently queued.
   remain distinct; symmetric team variants for these need a separate rules design.
 - Team modes do not imply bot support. Live controllers still cover 4/23 games;
   Villager Defense, ReadyPlayerZ and Block Party are merged; the latter two passed focused local checks.
-  Avalanche and Spleef are prepared in the next draft, bringing controllers to 9/23; live support remains 4/23.
+  Avalanche, Spleef, TNT Run and Volcano are prepared in draft PR6, bringing controllers to 11/23; live support remains 4/23.
 - See [team and capacity instructions](TEAM-MODES.md) for exact settings and examples.
 
 ## Queue bots and network helper — merged and staged
@@ -149,16 +149,16 @@ needed. Do not bypass team/role requirements and call that a completed test.
 | Game | Maps / player testing | Current bots | Two humans | Next work |
 |---|---|---|---|---|
 | **Duels** | **3 user-built maps: Courtyard, Ruined Temple, Foundry. Aurora reports gameplay works.** Initial trial arena also retained. | Classic, OP, Sumo | Yes | Adjust kits/loadouts; consider Mace PvP, Crystal PvP and further modes; difficulty levels; test each map/mode |
-| KitPvP | Trial arena; bot tested earlier, detailed acceptance not recorded | FFA only | Yes | Kit balance; OITC bow/ammo bot; respawn and mixed-client tests |
+| KitPvP | Trial arena; standalone kit picker prepared | FFA only | Yes | Test default/owned kit selection and respawn; kit balance; OITC bot |
 | KOTH | Trial arena available; full acceptance not recorded | Solo and teams | Solo yes; teams currently needs 8 total | Fix test arena capacity for teams; hill contesting and team balance |
 | Dodgeball | Court test arena; Aurora reports cooldown too slow and hits unclear | Solo and teams | Yes | Test prepared cooldown/feedback; dodge and lead targets; difficulty |
 | Dropper | Two-drops test arena | None | Race yes; practice is solo | Test landing/checkpoint/reset behaviour; controlled-fall bots |
 | Prop Hunt | **Five-map build batch in progress; Aurora must visually approve all five before setup.** Trial arena exists; startup fix pending deployment | None | Live minimum 3; prepared update lowers to 2 | Deploy validated startup fix; test palette, snapping and head props; fair seeker/hider bots |
 | Spleef | No accepted map/test recorded | Prepared: Classic, Decay, Splegg | Yes | Maps; full rounds, floor loss, projectile impacts and balance |
-| TNT Run | No accepted map/test recorded | None | Yes | Maps; disappearing-floor routing and double jumps |
+| TNT Run | No accepted map/test recorded | Prepared: Classic | Yes | Full rounds, corners and layers; Double Jump remains human-only |
 | Block Party | No accepted map/player test recorded | Prepared Classic/Hardcore | Yes | Build maps; full rounds, elimination, difficulty and two-client tests |
 | Avalanche | No accepted map/test recorded | Prepared: Classic | Yes | Maps; full falling-block rounds and survival balance |
-| Volcano | No accepted map/test recorded | None | Yes | Maps; climbing routes and lava/eruption avoidance |
+| Volcano | No accepted map/test recorded | Prepared: Classic, Eruption | Yes | Full lava/rock rounds; map-specific climbing routes |
 | Parkour | No accepted map/test recorded | None | Sprint yes; elimination needs 3 | Builder-authored routes, real jumps and checkpoints |
 | Elytra Racing | No accepted map/test recorded | None | Yes | Flight routes, checkpoint passage, rockets and recovery |
 | PulseKarts | No accepted map/test recorded | None | Yes | Ice track, boat steering, checkpoints, laps and item use |
@@ -365,3 +365,25 @@ For each new map or mode, append:
   and visible avalanche evasion. These are focused checks, not full-match or crossplay acceptance.
 - Remaining: play full rounds on accepted maps, check Splegg projectile impacts and Decay
   floor loss, then tune reaction times. The 0.3.5 candidate is separate from the merged/staged 0.3.4 bundle.
+
+
+### Next test batch: survival bots and kit selection
+
+- [Draft PR6](https://github.com/PlayerReadyPortsmouth/Readycraft-PulseGames/pull/6)
+  now also prepares TNT Run Classic and Volcano Classic/Eruption. TNT uses short,
+  continuously checked straight corridors under the normal eight-tick crumble timer.
+  Volcano climbs reachable steps; navigation handles stair edges without teleporting.
+- KitPvP has a standalone picker: `/pulsekits` (alias `/kits`) and buttons in the game
+  menu. Select the map default or an owned Tank/Archer unlock. Locked or missing kits
+  are refused. Selection takes effect at the next spawn, never refills mid-fight,
+  and does not change One in the Chamber's fixed loadout. Menu item dragging is blocked.
+- Validation: 42 focused tests passed. Local Paper/Citizens checks verified kit UI,
+  ownership, next-respawn application and default selection; a two-block Volcano climb;
+  and eight seconds of TNT running with 27 crumbled tiles, including a turn at the edge.
+  This is not full-match or human Java/Bedrock acceptance. TNT Double Jump remains human-only.
+- Ready for an approved test rollout, not deployed. Test accepted maps via normal queues,
+  then kit selection/death/respawn on both clients. The main tracker and
+  [queue-bot checklist](docs/QUEUE-BOTS.md) remain the agent-maintained acceptance record.
+- Next priorities after this batch: explicit Duels loadout selection and crystal/mace
+  rules, more KitPvP loadouts, then shop expansion. Crystal/mace support is not yet claimed.
+  Floor Is Lava is not a separate registered game; Volcano is the rising-lava mode.
