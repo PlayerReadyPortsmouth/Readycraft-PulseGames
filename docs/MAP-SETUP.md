@@ -193,8 +193,11 @@ volcano1`, touch up by hand, run setup, save.
 ## How worlds are stored
 
 - Templates live in `plugins/PulseGames/maps/<arenaId>/` (written by `/pulse setup save`).
-- Each running instance copies its template to `pulse_<id>/` in the server root,
-  loads it with a void generator, and deletes it after the game. Nothing you do in a
+- Each running instance copies its template into a separate world and deletes it
+  after the game. Paper before 26.1 uses `pulse_<id>/` in the server root; Paper
+  26.1+ uses `<level>/dimensions/minecraft/pulse_<id>/`. Templates captured on
+  older servers must be imported and re-captured after upgrading to modern Paper.
+  Capture flushes pending saves before copying, and clones receive new world UUIDs. Nothing you do in a
   match ever touches the template.
 - Arena definitions are written to `plugins/PulseGames/arenas/<game>-<arenaId>.yml`;
   they're human-readable if you ever want to tweak a number, then `/pulse reload`.

@@ -3,6 +3,8 @@ package uk.co.playerready.pulsegames.core.lobby;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -13,11 +15,13 @@ import uk.co.playerready.pulsegames.core.util.Text;
 public final class LobbyService {
 
     private final JavaPlugin plugin;
+    private final NamespacedKey controlKey;
     /** Name we have already warned about, so the fallback doesn't spam the log. */
     private String warnedMissingWorld;
 
     public LobbyService(JavaPlugin plugin) {
         this.plugin = plugin;
+        this.controlKey = new NamespacedKey(plugin, "lobby-control");
     }
 
     /** The world players are actually sent to - the configured one, or the server's
@@ -72,11 +76,20 @@ public final class LobbyService {
      * clearing here made that whole snapshot/restore mechanism a no-op.
      */
     public void giveMenuItem(Player player) {
+        // Clear previous controls, including pre-tag versions moved before protection existed.
+        for (int slot = 0; slot < player.getInventory().getSize(); slot++) {
+            ItemStack item = player.getInventory().getItem(slot);
+            if (isMenuItem(item) || isShopItem(item) || isLegacyControl(item)) {
+                player.getInventory().setItem(slot, null);
+            }
+        }
         ItemStack compass = new ItemStack(Material.COMPASS);
         compass.editMeta(meta -> meta.displayName(Text.mm("<gradient:#ff5f6d:#ffc371><b>Game Menu</b></gradient> <gray>(right-click)")));
+        compass.editMeta(meta -> meta.getPersistentDataContainer().set(controlKey, PersistentDataType.STRING, "games"));
         giveMenuSlot(player, 4, compass);
         ItemStack shop = new ItemStack(Material.SUNFLOWER);
         shop.editMeta(meta -> meta.displayName(Text.mm("<gold><b>Token Shop</b> <gray>(right-click)")));
+        shop.editMeta(meta -> meta.getPersistentDataContainer().set(controlKey, PersistentDataType.STRING, "shop"));
         giveMenuSlot(player, 6, shop);
     }
 
@@ -91,13 +104,20 @@ public final class LobbyService {
                 .forEach(leftover -> player.getWorld().dropItemNaturally(player.getLocation(), leftover));
     }
 
+    private boolean isLegacyControl(ItemStack item) {
+        if (item == null || !item.hasItemMeta() || !item.getItemMeta().hasDisplayName()) return false;
+        var name = item.getItemMeta().displayName();
+        return (item.getType() == Material.COMPASS && Text.mm("<gradient:#ff5f6d:#ffc371><b>Game Menu</b></gradient> <gray>(right-click)").equals(name))
+                || (item.getType() == Material.SUNFLOWER && Text.mm("<gold><b>Token Shop</b> <gray>(right-click)").equals(name));
+    }
+
     public boolean isMenuItem(ItemStack item) {
         return item != null && item.getType() == Material.COMPASS && item.hasItemMeta()
-                && item.getItemMeta().hasDisplayName();
+                && "games".equals(item.getItemMeta().getPersistentDataContainer().get(controlKey, PersistentDataType.STRING));
     }
 
     public boolean isShopItem(ItemStack item) {
         return item != null && item.getType() == Material.SUNFLOWER && item.hasItemMeta()
-                && item.getItemMeta().hasDisplayName();
+                && "shop".equals(item.getItemMeta().getPersistentDataContainer().get(controlKey, PersistentDataType.STRING));
     }
 }

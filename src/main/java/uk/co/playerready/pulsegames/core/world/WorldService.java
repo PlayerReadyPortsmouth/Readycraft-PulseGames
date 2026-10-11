@@ -2,6 +2,8 @@ package uk.co.playerready.pulsegames.core.world;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Difficulty;
+import org.bukkit.Location;
+import org.bukkit.Server;
 import org.bukkit.GameRule;
 import org.bukkit.World;
 import org.bukkit.WorldCreator;
@@ -17,6 +19,8 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Set;
+import java.util.Random;
+import java.lang.reflect.InvocationTargetException;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
@@ -79,18 +83,32 @@ public final class WorldService {
         }
         File source = templateDir(template);
         String worldName = prefix + instanceId;
-        File target = new File(Bukkit.getWorldContainer(), worldName);
+        WorldCreator creator = new WorldCreator(worldName)
+                .environment(World.Environment.NORMAL).generator(new VoidGenerator());
+        File target = worldDirectory(creator);
+        boolean modern = modernLevelDirectory() != null;
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
                 if (!source.isDirectory()) {
                     throw new IOException("Missing world template: " + source.getPath());
                 }
+                if (modern && Files.exists(source.toPath().resolve("level.dat"))) {
+                    throw new IOException("Legacy template must be imported and re-captured on this Paper version: " + template);
+                }
+                if (!Files.isDirectory(source.toPath().resolve("region"))) {
+                    throw new IOException("Template has no saved region data: " + template);
+                }
+                if (target.exists()) throw new IOException("Instance folder already exists: " + target);
                 copyDirectory(source.toPath(), target.toPath());
                 Bukkit.getScheduler().runTask(plugin, () -> {
-                    World world = new WorldCreator(worldName)
-                            .environment(World.Environment.NORMAL)
-                            .generator(new VoidGenerator())
-                            .createWorld();
+                    World world;
+                    try {
+                        world = creator.createWorld();
+                    } catch (RuntimeException ex) {
+                        plugin.getLogger().severe("World load failed for " + template + ": " + ex.getMessage());
+                        onFail.run();
+                        return;
+                    }
                     if (world == null) {
                         onFail.run();
                         return;
@@ -121,7 +139,8 @@ public final class WorldService {
             onFail.accept(ex.getMessage());
             return;
         }
-        world.save();
+        // Flush queued region and saved-data writes before the off-thread snapshot.
+        world.save(true);
         File source = world.getWorldFolder();
         File staging = new File(target.getParentFile(), target.getName() + ".tmp");
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
@@ -176,15 +195,46 @@ public final class WorldService {
 
     /** Deletes leftover instance worlds from a previous run/crash. */
     public void purgeLeftovers() {
-        File[] leftovers = Bukkit.getWorldContainer().listFiles((d, n) -> n.startsWith(prefix));
+        purgeDirectory(Bukkit.getWorldContainer());
+        Path level = modernLevelDirectory();
+        if (level != null) purgeDirectory(level.resolve("dimensions/minecraft").toFile());
+    }
+
+    private void purgeDirectory(File parent) {
+        File[] leftovers = parent.listFiles((d, n) -> n.startsWith(prefix));
         if (leftovers == null) return;
         for (File dir : leftovers) {
+            if (!dir.isDirectory() || Files.isSymbolicLink(dir.toPath())) continue;
+            boolean loaded = Bukkit.getWorlds().stream()
+                    .anyMatch(world -> world.getWorldFolder().toPath().toAbsolutePath().normalize()
+                            .equals(dir.toPath().toAbsolutePath().normalize()));
+            if (loaded) continue;
             deleteQuietly(dir.toPath());
             plugin.getLogger().info("Purged leftover instance world " + dir.getName());
         }
     }
 
-    private static void copyDirectory(Path source, Path target) throws IOException {
+    /** Paper 26.1 moved custom worlds below the level directory, keyed by namespace. */
+    public static File worldDirectory(WorldCreator creator) {
+        return resolveWorldDirectory(Bukkit.getWorldContainer().toPath(), modernLevelDirectory(),
+                creator.name(), creator.key().getNamespace(), creator.key().getKey()).toFile();
+    }
+
+    static Path resolveWorldDirectory(Path container, Path level, String name, String namespace, String key) {
+        return level == null ? container.resolve(name) : level.resolve("dimensions").resolve(namespace).resolve(key);
+    }
+
+    private static Path modernLevelDirectory() {
+        try {
+            return (Path) Server.class.getMethod("getLevelDirectory").invoke(Bukkit.getServer());
+        } catch (NoSuchMethodException legacy) {
+            return null;
+        } catch (IllegalAccessException | InvocationTargetException ex) {
+            throw new IllegalStateException("Cannot resolve Paper world storage", ex);
+        }
+    }
+
+    static void copyDirectory(Path source, Path target) throws IOException {
         Files.walkFileTree(source, new SimpleFileVisitor<>() {
             @Override
             public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
@@ -194,7 +244,10 @@ public final class WorldService {
 
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                if (!SKIP_FILES.contains(file.getFileName().toString())) {
+                // Paper 26.1 stores the world UUID here instead of uid.dat. Each
+                // clone needs a fresh identity, including simultaneous copies of one map.
+                boolean identity = source.relativize(file).equals(Path.of("data", "paper", "metadata.dat"));
+                if (!identity && !SKIP_FILES.contains(file.getFileName().toString())) {
                     Files.copy(file, target.resolve(source.relativize(file)), StandardCopyOption.REPLACE_EXISTING);
                 }
                 return FileVisitResult.CONTINUE;
@@ -238,5 +291,10 @@ public final class WorldService {
 
     /** Empty generator so unexplored chunks in instance worlds stay void. */
     public static final class VoidGenerator extends ChunkGenerator {
+        @Override
+        public Location getFixedSpawnLocation(World world, Random random) {
+            // No terrain exists to search for. Matches use their configured arena spawn.
+            return new Location(world, 0.5, 100, 0.5);
+        }
     }
 }
