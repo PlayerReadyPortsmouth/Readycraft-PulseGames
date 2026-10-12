@@ -101,7 +101,7 @@ Aurora commissioned **three maps each for Kit PvP, King of the Hill, Dodgeball a
 | kitpvp | Wildwood Ruins | `rc_build_kitpvp_wildwood_ruins` | flora added; approved; registered; gameplay test pending (41,701 checked states) | Registered |
 | koth | Ember Spire | `rc_build_koth_ember_spire` | approved; registered; gameplay test pending (44,257 checked states) | Registered |
 | koth | Clockwork Plaza | `rc_build_koth_clockwork_plaza` | approved; registered; gameplay test pending (44,569 checked states) | Registered |
-| koth | Frostbound Keep | `rc_build_koth_frostbound_keep` | built; awaiting Aurora review (43,325 checked states) | Awaiting approval/setup |
+| koth | Frostbound Keep | `rc_build_koth_frostbound_keep` | ice landmarks added; awaiting Aurora review (44,967 checked states) | Awaiting approval/setup |
 | dodgeball | Neon Circuit | `rc_build_dodgeball_neon_circuit` | built; awaiting Aurora review (15,889 checked states) | Awaiting approval/setup |
 | dodgeball | Bamboo Courtyard | `rc_build_dodgeball_bamboo_courtyard` | built; awaiting Aurora review (15,629 checked states) | Awaiting approval/setup |
 | dodgeball | Orbital Hangar | `rc_build_dodgeball_orbital_hangar` | built; awaiting Aurora review (15,629 checked states) | Awaiting approval/setup |
