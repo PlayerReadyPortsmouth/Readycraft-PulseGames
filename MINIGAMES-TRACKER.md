@@ -101,7 +101,7 @@ Aurora commissioned **three maps each for Kit PvP, King of the Hill, Dodgeball a
 | kitpvp | Wildwood Ruins | `rc_build_kitpvp_wildwood_ruins` | flora added; approved; registered; gameplay test pending (41,701 checked states) | Registered |
 | koth | Ember Spire | `rc_build_koth_ember_spire` | approved; registered; gameplay test pending (44,257 checked states) | Registered |
 | koth | Clockwork Plaza | `rc_build_koth_clockwork_plaza` | approved; registered; gameplay test pending (44,569 checked states) | Registered |
-| koth | Frostbound Keep | `rc_build_koth_frostbound_keep` | ice landmarks added; awaiting Aurora review (44,967 checked states) | Awaiting approval/setup |
+| koth | Frostbound Keep | `rc_build_koth_frostbound_keep` | approved; registered; gameplay test pending (44,967 checked states) | Registered |
 | dodgeball | Neon Circuit | `rc_build_dodgeball_neon_circuit` | built; awaiting Aurora review (15,889 checked states) | Awaiting approval/setup |
 | dodgeball | Bamboo Courtyard | `rc_build_dodgeball_bamboo_courtyard` | built; awaiting Aurora review (15,629 checked states) | Awaiting approval/setup |
 | dodgeball | Orbital Hangar | `rc_build_dodgeball_orbital_hangar` | built; awaiting Aurora review (15,629 checked states) | Awaiting approval/setup |
@@ -109,7 +109,7 @@ Aurora commissioned **three maps each for Kit PvP, King of the Hill, Dodgeball a
 | dropper | Canopy Plunge | `rc_build_dropper_canopy_plunge` | built; awaiting Aurora review (46,387 checked states) | Awaiting approval/setup |
 | dropper | Reactor Dive | `rc_build_dropper_reactor_dive` | built; awaiting Aurora review (47,099 checked states) | Awaiting approval/setup |
 
-All twelve are now built and builder-checked. All three Kit PvP maps are approved and registered (FFA/OITC, 2–8 players, eight spawns each, bots enabled, void-y 74). Wildwood received ferns, grasses, flowers and flowering shrubs. Ember Spire is also approved and registered for solo/teams (2–8 players), with its operator-marked hill region. Clockwork Plaza is also approved and registered for solo/teams (2–8 players), with its operator-marked hill. Aurora review continues in Frostbound Keep; the other seven registrations and all gameplay acceptance remain pending.
+All twelve are now built and builder-checked. All three Kit PvP maps are approved and registered (FFA/OITC, 2–8 players, eight spawns each, bots enabled, void-y 74). Wildwood received ferns, grasses, flowers and flowering shrubs. Ember Spire is also approved and registered for solo/teams (2–8 players), with its operator-marked hill region. Clockwork Plaza is also approved and registered for solo/teams (2–8 players), with its operator-marked hill. Frostbound Keep is also approved and registered for solo/teams (2–8 players), completing all three KOTH registrations. Aurora review continues in Neon Circuit; the other six registrations and all gameplay acceptance remain pending.
 
 Requirements checked in `docs/MAP-SETUP.md` and game source: Kit PvP scattered spawns; KOTH a `hill` capture region with four or more approaches/spawns; Dodgeball opposite first-two team bases and an enclosed court; Dropper water-only finish/checkpoints with matching next-launch locations. Dropper paths require actual falling/steering acceptance, not only block checks.
 
