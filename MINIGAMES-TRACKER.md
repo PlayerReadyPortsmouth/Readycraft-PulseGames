@@ -98,10 +98,10 @@ Aurora commissioned **three maps each for Kit PvP, King of the Hill, Dodgeball a
 |---|---|---|---|---|
 | kitpvp | Sunken Citadel | `rc_build_kitpvp_sunken_citadel` | built; awaiting Aurora review (43,875 checked states) | Awaiting approval/setup |
 | kitpvp | Neon Freight | `rc_build_kitpvp_neon_freight` | built; awaiting Aurora review (42,657 checked states) | Awaiting approval/setup |
-| kitpvp | Wildwood Ruins | `rc_build_kitpvp_wildwood_ruins` | partial; canopy/cover revision and containment pending | Awaiting approval/setup |
-| koth | Ember Spire | `rc_build_koth_ember_spire` | planned | Awaiting approval/setup |
-| koth | Clockwork Plaza | `rc_build_koth_clockwork_plaza` | planned | Awaiting approval/setup |
-| koth | Frostbound Keep | `rc_build_koth_frostbound_keep` | planned | Awaiting approval/setup |
+| kitpvp | Wildwood Ruins | `rc_build_kitpvp_wildwood_ruins` | built; awaiting Aurora review (41,441 checked states) | Awaiting approval/setup |
+| koth | Ember Spire | `rc_build_koth_ember_spire` | built; awaiting Aurora review (42,993 checked states) | Awaiting approval/setup |
+| koth | Clockwork Plaza | `rc_build_koth_clockwork_plaza` | built; awaiting Aurora review (43,163 checked states) | Awaiting approval/setup |
+| koth | Frostbound Keep | `rc_build_koth_frostbound_keep` | built; awaiting Aurora review (43,325 checked states) | Awaiting approval/setup |
 | dodgeball | Neon Circuit | `rc_build_dodgeball_neon_circuit` | planned | Awaiting approval/setup |
 | dodgeball | Bamboo Courtyard | `rc_build_dodgeball_bamboo_courtyard` | planned | Awaiting approval/setup |
 | dodgeball | Orbital Hangar | `rc_build_dodgeball_orbital_hangar` | planned | Awaiting approval/setup |
