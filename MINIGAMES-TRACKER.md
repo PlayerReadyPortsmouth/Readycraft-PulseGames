@@ -90,6 +90,29 @@ six hider scatter points), enclosed waiting/spectator platforms and
 Library, below its archive floor at y73. Setup checklists passed and `/pulse arenas` confirmed all five
 saved IDs/templates loaded. Gameplay and crossplay tests remain pending.
 
+## Active map batch: Combat and Dropper
+
+Aurora commissioned **three maps each for Kit PvP, King of the Hill, Dodgeball and Dropper**, in that order, after completing the lobby additions. Dedicated permanent worlds retain the `rc_build_<game>_<map>` naming scheme. Build checks, Aurora approval, registration and played tests are separate milestones. None of this new batch is registered until approved.
+
+| Game | Map | Permanent build world | Build/review state | Arena setup |
+|---|---|---|---|---|
+| kitpvp | Sunken Citadel | `rc_build_kitpvp_sunken_citadel` | built; awaiting Aurora review (43,875 checked states) | Awaiting approval/setup |
+| kitpvp | Neon Freight | `rc_build_kitpvp_neon_freight` | built; awaiting Aurora review (42,657 checked states) | Awaiting approval/setup |
+| kitpvp | Wildwood Ruins | `rc_build_kitpvp_wildwood_ruins` | planned | Awaiting approval/setup |
+| koth | Ember Spire | `rc_build_koth_ember_spire` | planned | Awaiting approval/setup |
+| koth | Clockwork Plaza | `rc_build_koth_clockwork_plaza` | planned | Awaiting approval/setup |
+| koth | Frostbound Keep | `rc_build_koth_frostbound_keep` | planned | Awaiting approval/setup |
+| dodgeball | Neon Circuit | `rc_build_dodgeball_neon_circuit` | planned | Awaiting approval/setup |
+| dodgeball | Bamboo Courtyard | `rc_build_dodgeball_bamboo_courtyard` | planned | Awaiting approval/setup |
+| dodgeball | Orbital Hangar | `rc_build_dodgeball_orbital_hangar` | planned | Awaiting approval/setup |
+| dropper | Crystal Descent | `rc_build_dropper_crystal_descent` | planned | Awaiting approval/setup |
+| dropper | Canopy Plunge | `rc_build_dropper_canopy_plunge` | planned | Awaiting approval/setup |
+| dropper | Reactor Dive | `rc_build_dropper_reactor_dive` | planned | Awaiting approval/setup |
+
+Requirements checked in `docs/MAP-SETUP.md` and game source: Kit PvP scattered spawns; KOTH a `hill` capture region with four or more approaches/spawns; Dodgeball opposite first-two team bases and an enclosed court; Dropper water-only finish/checkpoints with matching next-launch locations. Dropper paths require actual falling/steering acceptance, not only block checks.
+
+Lobby additions are built and builder-checked: reactor, four district emblems, guarded rooftop viewing/jump route with ladder, café/garden/terrace, hidden arcade/maintenance passage and unobstructed north Skippy photo point. Final exact check: **8,701/8,701 states**. Automatic parkour resets and arcade gameplay are not implemented. No restart performed by this builder.
+
 ## Team-size and map-capacity programme
 
 Aurora confirmed: **sizes 1–4 (solo, doubles, triples, squads), with the number of
@@ -423,3 +446,5 @@ For each new map or mode, append:
 - Crooked Library review revision: Aurora requested more random clutter in the bottom area. Added 18 varied groups of book sorting piles, barrel cabinets, repair desks, lecterns and supplies (180 blocks), preserving existing shelves and stair approaches. Actual archive images reviewed; all 49,242 states match. Map remains in Aurora review and is not registered.
 
 - Aurora approved Crooked Library after the archive clutter revision. Registered `crooked_library` with Classic/Infection, configured 2-16, seven clear-floor spawns across all three levels, bots disabled and void-y67 below the archive floor at y73. Waiting/spectator points are in the enclosed upper galleries. Checklist passed; live-save and `/pulse arenas` confirm all five commissioned Prop Hunt arena/template IDs loaded. All visual reviews and registrations are complete; played rounds, Java/Bedrock acceptance and server updates/restarts remain pending with the other agent.
+
+- Lobby additions completed and checked (8,701 states); Aurora commissioned twelve new maps: three each for Kit PvP, KOTH, Dodgeball and Dropper. New batch build/review/registration progress is tracked above; no new arenas registered without approval.

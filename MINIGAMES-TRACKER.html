@@ -8,9 +8,9 @@
 </style></head><body><header class="toolbar"><div><span class="brand">PULSE / GAMES</span><small>Development & play testing</small></div><button onclick="window.print()">Print / Save as PDF</button></header><main>
 <div class="hero"><div class="eyebrow">ReadyCraft · Working report</div><h1>Every game.<br>A clear next step.</h1><p>Map building, bot readiness and player testing in one shared record. Prepared changes remain separate from what is running on MinigamesTest.</p><div class="meta"><span>Updated 11 October 2026</span><span>Owner: Aurora</span><span>Snapshot, not a live server feed</span></div></div>
 <div class="summary"><div class="stat"><b>23 games</b><span>Tracked across the programme</span></div><div class="stat"><b>11 / 23</b><span>Prepared bot controllers (4 live)</span></div><div class="stat"><b>5 maps</b><span>Prop Hunt batch awaiting visual review</span></div></div>
-<aside class="notice"><strong>Current priority · Prop Hunt maps</strong><p>All five maps are approved and registered. Complete gameplay and Java/Bedrock tests after the planned server updates/restart.</p></aside>
+<aside class="notice"><strong>Current priority · Combat and Dropper maps</strong><p>Lobby additions are built. New map batch: 2/12 built and awaiting review. Complete three maps each for Kit PvP, KOTH, Dodgeball and Dropper; approve/register maps before gameplay acceptance.</p></aside>
 <p class="print-note">Share this standalone HTML file, or use Print / Save as PDF for the complete report. Printing includes every section. For best results use A4 landscape with background graphics enabled.</p>
-<div class="layout"><nav aria-label="Report sections"><strong>In this report</strong><a href="#working-agreement">Working agreement</a><a href="#current-test-server-baseline">Current test-server baseline</a><a href="#prepared-update-not-deployed">Prepared update — not deployed</a><a href="#active-map-batch-prop-hunt">Active map batch: Prop Hunt</a><a href="#team-size-and-map-capacity-programme">Team-size and map-capacity programme</a><a href="#queue-bots-and-network-helper-merged-and-staged">Queue bots and network helper — merged and staged</a><a href="#per-game-readiness">Per-game readiness</a><a href="#verified-server-arena-names">Verified server arena names</a><a href="#duels-map-and-mode-register">Duels map and mode register</a><a href="#bot-programme">Bot programme</a><a href="#map-setup-and-acceptance-template">Map setup and acceptance template</a><a href="#dated-log">Dated log</a><a href="#11-october-follow-up-staging-and-hazard-bots">11 October follow-up: staging and hazard bots</a><a href="#duels-selector-and-personal-loadouts-prepared-not-live">Duels selector and personal loadouts — prepared, not live</a></nav><article><section id="working-agreement" class="report-section"><div class="section-heading"><span>01</span><h2>Working agreement</h2></div><ul>
+<div class="layout"><nav aria-label="Report sections"><strong>In this report</strong><a href="#working-agreement">Working agreement</a><a href="#current-test-server-baseline">Current test-server baseline</a><a href="#prepared-update-not-deployed">Prepared update — not deployed</a><a href="#active-map-batch-prop-hunt">Active map batch: Prop Hunt</a><a href="#active-map-batch-combat-and-dropper">Active map batch: Combat and Dropper</a><a href="#team-size-and-map-capacity-programme">Team-size and map-capacity programme</a><a href="#queue-bots-and-network-helper-merged-and-staged">Queue bots and network helper — merged and staged</a><a href="#per-game-readiness">Per-game readiness</a><a href="#verified-server-arena-names">Verified server arena names</a><a href="#duels-map-and-mode-register">Duels map and mode register</a><a href="#bot-programme">Bot programme</a><a href="#map-setup-and-acceptance-template">Map setup and acceptance template</a><a href="#dated-log">Dated log</a><a href="#11-october-follow-up-staging-and-hazard-bots">11 October follow-up: staging and hazard bots</a><a href="#duels-selector-and-personal-loadouts-prepared-not-live">Duels selector and personal loadouts — prepared, not live</a></nav><article><section id="working-agreement" class="report-section"><div class="section-heading"><span>01</span><h2>Working agreement</h2></div><ul>
 <li>Goal: a broad mix of party, co-op, racing and competitive games, all with proper
 objective-playing queue bots, followed by map building and two-human-player tests.</li>
 <li>Test on <strong>MinigamesTest</strong>, reached through the existing primary proxy. Never use
@@ -177,7 +177,106 @@ six hider scatter points), enclosed waiting/spectator platforms and
 Library, below its archive floor at y73. Setup checklists passed and <code>/pulse arenas</code> confirmed all five
 saved IDs/templates loaded. Gameplay and crossplay tests remain pending.</p>
 </section>
-<section id="team-size-and-map-capacity-programme" class="report-section"><div class="section-heading"><span>05</span><h2>Team-size and map-capacity programme</h2></div><p>Aurora confirmed: <strong>sizes 1–4 (solo, doubles, triples, squads), with the number of
+<section id="active-map-batch-combat-and-dropper" class="report-section"><div class="section-heading"><span>05</span><h2>Active map batch: Combat and Dropper</h2></div><p>Aurora commissioned <strong>three maps each for Kit PvP, King of the Hill, Dodgeball and Dropper</strong>, in that order, after completing the lobby additions. Dedicated permanent worlds retain the <code>rc_build_&lt;game&gt;_&lt;map&gt;</code> naming scheme. Build checks, Aurora approval, registration and played tests are separate milestones. None of this new batch is registered until approved.</p>
+<table>
+<thead>
+<tr>
+<th>Game</th>
+<th>Map</th>
+<th>Permanent build world</th>
+<th>Build/review state</th>
+<th>Arena setup</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>kitpvp</td>
+<td>Sunken Citadel</td>
+<td><code>rc_build_kitpvp_sunken_citadel</code></td>
+<td>built; awaiting Aurora review (43,875 checked states)</td>
+<td>Awaiting approval/setup</td>
+</tr>
+<tr>
+<td>kitpvp</td>
+<td>Neon Freight</td>
+<td><code>rc_build_kitpvp_neon_freight</code></td>
+<td>built; awaiting Aurora review (42,657 checked states)</td>
+<td>Awaiting approval/setup</td>
+</tr>
+<tr>
+<td>kitpvp</td>
+<td>Wildwood Ruins</td>
+<td><code>rc_build_kitpvp_wildwood_ruins</code></td>
+<td>planned</td>
+<td>Awaiting approval/setup</td>
+</tr>
+<tr>
+<td>koth</td>
+<td>Ember Spire</td>
+<td><code>rc_build_koth_ember_spire</code></td>
+<td>planned</td>
+<td>Awaiting approval/setup</td>
+</tr>
+<tr>
+<td>koth</td>
+<td>Clockwork Plaza</td>
+<td><code>rc_build_koth_clockwork_plaza</code></td>
+<td>planned</td>
+<td>Awaiting approval/setup</td>
+</tr>
+<tr>
+<td>koth</td>
+<td>Frostbound Keep</td>
+<td><code>rc_build_koth_frostbound_keep</code></td>
+<td>planned</td>
+<td>Awaiting approval/setup</td>
+</tr>
+<tr>
+<td>dodgeball</td>
+<td>Neon Circuit</td>
+<td><code>rc_build_dodgeball_neon_circuit</code></td>
+<td>planned</td>
+<td>Awaiting approval/setup</td>
+</tr>
+<tr>
+<td>dodgeball</td>
+<td>Bamboo Courtyard</td>
+<td><code>rc_build_dodgeball_bamboo_courtyard</code></td>
+<td>planned</td>
+<td>Awaiting approval/setup</td>
+</tr>
+<tr>
+<td>dodgeball</td>
+<td>Orbital Hangar</td>
+<td><code>rc_build_dodgeball_orbital_hangar</code></td>
+<td>planned</td>
+<td>Awaiting approval/setup</td>
+</tr>
+<tr>
+<td>dropper</td>
+<td>Crystal Descent</td>
+<td><code>rc_build_dropper_crystal_descent</code></td>
+<td>planned</td>
+<td>Awaiting approval/setup</td>
+</tr>
+<tr>
+<td>dropper</td>
+<td>Canopy Plunge</td>
+<td><code>rc_build_dropper_canopy_plunge</code></td>
+<td>planned</td>
+<td>Awaiting approval/setup</td>
+</tr>
+<tr>
+<td>dropper</td>
+<td>Reactor Dive</td>
+<td><code>rc_build_dropper_reactor_dive</code></td>
+<td>planned</td>
+<td>Awaiting approval/setup</td>
+</tr>
+</tbody></table>
+<p>Requirements checked in <code>docs/MAP-SETUP.md</code> and game source: Kit PvP scattered spawns; KOTH a <code>hill</code> capture region with four or more approaches/spawns; Dodgeball opposite first-two team bases and an enclosed court; Dropper water-only finish/checkpoints with matching next-launch locations. Dropper paths require actual falling/steering acceptance, not only block checks.</p>
+<p>Lobby additions are built and builder-checked: reactor, four district emblems, guarded rooftop viewing/jump route with ladder, café/garden/terrace, hidden arcade/maintenance passage and unobstructed north Skippy photo point. Final exact check: <strong>8,701/8,701 states</strong>. Automatic parkour resets and arcade gameplay are not implemented. No restart performed by this builder.</p>
+</section>
+<section id="team-size-and-map-capacity-programme" class="report-section"><div class="section-heading"><span>06</span><h2>Team-size and map-capacity programme</h2></div><p>Aurora confirmed: <strong>sizes 1–4 (solo, doubles, triples, squads), with the number of
 opposing teams controlled by each map</strong>. This is separate from how many people
 are currently queued.</p>
 <ul>
@@ -196,7 +295,7 @@ Avalanche, Spleef, TNT Run and Volcano are prepared in draft PR6, bringing contr
 <li>See <a href="TEAM-MODES.md">team and capacity instructions</a> for exact settings and examples.</li>
 </ul>
 </section>
-<section id="queue-bots-and-network-helper-merged-and-staged" class="report-section"><div class="section-heading"><span>06</span><h2>Queue bots and network helper — merged and staged</h2></div><ul>
+<section id="queue-bots-and-network-helper-merged-and-staged" class="report-section"><div class="section-heading"><span>07</span><h2>Queue bots and network helper — merged and staged</h2></div><ul>
 <li>Requested fill target counts <strong>humans plus bots</strong>: maximum 2 → 2 total, 4 → 4,
 5 → 3, 8 → 4, 16 → 8. Odd halves round up. The playable minimum can raise
 that target. Humans reclaim bot seats before a match starts.</li>
@@ -223,7 +322,7 @@ No resource change or server restart was performed for this candidate.</li>
 <li>Implementation and acceptance checklist: <a href="network-helper/README.md">PulseNetwork guide</a>.</li>
 </ul>
 </section>
-<section id="per-game-readiness" class="report-section"><div class="section-heading"><span>07</span><h2>Per-game readiness</h2></div><p>“Two humans” below describes catalogue requirements before arena limits. Where
+<section id="per-game-readiness" class="report-section"><div class="section-heading"><span>08</span><h2>Per-game readiness</h2></div><p>“Two humans” below describes catalogue requirements before arena limits. Where
 additional players are required, suitable bots or a deliberate test mode are still
 needed. Do not bypass team/role requirements and call that a completed test.</p>
 <table>
@@ -399,7 +498,7 @@ needed. Do not bypass team/role requirements and call that a completed test.</p>
 </tr>
 </tbody></table>
 </section>
-<section id="verified-server-arena-names" class="report-section"><div class="section-heading"><span>08</span><h2>Verified server arena names</h2></div><p>Read directly from MinigamesTest&#39;s saved definitions on 11 October 2026. All nine
+<section id="verified-server-arena-names" class="report-section"><div class="section-heading"><span>09</span><h2>Verified server arena names</h2></div><p>Read directly from MinigamesTest&#39;s saved definitions on 11 October 2026. All nine
 referenced templates contain region files. Names below preserve exact spelling
 and capitalisation; no maps were renamed by this documentation check.</p>
 <table>
@@ -471,7 +570,7 @@ two spawns, a waiting lobby and spectator point, <code>bots-enabled: true</code>
 <code>void-y: 74</code>. This validates the saved setup fields and template presence; further
 kit/mode tuning remains a gameplay task.</p>
 </section>
-<section id="duels-map-and-mode-register" class="report-section"><div class="section-heading"><span>09</span><h2>Duels map and mode register</h2></div><p>Aurora&#39;s report on 11 October: three maps are made and Duels works; kits/loadouts
+<section id="duels-map-and-mode-register" class="report-section"><div class="section-heading"><span>10</span><h2>Duels map and mode register</h2></div><p>Aurora&#39;s report on 11 October: three maps are made and Duels works; kits/loadouts
 need adjustments. The server logged saves for all three arenas. This confirms
 creation, not that every mode has been accepted on every map/client.</p>
 <table>
@@ -511,7 +610,7 @@ offhand/totems and respawn cleanup; needs its own map and bot acceptance.</li>
 <li>Other modes: record the requested rules before implementing or labelling ready.</li>
 </ul>
 </section>
-<section id="bot-programme" class="report-section"><div class="section-heading"><span>10</span><h2>Bot programme</h2></div><ol>
+<section id="bot-programme" class="report-section"><div class="section-heading"><span>11</span><h2>Bot programme</h2></div><ol>
 <li>Harden the existing four: difficulty levels, kit use, positioning, fairness and
 cleanup. Add a controller interface and shared participant lookup.</li>
 <li>Co-op: Villager Defense and ReadyPlayerZ; add KitPvP OITC ranged combat.</li>
@@ -538,7 +637,7 @@ explicit reviewed configuration change, not just a higher bot count.</li>
 and memory limits, hiding choices and lock/unlock behaviour.</li>
 </ul>
 </section>
-<section id="map-setup-and-acceptance-template" class="report-section"><div class="section-heading"><span>11</span><h2>Map setup and acceptance template</h2></div><p>Build in a permanent world, never a disposable <code>pulse_...</code> match clone. Follow
+<section id="map-setup-and-acceptance-template" class="report-section"><div class="section-heading"><span>12</span><h2>Map setup and acceptance template</h2></div><p>Build in a permanent world, never a disposable <code>pulse_...</code> match clone. Follow
 <a href="docs/MAP-SETUP.md">docs/MAP-SETUP.md</a> for the game&#39;s exact points and regions.
 Current commands: <code>/pulse setup start &lt;game&gt; &lt;arenaId&gt;</code>, <code>lobby</code>, <code>spectator</code>,
 <code>addspawn</code>, selection <code>wand</code> and <code>region</code>, settings, <code>check</code>, <code>save</code>.
@@ -557,7 +656,7 @@ The prepared Setup Book will expose these actions in an inventory menu.</p>
 <li>Status and next action:</li>
 </ul>
 </section>
-<section id="dated-log" class="report-section"><div class="section-heading"><span>12</span><h2>Dated log</h2></div><h3>11 October 2026</h3>
+<section id="dated-log" class="report-section"><div class="section-heading"><span>13</span><h2>Dated log</h2></div><h3>11 October 2026</h3>
 <ul>
 <li><p>Aurora reported the Duels bot works well and requested difficulty levels.</p>
 </li>
@@ -659,7 +758,7 @@ adapter and reached ready state, then was shut down. No live server was restarte
 </li>
 </ul>
 </section>
-<section id="11-october-follow-up-staging-and-hazard-bots" class="report-section"><div class="section-heading"><span>13</span><h2>11 October follow-up: staging and hazard bots</h2></div><ul>
+<section id="11-october-follow-up-staging-and-hazard-bots" class="report-section"><div class="section-heading"><span>14</span><h2>11 October follow-up: staging and hazard bots</h2></div><ul>
 <li>PulseNetwork 0.1.0 Paper, Velocity and NeoForge jars are staged on readyapp-vps at
 <code>/srv/ready-gamed/staging/pulsenetwork-20261011-f511551</code>, with per-server configurations,
 checksums and installation notes. Ten targets belong to the primary proxy network;
@@ -702,7 +801,7 @@ More KitPvP loadouts and shop expansion remain future work.
 Floor Is Lava is not a separate registered game; Volcano is the rising-lava mode.</li>
 </ul>
 </section>
-<section id="duels-selector-and-personal-loadouts-prepared-not-live" class="report-section"><div class="section-heading"><span>14</span><h2>Duels selector and personal loadouts — prepared, not live</h2></div><ul>
+<section id="duels-selector-and-personal-loadouts-prepared-not-live" class="report-section"><div class="section-heading"><span>15</span><h2>Duels selector and personal loadouts — prepared, not live</h2></div><ul>
 <li><p>PulseGames 0.3.6 / draft PR6: <code>/duels</code> or the game menu opens combat style → discipline
 → team size, with a separate <strong>Your kit</strong> button. Each player chooses their own compatible
 kit; kit choices share a queue. Classic and Modern rules remain separate queues.</p>
@@ -739,6 +838,8 @@ See <a href="docs/DUELS.md">Duels setup and acceptance guide</a>. No live restar
 <li><p>Crooked Library review revision: Aurora requested more random clutter in the bottom area. Added 18 varied groups of book sorting piles, barrel cabinets, repair desks, lecterns and supplies (180 blocks), preserving existing shelves and stair approaches. Actual archive images reviewed; all 49,242 states match. Map remains in Aurora review and is not registered.</p>
 </li>
 <li><p>Aurora approved Crooked Library after the archive clutter revision. Registered <code>crooked_library</code> with Classic/Infection, configured 2-16, seven clear-floor spawns across all three levels, bots disabled and void-y67 below the archive floor at y73. Waiting/spectator points are in the enclosed upper galleries. Checklist passed; live-save and <code>/pulse arenas</code> confirm all five commissioned Prop Hunt arena/template IDs loaded. All visual reviews and registrations are complete; played rounds, Java/Bedrock acceptance and server updates/restarts remain pending with the other agent.</p>
+</li>
+<li><p>Lobby additions completed and checked (8,701 states); Aurora commissioned twelve new maps: three each for Kit PvP, KOTH, Dodgeball and Dropper. New batch build/review/registration progress is tracked above; no new arenas registered without approval.</p>
 </li>
 </ul>
 </section></article></div>
