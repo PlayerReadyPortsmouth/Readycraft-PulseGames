@@ -96,7 +96,7 @@ Aurora commissioned **three maps each for Kit PvP, King of the Hill, Dodgeball a
 
 | Game | Map | Permanent build world | Build/review state | Arena setup |
 |---|---|---|---|---|
-| kitpvp | Sunken Citadel | `rc_build_kitpvp_sunken_citadel` | hollow temple revised; awaiting Aurora review (48,010 checked states) | Awaiting approval/setup |
+| kitpvp | Sunken Citadel | `rc_build_kitpvp_sunken_citadel` | approved; registered; gameplay test pending (48,010 checked states) | Registered |
 | kitpvp | Neon Freight | `rc_build_kitpvp_neon_freight` | built; awaiting Aurora review (42,657 checked states) | Awaiting approval/setup |
 | kitpvp | Wildwood Ruins | `rc_build_kitpvp_wildwood_ruins` | built; awaiting Aurora review (41,441 checked states) | Awaiting approval/setup |
 | koth | Ember Spire | `rc_build_koth_ember_spire` | built; awaiting Aurora review (42,993 checked states) | Awaiting approval/setup |
@@ -109,7 +109,7 @@ Aurora commissioned **three maps each for Kit PvP, King of the Hill, Dodgeball a
 | dropper | Canopy Plunge | `rc_build_dropper_canopy_plunge` | built; awaiting Aurora review (46,387 checked states) | Awaiting approval/setup |
 | dropper | Reactor Dive | `rc_build_dropper_reactor_dive` | built; awaiting Aurora review (47,099 checked states) | Awaiting approval/setup |
 
-All twelve are now built and builder-checked. Aurora review starts in Sunken Citadel; arena registration and gameplay acceptance remain pending.
+All twelve are now built and builder-checked. Sunken Citadel is approved and registered (FFA/OITC, 2–8 players, eight spawns, bots enabled, void-y 74). Aurora review continues in Neon Freight; the other eleven registrations and all gameplay acceptance remain pending.
 
 Requirements checked in `docs/MAP-SETUP.md` and game source: Kit PvP scattered spawns; KOTH a `hill` capture region with four or more approaches/spawns; Dodgeball opposite first-two team bases and an enclosed court; Dropper water-only finish/checkpoints with matching next-launch locations. Dropper paths require actual falling/steering acceptance, not only block checks.
 
