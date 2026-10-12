@@ -1,6 +1,6 @@
 # Minigames development and play-test tracker
 
-Last updated: 11 October 2026. Owner: Aurora. Agents should update this file as
+Last updated: 12 October 2026. Owner: Aurora. Agents should update this file as
 work and player feedback arrive; keep it in the PulseGames repository.
 
 Readable report: [HTML](MINIGAMES-TRACKER.html) · [PDF](MINIGAMES-TRACKER.pdf).
@@ -102,9 +102,9 @@ Aurora commissioned **three maps each for Kit PvP, King of the Hill, Dodgeball a
 | koth | Ember Spire | `rc_build_koth_ember_spire` | built; awaiting Aurora review (42,993 checked states) | Awaiting approval/setup |
 | koth | Clockwork Plaza | `rc_build_koth_clockwork_plaza` | built; awaiting Aurora review (43,163 checked states) | Awaiting approval/setup |
 | koth | Frostbound Keep | `rc_build_koth_frostbound_keep` | built; awaiting Aurora review (43,325 checked states) | Awaiting approval/setup |
-| dodgeball | Neon Circuit | `rc_build_dodgeball_neon_circuit` | planned | Awaiting approval/setup |
-| dodgeball | Bamboo Courtyard | `rc_build_dodgeball_bamboo_courtyard` | planned | Awaiting approval/setup |
-| dodgeball | Orbital Hangar | `rc_build_dodgeball_orbital_hangar` | planned | Awaiting approval/setup |
+| dodgeball | Neon Circuit | `rc_build_dodgeball_neon_circuit` | built; awaiting Aurora review (15,889 checked states) | Awaiting approval/setup |
+| dodgeball | Bamboo Courtyard | `rc_build_dodgeball_bamboo_courtyard` | built; awaiting Aurora review (15,629 checked states) | Awaiting approval/setup |
+| dodgeball | Orbital Hangar | `rc_build_dodgeball_orbital_hangar` | built; awaiting Aurora review (15,629 checked states) | Awaiting approval/setup |
 | dropper | Crystal Descent | `rc_build_dropper_crystal_descent` | planned | Awaiting approval/setup |
 | dropper | Canopy Plunge | `rc_build_dropper_canopy_plunge` | planned | Awaiting approval/setup |
 | dropper | Reactor Dive | `rc_build_dropper_reactor_dive` | planned | Awaiting approval/setup |
