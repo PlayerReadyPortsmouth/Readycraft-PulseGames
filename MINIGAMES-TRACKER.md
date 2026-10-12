@@ -105,9 +105,11 @@ Aurora commissioned **three maps each for Kit PvP, King of the Hill, Dodgeball a
 | dodgeball | Neon Circuit | `rc_build_dodgeball_neon_circuit` | built; awaiting Aurora review (15,889 checked states) | Awaiting approval/setup |
 | dodgeball | Bamboo Courtyard | `rc_build_dodgeball_bamboo_courtyard` | built; awaiting Aurora review (15,629 checked states) | Awaiting approval/setup |
 | dodgeball | Orbital Hangar | `rc_build_dodgeball_orbital_hangar` | built; awaiting Aurora review (15,629 checked states) | Awaiting approval/setup |
-| dropper | Crystal Descent | `rc_build_dropper_crystal_descent` | planned | Awaiting approval/setup |
-| dropper | Canopy Plunge | `rc_build_dropper_canopy_plunge` | planned | Awaiting approval/setup |
-| dropper | Reactor Dive | `rc_build_dropper_reactor_dive` | planned | Awaiting approval/setup |
+| dropper | Crystal Descent | `rc_build_dropper_crystal_descent` | built; awaiting Aurora review (47,515 checked states) | Awaiting approval/setup |
+| dropper | Canopy Plunge | `rc_build_dropper_canopy_plunge` | built; awaiting Aurora review (46,387 checked states) | Awaiting approval/setup |
+| dropper | Reactor Dive | `rc_build_dropper_reactor_dive` | built; awaiting Aurora review (47,099 checked states) | Awaiting approval/setup |
+
+All twelve are now built and builder-checked. Aurora review starts in Sunken Citadel; arena registration and gameplay acceptance remain pending.
 
 Requirements checked in `docs/MAP-SETUP.md` and game source: Kit PvP scattered spawns; KOTH a `hill` capture region with four or more approaches/spawns; Dodgeball opposite first-two team bases and an enclosed court; Dropper water-only finish/checkpoints with matching next-launch locations. Dropper paths require actual falling/steering acceptance, not only block checks.
 
@@ -448,3 +450,5 @@ For each new map or mode, append:
 - Aurora approved Crooked Library after the archive clutter revision. Registered `crooked_library` with Classic/Infection, configured 2-16, seven clear-floor spawns across all three levels, bots disabled and void-y67 below the archive floor at y73. Waiting/spectator points are in the enclosed upper galleries. Checklist passed; live-save and `/pulse arenas` confirm all five commissioned Prop Hunt arena/template IDs loaded. All visual reviews and registrations are complete; played rounds, Java/Bedrock acceptance and server updates/restarts remain pending with the other agent.
 
 - Lobby additions completed and checked (8,701 states); Aurora commissioned twelve new maps: three each for Kit PvP, KOTH, Dodgeball and Dropper. New batch build/review/registration progress is tracked above; no new arenas registered without approval.
+
+- Twelve-map construction batch completed: three each for Kit PvP, KOTH, Dodgeball and Dropper. Actual section images and full plan states checked; spawn clearance/boundaries checked, Dropper water targets/apertures checked. Sunken Citadel centre stair gap corrected and rechecked. Player returned to Sunken Citadel for Aurora review. No new batch arenas registered or played rounds claimed.

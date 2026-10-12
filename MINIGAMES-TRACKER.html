@@ -5,10 +5,11 @@
 @media(max-width:950px){.layout{display:block}nav{position:static;margin-bottom:24px;display:flex;flex-wrap:wrap;gap:4px}nav strong{width:100%}nav a{border:1px solid var(--line);border-radius:5px}main{padding:24px 16px}.hero{padding:28px}.report-section{padding:20px 16px}.toolbar small{display:none}table{font-size:11px}.summary{gap:8px}.stat{padding:14px}}
 @page{size:A4 landscape;margin:14mm 14mm 17mm}
 @media print{html{scroll-behavior:auto}body{background:white;font-size:9.5pt;line-height:1.4;print-color-adjust:exact;-webkit-print-color-adjust:exact}.toolbar,nav,.print-note{display:none!important}main{max-width:none;padding:0}.hero{padding:20px 28px;border-radius:0}h1{font-size:30pt}.hero p{max-width:none}.meta{margin-top:14px}.summary{margin:16px 0}.stat{padding:12px}.stat b{font-size:23pt}.notice{margin:16px 0;padding:12px 16px}.layout{display:block;margin:0}.report-section{border:0;border-radius:0;padding:0;margin:0;break-before:page}.section-heading{padding:0 0 8px;margin:0 0 12px}h2{font-size:20pt}h3{break-after:avoid}table{font-size:8.5pt;line-height:1.3;margin:10px 0}td,th{padding:5px}thead{display:table-header-group}tr{break-inside:avoid}p,li{orphans:3;widows:3}a{color:inherit;text-decoration:none}footer{display:none}#active-map-batch-prop-hunt{font-size:9pt;line-height:1.3}#active-map-batch-prop-hunt p{margin:6px 0}#active-map-batch-prop-hunt li{margin:4px 0}#per-game-readiness table{font-size:8.5pt}code{font-size:.88em}}
+@media print{#active-map-batch-combat-and-dropper{font-size:9pt;line-height:1.25}#active-map-batch-combat-and-dropper p{margin:5px 0}#active-map-batch-combat-and-dropper table{font-size:8pt;line-height:1.2;margin:8px 0}#active-map-batch-combat-and-dropper td,#active-map-batch-combat-and-dropper th{padding:3.5px}}
 </style></head><body><header class="toolbar"><div><span class="brand">PULSE / GAMES</span><small>Development & play testing</small></div><button onclick="window.print()">Print / Save as PDF</button></header><main>
 <div class="hero"><div class="eyebrow">ReadyCraft · Working report</div><h1>Every game.<br>A clear next step.</h1><p>Map building, bot readiness and player testing in one shared record. Prepared changes remain separate from what is running on MinigamesTest.</p><div class="meta"><span>Updated 12 October 2026</span><span>Owner: Aurora</span><span>Snapshot, not a live server feed</span></div></div>
 <div class="summary"><div class="stat"><b>23 games</b><span>Tracked across the programme</span></div><div class="stat"><b>11 / 23</b><span>Prepared bot controllers (4 live)</span></div><div class="stat"><b>5 maps</b><span>Approved Prop Hunt maps</span></div></div>
-<aside class="notice"><strong>Current priority · Combat and Dropper maps</strong><p>Lobby additions are built. New map batch: 9/12 built and awaiting review. Complete three maps each for Kit PvP, KOTH, Dodgeball and Dropper; approve/register maps before gameplay acceptance.</p></aside>
+<aside class="notice"><strong>Current priority · Combat and Dropper maps</strong><p>All twelve new maps are built and builder-checked. Review Sunken Citadel first, then approve/register each map before gameplay acceptance.</p></aside>
 <p class="print-note">Share this standalone HTML file, or use Print / Save as PDF for the complete report. Printing includes every section. For best results use A4 landscape with background graphics enabled.</p>
 <div class="layout"><nav aria-label="Report sections"><strong>In this report</strong><a href="#working-agreement">Working agreement</a><a href="#current-test-server-baseline">Current test-server baseline</a><a href="#prepared-update-not-deployed">Prepared update — not deployed</a><a href="#active-map-batch-prop-hunt">Active map batch: Prop Hunt</a><a href="#active-map-batch-combat-and-dropper">Active map batch: Combat and Dropper</a><a href="#team-size-and-map-capacity-programme">Team-size and map-capacity programme</a><a href="#queue-bots-and-network-helper-merged-and-staged">Queue bots and network helper — merged and staged</a><a href="#per-game-readiness">Per-game readiness</a><a href="#verified-server-arena-names">Verified server arena names</a><a href="#duels-map-and-mode-register">Duels map and mode register</a><a href="#bot-programme">Bot programme</a><a href="#map-setup-and-acceptance-template">Map setup and acceptance template</a><a href="#dated-log">Dated log</a><a href="#11-october-follow-up-staging-and-hazard-bots">11 October follow-up: staging and hazard bots</a><a href="#duels-selector-and-personal-loadouts-prepared-not-live">Duels selector and personal loadouts — prepared, not live</a></nav><article><section id="working-agreement" class="report-section"><div class="section-heading"><span>01</span><h2>Working agreement</h2></div><ul>
 <li>Goal: a broad mix of party, co-op, racing and competitive games, all with proper
@@ -255,24 +256,25 @@ saved IDs/templates loaded. Gameplay and crossplay tests remain pending.</p>
 <td>dropper</td>
 <td>Crystal Descent</td>
 <td><code>rc_build_dropper_crystal_descent</code></td>
-<td>planned</td>
+<td>built; awaiting Aurora review (47,515 checked states)</td>
 <td>Awaiting approval/setup</td>
 </tr>
 <tr>
 <td>dropper</td>
 <td>Canopy Plunge</td>
 <td><code>rc_build_dropper_canopy_plunge</code></td>
-<td>planned</td>
+<td>built; awaiting Aurora review (46,387 checked states)</td>
 <td>Awaiting approval/setup</td>
 </tr>
 <tr>
 <td>dropper</td>
 <td>Reactor Dive</td>
 <td><code>rc_build_dropper_reactor_dive</code></td>
-<td>planned</td>
+<td>built; awaiting Aurora review (47,099 checked states)</td>
 <td>Awaiting approval/setup</td>
 </tr>
 </tbody></table>
+<p>All twelve are now built and builder-checked. Aurora review starts in Sunken Citadel; arena registration and gameplay acceptance remain pending.</p>
 <p>Requirements checked in <code>docs/MAP-SETUP.md</code> and game source: Kit PvP scattered spawns; KOTH a <code>hill</code> capture region with four or more approaches/spawns; Dodgeball opposite first-two team bases and an enclosed court; Dropper water-only finish/checkpoints with matching next-launch locations. Dropper paths require actual falling/steering acceptance, not only block checks.</p>
 <p>Lobby additions are built and builder-checked: reactor, four district emblems, guarded rooftop viewing/jump route with ladder, café/garden/terrace, hidden arcade/maintenance passage and unobstructed north Skippy photo point. Final exact check: <strong>8,701/8,701 states</strong>. Automatic parkour resets and arcade gameplay are not implemented. No restart performed by this builder.</p>
 </section>
@@ -840,6 +842,8 @@ See <a href="docs/DUELS.md">Duels setup and acceptance guide</a>. No live restar
 <li><p>Aurora approved Crooked Library after the archive clutter revision. Registered <code>crooked_library</code> with Classic/Infection, configured 2-16, seven clear-floor spawns across all three levels, bots disabled and void-y67 below the archive floor at y73. Waiting/spectator points are in the enclosed upper galleries. Checklist passed; live-save and <code>/pulse arenas</code> confirm all five commissioned Prop Hunt arena/template IDs loaded. All visual reviews and registrations are complete; played rounds, Java/Bedrock acceptance and server updates/restarts remain pending with the other agent.</p>
 </li>
 <li><p>Lobby additions completed and checked (8,701 states); Aurora commissioned twelve new maps: three each for Kit PvP, KOTH, Dodgeball and Dropper. New batch build/review/registration progress is tracked above; no new arenas registered without approval.</p>
+</li>
+<li><p>Twelve-map construction batch completed: three each for Kit PvP, KOTH, Dodgeball and Dropper. Actual section images and full plan states checked; spawn clearance/boundaries checked, Dropper water targets/apertures checked. Sunken Citadel centre stair gap corrected and rechecked. Player returned to Sunken Citadel for Aurora review. No new batch arenas registered or played rounds claimed.</p>
 </li>
 </ul>
 </section></article></div>
