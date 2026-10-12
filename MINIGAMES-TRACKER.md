@@ -96,7 +96,7 @@ Aurora commissioned **three maps each for Kit PvP, King of the Hill, Dodgeball a
 
 | Game | Map | Permanent build world | Build/review state | Arena setup |
 |---|---|---|---|---|
-| kitpvp | Sunken Citadel | `rc_build_kitpvp_sunken_citadel` | built; awaiting Aurora review (43,875 checked states) | Awaiting approval/setup |
+| kitpvp | Sunken Citadel | `rc_build_kitpvp_sunken_citadel` | hollow temple revised; awaiting Aurora review (48,010 checked states) | Awaiting approval/setup |
 | kitpvp | Neon Freight | `rc_build_kitpvp_neon_freight` | built; awaiting Aurora review (42,657 checked states) | Awaiting approval/setup |
 | kitpvp | Wildwood Ruins | `rc_build_kitpvp_wildwood_ruins` | built; awaiting Aurora review (41,441 checked states) | Awaiting approval/setup |
 | koth | Ember Spire | `rc_build_koth_ember_spire` | built; awaiting Aurora review (42,993 checked states) | Awaiting approval/setup |
