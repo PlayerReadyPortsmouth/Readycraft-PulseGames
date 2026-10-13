@@ -40,7 +40,8 @@ final class HiderBody implements AutoCloseable {
         double current = attribute.getValue();
         if (!Double.isFinite(current) || current <= 0) throw new IllegalStateException("Invalid player scale");
         // 1.8 * 0.5 = 0.9 blocks, leaving room in a one-block gap. Heads use 0.45.
-        attribute.addModifier(new AttributeModifier(scaleKey, propHeight * .5 / current - 1,
+        // Never persist a round-only size into player data after an unclean shutdown.
+        attribute.addTransientModifier(new AttributeModifier(scaleKey, propHeight * .5 / current - 1,
                 AttributeModifier.Operation.MULTIPLY_SCALAR_1));
     }
     @Override public void close() {

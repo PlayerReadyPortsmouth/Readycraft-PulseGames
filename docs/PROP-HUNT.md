@@ -34,7 +34,8 @@ by this document.
 - Seekers hit a single nearest prop within three blocks. Real walls occlude hits;
   native player-hit and arm-swing packets share a cooldown. Decoys break without
   damaging their owner or awarding a player kill.
-- Original scale modifiers, visibility and collision are restored on found,
+- The round-only size modifier is transient (not saved into player data). Original
+  scale modifiers, visibility and collision are restored on found,
   infection, elimination, quit and cleanup. Owned props/decoys are removed on all
   those paths. The legacy content-disabled mode is unchanged.
 
