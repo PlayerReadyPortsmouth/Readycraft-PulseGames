@@ -15,7 +15,8 @@ import java.util.*;
 /** Observe final local chat; never cancel, rewrite, or replay chat events. */
 public final class PaperBridge extends JavaPlugin implements Listener, PluginMessageListener {
     private Wire wire;
-    private org.bukkit.configuration.file.YamlConfiguration returnLocations;
+    private ReturnLocations returnLocations;
+    private final Map<UUID, String> restores = new HashMap<>();
     private LocalChatGames chatGames;
     private ChatCompatibility compatibility;
     private final Map<UUID, Boolean> global = new HashMap<>();
@@ -26,7 +27,8 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
     private Set<String> advertised = Set.of();
     @Override public void onEnable() {
         saveDefaultConfig();
-        returnLocations = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(new java.io.File(getDataFolder(), "return-locations.yml"));
+        try { returnLocations = ReturnLocations.load(new java.io.File(getDataFolder(), "return-locations.yml").toPath()); }
+        catch (java.io.IOException ex) { getLogger().severe("Return locations could not be read; preserving file and disabling location writes."); }
         if (!getConfig().getBoolean("enabled")) { getLogger().info("PulseNetwork is disabled until configured."); return; }
         try { wire = new Wire(getConfig().getString("bridge-secret", "")); }
         catch (IllegalArgumentException e) { getLogger().severe(e.getMessage()); return; }
@@ -76,11 +78,41 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
     }
     @EventHandler public void quit(PlayerQuitEvent event) {
         if (returnLocations != null && !event.getPlayer().hasMetadata("NPC")) {
-            returnLocations.set(event.getPlayer().getUniqueId().toString(), event.getPlayer().getLocation());
-            try { returnLocations.save(new java.io.File(getDataFolder(), "return-locations.yml")); }
+            returnLocations.put(event.getPlayer().getUniqueId(), event.getPlayer().getLocation());
+            try { returnLocations.save(new java.io.File(getDataFolder(), "return-locations.yml").toPath()); }
             catch (java.io.IOException ex) { getLogger().warning("Could not save queue return location."); }
-        } visits.remove(event.getPlayer().getUniqueId()); global.remove(event.getPlayer().getUniqueId()); lastChat.remove(event.getPlayer().getUniqueId()); }
+        } restores.remove(event.getPlayer().getUniqueId()); visits.remove(event.getPlayer().getUniqueId()); global.remove(event.getPlayer().getUniqueId()); lastChat.remove(event.getPlayer().getUniqueId()); }
     private void send(Player carrier, String kind, String... fields) { carrier.sendPluginMessage(this, Wire.CHANNEL, wire.encode(kind, carrier.getUniqueId(), fields)); }
+
+    private void restore(Player player, String request) {
+        if (!player.isOnline() || !request.equals(restores.get(player.getUniqueId()))) return;
+        ReturnLocations.Position saved=returnLocations==null?null:returnLocations.get(player.getUniqueId());
+        if (saved==null) return;
+        org.bukkit.World world=Bukkit.getWorld(saved.world());
+        if (world==null) {
+            // Only PulseGames may reopen its known persistent build worlds. Never create a missing world.
+            var games=getServer().getPluginManager().getPlugin("PulseGames");
+            if (games!=null && games.isEnabled()) try {
+                world=(org.bukkit.World)games.getClass().getMethod("loadReturnWorld",String.class).invoke(games,saved.world());
+            } catch (ReflectiveOperationException ex) { getLogger().warning("Saved return world could not be reopened."); }
+        }
+        org.bukkit.Location target=saved.in(world);
+        if (target==null) {player.sendMessage(Component.text("Your previous location is unavailable. You remain at this server's arrival point."));return;}
+        // Chunk loading is asynchronous. Do not teleport a disconnected player or one who has since moved worlds.
+        org.bukkit.World arrival=player.getWorld();
+        target.getWorld().getChunkAtAsync(target).whenComplete((chunk,failure)->getServer().getScheduler().runTask(this,()->{
+            if (!player.isOnline() || !request.equals(restores.get(player.getUniqueId())) || player.getWorld()!=arrival) return;
+            if (failure!=null || !safe(target)) {player.sendMessage(Component.text("Your previous spot is obstructed or unsafe. You remain at this server's arrival point."));return;}
+            if (player.isInsideVehicle()) player.leaveVehicle();
+            if (!player.teleport(target)) player.sendMessage(Component.text("Return teleport was refused; you remain at this server's arrival point."));
+        }));
+    }
+    static boolean safe(org.bukkit.Location at) {
+        org.bukkit.World w=at.getWorld();if(w==null)return false;
+        var feet=at.getBlock();var head=feet.getRelative(org.bukkit.block.BlockFace.UP);var floor=feet.getRelative(org.bukkit.block.BlockFace.DOWN);
+        return feet.isPassable() && head.isPassable() && !feet.isLiquid() && !head.isLiquid()
+                && floor.getType().isSolid() && !Set.of(org.bukkit.Material.MAGMA_BLOCK,org.bukkit.Material.CAMPFIRE,org.bukkit.Material.SOUL_CAMPFIRE,org.bukkit.Material.CACTUS).contains(floor.getType());
+    }
 
     @SuppressWarnings("unchecked") private void queues() {
         if (!getConfig().getBoolean("queues.enabled")) return;
@@ -127,10 +159,10 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
             return;
         }
         if (decoded.isPresent() && decoded.get().kind().equals("RESTORE") && decoded.get().player().equals(player.getUniqueId()) && decoded.get().fields().size() == 1) {
-            org.bukkit.Location saved = returnLocations == null ? null : returnLocations.getLocation(player.getUniqueId().toString());
-            if (saved != null && saved.getWorld() != null) getServer().getScheduler().runTaskLater(this, () -> {
-                if (player.isOnline()) player.teleportAsync(saved);
-            }, 20L);
+            String request=decoded.get().fields().get(0);
+            try { UUID.fromString(request); } catch (IllegalArgumentException invalid) {return;}
+            if (request.equals(restores.put(player.getUniqueId(),request))) return;
+            getServer().getScheduler().runTaskLater(this, () -> restore(player,request), 20L);
             return;
         }
         if (!getConfig().getBoolean("queues.enabled")) return;

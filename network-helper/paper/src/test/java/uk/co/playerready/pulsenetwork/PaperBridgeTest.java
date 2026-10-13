@@ -17,7 +17,7 @@ class PaperBridgeTest {
     static void set(Object object,String name,Object value)throws Exception {var f=PaperBridge.class.getDeclaredField(name);f.setAccessible(true);f.set(object,value);}
     @BeforeEach void setup()throws Exception {
         bridge=mock(PaperBridge.class,CALLS_REAL_METHODS);set(bridge,"global",new HashMap<>());set(bridge,"lastChat",new HashMap<>());
-        set(bridge,"wire",new Wire("test-only-not-a-deployment-secret-0123456789"));
+        set(bridge,"restores",new HashMap<>());set(bridge,"wire",new Wire("test-only-not-a-deployment-secret-0123456789"));
         config=new YamlConfiguration();config.set("chat.enabled",true);config.set("chat.global-by-default",true);doReturn(config).when(bridge).getConfig();
         Server server=mock(Server.class);BukkitScheduler scheduler=mock(BukkitScheduler.class);doReturn(server).when(bridge).getServer();when(server.getScheduler()).thenReturn(scheduler);
         tasks=new ArrayList<>();doAnswer(i->{tasks.add(i.getArgument(1));return null;}).when(scheduler).runTask(eq(bridge),any(Runnable.class));
@@ -42,14 +42,24 @@ class PaperBridgeTest {
     }
 
     @Test void restoreWorksOnSourceWithQueuePublishingDisabled() throws Exception {
-        var locations=new YamlConfiguration();var world=mock(World.class);when(world.getUID()).thenReturn(UUID.randomUUID());
-        var location=new Location(world,123.5,78,-45.5,90,12);locations.set(sender.getUniqueId().toString(),location);set(bridge,"returnLocations",locations);
+        var world=mock(World.class);when(world.getUID()).thenReturn(UUID.randomUUID());when(world.getName()).thenReturn("survival");
+        when(world.getMinHeight()).thenReturn(-64);when(world.getMaxHeight()).thenReturn(320);var border=mock(WorldBorder.class);when(world.getWorldBorder()).thenReturn(border);when(border.isInside(any())).thenReturn(true);
+        var location=new Location(world,123.5,78,-45.5,90,12);var locations=new ReturnLocations();locations.put(sender.getUniqueId(),location);set(bridge,"returnLocations",locations);
+        when(sender.getWorld()).thenReturn(world);when(sender.teleport(any(Location.class))).thenReturn(true);
+        when(world.getChunkAtAsync(any(Location.class))).thenReturn(java.util.concurrent.CompletableFuture.completedFuture(mock(Chunk.class)));
+        var feet=mock(org.bukkit.block.Block.class);var head=mock(org.bukkit.block.Block.class);var floor=mock(org.bukkit.block.Block.class);
+        when(world.getBlockAt(anyInt(),anyInt(),anyInt())).thenReturn(feet);when(world.getBlockAt(any(Location.class))).thenReturn(feet);when(feet.isPassable()).thenReturn(true);when(head.isPassable()).thenReturn(true);
+        when(feet.getRelative(org.bukkit.block.BlockFace.UP)).thenReturn(head);when(feet.getRelative(org.bukkit.block.BlockFace.DOWN)).thenReturn(floor);when(floor.getType()).thenReturn(Material.STONE);
         config.set("queues.enabled",false);
         var scheduler=bridge.getServer().getScheduler();
         doAnswer(i->{tasks.add(i.getArgument(1));return null;}).when(scheduler).runTaskLater(eq(bridge),any(Runnable.class),eq(20L));
         var wire=new Wire("test-only-not-a-deployment-secret-0123456789");
-        bridge.onPluginMessageReceived(Wire.CHANNEL,sender,wire.encode("RESTORE",sender.getUniqueId(),UUID.randomUUID().toString()));
-        assertEquals(1,tasks.size());tasks.forEach(Runnable::run);verify(sender).teleportAsync(location);
+        try(var bukkit=mockStatic(Bukkit.class);var safety=mockStatic(PaperBridge.class)){
+            safety.when(()->PaperBridge.safe(any(Location.class))).thenReturn(true);
+            bukkit.when(()->Bukkit.getWorld("survival")).thenReturn(world);
+            bridge.onPluginMessageReceived(Wire.CHANNEL,sender,wire.encode("RESTORE",sender.getUniqueId(),UUID.randomUUID().toString()));
+            assertEquals(1,tasks.size());for(int i=0;i<tasks.size();i++)tasks.get(i).run();verify(sender).teleport(location);
+        }
     }
     @Test void restoreForAnotherPlayerIsRejected() throws Exception {
         var wire=new Wire("test-only-not-a-deployment-secret-0123456789");

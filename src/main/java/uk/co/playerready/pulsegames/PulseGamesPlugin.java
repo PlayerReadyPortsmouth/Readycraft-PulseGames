@@ -32,6 +32,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
     private GameRegistry registry;
     private ArenaService arenas;
     private WorldService worlds;
+    private uk.co.playerready.pulsegames.core.game.MatchDiagnostics diagnostics;
     private uk.co.playerready.pulsegames.core.world.BuildWorldLifecycle buildWorlds;
     private InstanceManager instances;
     private PartyManager parties;
@@ -61,6 +62,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
         registry = new GameRegistry();
         arenas = new ArenaService(this);
         worlds = new WorldService(this);
+        diagnostics = new uk.co.playerready.pulsegames.core.game.MatchDiagnostics(getDataFolder().toPath().resolve("match-reports"), getLogger());
         buildWorlds = new uk.co.playerready.pulsegames.core.world.BuildWorldLifecycle(this);
         instances = new InstanceManager(this);
         bots = new uk.co.playerready.pulsegames.core.bot.BotService(this);
@@ -125,6 +127,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
         catch (RuntimeException ex) { getLogger().log(java.util.logging.Level.SEVERE, "Content shutdown failed", ex); }
         try { if (bots != null) bots.close(); }
         catch (RuntimeException ex) { getLogger().log(java.util.logging.Level.SEVERE, "Bot shutdown failed", ex); }
+        if (diagnostics != null) diagnostics.close();
         if (stats != null) stats.flush();
         if (economy != null) economy.flush();
     }
@@ -145,6 +148,13 @@ public final class PulseGamesPlugin extends JavaPlugin {
     public GameRegistry registry() { return registry; }
     public ArenaService arenas() { return arenas; }
     public uk.co.playerready.pulsegames.core.world.BuildWorldLifecycle buildWorlds() { return buildWorlds; }
+
+    /** Network helper return hook: existing permanent build worlds only. */
+    public org.bukkit.World loadReturnWorld(String name) {
+        return worlds.loadReturnWorld(name);
+    }
+
+    public uk.co.playerready.pulsegames.core.game.MatchDiagnostics diagnostics() { return diagnostics; }
 
     public WorldService worlds() { return worlds; }
     public InstanceManager instances() { return instances; }

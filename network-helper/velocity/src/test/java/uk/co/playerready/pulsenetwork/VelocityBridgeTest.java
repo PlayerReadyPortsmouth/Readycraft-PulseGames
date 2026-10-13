@@ -90,4 +90,19 @@ class VelocityBridgeTest {
         verify(target).sendPluginMessage(eq(MinecraftChannelIdentifier.from(Wire.CHANNEL)),bytes.capture());
         var decoded=new Wire(KEY).decode(bytes.getValue()).orElseThrow();assertEquals("REMOTECHAT",decoded.kind());assertEquals(remote.getUniqueId(),decoded.player());assertEquals(sender.getUniqueId().toString(),decoded.fields().get(1));
     }
+    @Test void failedReturnCompletingAfterDisconnectKeepsOriginForReconnect() throws Exception {
+        Class<?> cls=Class.forName(VelocityBridge.class.getName()+"$Visit");var ctor=cls.getDeclaredConstructors()[0];ctor.setAccessible(true);
+        String request=UUID.randomUUID().toString();var visits=new java.util.concurrent.ConcurrentHashMap<UUID,Object>();
+        visits.put(sender.getUniqueId(),ctor.newInstance("survival","minigamestest",request));set(bridge,"visits",visits);
+        var target=mock(RegisteredServer.class);when(proxy.getServer("survival")).thenReturn(Optional.of(target));
+        var builder=mock(ConnectionRequestBuilder.class);when(sender.createConnectionRequest(target)).thenReturn(builder);
+        var future=new java.util.concurrent.CompletableFuture<ConnectionRequestBuilder.Result>();when(builder.connect()).thenReturn(future);
+        source=connection(sender,"minigamestest");bridge.message(message("RETURN",request));
+        var disconnect=mock(com.velocitypowered.api.event.connection.DisconnectEvent.class);when(disconnect.getPlayer()).thenReturn(sender);bridge.quit(disconnect);
+        future.completeExceptionally(new IllegalStateException("disconnected"));assertTrue(visits.containsKey(sender.getUniqueId()));
+        source=connection(sender,"survival");var connected=mock(com.velocitypowered.api.event.player.ServerPostConnectEvent.class);when(connected.getPlayer()).thenReturn(sender);bridge.connected(connected);
+        var bytes=org.mockito.ArgumentCaptor.forClass(byte[].class);verify(source).sendPluginMessage(eq(MinecraftChannelIdentifier.from(Wire.CHANNEL)),bytes.capture());
+        assertEquals("RESTORE",new Wire(KEY).decode(bytes.getValue()).orElseThrow().kind());assertTrue(visits.isEmpty());
+    }
+
 }

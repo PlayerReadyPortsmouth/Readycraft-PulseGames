@@ -104,6 +104,7 @@ public final class ArenaSetupManager implements Listener {
             return;
         }
         switch (sub) {
+            case "validate" -> validate(player, session);
             case "wand" -> giveWand(player);
             case "book" -> menu.giveBook(player);
             case "lobby" -> {
@@ -331,10 +332,19 @@ public final class ArenaSetupManager implements Listener {
         player.sendMessage(Text.mm(" <gray>Then: <click:suggest_command:'/pulse setup save'><yellow>/pulse setup save</yellow></click>"));
     }
 
+    public ArenaValidation.Report validation(Session session) { return ArenaValidation.check(session); }
+    public void validate(Player player, Session session) {
+        var report=validation(session);
+        player.sendMessage(net.kyori.adventure.text.Component.text(report.valid()?"Arena validation: no blocking errors. Review warnings before publishing.":"Arena validation: fix these errors before publishing."));
+        report.issues().stream().limit(40).forEach(i->player.sendMessage(net.kyori.adventure.text.Component.text((i.error()?"ERROR: ":"CHECK: ")+i.message())));
+        if(report.issues().size()>40)player.sendMessage(net.kyori.adventure.text.Component.text("More issues remain; fix these and validate again."));
+    }
+
     // ---- save --------------------------------------------------------------------------
 
     void save(Player player, Session session) {
         if (!player.hasPermission("pulsegames.admin") || session(player) != session || menu.saving(session)) return;
+        if (!validation(session).valid()) { validate(player,session); return; }
         List<CheckEntry> missing = checklist(session).stream()
                 .filter(e -> e.required() && !e.done()).toList();
         if (!missing.isEmpty()) {
