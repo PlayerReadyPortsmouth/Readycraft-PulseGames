@@ -139,6 +139,7 @@ final class ArenaSetupMenu implements Listener {
             open(player, session);
         }, "Click to cycle Easy / Normal / Hard", "Normal damage and reach at every level"));
         buttons.add(button(Material.BLAZE_ROD, "Get selection wand", () -> { manager.giveWand(player); player.closeInventory(); }));
+        buttons.add(button(Material.SPYGLASS, "Validate arena", () -> { player.closeInventory(); manager.validate(player, session); }, "Check coordinates, objectives, teams and spawn clearance", "Read-only; does not load unexplored chunks"));
         long missing = manager.checklist(session).stream().filter(e -> e.required() && !e.done()).count();
         buttons.add(button(Material.EMERALD_BLOCK, "Review and save (" + missing + " missing)", () -> review(player, session)));
         buttons.add(button(Material.BARRIER, "Discard setup", () -> confirm(player, session, "Discard unsaved setup?",

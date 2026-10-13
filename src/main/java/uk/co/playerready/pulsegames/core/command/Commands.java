@@ -34,7 +34,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
         // Console-capable admin subcommands (map generation needs no player).
         if (command.getName().equalsIgnoreCase("pulse") && args.length >= 1) {
             String sub = args[0].toLowerCase(Locale.ROOT);
-            if (sub.equals("build") || sub.equals("blueprints") || sub.equals("bots")) {
+            if (sub.equals("build") || sub.equals("blueprints") || sub.equals("bots") || sub.equals("diagnose")) {
                 adminConsole(sender, args);
                 return true;
             }
@@ -149,6 +149,12 @@ public final class Commands implements CommandExecutor, TabCompleter {
             return;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
+            case "diagnose" -> {
+                var rows=args.length>1?plugin.diagnostics().report(args[1]):plugin.diagnostics().recent();
+                sender.sendMessage(net.kyori.adventure.text.Component.text(args.length>1?"Match report (latest 20 events):":"Recent match references: /pulse diagnose <reference>"));
+                if(rows.isEmpty()) sender.sendMessage(net.kyori.adventure.text.Component.text("No report in memory. Older reports are in plugins/PulseGames/match-reports."));
+                rows.forEach(row->sender.sendMessage(net.kyori.adventure.text.Component.text(row)));
+            }
             case "bots" -> sender.sendMessage(Text.msg(plugin.bots().status()));
             case "blueprints" -> sender.sendMessage(Text.msg("Blueprints: <yellow>"
                     + String.join(", ", plugin.mapBuilder().available())));
@@ -166,7 +172,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
 
     private void admin(Player player, String[] args) {
         if (args.length == 0) {
-            player.sendMessage(Text.msg("Usage: <yellow>/pulse <setup|shape|build|blueprints|world|games|list|arenas|start|end|setlobby|reload>"));
+            player.sendMessage(Text.msg("Usage: <yellow>/pulse <setup|shape|build|blueprints|diagnose|world|games|list|arenas|start|end|setlobby|reload>"));
             return;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
@@ -277,7 +283,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
             }
             case "pulse" -> {
                 if (args.length == 1) {
-                    return List.of("setup", "shape", "build", "blueprints", "bots", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
+                    return List.of("setup", "shape", "build", "blueprints", "bots", "diagnose", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
                 }
                 if (args.length == 3 && args[0].equalsIgnoreCase("world")) return List.of("void", "normal");
                 if (args.length == 2 && args[0].equalsIgnoreCase("build")) {
@@ -291,7 +297,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
                 }
                 if (args.length == 2 && args[0].equalsIgnoreCase("setup")) {
                     return List.of("start", "wand", "lobby", "spectator", "addspawn", "clearspawns",
-                            "region", "setloc", "addloc", "set", "check", "gui", "book", "save", "cancel");
+                            "region", "setloc", "addloc", "set", "check", "validate", "gui", "book", "save", "cancel");
                 }
                 if (args.length == 3 && args[0].equalsIgnoreCase("setup") && args[1].equalsIgnoreCase("start")) {
                     return plugin.registry().all().stream().map(GameType::id).toList();

@@ -13,11 +13,13 @@ public final class LocUtil {
 
     public static Location parse(String raw, World world) {
         String[] parts = raw.trim().split("\\s*,\\s*");
+        if (parts.length != 3 && parts.length != 5) throw new IllegalArgumentException("Use x,y,z or x,y,z,yaw,pitch");
         double x = Double.parseDouble(parts[0]);
         double y = Double.parseDouble(parts[1]);
         double z = Double.parseDouble(parts[2]);
         float yaw = parts.length > 3 ? Float.parseFloat(parts[3]) : 0f;
         float pitch = parts.length > 4 ? Float.parseFloat(parts[4]) : 0f;
+        if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z) || !Float.isFinite(yaw) || !Float.isFinite(pitch)) throw new IllegalArgumentException("Coordinates must be finite");
         return new Location(world, x, y, z, yaw, pitch);
     }
 

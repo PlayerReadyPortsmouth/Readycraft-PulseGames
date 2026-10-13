@@ -22,7 +22,8 @@ public final class BotService implements AutoCloseable {
     private static final class Slot {
         final GameInstance game;
         final BotActor actor;
-        Location lastPosition, destination;
+        Location lastPosition, destination, progressPosition;
+        long progressTick;
         Player entity;
         long nextAttack, nextPath;
         Slot(GameInstance game, BotActor actor) { this.game = game; this.actor = actor; }
@@ -211,6 +212,13 @@ public final class BotService implements AutoCloseable {
         if (slot.lastPosition != null && !slot.lastPosition.equals(here)) {
             game.logic().onMove(bot, slot.lastPosition, here);
         }
+        if (slot.destination != null && slot.destination.getWorld().equals(here.getWorld()) && slot.destination.distanceSquared(here)>9) {
+            if (slot.progressPosition==null || !slot.progressPosition.getWorld().equals(here.getWorld()) || slot.progressPosition.distanceSquared(here)>1) {
+                slot.progressPosition=here.clone();slot.progressTick=tick;
+            } else if (tick-slot.progressTick>=300) {
+                game.note("bot-navigation-stalled", "No block of progress toward a distant goal for 15 seconds");slot.progressTick=tick;
+            }
+        } else {slot.progressPosition=null;slot.progressTick=tick;}
         slot.lastPosition = here.clone();
         if (game.state() != GameState.RUNNING || !game.isActive(bot)) return;
         BotDifficulty difficulty = BotDifficulty.parse(game.arena().settings().getString("bot-difficulty",

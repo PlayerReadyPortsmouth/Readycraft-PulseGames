@@ -74,15 +74,22 @@ public final class GameInstance {
         this.logic = type.createLogic(this);
     }
 
+    public void note(String event, String detail) {
+        if (plugin.diagnostics() != null) plugin.diagnostics().record(id,type.id(),mode.id(),arena.id(),event,detail);
+    }
+
     public void init() {
+        note("loading", "Map clone requested");
         plugin.worlds().cloneAndLoad(arena.worldTemplate(), id, loaded -> {
             if (state == GameState.RESETTING) { plugin.worlds().unloadAndDelete(loaded); return; }
             this.world = loaded;
             this.state = GameState.WAITING;
-            logic.onWorldReady();
+            note("world-ready", "Map loaded");
+            try { logic.onWorldReady(); } catch (RuntimeException ex) { note("world-ready-failed",ex.getClass().getSimpleName()); cleanup(); return; }
             tasks.add(Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L));
         }, () -> {
-            broadcast("<red>Failed to load the map. The game was cancelled.");
+            note("load-failed", "Map clone/load failed");
+            broadcast("<red>Failed to load the map. Reference: " + id);
             cleanup();
         });
     }
@@ -197,11 +204,21 @@ public final class GameInstance {
         if (bot) plugin.playerState().reset(player);
         else plugin.playerState().save(player);
         player.setGameMode(org.bukkit.GameMode.ADVENTURE);
-        player.teleport(arena.lobby(world));
+        if (player.isInsideVehicle()) player.leaveVehicle();
+        if (!player.teleport(arena.lobby(world))) {
+            note("join-refused", "Lobby teleport cancelled");
+            participants.remove(player.getUniqueId());botIds.remove(player.getUniqueId());plugin.instances().unindex(player);
+            if (!bot) plugin.playerState().restore(player);
+            return false;
+        }
         if (!bot) giveLeaveItem(player);
         broadcast("<yellow>" + player.getName() + "</yellow> joined <gray>(" + participants.size() + "/" + maxPlayers() + ")");
         player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1f, 1.2f);
-        logic.onJoin(player);
+        try { logic.onJoin(player); }
+        catch (RuntimeException ex) {
+            note("join-failed",ex.getClass().getSimpleName());remove(player,true);return false;
+        }
+        note("joined", "participants="+participants.size());
         if (plugin.combat() != null) plugin.combat().refresh(player);
         return true;
     }
@@ -223,13 +240,13 @@ public final class GameInstance {
         participants.remove(player.getUniqueId());
         spectators.remove(player.getUniqueId());
         teams.forEach(t -> t.members().remove(player.getUniqueId()));
-        if (plugin.combat() != null) plugin.combat().leave(player);
         plugin.instances().unindex(player);
-        logic.onQuit(player);
+        releaseStep("combat", () -> { if (plugin.combat() != null) plugin.combat().leave(player); });
+        try { logic.onQuit(player); } catch (RuntimeException ex) { note("quit-hook-failed", ex.getClass().getSimpleName()); }
         if (!bot) {
-            plugin.playerState().restore(player);
-            plugin.sidebar().clear(player);
-            if (teleportToLobby && player.isOnline()) plugin.lobby().sendToLobby(player);
+            releaseStep("inventory", () -> plugin.playerState().restore(player));
+            releaseStep("sidebar", () -> plugin.sidebar().clear(player));
+            if (teleportToLobby && player.isOnline()) releaseStep("lobby", () -> plugin.lobby().sendToLobby(player));
         } else {
             plugin.bots().destroy(player.getUniqueId());
             botIds.remove(player.getUniqueId());
@@ -312,10 +329,11 @@ public final class GameInstance {
             action.run();
             logicFailures = 0;
         } catch (Exception ex) {
+            note("logic-failed", hook+" "+ex.getClass().getSimpleName());
             plugin.getLogger().log(java.util.logging.Level.SEVERE,
                     "Game logic error in " + type.id() + "." + hook + " (instance " + id + ")", ex);
             if (++logicFailures < MAX_LOGIC_FAILURES && !hook.equals("onStart")) return;
-            broadcast("<red>This game hit an error and had to be stopped.");
+            broadcast("<red>This game hit an error and had to be stopped. Reference: " + id);
             try {
                 forceEnd();
             } catch (Exception fatal) {
@@ -410,6 +428,7 @@ public final class GameInstance {
             }
         }
         frozenUntil = System.currentTimeMillis() + logic.startFreezeSeconds() * 1000L;
+        note("started", "participants="+participants.size()+" bots="+botIds.size());
         runLogic("onStart", logic::onStart);
     }
 
@@ -508,6 +527,7 @@ public final class GameInstance {
     }
 
     public void end(List<Player> winners, String reason) {
+        note("ending", reason);
         if (state == GameState.ENDING || state == GameState.RESETTING) return;
         state = GameState.ENDING;
         countdown = plugin.getConfig().getInt("end.celebrate-seconds", 10);
@@ -569,17 +589,18 @@ public final class GameInstance {
     public void cleanup() {
         if (state == GameState.RESETTING) return;
         state = GameState.RESETTING;
+        note("cleanup", "Releasing players and world");
         try { logic.onCleanup(); }
         catch (RuntimeException ex) { plugin.getLogger().log(java.util.logging.Level.WARNING, "Game cleanup hook failed", ex); }
         tasks.forEach(t -> { if (!t.isCancelled()) t.cancel(); });
         tasks.clear();
         for (Player p : everyone()) {
-            if (plugin.combat() != null) plugin.combat().leave(p);
             plugin.instances().unindex(p);
+            releaseStep("combat", () -> { if (plugin.combat() != null) plugin.combat().leave(p); });
             if (!isBot(p)) {
-                plugin.playerState().restore(p);
-                plugin.sidebar().clear(p);
-                plugin.lobby().sendToLobby(p);
+                releaseStep("inventory", () -> plugin.playerState().restore(p));
+                releaseStep("sidebar", () -> plugin.sidebar().clear(p));
+                releaseStep("lobby", () -> plugin.lobby().sendToLobby(p));
             }
         }
         if (plugin.bots() != null) plugin.bots().forget(this);
@@ -594,6 +615,11 @@ public final class GameInstance {
         }
         plugin.instances().remove(this);
         plugin.stats().flushAsync();
+    }
+
+    private void releaseStep(String step, Runnable action) {
+        try { action.run(); }
+        catch (RuntimeException ex) { note("player-release-failed", step + " " + ex.getClass().getSimpleName()); }
     }
 
     // ---- helpers -----------------------------------------------------------------

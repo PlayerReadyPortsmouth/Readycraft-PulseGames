@@ -14,22 +14,22 @@ import java.util.UUID;
 public final class PlayerStateService {
 
     private record Snapshot(ItemStack[] contents, GameMode gameMode, double health, int food,
-                            float exp, int level, boolean allowFlight) {}
+                            float exp, int level, boolean allowFlight, boolean flying, float saturation, java.util.Collection<PotionEffect> effects) {}
 
     private final Map<UUID, Snapshot> saved = new HashMap<>();
 
     public void save(Player player) {
         saved.putIfAbsent(player.getUniqueId(), new Snapshot(
-                player.getInventory().getContents().clone(),
+                java.util.Arrays.stream(player.getInventory().getContents()).map(i -> i == null ? null : i.clone()).toArray(ItemStack[]::new),
                 player.getGameMode(), player.getHealth(), player.getFoodLevel(),
-                player.getExp(), player.getLevel(), player.getAllowFlight()));
+                player.getExp(), player.getLevel(), player.getAllowFlight(), player.isFlying(), player.getSaturation(), java.util.List.copyOf(player.getActivePotionEffects())));
         reset(player);
     }
 
     public void restore(Player player) {
-        Snapshot snap = saved.remove(player.getUniqueId());
-        reset(player);
+        Snapshot snap = saved.get(player.getUniqueId());
         if (snap == null) return;
+        reset(player);
         player.getInventory().setContents(snap.contents());
         player.setGameMode(snap.gameMode());
         player.setHealth(Math.min(snap.health(), maxHealth(player)));
@@ -37,6 +37,10 @@ public final class PlayerStateService {
         player.setExp(snap.exp());
         player.setLevel(snap.level());
         player.setAllowFlight(snap.allowFlight());
+        player.setFlying(snap.allowFlight() && snap.flying());
+        player.setSaturation(snap.saturation());
+        player.addPotionEffects(snap.effects());
+        saved.remove(player.getUniqueId(), snap);
     }
 
     /** Full clean slate: empty inventory, full health/food, no effects. */

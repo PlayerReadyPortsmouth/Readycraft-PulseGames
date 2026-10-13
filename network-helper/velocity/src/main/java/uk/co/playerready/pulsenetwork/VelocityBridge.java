@@ -21,7 +21,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Plugin(id="pulsenetwork", name="PulseNetwork", version="0.1.2", description="Public chat relay and minigame queue joins", authors={"AurorasChaos (on behalf of Player Ready)"},
+@Plugin(id="pulsenetwork", name="PulseNetwork", version="0.1.3", description="Public chat relay and minigame queue joins", authors={"AurorasChaos (on behalf of Player Ready)"},
         dependencies = {@com.velocitypowered.api.plugin.Dependency(id="floodgate", optional=true)})
 public final class VelocityBridge {
     private static final MinecraftChannelIdentifier CHANNEL = MinecraftChannelIdentifier.from(Wire.CHANNEL);
@@ -35,6 +35,7 @@ public final class VelocityBridge {
     private Set<String> paperBackends = Set.of();
     private record Visit(String origin, String destination, String request) {}
     private final Map<UUID, Visit> visits = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> reconnectUntil = new ConcurrentHashMap<>();
     private final Set<UUID> returning = ConcurrentHashMap.newKeySet();
     private final QueueDirectory queues = new QueueDirectory();
     private final Map<UUID, Pending> pending = new ConcurrentHashMap<>();
@@ -179,13 +180,14 @@ public final class VelocityBridge {
         if (target == null) { player.sendMessage(Component.text("The minigame server is unavailable.")); return; }
         Pending request = new Pending(UUID.randomUUID().toString(), queue, now + 15_000);
         String current = player.getCurrentServer().map(c -> c.getServerInfo().getName()).orElse("");
-        if (!current.equals(queue.server())) visits.put(player.getUniqueId(), new Visit(current, queue.server(), request.request()));
+        if (!current.equals(queue.server())) visits.compute(player.getUniqueId(), (id, old) ->
+                new Visit(old != null && old.destination().equals(current) ? old.origin() : current, queue.server(), request.request()));
         else visits.computeIfPresent(player.getUniqueId(), (id, old) -> new Visit(old.origin(), queue.server(), request.request()));
         pending.put(player.getUniqueId(), request);
         if (player.getCurrentServer().map(s -> s.getServerInfo().getName().equals(queue.server())).orElse(false)) { deliver(player, request); return; }
         player.sendMessage(Component.text("Connecting to " + queue.title() + "…"));
         player.createConnectionRequest(target).connect().whenComplete((result, failure) -> {
-            if (failure != null || !result.isSuccessful()) {
+            if (failure != null || result == null || !result.isSuccessful()) {
                 if (pending.remove(player.getUniqueId(), request)) {
                     visits.computeIfPresent(player.getUniqueId(), (id, visit) -> visit.request().equals(request.request()) ? null : visit);
                     player.sendMessage(Component.text("Could not connect. Your current server has been kept."));
@@ -196,6 +198,13 @@ public final class VelocityBridge {
     @Subscribe public void connected(ServerPostConnectEvent event) {
         Player player = event.getPlayer(); Pending request = pending.get(player.getUniqueId());
         Visit visit = visits.get(player.getUniqueId());
+        Long reconnect = reconnectUntil.remove(player.getUniqueId());
+        if (reconnect != null && visit != null) {
+            if (reconnect < System.currentTimeMillis()) { visits.remove(player.getUniqueId(), visit); return; }
+            String current = player.getCurrentServer().map(c -> c.getServerInfo().getName()).orElse("");
+            if (current.equals(visit.destination())) { returnHome(player, visit); return; }
+            if (current.equals(visit.origin())) player.getCurrentServer().ifPresent(c -> c.sendPluginMessage(CHANNEL,wire.encode("RESTORE",player.getUniqueId(),visit.request())));
+        }
         if (visit != null && player.getCurrentServer().map(c -> !c.getServerInfo().getName().equals(visit.destination())).orElse(false)) {
             visits.remove(player.getUniqueId(), visit); returning.remove(player.getUniqueId()); pending.remove(player.getUniqueId()); return;
         }
@@ -206,8 +215,13 @@ public final class VelocityBridge {
         if (target == null || !backends.contains(visit.origin()) || !returning.add(player.getUniqueId())) return;
         pending.remove(player.getUniqueId());
         player.createConnectionRequest(target).connect().whenComplete((result, failure) -> {
+            // A disconnect may complete this request after a new login has begun.
+            // Keep the saved origin for that login and never act on a newer queue visit.
+            if (reconnectUntil.containsKey(player.getUniqueId())) return;
+            Visit currentVisit = visits.get(player.getUniqueId());
+            if (currentVisit != null && !currentVisit.equals(visit)) return;
             returning.remove(player.getUniqueId());
-            if (failure == null && result.isSuccessful()) {
+            if (failure == null && result != null && result.isSuccessful()) {
                 visits.remove(player.getUniqueId(), visit);
                 player.getCurrentServer().filter(c -> c.getServerInfo().getName().equals(visit.origin()))
                         .ifPresent(c -> c.sendPluginMessage(CHANNEL, wire.encode("RESTORE", player.getUniqueId(), visit.request())));
@@ -225,6 +239,7 @@ public final class VelocityBridge {
     }
     private void retryJoins() {
         long now = System.currentTimeMillis();
+        reconnectUntil.forEach((id,expiry)-> { if(expiry<now && reconnectUntil.remove(id,expiry)) visits.remove(id); });
         pending.forEach((id, request) -> {
             Player player = proxy.getPlayer(id).orElse(null);
             if (player == null || request.expires() < now) {
@@ -237,10 +252,10 @@ public final class VelocityBridge {
         });
     }
     @Subscribe public void quit(DisconnectEvent event) {
-        UUID id = event.getPlayer().getUniqueId(); visits.remove(id); returning.remove(id); pending.remove(id); chatTimes.remove(id); joinTimes.remove(id);
+        UUID id = event.getPlayer().getUniqueId(); if (visits.containsKey(id)) reconnectUntil.put(id,System.currentTimeMillis()+300_000); returning.remove(id); pending.remove(id); chatTimes.remove(id); joinTimes.remove(id);
     }
     @Subscribe public void stop(com.velocitypowered.api.event.proxy.ProxyShutdownEvent event) {
         if (ingress != null) ingress.close();
-        pending.clear();
+        pending.clear();visits.clear();reconnectUntil.clear();
     }
 }

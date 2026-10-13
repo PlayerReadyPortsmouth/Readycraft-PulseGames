@@ -120,7 +120,8 @@ public final class PlayService {
         if (!readyGroup(ticket)) return;
         if (instance.state() == GameState.LOADING) {
             if (attempts >= 60) {
-                fail(ticket, "<red>The game took too long to load, try again.");
+                instance.note("queue-timeout", "Map loading exceeded 30 seconds");
+                fail(ticket, "<red>The game took too long to load. Reference: " + instance.id());
                 return;
             }
             if (attempts == 0) ticket.group().forEach(p -> p.sendMessage(Text.msg(

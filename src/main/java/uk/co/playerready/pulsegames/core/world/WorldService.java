@@ -74,6 +74,19 @@ public final class WorldService {
         return target;
     }
 
+    public World loadReturnWorld(String name) {
+        if (name == null || !name.matches("[a-z0-9_-]{1,64}") || name.startsWith(prefix) || name.startsWith("pulsebuild_")) return null;
+        World existing=Bukkit.getWorld(name);if(existing!=null)return existing;
+        WorldCreator creator=new WorldCreator(name);File folder=worldDirectory(creator);
+        if (!folder.isDirectory() || Files.isSymbolicLink(folder.toPath()) || !new File(folder,"region").isDirectory()) return null;
+        boolean marked=new File(folder,".pulsegames-void").isFile();
+        if (!name.startsWith("rc_build_") && !marked) return null;
+        if (marked) creator.generator(new VoidGenerator()).generateStructures(false);
+        World loaded=creator.createWorld();
+        if (loaded!=null) buildLifecycle().manage(loaded);
+        return loaded;
+    }
+
     /** Copies the template off-thread, then loads the world on the main thread. */
     public void cloneAndLoad(String template, String instanceId, Consumer<World> onReady, Runnable onFail) {
         if (!isValidTemplateId(template)) {
@@ -179,6 +192,7 @@ public final class WorldService {
             player.teleport(fallback.getSpawnLocation());
         }
         if (!Bukkit.unloadWorld(world, false)) {
+            diagnosticWorld(world, "unload-retry", "attempt="+attempt);
             // During shutdown the scheduler rejects new tasks, so there is no retry to
             // schedule; the server unloads every world moments later and purgeLeftovers()
             // clears the folder on the next boot.
@@ -191,11 +205,22 @@ public final class WorldService {
             Bukkit.getScheduler().runTaskLater(plugin, () -> unloadAndDelete(world, attempt + 1), 20L);
             return;
         }
+        diagnosticWorld(world, "world-unloaded", "Unloaded before deletion");
         if (!plugin.isEnabled()) {
             deleteQuietly(folder.toPath());
             return;
         }
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> deleteQuietly(folder.toPath()));
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try { deleteRecursively(folder.toPath()); diagnosticWorld(world,"world-deleted","Instance folder removed"); }
+            catch(IOException ex){diagnosticWorld(world,"delete-failed",ex.getClass().getSimpleName());}
+        });
+    }
+
+    private void diagnosticWorld(World world,String event,String detail) {
+        if(plugin instanceof uk.co.playerready.pulsegames.PulseGamesPlugin games && games.diagnostics()!=null
+                && world.getName().startsWith(prefix)) {
+            games.diagnostics().record(world.getName().substring(prefix.length()),"world","cleanup",world.getName(),event,detail);
+        }
     }
 
     /** Deletes leftover instance worlds from a previous run/crash. */
