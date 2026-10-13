@@ -21,10 +21,13 @@ class PlayerReleaseTest {
         @SuppressWarnings("unchecked") var participants=(Set<UUID>)members.get(game);participants.add(id);
         var state=GameInstance.class.getDeclaredField("state");state.setAccessible(true);state.set(game,GameState.WAITING);
         var combat=plugin.combat();var sidebar=plugin.sidebar();
+        var content=plugin.content();
+        doThrow(new IllegalStateException("wardrobe cleanup failed")).when(content).clearWardrobeContext(player);
         doThrow(new IllegalStateException("combat cleanup failed")).when(combat).leave(player);
         doThrow(new IllegalStateException("sidebar cleanup failed")).when(sidebar).clear(player);
         if(cleanup)game.cleanup();else game.remove(player,true);
         verify(plugin.instances()).unindex(player);
+        verify(plugin.content()).clearWardrobeContext(player);
         verify(plugin.playerState()).restore(player);
         verify(plugin.lobby()).sendToLobby(player);
         if(cleanup)verify(plugin.instances()).remove(game);

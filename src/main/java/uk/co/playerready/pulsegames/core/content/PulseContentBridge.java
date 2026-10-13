@@ -19,6 +19,34 @@ public final class PulseContentBridge implements AutoCloseable {
 
     public PulseContentBridge(PulseGamesPlugin plugin) { this.plugin = plugin; }
 
+    /** Optional wardrobe capability is independent of prop APIs and must never break a match. */
+    public void wardrobeContext(Player player, String game, String phase) {
+        wardrobeCall("wardrobeContext", new Class<?>[]{Plugin.class, Player.class, String.class, String.class},
+                plugin, player, game, phase);
+    }
+
+    public void clearWardrobeContext(Player player) {
+        wardrobeCall("clearWardrobeContext", new Class<?>[]{Plugin.class, Player.class}, plugin, player);
+    }
+
+    public void wardrobeCelebration(Player player, String category) {
+        if (!Set.of("finish_event", "win_animation").contains(category)) return;
+        wardrobeCall("wardrobeCelebration", new Class<?>[]{Plugin.class, Player.class, String.class},
+                plugin, player, category);
+    }
+
+    private void wardrobeCall(String method, Class<?>[] parameters, Object... arguments) {
+        try {
+            Plugin provider = plugin.getServer().getPluginManager().getPlugin("PulseContent");
+            if (provider == null || !provider.isEnabled()) return;
+            Class<?> type = provider.getClass();
+            if (!Integer.valueOf(1).equals(type.getMethod("wardrobeApiVersion").invoke(provider))) return;
+            type.getMethod(method, parameters).invoke(provider, arguments);
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
+            // Old, disabled, or failed cosmetic providers cannot interrupt match or inventory cleanup.
+        }
+    }
+
     /** A user-facing reason, or null when every participant and configured prop is ready. */
     public String startProblem(List<String> props, List<Player> viewers) {
         if (props.isEmpty()) return "Custom Prop Hunt has no configured PulseContent props.";

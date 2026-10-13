@@ -211,7 +211,10 @@ public final class GameInstance {
             if (!bot) plugin.playerState().restore(player);
             return false;
         }
-        if (!bot) giveLeaveItem(player);
+        if (!bot) {
+            wardrobeContext(player, "playing");
+            giveLeaveItem(player);
+        }
         broadcast("<yellow>" + player.getName() + "</yellow> joined <gray>(" + participants.size() + "/" + maxPlayers() + ")");
         player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1f, 1.2f);
         try { logic.onJoin(player); }
@@ -241,6 +244,7 @@ public final class GameInstance {
         spectators.remove(player.getUniqueId());
         teams.forEach(t -> t.members().remove(player.getUniqueId()));
         plugin.instances().unindex(player);
+        releaseStep("wardrobe", () -> { if (plugin.content() != null) plugin.content().clearWardrobeContext(player); });
         releaseStep("combat", () -> { if (plugin.combat() != null) plugin.combat().leave(player); });
         try { logic.onQuit(player); } catch (RuntimeException ex) { note("quit-hook-failed", ex.getClass().getSimpleName()); }
         if (!bot) {
@@ -414,6 +418,7 @@ public final class GameInstance {
             p.setGameMode(logic.playGameMode());
             GameTeam team = teamOf(p);
             p.teleport(arena.spawn(team != null ? team.index() : i++, world));
+            if (!isBot(p)) wardrobeContext(p, "playing");
             p.setLevel(0);
             Text.title(p, "<green><b>GO!", "<gray>" + type.displayName() + " <dark_gray>• <gray>" + mode.displayName());
             p.playSound(p.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 0.6f, 1.4f);
@@ -536,7 +541,10 @@ public final class GameInstance {
         broadcast("<gold><b>GAME OVER!</b></gold> <gray>Winner(s): <yellow>" + names);
         for (Player p : everyone()) {
             if (isBot(p)) { p.setGameMode(org.bukkit.GameMode.SPECTATOR); continue; }
+            wardrobeContext(p, "ended");
+            if (isParticipant(p)) wardrobeCelebration(p, "finish_event");
             if (winners.contains(p)) {
+                wardrobeCelebration(p, "win_animation");
                 Text.title(p, "<gold><b>VICTORY!", "<gray>You won " + type.displayName());
                 p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
                 plugin.stats().addWin(p, type.id());
@@ -564,6 +572,18 @@ public final class GameInstance {
             }
         });
         runLogic("onEnd", () -> logic.onEnd(winners));
+    }
+
+    private void wardrobeContext(Player player, String phase) {
+        releaseStep("wardrobe-context", () -> {
+            if (plugin.content() != null) plugin.content().wardrobeContext(player, type.id(), phase);
+        });
+    }
+
+    private void wardrobeCelebration(Player player, String category) {
+        releaseStep("wardrobe-celebration", () -> {
+            if (plugin.content() != null) plugin.content().wardrobeCelebration(player, category);
+        });
     }
 
     private void spawnFirework(Location loc) {
@@ -596,6 +616,7 @@ public final class GameInstance {
         tasks.clear();
         for (Player p : everyone()) {
             plugin.instances().unindex(p);
+            releaseStep("wardrobe", () -> { if (plugin.content() != null) plugin.content().clearWardrobeContext(p); });
             releaseStep("combat", () -> { if (plugin.combat() != null) plugin.combat().leave(p); });
             if (!isBot(p)) {
                 releaseStep("inventory", () -> plugin.playerState().restore(p));
