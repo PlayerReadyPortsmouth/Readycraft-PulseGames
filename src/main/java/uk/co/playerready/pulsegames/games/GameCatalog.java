@@ -253,7 +253,13 @@ public final class GameCatalog {
                 List.of(GameMode.ffa("classic", "Classic", 2, 16),
                         GameMode.ffa("infection", "Infection", 2, 16)),
                 PropHuntGame::new,
-                List.of(spawns(1, "spawn 1 = seeker release point; add more for hiders")),
+                List.of(spawns(1, "spawn 1 = seeker release point; add more for hiders"),
+                        optional(setting("decoy-limit", "decoys per hider: 1-3 (default 3)")),
+                        optional(setting("decoy-seconds", "decoy lifetime: 10-120 seconds (default 60)")),
+                        optional(setting("decoy-cooldown", "decoy cooldown: 2-60 seconds (default 12)")),
+                        optional(setting("sprint-cooldown", "role sprint cooldown: 5-120 seconds (default 25)")),
+                        optional(setting("pulse-cooldown", "seeker pulse cooldown: 5-120 seconds (default 25)")),
+                        optional(setting("pulse-radius", "seeker pulse radius: 4-24 blocks (default 12)"))),
                 false));
 
         registry.register(new GameType("supermarket", "Supermarket Sweep",

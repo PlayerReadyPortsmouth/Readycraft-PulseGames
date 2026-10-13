@@ -78,7 +78,7 @@ class PropAimTest {
         Fixture f = new Fixture();
         Player victim = f.prop(2, HEAD);
         f.armSeeker();
-        when(f.game.plugin().content().isActive(victim)).thenReturn(true);
+        f.visual(victim, true);
         f.logic.onSwing(f.seeker);
         EntityDamageByEntityEvent vanilla = mock(EntityDamageByEntityEvent.class);
         f.logic.onDamageByPlayer(victim, f.seeker, vanilla);
@@ -95,7 +95,7 @@ class PropAimTest {
         f.armSeeker();
         f.logic.onSwing(f.seeker);
         verify(victim, never()).damage(anyDouble(), any(org.bukkit.entity.Entity.class));
-        when(f.game.plugin().content().isActive(victim)).thenReturn(true);
+        f.visual(victim, true);
         f.logic.onSwing(f.seeker);
         verify(victim).damage(6.0, f.seeker);
     }
@@ -123,6 +123,16 @@ class PropAimTest {
             when(game.isActive(player)).thenReturn(true);
             hiders.add(id); choices.put(id, option);
             return player;
+        }
+        void visual(Player player, boolean active) throws Exception {
+            var part = mock(uk.co.playerready.pulsegames.core.content.PulseContentBridge.PropVisual.class);
+            when(part.active()).thenReturn(active);
+            when(game.plugin().content().createProp(anyString(), any(), any(), anyCollection(), anyFloat())).thenReturn(part);
+            Class<?> type = Class.forName(PropHuntGame.class.getName() + "$PropRig");
+            var constructor = type.getDeclaredConstructor(PropHuntGame.class, Player.class, PropPalette.Option.class);
+            constructor.setAccessible(true);
+            Map<UUID, AutoCloseable> visuals = field(logic, "visuals");
+            visuals.put(player.getUniqueId(), (AutoCloseable)constructor.newInstance(logic, player, choices.get(player.getUniqueId())));
         }
         void armSeeker() throws Exception {
             set(logic, "blockProps", true);

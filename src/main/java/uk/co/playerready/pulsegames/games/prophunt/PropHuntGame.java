@@ -25,7 +25,7 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Prop Hunt: optional PulseContent block palette and owned native block locks.
+ * Prop Hunt: PulseContent-owned moving props, stable grid locks and bounded role powers.
  * The flag-off game retains its original invisible helmet disguises.
  * Modes: classic (found = spectate), infection (found = join the seekers).
  */
@@ -39,6 +39,13 @@ public final class PropHuntGame extends MiniGame {
     private final Set<UUID> seekers = new HashSet<>();
     private final Set<UUID> hiders = new HashSet<>();
     private final Map<UUID, AutoCloseable> visuals = new HashMap<>();
+    private final Map<UUID, HiderBody> bodies = new HashMap<>();
+    private final Map<UUID, Long> nextLock = new HashMap<>();
+    private final Map<String, Integer> cooldowns = new HashMap<>();
+    private record Decoy(UUID owner, PropPalette.Option option, Location feet, AutoCloseable visual, int expires) {}
+    private final Map<UUID, Decoy> decoys = new java.util.LinkedHashMap<>();
+    private boolean powers;
+    private int decoyLimit, decoyLifetime, decoyCooldown, sprintCooldown, pulseCooldown, pulseRadius;
     private Set<UUID> visualAudience = Set.of();
     private boolean customProps;
     private boolean blockProps;
@@ -50,6 +57,7 @@ public final class PropHuntGame extends MiniGame {
     private final Map<UUID, Long> nextBlockHit = new HashMap<>();
     private final class PaletteMenu implements org.bukkit.inventory.InventoryHolder {
         final UUID player;
+        boolean decoy;
         final PropHuntGame owner = PropHuntGame.this;
         org.bukkit.inventory.Inventory inventory;
         PaletteMenu(UUID player) { this.player = player; }
@@ -71,7 +79,7 @@ public final class PropHuntGame extends MiniGame {
         if (players.stream().anyMatch(game::isBot)) return "Custom Prop Hunt does not support NPC props yet.";
         List<String> models = game.plugin().getConfig().getStringList("content.prophunt.props");
         if (game.plugin().getConfig().getBoolean("content.prophunt.block-snapping", false)) {
-            if (!game.plugin().content().blockPropsReady()) return "Block disguises need the enabled PulseContent block-prop API.";
+            if (!game.plugin().content().propVisualsReady()) return "Moving block disguises need PulseContent 0.3.3 or newer (prop visual API).";
             try { models = PropPalette.read(game.plugin().getConfig()).stream().map(PropPalette.Option::model).toList(); }
             catch (IllegalArgumentException e) { return e.getMessage(); }
         }
@@ -90,6 +98,13 @@ public final class PropHuntGame extends MiniGame {
             if (problem != null) throw new IllegalStateException(problem);
             visualAudience = game.everyone().stream().map(Player::getUniqueId).collect(java.util.stream.Collectors.toUnmodifiableSet());
         }
+        powers = blockProps && game.arena().settings().getBoolean("prop-powers", true);
+        decoyLimit = bounded("decoy-limit", 3, 1, 3);
+        decoyLifetime = bounded("decoy-seconds", 60, 10, 120);
+        decoyCooldown = bounded("decoy-cooldown", 12, 2, 60);
+        sprintCooldown = bounded("sprint-cooldown", 25, 5, 120);
+        pulseCooldown = bounded("pulse-cooldown", 25, 5, 120);
+        pulseRadius = bounded("pulse-radius", 12, 4, 24);
         hidePhase = Math.max(0, game.arena().settings().getInt("hide-seconds", 30));
         List<Player> players = new ArrayList<>(game.alivePlayers());
         Collections.shuffle(players);
@@ -113,12 +128,22 @@ public final class PropHuntGame extends MiniGame {
                 if (customProps) {
                     int index = random.nextInt(props.size());
                     String id = props.get(index);
-                    visuals.put(player.getUniqueId(), game.plugin().content().attach(id, player, visualAudience));
+                    if (blockProps) {
+                        HiderBody body = new HiderBody(game.plugin(), player);
+                        bodies.put(player.getUniqueId(), body);
+                        body.apply(palette.get(index).height(), game.everyone());
+                        visuals.put(player.getUniqueId(), new PropRig(player, palette.get(index)));
+                    } else visuals.put(player.getUniqueId(), game.plugin().content().attach(id, player, visualAudience));
                     disguiseName = blockProps ? palette.get(index).name() : "custom prop";
                     if (blockProps) {
                         choices.put(player.getUniqueId(), palette.get(index));
                         giveControl(player, 0, Material.BOOK, "Choose disguise");
                         giveControl(player, 1, Material.SLIME_BALL, "Lock / unlock prop");
+                        if (powers) {
+                            giveControl(player, 2, Material.ECHO_SHARD, "Place decoy: choose its disguise");
+                            giveControl(player, 3, Material.BARRIER, "Clear your decoys");
+                            giveControl(player, 5, Material.FEATHER, "Escape sprint");
+                        }
                         player.sendMessage(Text.msg("<yellow>Choose a disguise during hiding time. Right-click the slime ball to lock to the block grid or move again."));
                         game.runLater(1, () -> openPalette(player));
                     }
@@ -135,22 +160,24 @@ public final class PropHuntGame extends MiniGame {
                 Text.title(player, "<green><b>HIDER", "<gray>Disguise: " + disguiseName);
             }
         }
+        if (blockProps) game.runRepeating(1, 1, this::updateProps);
         game.broadcast("<yellow>" + seekerCount + " seeker(s)</yellow> will be released in <red>"
                 + hidePhase + "s</red>. Hide!");
     }
 
     @Override
     public void onSecond(int gameTime) {
+        for (UUID id : List.copyOf(decoys.keySet())) if (decoys.get(id).expires() <= gameTime) removeDecoy(id);
         if (customProps) {
             Set<UUID> currentAudience = game.everyone().stream().map(Player::getUniqueId).collect(java.util.stream.Collectors.toSet());
             boolean valid = currentAudience.equals(visualAudience);
             for (UUID id : hiders) {
                 Player hider = game.plugin().getServer().getPlayer(id);
                 Locked anchor = locked.get(id);
-                valid &= hider != null && (anchor == null ? game.plugin().content().isActive(hider)
-                        : game.plugin().content().isBlockPropActive(hider)
-                        && hider.getWorld().equals(anchor.standing().getWorld())
-                        && hider.getLocation().distanceSquared(anchor.standing()) < 0.25);
+                valid &= hider != null && (blockProps ? visuals.get(id) instanceof PropRig rig && rig.active()
+                        : game.plugin().content().isActive(hider));
+                if (anchor != null && hider != null) valid &= hider.getWorld().equals(anchor.standing().getWorld())
+                        && hider.getLocation().distanceSquared(anchor.standing()) < 0.25;
             }
             if (!valid) {
                 game.broadcast("<yellow>Custom Prop Hunt stopped because its content or viewing players changed. Please queue again.");
@@ -201,20 +228,22 @@ public final class PropHuntGame extends MiniGame {
                 && hiders.contains(player.getUniqueId()) && hidePhase > 0 && !locked.containsKey(player.getUniqueId());
     }
 
-    private void openPalette(Player player) {
-        if (!canChoose(player)) {
+    private void openPalette(Player player) { openPalette(player, false); }
+    private void openPalette(Player player, boolean decoy) {
+        if (decoy ? !canUsePower(player, true) : !canChoose(player)) {
             if (hiders.contains(player.getUniqueId())) player.sendActionBar(Text.mm("<yellow>Choose while unlocked, before seekers are released."));
             return;
         }
         PaletteMenu holder = new PaletteMenu(player.getUniqueId());
-        holder.inventory = org.bukkit.Bukkit.createInventory(holder, 27, Text.mm("<dark_gray>Choose your prop"));
+        holder.decoy = decoy;
+        holder.inventory = org.bukkit.Bukkit.createInventory(holder, 27, Text.mm(decoy ? "<dark_gray>Choose decoy disguise" : "<dark_gray>Choose your prop"));
         for (int i = 0; i < palette.size(); i++) {
             PropPalette.Option option = palette.get(i);
             ItemStack item = new ItemStack(option.material());
             item.editMeta(meta -> {
                 meta.displayName(Text.mm("<yellow>" + option.name()));
                 meta.lore(List.of(Text.mm(option.material() == Material.PLAYER_HEAD
-                        ? "<gray>Small head when locked" : "<gray>Full block when locked"),
+                        ? "<gray>Half-block head" : "<gray>Full-block disguise"),
                         Text.mm("<gray>Click to choose")));
             });
             holder.inventory.setItem(i, item);
@@ -225,13 +254,24 @@ public final class PropHuntGame extends MiniGame {
     @Override public void onInventoryClick(Player player, org.bukkit.event.inventory.InventoryClickEvent event) {
         if (!(event.getView().getTopInventory().getHolder() instanceof PaletteMenu holder)) return;
         event.setCancelled(true);
-        if (holder.owner != this || !holder.player.equals(player.getUniqueId()) || !canChoose(player)
+        if (holder.owner != this || !holder.player.equals(player.getUniqueId()) || (holder.decoy ? !canUsePower(player, true) : !canChoose(player))
                 || event.getClickedInventory() != event.getView().getTopInventory()
                 || event.getSlot() < 0 || event.getSlot() >= palette.size()) return;
         PropPalette.Option option = palette.get(event.getSlot());
+        if (holder.decoy) {
+            placeDecoy(player, option);
+            game.runLater(1, player::closeInventory);
+            return;
+        }
+        if (!PropSpace.clear(player.getLocation(), option.height())) {
+            player.sendActionBar(Text.mm("<yellow>That disguise is too large for this space.")); return;
+        }
         try {
-            closeVisual(player.getUniqueId());
-            visuals.put(player.getUniqueId(), game.plugin().content().attach(option.model(), player, visualAudience));
+            PropRig replacement = new PropRig(player, option);
+            try { closeVisual(player.getUniqueId()); }
+            catch (RuntimeException error) { replacement.close(); throw error; }
+            visuals.put(player.getUniqueId(), replacement);
+            bodies.get(player.getUniqueId()).scale(option.height());
             choices.put(player.getUniqueId(), option);
             player.sendActionBar(Text.mm("<green>Disguise: " + option.name()));
             game.runLater(1, player::closeInventory);
@@ -242,46 +282,30 @@ public final class PropHuntGame extends MiniGame {
         if (event.getView().getTopInventory().getHolder() instanceof PaletteMenu) event.setCancelled(true);
     }
 
-    /** Native head/full-block geometry is owned by PulseContent; no client-only block illusion. */
-    private void toggleLock(Player player) {
+    /** Lock changes only the anchor position. No block replacement or upward body teleport. */
+    void toggleLock(Player player) {
         UUID id = player.getUniqueId();
         if (game.state() != GameState.RUNNING || !game.isActive(player) || game.frozen()
                 || player.isInsideVehicle() || !hiders.contains(id)) return;
+        long now = System.nanoTime();
+        if (now < nextLock.getOrDefault(id, Long.MIN_VALUE)) return;
+        nextLock.put(id, now + 350_000_000L); // Duplicate Java/Bedrock use packets must not toggle twice.
         PropPalette.Option option = choices.get(id);
         if (option == null) return;
-        Locked previous = locked.get(id);
-        if (previous != null) {
-            try {
-                closeVisual(id);
-                visuals.put(id, game.plugin().content().attach(option.model(), player, visualAudience));
-                Location exit = previous.cell().clone().add(0.5, 0, 0.5);
-                exit.setYaw(player.getLocation().getYaw()); exit.setPitch(player.getLocation().getPitch());
-                if (!player.teleport(exit)) { stopForPropFailure(); return; }
-                player.sendActionBar(Text.mm("<green>Unlocked — you can move."));
-            } catch (RuntimeException e) { stopForPropFailure(); }
-            return;
+        if (locked.remove(id) != null) {
+            player.sendActionBar(Text.mm("<green>Unlocked - you can move.")); return;
         }
-        if (!player.isOnGround()) { player.sendActionBar(Text.mm("<yellow>Stand on a solid floor to lock.")); return; }
-        Location cell = snapCell(player.getLocation());
-        try {
-            closeVisual(id);
-            AutoCloseable block = game.plugin().content().attachBlockProp(player, option.material(), cell, visualAudience);
-            visuals.put(id, block);
-            Location standing = cell.clone().add(0.5, option.height(), 0.5);
-            standing.setYaw(player.getLocation().getYaw()); standing.setPitch(player.getLocation().getPitch());
-            locked.put(id, new Locked(cell, standing));
-            // This game owns role potion effects; hide the local third-person body too.
-            player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY,
-                    PotionEffect.INFINITE_DURATION, 0, false, false));
-            if (!player.teleport(standing)) { stopForPropFailure(); return; }
-            player.sendActionBar(Text.mm("<green>Locked as " + option.name() + ". <gray>Right-click the slime ball to move."));
-        } catch (RuntimeException e) {
-            try {
-                closeVisual(id);
-                visuals.put(id, game.plugin().content().attach(option.model(), player, visualAudience));
-                player.sendActionBar(Text.mm("<yellow>Cannot lock here. Choose clear space on a full solid floor."));
-            } catch (RuntimeException failedRestore) { stopForPropFailure(); }
+        if (!player.isOnGround()) { player.sendActionBar(Text.mm("<yellow>Stand on a solid surface to lock.")); return; }
+        Location standing = snapCell(player.getLocation()).add(.5, 0, .5);
+        standing.setY(player.getLocation().getY()); // Retain slab/shelf height, snap X/Z only.
+        standing.setYaw(player.getLocation().getYaw()); standing.setPitch(player.getLocation().getPitch());
+        if (!PropSpace.clear(standing, option.height()) || !PropSpace.supported(standing) || occupied(standing, option, id)) {
+            player.sendActionBar(Text.mm("<yellow>Cannot lock: the snapped prop needs clear space and support. Try the next cell.")); return;
         }
+        if (!player.teleport(standing)) { player.sendActionBar(Text.mm("<yellow>Lock cancelled; your disguise is still moving.")); return; }
+        locked.put(id, new Locked(snapCell(standing), standing));
+        player.setVelocity(new org.bukkit.util.Vector());
+        player.sendActionBar(Text.mm("<green>Locked as " + option.name() + ". <gray>Right-click again to move."));
     }
 
     static Location snapCell(Location location) {
@@ -290,7 +314,12 @@ public final class PropHuntGame extends MiniGame {
 
     @Override public void onPlayerMove(org.bukkit.event.player.PlayerMoveEvent event) {
         Locked anchor = locked.get(event.getPlayer().getUniqueId());
-        if (anchor == null || event.getTo() == null) return;
+        if (event.getTo() == null) return;
+        if (anchor == null) {
+            PropPalette.Option option = choices.get(event.getPlayer().getUniqueId());
+            if (blockProps && option != null && !PropSpace.clear(event.getTo(), option.height())) event.setCancelled(true);
+            return;
+        }
         Location to = anchor.standing().clone();
         to.setYaw(event.getTo().getYaw()); to.setPitch(event.getTo().getPitch());
         event.setTo(to);
@@ -300,34 +329,26 @@ public final class PropHuntGame extends MiniGame {
         if (locked.containsKey(victim.getUniqueId()) && !routedBlockHits.contains(victim.getUniqueId())) event.setCancelled(true);
     }
 
-    private UUID ownerOf(org.bukkit.block.Block block) {
-        if (block == null) return null;
-        for (var entry : locked.entrySet()) {
-            Location cell = entry.getValue().cell();
-            if (cell.getWorld().equals(block.getWorld()) && cell.getBlockX() == block.getX()
-                    && cell.getBlockY() == block.getY() && cell.getBlockZ() == block.getZ()) return entry.getKey();
-        }
-        return null;
-    }
-
     @Override public void onSwing(Player player) { if (blockProps) hitAimedProp(player, null); }
-
-    private void hitBlock(Player attacker, UUID owner) { hitAimedProp(attacker, owner); }
 
     private void hitAimedProp(Player attacker, UUID requiredOwner) {
         if (hidePhase > 0 || game.frozen() || !game.isActive(attacker) || !seekers.contains(attacker.getUniqueId())
                 || attacker.getInventory().getItemInMainHand().getType() != Material.IRON_SWORD) return;
         UUID owner = aimedProp(attacker);
         if (owner == null || (requiredOwner != null && !requiredOwner.equals(owner))) return;
+        Decoy decoy = decoys.get(owner);
         Player victim = game.player(owner);
-        if (victim == null || !game.isActive(victim)) return;
-        boolean ready = locked.containsKey(owner) ? game.plugin().content().isBlockPropActive(victim)
-                : game.plugin().content().isActive(victim);
-        if (!ready) return;
+        if (decoy == null && (victim == null || !game.isActive(victim)
+                || !(visuals.get(owner) instanceof PropRig rig) || !rig.active())) return;
         long now = System.nanoTime();
         Long deadline = nextBlockHit.get(attacker.getUniqueId());
         if (deadline != null && now - deadline < 0) return;
         nextBlockHit.put(attacker.getUniqueId(), now + 600_000_000L);
+        if (decoy != null) {
+            removeDecoy(owner);
+            game.world().playSound(decoy.feet(), Sound.BLOCK_GLASS_BREAK, .7f, 1.5f);
+            attacker.sendActionBar(Text.mm("<yellow>Decoy broken!")); return;
+        }
         routedBlockHits.add(owner);
         try { victim.damage(6.0, attacker); }
         finally { routedBlockHits.remove(owner); }
@@ -339,16 +360,22 @@ public final class PropHuntGame extends MiniGame {
         org.bukkit.util.Vector start = eye.toVector(), direction = eye.getDirection();
         var blockHit = attacker.rayTraceBlocks(3.0, org.bukkit.FluidCollisionMode.NEVER);
         double nearest = blockHit == null ? 3.0 * 3.0 : start.distanceSquared(blockHit.getHitPosition());
-        UUID target = blockHit == null ? null : ownerOf(blockHit.getHitBlock());
+        UUID target = null;
         for (UUID id : hiders) {
-            if (locked.containsKey(id)) continue; // Native raytrace already uses the actual head/block shape.
             Player hider = game.player(id);
             PropPalette.Option option = choices.get(id);
             if (hider == null || option == null || !game.isActive(hider) || hider.getWorld() != eye.getWorld()) continue;
-            var hit = movingBounds(hider.getLocation(), option).rayTrace(start, direction, 3.0);
+            var hit = movingBounds(locked.containsKey(id) ? locked.get(id).standing() : hider.getLocation(), option).rayTrace(start, direction, 3.0);
             if (hit == null) continue;
             double distance = start.distanceSquared(hit.getHitPosition());
             if (distance < nearest) { nearest = distance; target = id; }
+        }
+        for (var entry : decoys.entrySet()) {
+            var decoy = entry.getValue();
+            var hit = movingBounds(decoy.feet(), decoy.option()).rayTrace(start, direction, 3.0);
+            if (hit != null && start.distanceSquared(hit.getHitPosition()) < nearest) {
+                nearest = start.distanceSquared(hit.getHitPosition()); target = entry.getKey();
+            }
         }
         return target;
     }
@@ -367,6 +394,7 @@ public final class PropHuntGame extends MiniGame {
     private void equipSeeker(Player seeker) {
         seeker.getInventory().setItem(0, new ItemStack(Material.IRON_SWORD));
         seeker.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, PotionEffect.INFINITE_DURATION, 0, false, false));
+        if (powers) { giveControl(seeker, 1, Material.COMPASS, "Proximity pulse"); giveControl(seeker, 5, Material.FEATHER, "Search sprint"); }
         seeker.playSound(seeker.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 1f, 1.2f);
     }
 
@@ -374,10 +402,19 @@ public final class PropHuntGame extends MiniGame {
     public void onInteract(PlayerInteractEvent event) {
         if (blockProps && event.getHand() == org.bukkit.inventory.EquipmentSlot.HAND) {
             Player player = event.getPlayer();
-            UUID target = ownerOf(event.getClickedBlock());
-            if (target != null) {
-                event.setCancelled(true);
-                if (event.getAction() == org.bukkit.event.block.Action.LEFT_CLICK_BLOCK) hitBlock(player, target);
+            if (event.getAction().isRightClick() && event.getItem() != null && powers) {
+                Material type = event.getItem().getType();
+                if (type == Material.ECHO_SHARD && hiders.contains(player.getUniqueId())) {
+                    event.setCancelled(true); openPalette(player, true); return;
+                }
+                if (type == Material.BARRIER && hiders.contains(player.getUniqueId())) {
+                    event.setCancelled(true); if (canUsePower(player, true)) clearDecoys(player.getUniqueId()); return;
+                }
+                if (type == Material.FEATHER) { event.setCancelled(true); sprint(player); return; }
+                if (type == Material.COMPASS && seekers.contains(player.getUniqueId())) { event.setCancelled(true); pulse(player); return; }
+            }
+            if (event.getAction() == org.bukkit.event.block.Action.LEFT_CLICK_BLOCK && seekers.contains(player.getUniqueId())) {
+                event.setCancelled(true); hitAimedProp(player, null);
             }
             if (hiders.contains(player.getUniqueId()) && event.getAction().isRightClick() && event.getItem() != null) {
                 if (event.getItem().getType() == Material.BOOK) { event.setCancelled(true); openPalette(player); return; }
@@ -421,6 +458,7 @@ public final class PropHuntGame extends MiniGame {
         if (!hiders.contains(victim.getUniqueId())) return;
         try { closeVisual(victim.getUniqueId()); }
         catch (RuntimeException e) { stopForPropFailure(); return; }
+        releaseBody(victim.getUniqueId()); clearDecoys(victim.getUniqueId()); choices.remove(victim.getUniqueId());
         hiders.remove(victim.getUniqueId());
         if (isInfection()) {
             seekers.add(victim.getUniqueId());
@@ -445,6 +483,7 @@ public final class PropHuntGame extends MiniGame {
     public void onQuit(Player player) {
         try { closeVisual(player.getUniqueId()); }
         catch (RuntimeException e) { stopForPropFailure(); return; }
+        releaseBody(player.getUniqueId()); clearDecoys(player.getUniqueId()); choices.remove(player.getUniqueId());
         boolean wasSeeker = seekers.remove(player.getUniqueId());
         boolean wasHider = hiders.remove(player.getUniqueId());
         if (game.state() != GameState.RUNNING) return;
@@ -462,16 +501,13 @@ public final class PropHuntGame extends MiniGame {
         if (visual == null) return;
         try {
             visual.close(); visuals.remove(id);
-            if (locked.remove(id) != null) {
-                Player player = game.player(id);
-                if (player != null) player.removePotionEffect(PotionEffectType.INVISIBILITY);
-            }
+            locked.remove(id);
         }
         catch (Exception e) { throw new IllegalStateException("Could not remove a Prop Hunt visual", e); }
     }
 
     @Override public void onEliminated(Player player) {
-        try { closeVisual(player.getUniqueId()); }
+        try { closeVisual(player.getUniqueId()); releaseBody(player.getUniqueId()); clearDecoys(player.getUniqueId()); choices.remove(player.getUniqueId()); }
         catch (RuntimeException e) { stopForPropFailure(); }
     }
     @Override public void onEnd(List<Player> winners) { onCleanup(); }
@@ -481,11 +517,135 @@ public final class PropHuntGame extends MiniGame {
             try { closeVisual(id); }
             catch (RuntimeException e) { if (failure == null) failure = e; else failure.addSuppressed(e); }
         }
+        for (UUID id : Set.copyOf(bodies.keySet())) {
+            try { releaseBody(id); }
+            catch (RuntimeException e) { if (failure == null) failure = e; else failure.addSuppressed(e); }
+        }
+        for (UUID id : Set.copyOf(decoys.keySet())) {
+            try { removeDecoy(id); }
+            catch (RuntimeException e) { if (failure == null) failure = e; else failure.addSuppressed(e); }
+        }
         for (Player player : game.everyone()) {
             if (player.getOpenInventory().getTopInventory().getHolder() instanceof PaletteMenu) player.closeInventory();
         }
-        choices.clear(); nextBlockHit.clear(); routedBlockHits.clear();
+        choices.clear(); nextBlockHit.clear(); routedBlockHits.clear(); nextLock.clear(); cooldowns.clear(); locked.clear();
         if (failure != null) throw failure;
+    }
+
+    private int bounded(String key, int fallback, int min, int max) {
+        return Math.max(min, Math.min(max, game.arena().settings().getInt(key, fallback)));
+    }
+    private void releaseBody(UUID id) {
+        HiderBody body = bodies.get(id);
+        if (body != null) { body.close(); bodies.remove(id); }
+    }
+    private boolean occupied(Location feet, PropPalette.Option option, UUID except) {
+        var box = movingBounds(feet, option).expand(-.001);
+        for (var entry : choices.entrySet()) {
+            if (entry.getKey().equals(except)) continue;
+            Player other = game.player(entry.getKey());
+            if (other != null && game.isActive(other) && box.overlaps(movingBounds(other.getLocation(), entry.getValue()))) return true;
+        }
+        for (Player seeker : game.alivePlayers()) {
+            if (seekers.contains(seeker.getUniqueId()) && seeker.getWorld() == feet.getWorld() && box.overlaps(seeker.getBoundingBox())) return true;
+        }
+        return decoys.values().stream().anyMatch(d -> box.overlaps(movingBounds(d.feet(), d.option())));
+    }
+    private void updateProps() {
+        if (game.state() != GameState.RUNNING) return;
+        try {
+            for (UUID id : List.copyOf(hiders)) {
+                Player player = game.player(id);
+                if (player != null && visuals.get(id) instanceof PropRig rig) rig.move(locked.containsKey(id) ? locked.get(id).standing() : player.getLocation());
+            }
+            for (Decoy decoy : decoys.values()) if (!(decoy.visual() instanceof uk.co.playerready.pulsegames.core.content.PulseContentBridge.PropVisual visual) || !visual.active())
+                throw new IllegalStateException("Decoy content is inactive");
+        } catch (RuntimeException error) { stopForPropFailure(); }
+    }
+    private final class PropRig implements AutoCloseable {
+        private final List<uk.co.playerready.pulsegames.core.content.PulseContentBridge.PropVisual> parts = new ArrayList<>();
+        PropRig(Player player, PropPalette.Option option) {
+            try {
+                Set<UUID> others = new HashSet<>(visualAudience); others.remove(player.getUniqueId());
+                Location feet = player.getLocation().clone(); feet.setYaw(0); feet.setPitch(0);
+                if (!others.isEmpty()) parts.add(game.plugin().content().createProp(option.model(), player, feet, others, 1f));
+                // Small local preview avoids placing the reduced first-person camera inside a full cube.
+                parts.add(game.plugin().content().createProp(option.model(), player, feet, Set.of(player.getUniqueId()), .4f));
+            } catch (RuntimeException error) { try { close(); } catch (RuntimeException cleanup) { error.addSuppressed(cleanup); } throw error; }
+        }
+        boolean active() { return !parts.isEmpty() && parts.stream().allMatch(uk.co.playerready.pulsegames.core.content.PulseContentBridge.PropVisual::active); }
+        void move(Location position) {
+            Location feet = position.clone(); feet.setYaw(0); feet.setPitch(0);
+            for (var part : parts) part.move(feet);
+        }
+        @Override public void close() {
+            RuntimeException failure = null;
+            for (var part : List.copyOf(parts)) {
+                try { part.close(); parts.remove(part); }
+                catch (Exception error) { if (failure == null) failure = new IllegalStateException("Prop cleanup failed", error); else failure.addSuppressed(error); }
+            }
+            if (failure != null) throw failure;
+        }
+    }
+    private boolean canUsePower(Player player, boolean hider) {
+        return powers && game.state() == GameState.RUNNING && !game.frozen() && game.isActive(player)
+                && (hider ? hiders : seekers).contains(player.getUniqueId()) && (hider || hidePhase == 0);
+    }
+    private boolean ready(Player player, String power) {
+        int remaining = cooldowns.getOrDefault(player.getUniqueId() + ":" + power, 0) - game.gameTime();
+        if (remaining <= 0) return true;
+        player.sendActionBar(Text.mm("<yellow>" + power + " ready in " + remaining + "s.")); return false;
+    }
+    private void used(Player player, String power, int seconds) { cooldowns.put(player.getUniqueId() + ":" + power, game.gameTime() + seconds); }
+    private void placeDecoy(Player player, PropPalette.Option option) {
+        if (!canUsePower(player, true) || !ready(player, "Decoy")) return;
+        if (decoys.values().stream().filter(d -> d.owner().equals(player.getUniqueId())).count() >= decoyLimit) {
+            player.sendActionBar(Text.mm("<yellow>Decoy limit reached. Clear your scene or wait for one to expire.")); return;
+        }
+        var hit = player.rayTraceBlocks(4, org.bukkit.FluidCollisionMode.NEVER);
+        if (hit == null || hit.getHitBlock() == null || hit.getHitBlockFace() != org.bukkit.block.BlockFace.UP) {
+            player.sendActionBar(Text.mm("<yellow>Aim at the top of a nearby floor or shelf.")); return;
+        }
+        Location feet = hit.getHitBlock().getLocation().add(.5, 0, .5);
+        feet.setY(hit.getHitBlock().getBoundingBox().getMaxY());
+        if (!PropSpace.clear(feet, option.height()) || !PropSpace.supported(feet) || occupied(feet, option, null)) {
+            player.sendActionBar(Text.mm("<yellow>That prop does not fit there. Try a clear spot.")); return;
+        }
+        try {
+            AutoCloseable visual = game.plugin().content().createProp(option.model(), player, feet, visualAudience, 1f);
+            decoys.put(UUID.randomUUID(), new Decoy(player.getUniqueId(), option, feet, visual, game.gameTime() + decoyLifetime));
+            used(player, "Decoy", decoyCooldown);
+            player.sendActionBar(Text.mm("<green>Placed " + option.name() + " decoy for " + decoyLifetime + "s."));
+        } catch (RuntimeException error) { stopForPropFailure(); }
+    }
+    private void clearDecoys(UUID owner) {
+        for (UUID id : List.copyOf(decoys.keySet())) if (decoys.get(id).owner().equals(owner)) removeDecoy(id);
+    }
+    private void removeDecoy(UUID id) {
+        Decoy decoy = decoys.get(id); if (decoy == null) return;
+        try { decoy.visual().close(); decoys.remove(id); }
+        catch (Exception error) { throw new IllegalStateException("Cannot remove decoy", error); }
+    }
+    private void sprint(Player player) {
+        boolean hider = hiders.contains(player.getUniqueId());
+        if (!canUsePower(player, hider) || !ready(player, "Sprint")) return;
+        if (locked.containsKey(player.getUniqueId())) { player.sendActionBar(Text.mm("<yellow>Unlock before sprinting.")); return; }
+        player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 80, 1, false, false));
+        used(player, "Sprint", sprintCooldown);
+        player.sendActionBar(Text.mm("<aqua>Sprint active for 4s!"));
+    }
+    private void pulse(Player player) {
+        if (!canUsePower(player, false) || !ready(player, "Pulse")) return;
+        double nearest = Double.POSITIVE_INFINITY;
+        for (UUID id : hiders) {
+            Player hider = game.player(id);
+            if (hider != null && hider.getWorld() == player.getWorld()) nearest = Math.min(nearest, hider.getLocation().distance(player.getLocation()));
+        }
+        for (Decoy decoy : decoys.values()) nearest = Math.min(nearest, decoy.feet().distance(player.getLocation()));
+        String signal = nearest <= pulseRadius / 3.0 ? "<red>Strong signal nearby" : nearest <= pulseRadius ? "<yellow>Faint signal nearby" : "<gray>No signal nearby";
+        player.sendActionBar(Text.mm(signal + " <dark_gray>(decoys can fool the pulse)"));
+        player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, .8f, nearest <= pulseRadius ? 1.5f : .6f);
+        used(player, "Pulse", pulseCooldown);
     }
 
     private void checkWin() {

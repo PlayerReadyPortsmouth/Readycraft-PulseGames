@@ -99,6 +99,40 @@ class PropLockAndMenuTest {
         logic.onInventoryDrag(player, drag);
         verify(drag).setCancelled(true);
     }
+    @Test void adjacentWallLockDoesNotRaisePlayerAndDuplicateUseDoesNotUnlock() throws Exception {
+        GameInstance game=mock(GameInstance.class, RETURNS_DEEP_STUBS); PropHuntGame logic=new PropHuntGame(game);
+        Player player=player(); World world=mock(World.class);
+        when(world.getMinHeight()).thenReturn(-64); when(world.getMaxHeight()).thenReturn(320);
+        when(world.isChunkLoaded(anyInt(),anyInt())).thenReturn(true);
+        when(world.getBlockAt(anyInt(),anyInt(),anyInt())).thenAnswer(call -> {
+            int x=call.getArgument(0), y=call.getArgument(1), z=call.getArgument(2);
+            var block=mock(org.bukkit.block.Block.class);
+            when(block.isPassable()).thenReturn(x==0 && y==64 && z==0);
+            when(block.getBoundingBox()).thenReturn(new org.bukkit.util.BoundingBox(x,y,z,x+1,y+1,z+1)); return block;
+        });
+        when(player.getLocation()).thenReturn(new Location(world,.48,64,.5)); when(player.isOnGround()).thenReturn(true);
+        when(player.teleport(any(Location.class))).thenReturn(true);
+        when(game.state()).thenReturn(GameState.RUNNING); when(game.isActive(player)).thenReturn(true);
+        Set<UUID> hiders=field(logic,"hiders"); hiders.add(player.getUniqueId());
+        Map<UUID,PropPalette.Option> choices=field(logic,"choices"); choices.put(player.getUniqueId(),new PropPalette.Option("Stone",org.bukkit.Material.STONE,"ready:stone"));
+        logic.toggleLock(player); logic.toggleLock(player);
+        Map<UUID,Object> locks=field(logic,"locked"); assertTrue(locks.containsKey(player.getUniqueId()));
+        ArgumentCaptor<Location> destination=ArgumentCaptor.forClass(Location.class); verify(player,times(1)).teleport(destination.capture());
+        assertEquals(64,destination.getValue().getY()); assertEquals(.5,destination.getValue().getX());
+        verify(game.plugin().content(),never()).attachBlockProp(any(),any(),any(),anyCollection());
+    }
+    @Test void failedSnappingDoesNotRemoveMovingDisguiseOrTeleport() throws Exception {
+        GameInstance game=mock(GameInstance.class,RETURNS_DEEP_STUBS); PropHuntGame logic=new PropHuntGame(game);
+        Player player=player(); World world=mock(World.class);
+        when(player.getLocation()).thenReturn(new Location(world,.5,64,.5)); when(player.isOnGround()).thenReturn(true);
+        when(game.state()).thenReturn(GameState.RUNNING); when(game.isActive(player)).thenReturn(true);
+        Set<UUID> hiders=field(logic,"hiders"); hiders.add(player.getUniqueId());
+        Map<UUID,PropPalette.Option> choices=field(logic,"choices"); choices.put(player.getUniqueId(),new PropPalette.Option("Stone",org.bukkit.Material.STONE,"ready:stone"));
+        AutoCloseable visual=mock(AutoCloseable.class); Map<UUID,AutoCloseable> visuals=field(logic,"visuals"); visuals.put(player.getUniqueId(),visual);
+        logic.toggleLock(player);
+        verify(player,never()).teleport(any(Location.class)); verify(visual,never()).close();
+        Map<UUID,Object> locks=field(logic,"locked"); assertTrue(locks.isEmpty());
+    }
     private Player player() {
         Player player = mock(Player.class);
         when(player.getUniqueId()).thenReturn(UUID.randomUUID());
