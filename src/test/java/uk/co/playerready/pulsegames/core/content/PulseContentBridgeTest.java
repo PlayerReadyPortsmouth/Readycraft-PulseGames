@@ -27,6 +27,30 @@ class PulseContentBridgeTest {
         AutoCloseable attachBlockProp(Plugin owner, Player player, org.bukkit.Material material,
                                       org.bukkit.Location location, Collection<UUID> viewers);
     }
+    public interface PropApi {
+        int propVisualsApiVersion();
+        AutoCloseable createPropVisual(Plugin owner, String model, Player participant, org.bukkit.Location position, Collection<UUID> audience, float scale);
+        boolean isPropVisualActive(AutoCloseable handle);
+        void movePropVisual(Plugin owner, AutoCloseable handle, org.bukkit.Location position);
+    }
+    @Test void independentPropCapabilityPreservesOwnerAudienceScaleAndLifecycle() throws Exception {
+        Fixture f=fixture(true); PropApi api=(PropApi)f.provider;
+        when(api.propVisualsApiVersion()).thenReturn(1);
+        AutoCloseable raw=mock(AutoCloseable.class);var position=new org.bukkit.Location(null,1,64,1);var audience=List.of(UUID.randomUUID());
+        when(api.createPropVisual(f.plugin,"props:barrel",f.player,position,audience,.4f)).thenReturn(raw);
+        when(api.isPropVisualActive(raw)).thenReturn(true);
+        assertTrue(f.bridge.propVisualsReady());
+        var handle=f.bridge.createProp("props:barrel",f.player,position,audience,.4f);assertTrue(handle.active());
+        var next=position.clone().add(1,0,0);handle.move(next);verify(api).movePropVisual(f.plugin,raw,next);
+        f.bridge.close();handle.close();verify(raw,times(1)).close();assertFalse(handle.active());
+        assertThrows(IllegalStateException.class,()->handle.move(position));
+    }
+    @Test void oldOrDisabledProviderCannotOfferIndependentProps() {
+        Fixture old=fixture(); assertFalse(old.bridge.propVisualsReady());
+        Fixture f=fixture(true);PropApi api=(PropApi)f.provider;when(api.propVisualsApiVersion()).thenReturn(2);
+        assertFalse(f.bridge.propVisualsReady());when(api.propVisualsApiVersion()).thenReturn(1);assertTrue(f.bridge.propVisualsReady());
+        when(f.provider.isEnabled()).thenReturn(false);assertFalse(f.bridge.propVisualsReady());
+    }
     private record Fixture(PulseContentBridge bridge, PulseGamesPlugin plugin, Plugin provider, ContentApi api, Player player) {}
     private Fixture fixture() { return fixture(false); }
     private Fixture fixture(boolean blocks) {
@@ -36,7 +60,7 @@ class PulseContentBridgeTest {
         when(plugin.getServer()).thenReturn(server);
         when(server.getPluginManager()).thenReturn(manager);
         Plugin provider = mock(Plugin.class, withSettings().extraInterfaces(blocks
-                ? new Class<?>[]{ContentApi.class, BlockApi.class} : new Class<?>[]{ContentApi.class}));
+                ? new Class<?>[]{ContentApi.class, BlockApi.class, PropApi.class} : new Class<?>[]{ContentApi.class}));
         ContentApi api = (ContentApi) provider;
         when(manager.getPlugin("PulseContent")).thenReturn(provider);
         when(provider.isEnabled()).thenReturn(true);

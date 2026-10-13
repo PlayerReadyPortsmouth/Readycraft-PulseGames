@@ -74,8 +74,9 @@ content:
   prophunt:
     enabled: false
     props: []
-    # Selectable native block locks; requires the companion block-prop API.
-    # Models must match the native cube/head dimensions and be centred at the feet.
+    # Selectable compact props and grid locks; requires PulseContent Paper 0.3.3 prop visuals.
+    # Models must match cube/head hit dimensions and be centred at the feet.
+    # Per-arena prop-powers, decoy and sprint/pulse settings are documented in docs/PROP-HUNT.md.
     block-snapping: false
     block-palette:
       hay:
