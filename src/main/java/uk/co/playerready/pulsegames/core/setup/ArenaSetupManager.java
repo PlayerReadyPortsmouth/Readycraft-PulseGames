@@ -39,7 +39,7 @@ public final class ArenaSetupManager implements Listener {
     public static final class Session {
         public final GameType game;
         public final String arenaId;
-        public final World world;
+        public World world;
         public String displayName;
         public Integer minPlayers;
         public Integer maxPlayers;
@@ -433,10 +433,21 @@ public final class ArenaSetupManager implements Listener {
             player.sendMessage(Text.msg("<red>Could not load world " + name));
             return;
         }
+        plugin.buildWorlds().manage(world);
         player.setGameMode(org.bukkit.GameMode.CREATIVE);
         player.teleport(world.getSpawnLocation());
         player.sendMessage(Text.msg((created ? "Created " : "Loaded existing ") + "world <yellow>" + name
                 + "</yellow> (creative)." + (created ? "" : " Existing terrain was preserved.")));
+    }
+
+    @org.bukkit.event.EventHandler
+    public void reopened(org.bukkit.event.world.WorldLoadEvent event) {
+        for (Session session : sessions.values()) {
+            if (!session.world.getName().equals(event.getWorld().getName())) continue;
+            session.world = event.getWorld();
+            if (session.pos1 != null) session.pos1.setWorld(event.getWorld());
+            if (session.pos2 != null) session.pos2.setWorld(event.getWorld());
+        }
     }
 
     static void initialiseEmptyBuildWorld(World world) {

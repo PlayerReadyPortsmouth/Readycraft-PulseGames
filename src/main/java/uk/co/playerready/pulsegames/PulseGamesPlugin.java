@@ -32,6 +32,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
     private GameRegistry registry;
     private ArenaService arenas;
     private WorldService worlds;
+    private uk.co.playerready.pulsegames.core.world.BuildWorldLifecycle buildWorlds;
     private InstanceManager instances;
     private PartyManager parties;
     private LobbyService lobby;
@@ -60,6 +61,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
         registry = new GameRegistry();
         arenas = new ArenaService(this);
         worlds = new WorldService(this);
+        buildWorlds = new uk.co.playerready.pulsegames.core.world.BuildWorldLifecycle(this);
         instances = new InstanceManager(this);
         bots = new uk.co.playerready.pulsegames.core.bot.BotService(this);
         parties = new PartyManager(this);
@@ -103,6 +105,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(duelMenu, this);
         new Commands(this);
         bots.start();
+        buildWorlds.start();
         combat = new uk.co.playerready.pulsegames.core.combat.ClassicCombatService(this);
         combat.start();
 
@@ -141,6 +144,8 @@ public final class PulseGamesPlugin extends JavaPlugin {
 
     public GameRegistry registry() { return registry; }
     public ArenaService arenas() { return arenas; }
+    public uk.co.playerready.pulsegames.core.world.BuildWorldLifecycle buildWorlds() { return buildWorlds; }
+
     public WorldService worlds() { return worlds; }
     public InstanceManager instances() { return instances; }
     public PartyManager parties() { return parties; }

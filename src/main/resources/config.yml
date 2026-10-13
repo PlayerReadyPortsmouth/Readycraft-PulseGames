@@ -15,6 +15,12 @@ instances:
   # Prefix for cloned instance world folders.
   world-prefix: pulse_
 
+build-worlds:
+  # Save and unload editing worlds after the last player leaves; 0 disables.
+  idle-unload-seconds: 15
+  # Permanent exceptions (the lobby and active matches are always protected).
+  keep-loaded: []
+
 limits:
   # Blocks one shape primitive (shapes/*.json, blueprint "shapes") may place.
   # Geometry is computed on the main thread, so an unbounded radius hangs the server.
