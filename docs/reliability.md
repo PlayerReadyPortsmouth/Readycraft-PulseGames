@@ -20,7 +20,7 @@ Administrators can use `/pulse diagnose` for recent match references and `/pulse
 
 ## Verification
 
-Targeted checks passed on 13 October 2026: 89 PulseGames tests and 32 network tests (17 Paper, 10 Velocity, 5 common). The final diagnostics shutdown adjustment also passed its two-test rerun.
+Targeted checks passed on 13 October 2026: 89 PulseGames tests and 32 network tests (17 Paper, 10 Velocity, 5 common). The final diagnostics shutdown adjustment also passed its two-test rerun. A subsequent 18-test cleanup/join run passed, including two new regressions proving failed combat/sidebar cleanup cannot skip inventory restoration or lobby return (the other 16 overlap prior coverage).
 
 ```sh
 ./gradlew test --tests '*ArenaValidationTest' --tests '*MatchDiagnosticsTest' --tests '*PlayerStateServiceTest' --tests '*PlayService*' --tests '*World*' --tests '*ArenaSetup*' --tests '*Bot*' jar

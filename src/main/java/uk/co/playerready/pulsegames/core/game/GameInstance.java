@@ -240,13 +240,13 @@ public final class GameInstance {
         participants.remove(player.getUniqueId());
         spectators.remove(player.getUniqueId());
         teams.forEach(t -> t.members().remove(player.getUniqueId()));
-        if (plugin.combat() != null) plugin.combat().leave(player);
         plugin.instances().unindex(player);
+        releaseStep("combat", () -> { if (plugin.combat() != null) plugin.combat().leave(player); });
         try { logic.onQuit(player); } catch (RuntimeException ex) { note("quit-hook-failed", ex.getClass().getSimpleName()); }
         if (!bot) {
-            plugin.playerState().restore(player);
-            plugin.sidebar().clear(player);
-            if (teleportToLobby && player.isOnline()) plugin.lobby().sendToLobby(player);
+            releaseStep("inventory", () -> plugin.playerState().restore(player));
+            releaseStep("sidebar", () -> plugin.sidebar().clear(player));
+            if (teleportToLobby && player.isOnline()) releaseStep("lobby", () -> plugin.lobby().sendToLobby(player));
         } else {
             plugin.bots().destroy(player.getUniqueId());
             botIds.remove(player.getUniqueId());
@@ -595,15 +595,13 @@ public final class GameInstance {
         tasks.forEach(t -> { if (!t.isCancelled()) t.cancel(); });
         tasks.clear();
         for (Player p : everyone()) {
-            try {
-            if (plugin.combat() != null) plugin.combat().leave(p);
             plugin.instances().unindex(p);
+            releaseStep("combat", () -> { if (plugin.combat() != null) plugin.combat().leave(p); });
             if (!isBot(p)) {
-                plugin.playerState().restore(p);
-                plugin.sidebar().clear(p);
-                plugin.lobby().sendToLobby(p);
+                releaseStep("inventory", () -> plugin.playerState().restore(p));
+                releaseStep("sidebar", () -> plugin.sidebar().clear(p));
+                releaseStep("lobby", () -> plugin.lobby().sendToLobby(p));
             }
-            } catch (RuntimeException ex) { note("player-cleanup-failed", ex.getClass().getSimpleName()); }
         }
         if (plugin.bots() != null) plugin.bots().forget(this);
         botIds.clear();
@@ -617,6 +615,11 @@ public final class GameInstance {
         }
         plugin.instances().remove(this);
         plugin.stats().flushAsync();
+    }
+
+    private void releaseStep(String step, Runnable action) {
+        try { action.run(); }
+        catch (RuntimeException ex) { note("player-release-failed", step + " " + ex.getClass().getSimpleName()); }
     }
 
     // ---- helpers -----------------------------------------------------------------
