@@ -141,6 +141,7 @@ public final class WorldService {
         }
         // Flush queued region and saved-data writes before the off-thread snapshot.
         world.save(true);
+        buildLifecycle().retain(world);
         File source = world.getWorldFolder();
         File staging = new File(target.getParentFile(), target.getName() + ".tmp");
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
@@ -151,12 +152,16 @@ public final class WorldService {
                 copyDirectory(source.toPath(), staging.toPath());
                 deleteRecursively(target.toPath());
                 move(staging.toPath(), target.toPath());
-                Bukkit.getScheduler().runTask(plugin, onDone);
+                Bukkit.getScheduler().runTask(plugin, () -> { buildLifecycle().release(world); onDone.run(); });
             } catch (IOException ex) {
                 deleteQuietly(staging.toPath());
-                Bukkit.getScheduler().runTask(plugin, () -> onFail.accept(ex.getMessage()));
+                Bukkit.getScheduler().runTask(plugin, () -> { buildLifecycle().release(world); onFail.accept(ex.getMessage()); });
             }
         });
+    }
+
+    private BuildWorldLifecycle buildLifecycle() {
+        return ((uk.co.playerready.pulsegames.PulseGamesPlugin) plugin).buildWorlds();
     }
 
     /** Unloads the instance world (no save) and deletes its folder off-thread. */

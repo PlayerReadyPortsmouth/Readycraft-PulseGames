@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * One live round of a game: owns its cloned world, players, teams and state machine.
@@ -71,12 +70,13 @@ public final class GameInstance {
         this.type = type;
         this.mode = mode;
         this.arena = arena;
-        this.id = Long.toHexString(ThreadLocalRandom.current().nextLong(0xFFFFFF)) + "_" + arena.id();
+        this.id = UUID.randomUUID().toString().replace("-", "") + "_" + arena.id();
         this.logic = type.createLogic(this);
     }
 
     public void init() {
         plugin.worlds().cloneAndLoad(arena.worldTemplate(), id, loaded -> {
+            if (state == GameState.RESETTING) { plugin.worlds().unloadAndDelete(loaded); return; }
             this.world = loaded;
             this.state = GameState.WAITING;
             logic.onWorldReady();

@@ -44,6 +44,9 @@ class WorldStorageTest {
             assertFalse(Files.exists(copy.resolve("uid.dat")));
             assertFalse(Files.exists(copy.resolve("session.lock")));
         }
+        Files.writeString(first.resolve("region/r.0.0.mca"), "changed in first match");
+        assertEquals("terrain", Files.readString(second.resolve("region/r.0.0.mca")));
+        assertEquals("terrain", Files.readString(source.resolve("region/r.0.0.mca")));
         assertTrue(Files.exists(source.resolve("data/paper/metadata.dat")));
     }
 
