@@ -101,7 +101,7 @@ class BotServiceTest {
         return p;
     }
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.CsvSource({"tntrun,classic", "volcano,classic", "volcano,eruption", "avalanche,classic", "spleef,classic", "spleef,decay", "spleef,splegg"})
+    @org.junit.jupiter.params.provider.CsvSource({"quake,classic", "tntrun,classic", "volcano,classic", "volcano,eruption", "avalanche,classic", "spleef,classic", "spleef,decay", "spleef,splegg"})
     void hazardModesFillNormalQueue(String type, String mode) {
         when(game.type().id()).thenReturn(type);when(game.mode().id()).thenReturn(mode);
         bots.reconcile(game);bots.reconcile(game);

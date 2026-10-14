@@ -14,7 +14,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /** Owns ephemeral contestants and bounded game-specific decisions, all on the server thread. */
 public final class BotService implements AutoCloseable {
-    private static final Set<String> SUPPORTED = Set.of("duels:classic", "duels:op", "duels:sumo", "duels:crystal", "duels:mace",
+    private static final Set<String> SUPPORTED = Set.of("quake:classic", "duels:classic", "duels:op", "duels:sumo", "duels:crystal", "duels:mace",
             "koth:solo", "koth:teams", "kitpvp:ffa", "kitpvp:oitc", "prophunt:classic", "prophunt:infection", "skywars:solo", "skywars:doubles", "skywars:insane", "bedwars:duos", "bedwars:quads", "dodgeball:solo", "dodgeball:teams",
             "villagerdefense:easy", "villagerdefense:hard",
             "readyplayerz:classic", "readyplayerz:frenzy", "blockparty:classic", "blockparty:hardcore",
