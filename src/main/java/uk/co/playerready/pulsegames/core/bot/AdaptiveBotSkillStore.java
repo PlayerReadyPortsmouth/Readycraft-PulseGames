@@ -29,17 +29,33 @@ public final class AdaptiveBotSkillStore {
         load();
     }
 
-    /** Compare actual outcomes with the fair chance for that round, not an absolute 50% win rate. */
+    /** Explainable per-player/mode decision. Practice scenarios never contribute to these samples. */
+    public record Calibration(BotDifficulty difficulty, int samples, int wins, double expectedWins,
+                              double residual, String reason) {}
+
     public synchronized BotDifficulty difficulty(UUID player, String mode) {
+        return calibration(player, mode).difficulty();
+    }
+
+    /** Compare outcomes with the fair chance for each round, not an absolute 50% win rate. */
+    public synchronized Calibration calibration(UUID player, String mode) {
         var modes = history.get(player);
         var outcomes = modes == null ? null : modes.get(mode);
-        if (outcomes == null || outcomes.size() < MIN_SAMPLES) return BotDifficulty.NORMAL;
-        double residual = outcomes.stream().mapToDouble(o -> ((o.won ? 1.0 : 0.0) - o.expected)
-                        / Math.max(0.1, Math.sqrt(o.expected * (1 - o.expected)))).sum()
-                / (outcomes.size() + PRIOR);
-        if (residual <= -0.25) return BotDifficulty.EASY;
-        if (residual >= 0.25) return BotDifficulty.HARD;
-        return BotDifficulty.NORMAL;
+        int samples = outcomes == null ? 0 : outcomes.size();
+        int wins = outcomes == null ? 0 : (int) outcomes.stream().filter(Outcome::won).count();
+        double expected = outcomes == null ? 0 : outcomes.stream().mapToDouble(Outcome::expected).sum();
+        double residual = outcomes == null ? 0 : outcomes.stream().mapToDouble(o -> ((o.won ? 1.0 : 0.0) - o.expected)
+                        / Math.max(0.1, Math.sqrt(o.expected * (1 - o.expected)))).sum() / (samples + PRIOR);
+        if (samples < MIN_SAMPLES) return new Calibration(BotDifficulty.NORMAL, samples, wins, expected, residual,
+                "Cold start: " + samples + "/" + MIN_SAMPLES + " eligible rounds; no skill conclusion yet.");
+        BotDifficulty difficulty = residual <= -0.25 ? BotDifficulty.EASY : residual >= 0.25 ? BotDifficulty.HARD : BotDifficulty.NORMAL;
+        String reason = switch (difficulty) {
+            case EASY -> "Results below expected chance: allow more reaction time and less accurate attacks.";
+            case HARD -> "Results above expected chance: faster reactions and more accurate attacks.";
+            case NORMAL -> "Results near expected chance: retain standard reactions and accuracy.";
+        };
+        return new Calibration(difficulty, samples, wins, expected, residual,
+                reason + " Last " + samples + " rounds (maximum " + WINDOW + "); eight-round neutral prior. Normal combat rules remain unchanged.");
     }
 
     public synchronized void record(UUID player, String mode, boolean won, double expected) {

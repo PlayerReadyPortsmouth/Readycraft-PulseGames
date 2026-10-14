@@ -26,6 +26,9 @@ commands:
   shop:
     description: Open the token shop.
     aliases: [tokens, cosmetics]
+  challenges:
+    description: View competitive minigame challenges and cosmetic rewards.
+    usage: /challenges
   results:
     description: View your latest match and choose what to do next.
     usage: /results [again|games|return]

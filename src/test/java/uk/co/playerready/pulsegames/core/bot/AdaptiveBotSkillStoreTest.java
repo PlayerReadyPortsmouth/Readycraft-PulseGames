@@ -14,6 +14,25 @@ class AdaptiveBotSkillStoreTest {
     private final String mode = "kitpvp:oitc";
     private AdaptiveBotSkillStore store() { return new AdaptiveBotSkillStore(directory.resolve("bot-skill.yml").toFile(), Logger.getAnonymousLogger()); }
 
+    @Test void calibrationExplainsColdStartAndUsesExpectedChanceRatherThanRawWinRate() {
+        var store=store();var cold=store.calibration(player,mode);
+        assertEquals(0,cold.samples());assertEquals(0,cold.residual());assertTrue(cold.reason().contains("Cold start"));
+        for(int i=0;i<40;i++) store.record(player,mode,i%4==0,.25);
+        var calibrated=store.calibration(player,mode);
+        assertEquals(40,calibrated.samples());assertEquals(10,calibrated.wins());assertEquals(10,calibrated.expectedWins(),.00001);
+        assertEquals(0,calibrated.residual(),.00001);assertEquals(BotDifficulty.NORMAL,calibrated.difficulty());
+        assertTrue(calibrated.reason().contains("Normal combat rules remain unchanged"));
+    }
+    @Test void explanationTracksBoundedRecentLossesWithoutLeakingOtherPlayersOrModes() {
+        var store=store();for(int i=0;i<80;i++)store.record(player,mode,false,.5);
+        var calibration=store.calibration(player,mode);
+        assertEquals(40,calibration.samples());assertEquals(BotDifficulty.EASY,calibration.difficulty());
+        assertTrue(calibration.reason().contains("below expected"));assertEquals(20,calibration.expectedWins(),.00001);
+        assertEquals(0,store.calibration(UUID.randomUUID(),mode).samples());
+        assertEquals(0,store.calibration(player,"duels:classic").samples());
+        assertEquals(calibration.difficulty(),store.difficulty(player,mode));
+    }
+
     @Test void coldStartAndSmallSamplesStayNormal() {
         var store = store();
         assertEquals(BotDifficulty.NORMAL, store.difficulty(player, mode));

@@ -14,7 +14,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /** Owns ephemeral contestants and bounded game-specific decisions, all on the server thread. */
 public final class BotService implements AutoCloseable {
-    private static final Set<String> SUPPORTED = Set.of("duels:classic", "duels:op", "duels:sumo",
+    private static final Set<String> SUPPORTED = Set.of("duels:classic", "duels:op", "duels:sumo", "duels:crystal", "duels:mace",
             "koth:solo", "koth:teams", "kitpvp:ffa", "kitpvp:oitc", "prophunt:classic", "prophunt:infection", "skywars:solo", "skywars:doubles", "skywars:insane", "bedwars:duos", "bedwars:quads", "dodgeball:solo", "dodgeball:teams",
             "villagerdefense:easy", "villagerdefense:hard",
             "readyplayerz:classic", "readyplayerz:frenzy", "blockparty:classic", "blockparty:hardcore",
@@ -120,8 +120,21 @@ public final class BotService implements AutoCloseable {
     public List<BotDiagnostics.Snapshot> diagnostics() {
         return slots.values().stream().limit(64).map(slot -> new BotDiagnostics.Snapshot(
                 slot.actor.player().getUniqueId(), slot.actor.player().getName(), slot.game.id(), slot.objective,
-                slot.difficulty, slot.target, slot.route, slot.state, slot.reason,
+                slot.difficulty, slot.target, slot.route, slot.state, diagnosticReason(slot),
                 slot.progressPosition == null ? 0 : Math.max(0, tick - slot.progressTick))).toList();
+    }
+
+    private String diagnosticReason(Slot slot) {
+        String detail;
+        if(slot.game.practice()) detail="Fixed practice difficulty; this round does not train adaptive history.";
+        else {
+            String selection=slot.game.arena().settings().getString("bot-difficulty",plugin.getConfig().getString("bots.difficulty","adaptive"));
+            Player target=slot.game.players().stream().filter(p->!isBot(p) && p.getName().equals(slot.target)).findFirst().orElse(null);
+            if(!"adaptive".equalsIgnoreCase(selection)) detail="Fixed difficulty override: "+selection;
+            else if(target==null || skills==null) detail="Adaptive group difficulty; no visible human target selected.";
+            else detail=skills.calibration(target.getUniqueId(),slot.game.type().id()+":"+slot.game.mode().id()).reason();
+        }
+        return slot.reason.isBlank()?detail:slot.reason+"; "+detail;
     }
 
     /** Freeze calibration for the round; profiles never change during a fight. */
@@ -363,6 +376,8 @@ public final class BotService implements AutoCloseable {
             } else {
                 boolean handled = game.logic() instanceof uk.co.playerready.pulsegames.games.kitpvp.KitPvpGame kit
                         && kit.botCombat(bot, enemy, tick, difficulty);
+                if (!handled && game.logic() instanceof uk.co.playerready.pulsegames.games.duels.DuelsGame duels)
+                    handled = duels.botCombat(bot, enemy, tick, difficulty);
                 if (!handled && game.logic() instanceof uk.co.playerready.pulsegames.games.skywars.SkywarsGame sky)
                     handled = sky.botCombat(bot, enemy, tick, difficulty);
                 if (!handled && game.logic() instanceof uk.co.playerready.pulsegames.games.bedwars.BedwarsGame bed)
@@ -401,6 +416,11 @@ public final class BotService implements AutoCloseable {
             if (goal == null && enemy != null && here.distanceSquared(enemy.getLocation()) <= 2.8 * 2.8)
                 slot.objective = "Fighting a visible opponent at melee range";
             else if (goal == null) { slot.state = "WAITING_FOR_SAFE_STEP"; slot.reason = slot.objective; }
+        }
+        if (game.logic() instanceof uk.co.playerready.pulsegames.games.duels.DuelsGame duels
+                && Set.of("crystal", "mace").contains(game.mode().rulesId())) {
+            goal = duels.botObjective(bot, goal);
+            slot.objective = duels.botStatus(bot);
         }
         navigate(slot, here, goal, difficulty);
     }

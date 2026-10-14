@@ -38,6 +38,6 @@ class CommandsBotDiagnosticsTest {
         assertEquals(List.of("inspect"), commands.onTabComplete(sender, command, "pulse", new String[]{"bots", "in"}));
         assertEquals(List.of("Ready1", id.toString()), commands.onTabComplete(sender, command, "pulse", new String[]{"bots", "inspect", ""}));
         commands.onCommand(sender, command, "pulse", new String[]{"bots", "inspect", "Ready1"});
-        verify(sender, times(6)).sendMessage(any(net.kyori.adventure.text.Component.class));
+        verify(sender, times(7)).sendMessage(any(net.kyori.adventure.text.Component.class));
     }
 }

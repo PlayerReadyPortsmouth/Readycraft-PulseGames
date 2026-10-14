@@ -183,6 +183,36 @@ gaps, wall locks, decoy limits, false pulse signals and concurrent-map cleanup.
 Decoy placement is local and random; elaborate scene planning is not implemented.
 See `docs/MAP-REVIEW.md` for commands and the testing checklist.
 
+## 14 October - PvP bots, kits and shared rewards
+
+Prepared extension to PulseGames draft13 and PulseContent draft35; not deployed.
+All four agreed tracks are implemented for testing. Source bot coverage remains
+14/23 games; Crystal and Mace expand Duels rather than adding new game families.
+
+- Crystal bots use finite obsidian/crystals/totems, ordinary protection events,
+  visible opponents and blast-spacing heuristics. Mace bots use real wind charges,
+  native lift and falling strikes. Difficulty adjusts reactions and accuracy;
+  no damage or movement boosts. Live physics/Citizens acceptance is outstanding.
+- Personal kit menus retain style -> discipline/team size -> kit, add pagination,
+  equipment previews and unavailable-choice explanations. Independent preferences
+  persist through the existing backend store; preferences were not migrated to SQL.
+- Diagnostics explain calibration, fixed overrides and cold starts. Practice
+  reports highlight repeated navigation trouble, difficulty samples and early
+  tester elimination without claiming measured balance or training profiles.
+- Shared SQL progression uses atomic match receipts, counters and cosmetic awards.
+  A durable PulseGames outbox retains failed delivery for retry. Practice, NPCs,
+  spectators and forced/aborted endings are excluded; agreed human/bot thresholds
+  are unchanged. `/challenges` shows goals, progress and dated unlocks.
+- Configurable milestones cover games played, wins and kills, scoped globally,
+  by game or by named event. Event trophy ownership is supported; physical trophy
+  models/displays remain planned. Survival cosmetic restrictions still apply.
+
+Progression defaults off pending explicit additive SQL migration and configuration.
+No live schema, configuration, deployment or restart was performed. SQL concurrency
+checks use H2/MySQL mode; real MariaDB acceptance remains required. Advanced bot
+healing, pearls and aerial steering are future work. See
+`docs/PVP-PROGRESSION-TESTING.md` for the four-part test runbook.
+
 ## Current test-server baseline
 
 - Last verified deployed on 13 October: PulseGames **0.3.11** and PulseContent Paper **0.5.2**. The new bot candidate below is not deployed. Older dated entries are historical checkpoints.

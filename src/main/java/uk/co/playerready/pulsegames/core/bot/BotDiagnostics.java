@@ -33,6 +33,14 @@ public final class BotDiagnostics {
         return clean.length() > 160 ? clean.substring(0, 157) + "..." : clean;
     }
 
+    /** A triage hint, never proof that navigation or an objective failed. */
+    public static String assessment(Snapshot bot) {
+        if ("WAITING_FOR_SAFE_STEP".equals(bot.state())) return "Inspect the next safe step, bridge materials and map route before increasing difficulty.";
+        if ("STALLED".equals(bot.state()) && bot.lastProgressAgeTicks() >= 200)
+            return "Inspect collision, route reachability and objective access; slow movement is not evidence of low combat skill.";
+        return "No navigation fault inferred from this snapshot; intentional defence and hiding may be stationary.";
+    }
+
     public static List<String> report(List<Snapshot> snapshots, String selector) {
         List<Snapshot> current = snapshots == null ? List.of() : snapshots.stream().filter(Objects::nonNull).toList();
         if (current.isEmpty()) return List.of("No active bot snapshots. Bots appear after their lobby fill delay.");
@@ -56,6 +64,7 @@ public final class BotDiagnostics {
                 "Objective: " + bot.objective() + " | Target: " + bot.target(),
                 "Route: " + bot.route(),
                 "State: " + bot.state() + " | Reason: " + bot.reason(),
-                "Last movement progress: " + String.format(Locale.ROOT, "%.1f", bot.lastProgressAgeTicks() / 20.0) + " seconds ago");
+                "Last movement progress: " + String.format(Locale.ROOT, "%.1f", bot.lastProgressAgeTicks() / 20.0) + " seconds ago",
+                "Review: " + assessment(bot));
     }
 }

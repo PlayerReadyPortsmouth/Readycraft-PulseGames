@@ -11,6 +11,15 @@ class BotDiagnosticsTest {
         return new BotDiagnostics.Snapshot(id, name, "duels:a1", "Fight visible opponent", BotDifficulty.HARD,
                 "Opponent", "Arena spawn 2", "Navigating", "No issue reported", 40);
     }
+    @Test void distinguishesNavigationInvestigationFromCombatSkillAndIntentionalStillness() {
+        var stalled=new BotDiagnostics.Snapshot(UUID.randomUUID(),"bot","match","Capture",BotDifficulty.EASY,
+                "","","STALLED","No progress",220);
+        assertTrue(BotDiagnostics.assessment(stalled).contains("not evidence of low combat skill"));
+        var waiting=new BotDiagnostics.Snapshot(UUID.randomUUID(),"bot","match","Bridge",BotDifficulty.HARD,
+                "","","WAITING_FOR_SAFE_STEP","No blocks",0);
+        assertTrue(BotDiagnostics.assessment(waiting).contains("bridge materials"));
+        assertTrue(BotDiagnostics.assessment(bot(UUID.randomUUID(),"bot")).contains("intentional defence"));
+    }
     @Test void supportsExactCaseInsensitiveNameAndUuid() {
         UUID id = UUID.randomUUID();
         var snapshots = List.of(bot(id, "Ready7"));
@@ -36,7 +45,7 @@ class BotDiagnosticsTest {
         assertEquals(BotDifficulty.NORMAL, snapshot.difficulty());
         assertEquals(0, snapshot.lastProgressAgeTicks());
         assertEquals("No route", snapshot.route());
-        assertEquals(6, BotDiagnostics.report(List.of(snapshot), snapshot.name()).size());
+        assertEquals(7, BotDiagnostics.report(List.of(snapshot), snapshot.name()).size());
     }
     @Test void handlesEmptyMissingAndAmbiguousSelections() {
         assertEquals(1, BotDiagnostics.report(null, null).size());

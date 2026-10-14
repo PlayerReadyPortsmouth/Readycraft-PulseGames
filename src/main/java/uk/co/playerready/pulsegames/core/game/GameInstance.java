@@ -642,6 +642,7 @@ public final class GameInstance {
                 Text.title(p, "<red><b>GAME OVER", "<gray>Winner(s): " + names);
                 if (isParticipant(p)) plugin.stats().addLoss(p, type.id());
             }
+            if (plugin.progression() != null) plugin.progression().completed(this, p, creditedWinners.contains(p), roundKills.getOrDefault(p.getUniqueId(), 0), reason);
             p.setGameMode(org.bukkit.GameMode.SPECTATOR);
             p.sendMessage(Text.msg("<gray>Record: <green>" + plugin.stats().get(p, type.id(), "wins")
                     + "W</green> <red>" + plugin.stats().get(p, type.id(), "losses") + "L</red> <gray>in "

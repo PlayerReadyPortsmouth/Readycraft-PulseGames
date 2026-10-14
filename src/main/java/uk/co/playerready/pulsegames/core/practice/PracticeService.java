@@ -116,6 +116,9 @@ public final class PracticeService {
             } else if(!game.isParticipant(owner) && game.state()!=GameState.ENDING) {
                 finish(session,"Owner left practice"); game.cleanup(); continue;
             }
+            if(session.admitted && game.gameTime()>0 && !game.isAlive(owner)
+                    && (game.state()==GameState.RUNNING || game.state()==GameState.ENDING))
+                session.report.testerEliminated(game.gameTime());
             if(session.seconds%5==0) session.report.sample(plugin.bots().diagnostics().stream().filter(b->game.id().equals(b.gameId())).toList());
             if(game.state()==GameState.ENDING) { finish(session,"Round ended; see match results and diagnostic events"); }
             else if(session.admitted && session.seconds>120 && game.state()==GameState.WAITING) { finish(session,"Bots or minimum roster unavailable after two minutes"); game.cleanup(); }
