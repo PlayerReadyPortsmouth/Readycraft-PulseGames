@@ -54,6 +54,46 @@ class BotServiceTest {
             return actor;
         });
     }
+    @Test void queueCountdownUsesActualFillTimerAndDoesNotAdvanceOnRead() {
+        assertEquals("Bots join in: 2s", bots.queueStatus(game));
+        assertEquals("Bots join in: 2s", bots.queueStatus(game));
+        bots.reconcile(game);
+        assertEquals("Bots join in: 1s", bots.queueStatus(game));
+        bots.reconcile(game);
+        assertEquals("Bots: 1 joined", bots.queueStatus(game));
+    }
+    @Test void waitingLobbyUsesReloadedBotOptInButRunningRoundKeepsSnapshot() {
+        var arenas = mock(uk.co.playerready.pulsegames.core.arena.ArenaService.class);
+        var latest = mock(uk.co.playerready.pulsegames.core.arena.Arena.class, RETURNS_DEEP_STUBS);
+        when(plugin.arenas()).thenReturn(arenas);
+        when(game.arena().id()).thenReturn("wharf");
+        when(arenas.byId("duels", "wharf")).thenReturn(latest);
+        when(game.arena().settings().getBoolean("bots-enabled", false)).thenReturn(false);
+        when(latest.settings().getBoolean("bots-enabled", false)).thenReturn(true);
+        bots.reconcile(game); bots.reconcile(game);
+        assertEquals(1, bots.count(game));
+        when(game.state()).thenReturn(GameState.RUNNING);
+        assertFalse(bots.eligible(game));
+    }
+    @Test void reloadedDisabledMapStopsCountdownAndRemovesWaitingBots() {
+        bots.reconcile(game); bots.reconcile(game);
+        when(game.arena().settings().getBoolean("bots-enabled", false)).thenReturn(false);
+        bots.reconcile(game);
+        assertEquals(0, bots.count(game));
+        assertEquals("Bots: disabled on this map", bots.queueStatus(game));
+    }
+    @Test void blockedQueuesShowReasonInsteadOfEndlessCountdown() {
+        config.set("bots.max-total", 0);
+        assertEquals("Bots: capacity limit", bots.queueStatus(game));
+        config.set("bots.enabled", false);
+        assertEquals("Bots: disabled", bots.queueStatus(game));
+        config.set("bots.enabled", true);
+        when(plugin.canUseNewFeatures(human)).thenReturn(false);
+        assertEquals("Bots: testing access required", bots.queueStatus(game));
+        when(plugin.canUseNewFeatures(human)).thenReturn(true);
+        when(game.type().id()).thenReturn("dropper");
+        assertEquals("Bots: unsupported mode", bots.queueStatus(game));
+    }
     Player player(String name) {
         Player p = mock(Player.class);
         when(p.getUniqueId()).thenReturn(UUID.randomUUID());

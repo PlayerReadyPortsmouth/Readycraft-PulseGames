@@ -95,14 +95,55 @@ public final class BotService implements AutoCloseable {
 
     public boolean supports(String game, String rules) { return SUPPORTED.contains(game + ":" + rules); }
 
-    public boolean eligible(GameInstance game) {
-        return plugin.getConfig().getBoolean("bots.enabled", false)
-                && game.arena().settings().getBoolean("bots-enabled", false)
-                && game.players().stream().filter(p -> !isBot(p)).allMatch(plugin::canUseNewFeatures)
-                && SUPPORTED.contains(game.type().id() + ":" + game.mode().rulesId())
-                && (!game.type().id().equals("prophunt") || !plugin.getConfig().getBoolean("content.prophunt.enabled", false)
-                    || plugin.getConfig().getBoolean("content.prophunt.block-snapping", false)
-                        && plugin.content() != null && plugin.content().npcPropVisualsReady());
+    /** Only bot opt-in is live-reloaded; running rounds retain their original map settings. */
+    private boolean mapBotsEnabled(GameInstance game) {
+        var arena = game.arena();
+        if ((game.state() == GameState.WAITING || game.state() == GameState.COUNTDOWN)
+                && plugin.arenas() != null) {
+            var latest = plugin.arenas().byId(game.type().id(), arena.id());
+            if (latest != null) arena = latest;
+        }
+        return arena.settings().getBoolean("bots-enabled", false);
+    }
+
+    private String blockedReason(GameInstance game) {
+        if (!plugin.getConfig().getBoolean("bots.enabled", false)) return "disabled";
+        if (!mapBotsEnabled(game)) return "disabled on this map";
+        if (!supports(game.type().id(), game.mode().rulesId())) return "unsupported mode";
+        if (!game.players().stream().filter(p -> !isBot(p)).allMatch(plugin::canUseNewFeatures))
+            return "testing access required";
+        if (game.type().id().equals("prophunt") && plugin.getConfig().getBoolean("content.prophunt.enabled", false)
+                && (!plugin.getConfig().getBoolean("content.prophunt.block-snapping", false)
+                    || plugin.content() == null || !plugin.content().npcPropVisualsReady())) return "disguises unavailable";
+        return null;
+    }
+
+    public boolean eligible(GameInstance game) { return blockedReason(game) == null; }
+
+    private int waitSeconds(GameInstance game) {
+        return game.practice() ? 2 : Math.max(1, plugin.getConfig().getInt("bots.wait-seconds", 30));
+    }
+
+    private int desiredBots(GameInstance game) {
+        int desired = QueueFillPolicy.desiredBots(game.humanCount(), game.minPlayers(), game.maxPlayers(),
+                Math.max(0, Math.min(63, plugin.getConfig().getInt("bots.max-per-match", 31))),
+                Math.max(0, Math.min(64, plugin.getConfig().getInt("bots.max-total", 64))) - slots.size() + count(game));
+        return game.practice() ? Math.min(desired, game.practiceBotTarget()) : desired;
+    }
+
+    /** Read-only view of the same timer and gates used by reconcile. */
+    public String queueStatus(GameInstance game) {
+        String blocked = blockedReason(game);
+        if (blocked != null) return "Bots: " + blocked;
+        if (failed) return "Bots: unavailable (error)";
+        if (provider == null) return "Bots: connecting";
+        if (game.humanCount() == 0) return "Bots: waiting for players";
+        if (game.humanCount() >= game.maxPlayers()) return "Bots: lobby full";
+        int current = count(game), desired = desiredBots(game);
+        if (current > 0 && current >= desired) return "Bots: " + current + " joined";
+        if (desired == 0) return "Bots: capacity limit";
+        int remaining = Math.max(0, waitSeconds(game) - waiting.getOrDefault(game, 0));
+        return remaining > 0 ? "Bots join in: " + remaining + "s" : "Bots: joining...";
     }
 
     /** Coarse calibration for allocation only; does not expose a player's stored results. */
@@ -206,12 +247,8 @@ public final class BotService implements AutoCloseable {
         connect();
         if (provider == null || failed) return;
         int elapsed = waiting.merge(game, 1, Integer::sum);
-        if (elapsed < (game.practice() ? 2 : Math.max(1, plugin.getConfig().getInt("bots.wait-seconds", 30)))) return;
-        int current = count(game);
-        int desired = QueueFillPolicy.desiredBots(game.humanCount(), game.minPlayers(), game.maxPlayers(),
-                Math.max(0, Math.min(63, plugin.getConfig().getInt("bots.max-per-match", 31))),
-                Math.max(0, Math.min(64, plugin.getConfig().getInt("bots.max-total", 64))) - slots.size() + current);
-        if (game.practice()) desired = Math.min(desired, game.practiceBotTarget());
+        if (elapsed < waitSeconds(game)) return;
+        int desired = desiredBots(game);
         while (count(game) > desired) removeOne(game);
         for (int i = count(game); i < desired; i++) {
             try {

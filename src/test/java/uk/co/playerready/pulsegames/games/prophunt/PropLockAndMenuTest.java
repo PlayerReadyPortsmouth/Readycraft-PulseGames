@@ -21,6 +21,34 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class PropLockAndMenuTest {
+    @Test void displacedLockedBotUnlocksWithoutEndingRound() throws Exception {
+        GameInstance game=mock(GameInstance.class, RETURNS_DEEP_STUBS);
+        PropHuntGame logic=new PropHuntGame(game);Player bot=player();World world=mock(World.class);
+        Location anchor=new Location(world,.5,64,.5), actual=new Location(world,1.5,64,.5);
+        when(bot.getLocation()).thenReturn(actual);when(game.isBot(bot)).thenReturn(true);
+        Class<?> type=Class.forName(PropHuntGame.class.getName()+"$Locked");
+        var constructor=type.getDeclaredConstructor(Location.class,Location.class);constructor.setAccessible(true);
+        Map<UUID,Object> locked=field(logic,"locked");locked.put(bot.getUniqueId(),constructor.newInstance(anchor,anchor));
+        assertEquals(actual,logic.reconcileLock(bot));assertTrue(locked.isEmpty());
+        verify(game,never()).forceEnd();verify(game).note(eq("prop-unlocked"),anyString());
+    }
+    @Test void ownerSeesFullSizeModelWhileMovingAndLocked() throws Exception {
+        GameInstance game=mock(GameInstance.class, RETURNS_DEEP_STUBS);PropHuntGame logic=new PropHuntGame(game);
+        Player owner=player();World world=mock(World.class);Location feet=new Location(world,.5,64,.5);
+        when(owner.getLocation()).thenReturn(feet);when(game.isBot(owner)).thenReturn(false);
+        var audience=PropHuntGame.class.getDeclaredField("visualAudience");audience.setAccessible(true);
+        Set<UUID> viewers=Set.of(owner.getUniqueId());
+        audience.set(logic,viewers);
+        var visual=mock(uk.co.playerready.pulsegames.core.content.PulseContentBridge.PropVisual.class);
+        when(game.plugin().content().createProp(anyString(),eq(owner),any(),any(),anyFloat())).thenReturn(visual);
+        Class<?> type=Class.forName(PropHuntGame.class.getName()+"$PropRig");
+        var constructor=type.getDeclaredConstructor(PropHuntGame.class,Player.class,PropPalette.Option.class);constructor.setAccessible(true);
+        Object rig=constructor.newInstance(logic,owner,new PropPalette.Option("Stone",org.bukkit.Material.STONE,"ready:stone"));
+        verify(game.plugin().content()).createProp(eq("ready:stone"),eq(owner),any(),eq(viewers),eq(1f));
+        var move=type.getDeclaredMethod("move",Location.class);move.setAccessible(true);
+        move.invoke(rig,feet);move.invoke(rig,new Location(world,2.5,64,.5));
+        verify(game.plugin().content(),times(1)).createProp(anyString(),any(),any(),any(),anyFloat());
+    }
     @Test void twoPlayersCanStartButSoloForceStartIsRejected() {
         GameInstance game = mock(GameInstance.class, RETURNS_DEEP_STUBS);
         PropHuntGame logic = new PropHuntGame(game);
