@@ -7,6 +7,26 @@ Readable report: [HTML](MINIGAMES-TRACKER.html) · [PDF](MINIGAMES-TRACKER.pdf).
 After editing this source, regenerate both exports with
 `node tools/render-minigames-tracker.mjs --pdf`; see [update instructions](tools/TRACKER-README.md).
 
+## 14 October - Map disguise palettes: prepared, not deployed
+
+Prop Hunt now supports a reviewed per-arena disguise list shared by players, bots
+and decoys. The Setup Book and `/pulse setup palette` commands can scan a selected
+playable region, toggle choices, or retain global defaults. Scans are bounded and
+require loaded chunks; failed/cancelled scans preserve the previous list. Existing
+arenas remain unchanged until explicitly configured.
+
+The paired PulseContent source tools expand support from 10 to 27 disguises,
+selected from the five approved maps' saved template palettes. Additions include
+barrels, wood variants, stone bricks, looms, jukeboxes, note blocks, smokers and
+smithing tables. The old default list remains until the matching content release
+is installed. Real client assets generated all 27 model inputs and the model
+validator accepted them; this is not proof of client rendering.
+
+Next acceptance: prepare/install the paired packs, review each map's local list,
+then test selections, bot/decoy appearances, movement and locking on Java/Bedrock.
+No live map settings, packs or servers changed in this pass. See
+[Prop Hunt setup and rollout](docs/PROP-HUNT.md).
+
 ## Working agreement
 
 - Goal: a broad mix of party, co-op, racing and competitive games, all with proper

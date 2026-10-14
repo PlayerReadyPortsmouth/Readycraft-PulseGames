@@ -235,7 +235,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
         List<String> models = game.plugin().getConfig().getStringList("content.prophunt.props");
         if (game.plugin().getConfig().getBoolean("content.prophunt.block-snapping", false)) {
             if (!game.plugin().content().propVisualsReady()) return "Moving block disguises need PulseContent 0.3.3 or newer (prop visual API).";
-            try { models = PropPalette.read(game.plugin().getConfig()).stream().map(PropPalette.Option::model).toList(); }
+            try { models = PropPalette.read(game.plugin().getConfig(), game.arena().settings()).stream().map(PropPalette.Option::model).toList(); }
             catch (IllegalArgumentException e) { return e.getMessage(); }
         }
         return game.plugin().content().startProblem(models, players.stream().filter(p -> !game.isBot(p)).toList());
@@ -245,7 +245,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
     public void onStart() {
         customProps = game.plugin().getConfig().getBoolean("content.prophunt.enabled", false);
         blockProps = customProps && game.plugin().getConfig().getBoolean("content.prophunt.block-snapping", false);
-        if (blockProps) palette = PropPalette.read(game.plugin().getConfig());
+        if (blockProps) palette = PropPalette.read(game.plugin().getConfig(), game.arena().settings());
         List<String> props = blockProps ? palette.stream().map(PropPalette.Option::model).toList()
                 : game.plugin().getConfig().getStringList("content.prophunt.props");
         if (customProps) {
