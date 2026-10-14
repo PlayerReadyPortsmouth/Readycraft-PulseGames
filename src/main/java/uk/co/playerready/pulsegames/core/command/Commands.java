@@ -364,8 +364,10 @@ public final class Commands implements CommandExecutor, TabCompleter {
                 }
                 if (args.length == 2 && args[0].equalsIgnoreCase("setup")) {
                     return List.of("start", "wand", "pos1", "pos2", "lobby", "spectator", "addspawn", "clearspawns",
-                            "region", "removeregion", "removespawn", "setloc", "addloc", "removeloc", "clearloc", "set", "check", "validate", "gui", "book", "save", "cancel");
+                            "region", "removeregion", "removespawn", "setloc", "addloc", "removeloc", "clearloc", "set", "palette", "check", "validate", "gui", "book", "save", "cancel");
                 }
+                if (args.length == 3 && args[0].equalsIgnoreCase("setup") && args[1].equalsIgnoreCase("palette"))
+                    return List.of("list", "scan", "add", "remove", "global");
                 if (args.length == 3 && args[0].equalsIgnoreCase("setup") && args[1].equalsIgnoreCase("start")) {
                     return plugin.registry().all().stream().map(GameType::id).toList();
                 }

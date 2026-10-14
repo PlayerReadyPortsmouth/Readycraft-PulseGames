@@ -1,0 +1,72 @@
+# Merge these entries into the existing palette only after the matching content release is ready.
+content:
+  prophunt:
+    block-palette:
+      barrel:
+        name: Barrel
+        material: BARREL
+        model: readycraft:prop_barrel
+      cobblestone:
+        name: Cobblestone
+        material: COBBLESTONE
+        model: readycraft:prop_cobblestone
+      stone_bricks:
+        name: Stone bricks
+        material: STONE_BRICKS
+        model: readycraft:prop_stone_bricks
+      dark_oak_log:
+        name: Dark oak log
+        material: DARK_OAK_LOG
+        model: readycraft:prop_dark_oak_log
+      dark_oak_planks:
+        name: Dark oak planks
+        material: DARK_OAK_PLANKS
+        model: readycraft:prop_dark_oak_planks
+      spruce_log:
+        name: Spruce log
+        material: SPRUCE_LOG
+        model: readycraft:prop_spruce_log
+      spruce_planks:
+        name: Spruce planks
+        material: SPRUCE_PLANKS
+        model: readycraft:prop_spruce_planks
+      oak_planks:
+        name: Oak planks
+        material: OAK_PLANKS
+        model: readycraft:prop_oak_planks
+      smooth_sandstone:
+        name: Smooth sandstone
+        material: SMOOTH_SANDSTONE
+        model: readycraft:prop_smooth_sandstone
+      polished_andesite:
+        name: Polished andesite
+        material: POLISHED_ANDESITE
+        model: readycraft:prop_polished_andesite
+      loom:
+        name: Loom
+        material: LOOM
+        model: readycraft:prop_loom
+      jukebox:
+        name: Jukebox
+        material: JUKEBOX
+        model: readycraft:prop_jukebox
+      note_block:
+        name: Note block
+        material: NOTE_BLOCK
+        model: readycraft:prop_note_block
+      smoker:
+        name: Smoker
+        material: SMOKER
+        model: readycraft:prop_smoker
+      smithing_table:
+        name: Smithing table
+        material: SMITHING_TABLE
+        model: readycraft:prop_smithing_table
+      carved_pumpkin:
+        name: Carved pumpkin
+        material: CARVED_PUMPKIN
+        model: readycraft:prop_carved_pumpkin
+      mossy_cobblestone:
+        name: Mossy cobblestone
+        material: MOSSY_COBBLESTONE
+        model: readycraft:prop_mossy_cobblestone

@@ -89,6 +89,27 @@ final class ArenaSetupMenu implements Listener {
         if (session != null && allowed(player, session)) open(player, session);
         else player.sendMessage(Text.msg("<yellow>Begin with /pulse setup start <game> <arenaId>."));
     }
+    private void palette(Player player, ArenaSetupManager.Session session) {
+        List<Button> buttons = new ArrayList<>();
+        buttons.add(button(Material.BLAZE_ROD, "Use wand selection as palette region", () -> {
+            manager.handle(player,new String[]{"region","palette"});palette(player,session);
+        }, "Select opposite corners around the playable map first"));
+        buttons.add(button(Material.SPYGLASS, "Scan palette region", () -> { player.closeInventory();manager.handle(player,new String[]{"palette","scan"}); }, "Define region palette with wand/corner commands first", "Scan in batches; existing palette survives scan failure"));
+        buttons.add(button(Material.PAPER, "Use global defaults", () -> { manager.handle(player,new String[]{"palette","global"});palette(player,session); }));
+        var config = new org.bukkit.configuration.file.YamlConfiguration();session.settings.forEach(config::set);
+        try {
+            var selected = uk.co.playerready.pulsegames.games.prophunt.PropPalette.read(plugin.getConfig(),config);
+            for (var option : uk.co.playerready.pulsegames.games.prophunt.PropPalette.read(plugin.getConfig())) {
+                boolean enabled = selected.contains(option);
+                buttons.add(button(option.material(), (enabled ? "Enabled: " : "Disabled: ") + option.name(), () -> {
+                    manager.handle(player,new String[]{"palette",enabled?"remove":"add",option.material().name()});palette(player,session);
+                }, "Click to toggle this supported disguise"));
+            }
+        } catch (IllegalArgumentException invalid) { player.sendMessage(Text.msg("<red>"+invalid.getMessage())); }
+        buttons.add(button(Material.ARROW,"Back",()->open(player,session)));
+        show(player,session,"Map disguise palette",buttons,0);
+    }
+
     private Button button(Material material, String title, Runnable action, String... lore) {
         return new Button(material, title, List.of(lore), action);
     }
@@ -138,6 +159,7 @@ final class ArenaSetupMenu implements Listener {
             session.settings.put("bot-difficulty", switch (current) { case "easy" -> "normal"; case "normal" -> "hard"; case "hard" -> "adaptive"; default -> "easy"; });
             open(player, session);
         }, "Click to cycle Adaptive / Easy / Normal / Hard", "Normal damage and reach at every level"));
+        if (session.game.id().equals("prophunt")) buttons.add(button(Material.BOOKSHELF, "Map disguise palette", () -> palette(player, session), "Scan supported map blocks and review available disguises"));
         buttons.add(button(Material.COMPASS, "Bot navigation (optional)", () -> navigation(player, session),
                 "Patrol points, hiding spots and named safe routes", "Recovery points are walk targets, never teleports"));
         buttons.add(button(Material.BLAZE_ROD, "Get selection wand", () -> { manager.giveWand(player); player.closeInventory(); }));

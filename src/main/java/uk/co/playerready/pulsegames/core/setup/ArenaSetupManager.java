@@ -105,6 +105,7 @@ public final class ArenaSetupManager implements Listener {
         }
         try {
         switch (sub) {
+            case "palette" -> palette(player, session, args);
             case "validate" -> validate(player, session);
             case "wand" -> giveWand(player);
             case "book" -> menu.giveBook(player);
@@ -275,6 +276,7 @@ public final class ArenaSetupManager implements Listener {
                 "removespawn <index> / removeregion <name> <dark_gray>- remove saved entries",
                 "set <key> <value> <dark_gray>- e.g. set void-y 40",
                 "check / gui <dark_gray>- requirement checklist",
+                "palette list|scan|add|remove|global <dark_gray>- Prop Hunt disguises",
                 "save / cancel")) {
             player.sendMessage(Text.mm(" <gray>/pulse setup " + line));
         }
@@ -370,10 +372,70 @@ public final class ArenaSetupManager implements Listener {
         if(report.issues().size()>40)player.sendMessage(net.kyori.adventure.text.Component.text("More issues remain; fix these and validate again."));
     }
 
+    /** Explicit commands share the setup UI's working selection; saving publishes it. */
+    void palette(Player player, Session session, String[] args) {
+        if (!session.game.id().equals("prophunt")) throw new IllegalArgumentException("Palettes are for Prop Hunt arenas.");
+        if (paletteScanning.contains(session)) { player.sendMessage(Text.msg("<yellow>Palette scan is still running.")); return; }
+        String action = args.length > 1 ? args[1].toLowerCase(Locale.ROOT) : "list";
+        if (action.equals("scan")) { scanPalette(player, session); return; }
+        if (action.equals("global")) {
+            session.settings.remove("prop-palette");session.settings.put("prop-palette-source", "global");
+        } else if (action.equals("add") || action.equals("remove")) {
+            if (args.length != 3) throw new IllegalArgumentException("Usage: /pulse setup palette add|remove <material>");
+            var config = new YamlConfiguration();session.settings.forEach(config::set);
+            var options = uk.co.playerready.pulsegames.games.prophunt.PropPalette.read(plugin.getConfig());
+            Material material = Material.matchMaterial(args[2]);
+            if (material == null || options.stream().noneMatch(o -> o.material() == material))
+                throw new IllegalArgumentException("That material has no supported configured disguise.");
+            var selected = new java.util.LinkedHashSet<>(uk.co.playerready.pulsegames.games.prophunt.PropPalette.read(plugin.getConfig(), config)
+                    .stream().map(o -> o.material().name()).toList());
+            if (action.equals("add")) selected.add(material.name()); else selected.remove(material.name());
+            if (selected.isEmpty()) throw new IllegalArgumentException("Keep at least one disguise.");
+            session.settings.put("prop-palette", List.copyOf(selected));session.settings.put("prop-palette-source", "reviewed");
+        } else if (!action.equals("list")) throw new IllegalArgumentException("Usage: /pulse setup palette list|scan|add|remove|global");
+        var config = new YamlConfiguration();session.settings.forEach(config::set);
+        player.sendMessage(Text.msg("<yellow>Disguises: <white>" + String.join(", ",
+                uk.co.playerready.pulsegames.games.prophunt.PropPalette.read(plugin.getConfig(), config).stream().map(o -> o.material().name()).toList())));
+    }
+
+    private final java.util.Set<Session> paletteScanning = new java.util.HashSet<>();
+    private void scanPalette(Player player, Session session) {
+        Cuboid region = session.regions.get("palette");
+        if (region == null) { player.sendMessage(Text.msg("<yellow>First select the playable map: /pulse setup region palette <x1> <y1> <z1> <x2> <y2> <z2>")); return; }
+        var supported = uk.co.playerready.pulsegames.games.prophunt.PropPalette.read(plugin.getConfig());
+        var scan = new uk.co.playerready.pulsegames.games.prophunt.PropPaletteScan(session.world,region,supported);
+        if (!paletteScanning.add(session)) return;
+        player.sendMessage(Text.msg("<yellow>Scanning map blocks for supported disguises..."));
+        new org.bukkit.scheduler.BukkitRunnable() {
+            @Override public void run() {
+                if (session(player) != session || !player.isOnline() || org.bukkit.Bukkit.getWorld(session.world.getUID()) != session.world) { finish(); return; }
+                try {
+                    if (!region.equals(session.regions.get("palette"))) throw new IllegalArgumentException("Palette region changed; scan again.");
+                    if (scan.step()) {
+                        List<String> materials = scan.result();
+                        session.settings.put("prop-palette", materials);session.settings.put("prop-palette-source", "map-scan");
+                        finish(); player.sendMessage(Text.msg("<green>Map palette: " + String.join(", ", materials) + ". Review in the setup book before saving."));
+                    }
+                } catch (RuntimeException error) { finish();player.sendMessage(Text.msg("<red>Palette scan stopped: " + error.getMessage())); }
+            }
+            private void finish() { paletteScanning.remove(session);cancel(); }
+        }.runTaskTimer(plugin, 1, 1);
+    }
+
     // ---- save --------------------------------------------------------------------------
 
     void save(Player player, Session session) {
         if (!player.hasPermission("pulsegames.admin") || session(player) != session || menu.saving(session)) return;
+        if (paletteScanning.contains(session)) { player.sendMessage(Text.msg("<yellow>Wait for the palette scan to finish.")); return; }
+        if (session.game.id().equals("prophunt")) {
+            if (!session.settings.containsKey("prop-palette") && session.regions.containsKey("palette")
+                    && !"global".equals(session.settings.get("prop-palette-source"))) {
+                scanPalette(player, session);return; // Require review and a second save, never publish unseen scan results.
+            }
+            try { var config = new YamlConfiguration();session.settings.forEach(config::set);
+                uk.co.playerready.pulsegames.games.prophunt.PropPalette.read(plugin.getConfig(), config);
+            } catch (IllegalArgumentException invalid) { player.sendMessage(Text.msg("<red>" + invalid.getMessage()));return; }
+        }
         if (!validation(session).valid()) { validate(player,session); return; }
         List<CheckEntry> missing = checklist(session).stream()
                 .filter(e -> e.required() && !e.done()).toList();
