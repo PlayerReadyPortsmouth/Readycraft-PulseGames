@@ -42,6 +42,14 @@ public final class GameCatalog {
     }
 
     public static void registerAll(GameRegistry registry) {
+        registry.register(new GameType("quake", "Quake",
+                "Fast arena shooting: choose a railgun or scattergun, dash and leap!", Material.IRON_HOE,
+                List.of(GameMode.ffa("classic", "Classic", 2, 16)),
+                uk.co.playerready.pulsegames.games.quake.QuakeGame::new,
+                List.of(spawns(4, "covered arena spawn points; one per team for team modes"),
+                        setting("void-y", "fall-off respawn level"),
+                        optional(setting("target-kills", "winning side score, default 20")),
+                        optional(setting("time-limit", "round length in seconds, default 300"))), true));
         registry.register(new GameType("dodgeball", "Dodgeball",
                 "Dodge, aim and throw! Three hits and you are out.", Material.SNOWBALL,
                 List.of(GameMode.ffa("solo", "Solo", 2, 12),

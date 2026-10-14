@@ -405,3 +405,7 @@ bots for wider play; source support does not mean the map has passed testing.
 Bedwars requires the existing per-team bed regions, spawns and generator locations.
 The new bot controller uses those public objectives and actual resource drops;
 see `PLAYTEST-WORKFLOW.md` for finite purchase, defence and protected-break checks.
+
+## Quake
+
+See [QUAKE.md](QUAKE.md) for the arena checklist, weapon rules, team variants and bot testing. Quake uses ordinary spawns and optional bot navigation hints; no special regions are required.

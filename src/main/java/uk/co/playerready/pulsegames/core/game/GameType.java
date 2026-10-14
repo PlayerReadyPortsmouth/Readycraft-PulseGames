@@ -32,7 +32,7 @@ public final class GameType {
     }
 
     private static List<GameMode> teamVariants(String id, List<GameMode> original) {
-        if (!java.util.Set.of("duels", "kitpvp", "koth", "skywars", "bedwars", "luckypillars", "dodgeball").contains(id))
+        if (!java.util.Set.of("duels", "kitpvp", "koth", "skywars", "bedwars", "luckypillars", "dodgeball", "quake").contains(id))
             return List.copyOf(original);
         var result = new java.util.ArrayList<>(original.stream().map(mode ->
                 (mode.isTeams() || id.equals("skywars")) && !id.equals("duels") ? GameMode.teams(mode.id(), mode.displayName(),
