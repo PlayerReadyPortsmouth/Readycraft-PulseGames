@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.UUID;
@@ -74,6 +75,9 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
     private final Map<UUID, Location> botGoals = new HashMap<>();
     private final Map<UUID, PropBotMemory> botMemories = new HashMap<>();
     private final Map<UUID, Long> botNextAction = new HashMap<>();
+    private final Map<UUID, Long> botNextPower = new HashMap<>();
+    private final Map<UUID, Long> botLocalSearchUntil = new HashMap<>();
+    private final Set<UUID> botPaletteChosen = new HashSet<>();
 
     @Override public Location botDestination(Player bot) {
         if (seekers.contains(bot.getUniqueId()) && hidePhase > 0 || locked.containsKey(bot.getUniqueId())) return null;
@@ -84,6 +88,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
     @Override public void botTick(Player bot, long tick, uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty) {
         if (game.frozen() || game.state() != GameState.RUNNING || !game.isActive(bot)) return;
         UUID id = bot.getUniqueId();
+        botAbilities(bot, tick);
         if (seekers.contains(id)) {
             if (hidePhase > 0) { botGoals.remove(id); return; }
             PropBotMemory memory = botMemories.computeIfAbsent(id, ignored -> new PropBotMemory());
@@ -146,7 +151,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
             if (!spots.isEmpty()) {
                 botGoals.put(id, spots.get(ThreadLocalRandom.current().nextInt(spots.size()))); return;
             }
-        } else if (game.plugin().bots() != null) {
+        } else if (tick >= botLocalSearchUntil.getOrDefault(id, 0L) && game.plugin().bots() != null) {
             Location patrol = game.plugin().bots().patrolDestination(game, bot);
             if (patrol != null) { botGoals.put(id, patrol); return; }
         }
@@ -160,6 +165,43 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
             }
         }
         botGoals.remove(id);
+    }
+
+    /** Uses only public scenery, visible opponents and the same human power handlers. */
+    void botAbilities(Player bot, long tick) {
+        UUID id = bot.getUniqueId();
+        if (game.frozen() || game.state() != GameState.RUNNING || !game.isActive(bot)
+                || tick < botNextPower.getOrDefault(id, 0L)) return;
+        botNextPower.put(id, tick + 40);
+        if (hiders.contains(id)) {
+            if (canChoose(bot) && botPaletteChosen.add(id) && !palette.isEmpty()) {
+                var fitting = palette.stream().filter(option -> PropSpace.clear(bot.getLocation(), option.height())).toList();
+                if (!fitting.isEmpty()) chooseDisguise(bot, fitting.get(ThreadLocalRandom.current().nextInt(fitting.size())));
+            }
+            if (!canUsePower(bot, true)) return;
+            boolean threat = seekers.stream().map(game::player).filter(Objects::nonNull)
+                    .anyMatch(seeker -> visibleProp(bot, seeker.getLocation().add(0, 1, 0)));
+            if (threat && !locked.containsKey(id) && powerReady(bot, "Sprint")) sprint(bot);
+            if (blockProps && !palette.isEmpty() && powerReady(bot, "Decoy")
+                    && decoys.values().stream().filter(d -> d.owner().equals(id)).count() < decoyLimit) {
+                // Aim at ordinary nearby scenery. The shared ray, support and occupancy checks decide placement.
+                bot.setRotation(ThreadLocalRandom.current().nextFloat() * 360f, 55f);
+                placeDecoy(bot, palette.get(ThreadLocalRandom.current().nextInt(palette.size())));
+            }
+        } else if (canUsePower(bot, false)) {
+            PropBotMemory memory = botMemories.get(id);
+            Location clue = memory == null ? null : memory.destination(tick);
+            if (clue != null && visibleProp(bot, clue)) {
+                if (powerReady(bot, "Sprint")) sprint(bot);
+            } else if (powerReady(bot, "Pulse")) {
+                // A strong coarse signal warrants inspecting this area; it supplies no bearing or target identity.
+                if (pulse(bot) == 2) {
+                    botGoals.remove(id);
+                    botLocalSearchUntil.put(id, tick + 100);
+                    botNextAction.put(id, tick + 40);
+                }
+            }
+        }
     }
 
     static boolean visibleProp(Player observer, Location point) {
@@ -388,6 +430,11 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
             game.runLater(1, player::closeInventory);
             return;
         }
+        chooseDisguise(player, option);
+    }
+
+    private void chooseDisguise(Player player, PropPalette.Option option) {
+        if (!canChoose(player)) return;
         if (!PropSpace.clear(player.getLocation(), option.height())) {
             player.sendActionBar(Text.mm("<yellow>That disguise is too large for this space.")); return;
         }
@@ -653,7 +700,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
         for (Player player : game.everyone()) {
             if (player.getOpenInventory().getTopInventory().getHolder() instanceof PaletteMenu) player.closeInventory();
         }
-        originalHiders.clear(); botGoals.clear(); botMemories.clear(); botNextAction.clear(); choices.clear(); nextBlockHit.clear(); routedBlockHits.clear(); nextLock.clear(); cooldowns.clear(); locked.clear();
+        originalHiders.clear(); botNextPower.clear(); botLocalSearchUntil.clear(); botPaletteChosen.clear(); botGoals.clear(); botMemories.clear(); botNextAction.clear(); choices.clear(); nextBlockHit.clear(); routedBlockHits.clear(); nextLock.clear(); cooldowns.clear(); locked.clear();
         if (failure != null) throw failure;
     }
 
@@ -718,6 +765,9 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
         return powers && game.state() == GameState.RUNNING && !game.frozen() && game.isActive(player)
                 && (hider ? hiders : seekers).contains(player.getUniqueId()) && (hider || hidePhase == 0);
     }
+    private boolean powerReady(Player player, String power) {
+        return cooldowns.getOrDefault(player.getUniqueId() + ":" + power, 0) <= game.gameTime();
+    }
     private boolean ready(Player player, String power) {
         int remaining = cooldowns.getOrDefault(player.getUniqueId() + ":" + power, 0) - game.gameTime();
         if (remaining <= 0) return true;
@@ -739,7 +789,9 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
             player.sendActionBar(Text.mm("<yellow>That prop does not fit there. Try a clear spot.")); return;
         }
         try {
-            AutoCloseable visual = game.plugin().content().createProp(option.model(), player, feet, visualAudience, 1f);
+            AutoCloseable visual = game.isBot(player)
+                    ? game.plugin().content().createNpcProp(option.model(), player, feet, visualAudience, 1f)
+                    : game.plugin().content().createProp(option.model(), player, feet, visualAudience, 1f);
             decoys.put(UUID.randomUUID(), new Decoy(player.getUniqueId(), option, feet, visual, game.gameTime() + decoyLifetime));
             used(player, "Decoy", decoyCooldown);
             player.sendActionBar(Text.mm("<green>Placed " + option.name() + " decoy for " + decoyLifetime + "s."));
@@ -761,8 +813,8 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
         used(player, "Sprint", sprintCooldown);
         player.sendActionBar(Text.mm("<aqua>Sprint active for 4s!"));
     }
-    private void pulse(Player player) {
-        if (!canUsePower(player, false) || !ready(player, "Pulse")) return;
+    private int pulse(Player player) {
+        if (!canUsePower(player, false) || !ready(player, "Pulse")) return -1;
         double nearest = Double.POSITIVE_INFINITY;
         for (UUID id : hiders) {
             Player hider = game.player(id);
@@ -771,8 +823,9 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
         for (Decoy decoy : decoys.values()) nearest = Math.min(nearest, decoy.feet().distance(player.getLocation()));
         String signal = nearest <= pulseRadius / 3.0 ? "<red>Strong signal nearby" : nearest <= pulseRadius ? "<yellow>Faint signal nearby" : "<gray>No signal nearby";
         player.sendActionBar(Text.mm(signal + " <dark_gray>(decoys can fool the pulse)"));
-        player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, .8f, nearest <= pulseRadius ? 1.5f : .6f);
+        player.playSound(player.getLocation(), "minecraft:block.note_block.pling", .8f, nearest <= pulseRadius ? 1.5f : .6f);
         used(player, "Pulse", pulseCooldown);
+        return nearest <= pulseRadius / 3.0 ? 2 : nearest <= pulseRadius ? 1 : 0;
     }
 
     private void checkWin() {

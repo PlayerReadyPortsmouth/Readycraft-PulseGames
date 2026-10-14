@@ -158,6 +158,31 @@ Candidate source coverage becomes **14/23 games** with Bedwars. This is not a
 claim of player-tested or deployed coverage. See `docs/PLAYTEST-WORKFLOW.md` for
 commands, test cases, limitations and the required Java/Bedrock acceptance pass.
 
+## 14 October - Map reviews and Prop Hunt powers
+
+Prepared in existing draft PR13; not deployed. Map agents can register builds,
+check saved configuration and export a standalone HTML review report with
+`/pulse maps`. Built, visual approval, Java, Bedrock and bot playtests are separate
+explicit evidence records. Configured is calculated independently; no automatic
+check grants visual approval or proves gameplay works.
+
+- Evidence records include reviewer, date and notes. Captures and configuration
+  changes make older evidence stale; external terrain edits require an explicit
+  revision command. Missing templates and damaged capture markers cannot reuse
+  current approval evidence.
+- Validation checks game requirements without loading worlds or chunks. Physical
+  clearance, navigation, appearance and client acceptance remain manual tests.
+- Prop Hunt bots choose fitting palette disguises, place nearby independent
+  decoys and use sprint and seeker pulses through the normal player handlers.
+  Seekers receive coarse signals, never a hidden bearing; decoys can fool them.
+- Existing five-map visual approvals remain recorded below. They are not silently
+  imported into a server ledger. These tools do not automatically publish maps.
+
+Next acceptance: Classic and Infection, both roles, Java and Bedrock, one-block
+gaps, wall locks, decoy limits, false pulse signals and concurrent-map cleanup.
+Decoy placement is local and random; elaborate scene planning is not implemented.
+See `docs/MAP-REVIEW.md` for commands and the testing checklist.
+
 ## Current test-server baseline
 
 - Last verified deployed on 13 October: PulseGames **0.3.11** and PulseContent Paper **0.5.2**. The new bot candidate below is not deployed. Older dated entries are historical checkpoints.

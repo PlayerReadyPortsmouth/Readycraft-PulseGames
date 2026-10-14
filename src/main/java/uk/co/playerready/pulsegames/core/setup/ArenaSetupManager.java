@@ -426,6 +426,7 @@ public final class ArenaSetupManager implements Listener {
         plugin.worlds().saveAsTemplate(session.world, session.arenaId, () -> {
             menu.setSaving(session, false);
             sessions.remove(player.getUniqueId(), session);
+            if (plugin.maps() != null) plugin.maps().captured(session.game.id(), session.arenaId);
             plugin.arenas().load();
             player.sendMessage(Text.msg("<green><b>Arena " + session.arenaId + " is live!</b> <gray>Try: <yellow>/play "
                     + session.game.id()));

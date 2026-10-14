@@ -31,5 +31,10 @@ commands:
     usage: /results [again|games|return]
   pulse:
     description: PulseGames admin commands.
-    usage: /pulse <list|start|end|setlobby|reload>
+    usage: /pulse <setup|maps|practice|bots|list|start|end|setlobby|reload>
     permission: pulsegames.admin
+
+permissions:
+  pulsegames.maps.approve:
+    description: Record human visual map review evidence separately from map setup access.
+    default: op

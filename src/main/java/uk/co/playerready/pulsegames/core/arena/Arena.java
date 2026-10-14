@@ -77,6 +77,9 @@ public final class Arena {
     }
 
     public List<String> rawSpawns() { return spawns; }
+    public String rawLobby() { return lobby; }
+    public String rawSpectator() { return spectator; }
+    public List<String> modes() { return modes; }
 
     public Location spawn(int index, World world) {
         return LocUtil.parse(spawns.get(index % spawns.size()), world);

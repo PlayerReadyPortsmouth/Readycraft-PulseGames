@@ -34,7 +34,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
         // Console-capable admin subcommands (map generation needs no player).
         if (command.getName().equalsIgnoreCase("pulse") && args.length >= 1) {
             String sub = args[0].toLowerCase(Locale.ROOT);
-            if (sub.equals("build") || sub.equals("blueprints") || sub.equals("bots") || sub.equals("diagnose")) {
+            if (sub.equals("build") || sub.equals("blueprints") || sub.equals("bots") || sub.equals("diagnose") || sub.equals("maps")) {
                 adminConsole(sender, args);
                 return true;
             }
@@ -151,6 +151,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
             return;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
+            case "maps" -> plugin.maps().handle(sender, java.util.Arrays.copyOfRange(args, 1, args.length));
             case "diagnose" -> {
                 var rows=args.length>1?plugin.diagnostics().report(args[1]):plugin.diagnostics().recent();
                 sender.sendMessage(net.kyori.adventure.text.Component.text(args.length>1?"Match report (latest 20 events):":"Recent match references: /pulse diagnose <reference>"));
@@ -190,7 +191,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
 
     private void admin(Player player, String[] args) {
         if (args.length == 0) {
-            player.sendMessage(Text.msg("Usage: <yellow>/pulse <setup|shape|build|blueprints|bots|diagnose|world|games|list|arenas|start|end|setlobby|reload>"));
+            player.sendMessage(Text.msg("Usage: <yellow>/pulse <setup|shape|build|blueprints|bots|diagnose|maps|world|games|list|arenas|start|end|setlobby|reload>"));
             return;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
@@ -302,6 +303,22 @@ public final class Commands implements CommandExecutor, TabCompleter {
                 }
             }
             case "pulse" -> {
+                if (args.length >= 2 && args[0].equalsIgnoreCase("maps")) {
+                    if (!sender.hasPermission("pulsegames.admin")) return List.of();
+                    List<String> choices = List.of();
+                    if (args.length == 2) choices = List.of("list", "check", "report", "export", "register", "revision", "mark");
+                    else if (args.length == 3) choices = plugin.registry().all().stream().map(GameType::id).toList();
+                    else if (args.length == 4 && !args[1].equalsIgnoreCase("list"))
+                        choices = plugin.arenas().all().stream().filter(arena -> arena.gameId().equalsIgnoreCase(args[2])).map(arena -> arena.id()).distinct().toList();
+                    else if (args.length == 5 && args[1].equalsIgnoreCase("mark"))
+                        choices = java.util.Arrays.stream(uk.co.playerready.pulsegames.core.maps.MapReviewStore.Check.values())
+                                .filter(check -> check != uk.co.playerready.pulsegames.core.maps.MapReviewStore.Check.VISUAL || sender.hasPermission("pulsegames.maps.approve"))
+                                .map(check -> check.name().toLowerCase(Locale.ROOT)).toList();
+                    else if (args.length == 6 && args[1].equalsIgnoreCase("mark"))
+                        choices = java.util.Arrays.stream(uk.co.playerready.pulsegames.core.maps.MapReviewStore.Outcome.values()).map(outcome -> outcome.name().toLowerCase(Locale.ROOT)).toList();
+                    String prefix = args[args.length - 1].toLowerCase(Locale.ROOT);
+                    return choices.stream().filter(choice -> choice.toLowerCase(Locale.ROOT).startsWith(prefix)).limit(64).toList();
+                }
                 if (args.length >= 2 && args[0].equalsIgnoreCase("practice")) {
                     if (!sender.hasPermission("pulsegames.admin")) return List.of();
                     if (args.length == 2) return List.of("start", "repeat", "end", "report");
@@ -327,7 +344,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
                     return List.of();
                 }
                 if (args.length == 1) {
-                    return List.of("setup", "shape", "build", "blueprints", "bots", "diagnose", "practice", "results", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
+                    return List.of("setup", "shape", "build", "blueprints", "bots", "diagnose", "maps", "practice", "results", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
                 }
                 if (args.length == 3 && args[0].equalsIgnoreCase("world")) return List.of("void", "normal");
                 if (args.length == 2 && args[0].equalsIgnoreCase("build")) {

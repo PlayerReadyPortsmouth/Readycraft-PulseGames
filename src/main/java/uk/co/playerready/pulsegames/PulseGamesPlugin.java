@@ -31,6 +31,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
     private uk.co.playerready.pulsegames.core.content.PulseContentBridge content;
     private uk.co.playerready.pulsegames.core.practice.PracticeService practice;
     private uk.co.playerready.pulsegames.core.game.MatchResults results;
+    private uk.co.playerready.pulsegames.core.maps.MapReviewService maps;
     private GameRegistry registry;
     private ArenaService arenas;
     private WorldService worlds;
@@ -80,6 +81,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
         playService = new PlayService(this);
         results = new uk.co.playerready.pulsegames.core.game.MatchResults(this);
         practice = new uk.co.playerready.pulsegames.core.practice.PracticeService(this);
+        maps = new uk.co.playerready.pulsegames.core.maps.MapReviewService(this);
         setup = new ArenaSetupManager(this);
         economy = new EconomyService(this);
         cosmetics = new CosmeticsService(economy);
@@ -180,6 +182,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
     public PlayService playService() { return playService; }
     public uk.co.playerready.pulsegames.core.combat.ClassicCombatService combat() { return combat; }
     public ArenaSetupManager setup() { return setup; }
+    public uk.co.playerready.pulsegames.core.maps.MapReviewService maps() { return maps; }
     public EconomyService economy() { return economy; }
     public CosmeticsService cosmetics() { return cosmetics; }
     public TokenShopMenu tokenShop() { return tokenShop; }
