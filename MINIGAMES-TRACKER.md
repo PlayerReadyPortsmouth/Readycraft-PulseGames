@@ -47,7 +47,7 @@ The content candidate excludes the separate cosmetic movement trial.
   last 40 outcomes. No damage, health or reach advantage. Fixed Easy/Normal/Hard
   overrides remain available through the Setup Book.
 - Calibration has separate local storage; old mixed-mode competitive totals are
-  not imported. Forced, drawn, short and abandoned rounds do not train it. Winning
+  not imported. Forced, drawn, zero-duration and abandoned rounds do not train it. Winning
   teammates, co-op outcomes and Infection role conversion receive explicit handling.
 - **New controllers:** KitPvP One in the Chamber uses actual arrows, ammunition,
   bow draw and melee fallback. Prop Hunt Classic/Infection hiders use supported

@@ -123,7 +123,7 @@ public final class BotService implements AutoCloseable {
     /** Practice history is separate from competitive records, tokens and rewards. */
     public void onRoundEnd(GameInstance game, List<Player> winners, String reason) {
         SkillRound round = skillRounds.remove(game);
-        if (round == null || skills == null || game.state() != GameState.RUNNING || game.gameTime() < 30
+        if (round == null || skills == null || game.state() != GameState.RUNNING || game.gameTime() < 1
                 || reason == null || reason.equals("forced") || reason.contains("draw") || reason.equals("no-seekers")
                 || winners.isEmpty() && !game.logic().cooperative()) return;
         Set<UUID> won = new HashSet<>();

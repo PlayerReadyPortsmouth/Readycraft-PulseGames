@@ -89,12 +89,12 @@ a visible opponent uses that opponent's frozen round profile for attack cadence
 and accuracy. No health, damage, reach, hidden-location access or preferential
 victim selection is added. Fixed arena difficulty overrides adaptation.
 
-Forced, drawn, under-30-second and abandoned rounds do not train profiles. Team
+Forced, drawn, zero-duration and abandoned rounds do not train profiles. Team
 wins include eliminated teammates; co-op outcomes follow mission success; Infection
 credits the original role rather than rewarding a caught hider's conversion. Bot
 records are never persisted as players. Storage is local to the minigames backend;
 shared SQL calibration is future work. Real client tests must tune the baseline,
-short-round cutoff and difficulty thresholds before a broad rollout.
+difficulty thresholds before a broad rollout.
 
 Custom block Prop Hunt bots require PulseContent Paper **0.5.4**'s explicit NPC prop
 API, plus block snapping. The paired API verifies the owned Citizens actor while

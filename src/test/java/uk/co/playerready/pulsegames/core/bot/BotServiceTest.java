@@ -139,7 +139,7 @@ class BotServiceTest {
         when(skills.difficulty(any(), anyString())).thenReturn(BotDifficulty.NORMAL);
         when(plugin.getServer()).thenReturn(mock(org.bukkit.Server.class, RETURNS_DEEP_STUBS));
         when(game.state()).thenReturn(GameState.RUNNING);
-        when(game.gameTime()).thenReturn(40);
+        when(game.gameTime()).thenReturn(3); // A legitimate fast duel still trains the profile.
         bots.onRoundStart(game);
         bots.onRoundEnd(game, List.of(human), "last-standing");
         bots.onRoundEnd(game, List.of(human), "last-standing");
