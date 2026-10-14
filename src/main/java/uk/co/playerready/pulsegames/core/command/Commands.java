@@ -162,6 +162,11 @@ public final class Commands implements CommandExecutor, TabCompleter {
             case "bots" -> {
                 if (args.length == 1) {
                     sender.sendMessage(Text.msg(plugin.bots().status()));
+                    plugin.instances().all().stream()
+                            .filter(g -> g.state() == uk.co.playerready.pulsegames.core.game.GameState.WAITING
+                                    || g.state() == uk.co.playerready.pulsegames.core.game.GameState.COUNTDOWN)
+                            .forEach(g -> sender.sendMessage(net.kyori.adventure.text.Component.text(
+                                    g.id() + " — " + plugin.bots().queueStatus(g))));
                     return;
                 }
                 if (!sender.hasPermission("pulsegames.admin")) {

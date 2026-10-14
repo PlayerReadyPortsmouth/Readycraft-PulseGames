@@ -782,10 +782,12 @@ public final class GameInstance {
                 case WAITING -> {
                     lines.add("<gray>Players: <white>" + participants.size() + "/" + maxPlayers());
                     lines.add("<gray>Waiting for players...");
+                    lines.add("<yellow>" + plugin.bots().queueStatus(this));
                 }
                 case COUNTDOWN -> {
                     lines.add("<gray>Players: <white>" + participants.size() + "/" + maxPlayers());
                     lines.add("<gray>Starting in: <green>" + countdown + "s");
+                    lines.add("<yellow>" + plugin.bots().queueStatus(this));
                 }
                 case RUNNING -> {
                     List<String> custom = logic.sidebar(p);
