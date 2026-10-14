@@ -16,6 +16,8 @@ public final class InstanceManager {
     private final PulseGamesPlugin plugin;
     private final List<GameInstance> instances = new ArrayList<>();
     private final Map<UUID, GameInstance> byPlayer = new HashMap<>();
+    private record Rejoin(GameInstance game, Player previous, long expires, boolean waiting) {}
+    private final Map<UUID, Rejoin> rejoins = new HashMap<>();
 
     public InstanceManager(PulseGamesPlugin plugin) {
         this.plugin = plugin;
@@ -36,15 +38,58 @@ public final class InstanceManager {
 
     public void unindex(Player player) { byPlayer.remove(player.getUniqueId()); }
 
-    public void remove(GameInstance instance) { instances.remove(instance); }
+    public void remove(GameInstance instance) {
+        instances.remove(instance);
+        rejoins.entrySet().removeIf(entry -> entry.getValue().game() == instance);
+    }
+
+    public boolean hasReservedSeats(GameInstance instance) {
+        return rejoins.values().stream().anyMatch(ticket -> ticket.waiting() && ticket.game() == instance);
+    }
+
+    public void disconnect(Player player) {
+        GameInstance instance = byPlayer(player);
+        if (instance == null) return;
+        boolean waiting = instance.state() == GameState.WAITING || instance.state() == GameState.COUNTDOWN;
+        int seconds = Math.max(0, Math.min(60, plugin.getConfig().getInt("rejoin.grace-seconds", 30)));
+        if (seconds == 0 || rejoins.size() >= 2048) { instance.remove(player, false); return; }
+        Rejoin ticket = new Rejoin(instance, player, System.currentTimeMillis() + seconds * 1000L, waiting);
+        if (waiting && instance.isParticipant(player)) {
+            rejoins.put(player.getUniqueId(), ticket);
+            instance.suspendWaiting(player);
+        } else {
+            instance.remove(player, false); // A running disconnect forfeits the life; reconnect is observation only.
+            if (instance.state() != GameState.RUNNING) return;
+            rejoins.put(player.getUniqueId(), ticket);
+        }
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (!rejoins.remove(player.getUniqueId(), ticket)) return;
+            if (ticket.waiting()) ticket.game().remove(ticket.previous(), false);
+        }, seconds * 20L);
+    }
+
+    public boolean rejoin(Player player) {
+        Rejoin ticket = rejoins.remove(player.getUniqueId());
+        if (ticket == null) return false;
+        if (System.currentTimeMillis() >= ticket.expires()) {
+            if (ticket.waiting()) ticket.game().remove(ticket.previous(), false);
+            return false;
+        }
+        return ticket.waiting() ? ticket.game().resumeWaiting(player) : ticket.game().returnSpectator(player);
+    }
 
     /**
      * Finds a joinable instance for the game+mode with room for {@code groupSize}
      * players, or spins up a new one on a random eligible map.
      */
     public GameInstance findOrCreate(GameType type, GameMode mode, int groupSize) {
+        return findOrCreate(type, mode, groupSize, instance -> true);
+    }
+
+    public GameInstance findOrCreate(GameType type, GameMode mode, int groupSize,
+                                     java.util.function.Predicate<GameInstance> acceptsGroup) {
         for (GameInstance instance : instances) {
-            if (instance.type() == type && instance.mode().id().equals(mode.id()) && instance.joinable(groupSize)) {
+            if (!instance.practice() && instance.type() == type && instance.mode().id().equals(mode.id()) && instance.joinable(groupSize) && acceptsGroup.test(instance)) {
                 return instance;
             }
         }
@@ -65,6 +110,22 @@ public final class InstanceManager {
             break;
         }
         if (instance == null) return null;
+        instances.add(instance);
+        instance.init();
+        return instance;
+    }
+
+    public GameInstance createPractice(GameType type, GameMode mode, Arena arena) {
+        return createPractice(type, mode, arena, uk.co.playerready.pulsegames.core.bot.BotDifficulty.NORMAL, 1);
+    }
+
+    public GameInstance createPractice(GameType type, GameMode mode, Arena arena,
+            uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty, int botCount) {
+        if (instances.size() >= plugin.getConfig().getInt("instances.max-concurrent", 20)) return null;
+        GameInstance instance = new GameInstance(plugin, type, mode, arena);
+        if (instance.maxPlayers() < Math.max(1, instance.minPlayers())
+                || (mode.isTeams() && instance.teamCount() < 2)) return null;
+        instance.configurePractice(difficulty, botCount);
         instances.add(instance);
         instance.init();
         return instance;

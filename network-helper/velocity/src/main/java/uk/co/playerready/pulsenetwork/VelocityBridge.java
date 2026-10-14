@@ -21,7 +21,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Plugin(id="pulsenetwork", name="PulseNetwork", version="0.1.3", description="Public chat relay and minigame queue joins", authors={"AurorasChaos (on behalf of Player Ready)"},
+@Plugin(id="pulsenetwork", name="PulseNetwork", version="0.1.4", description="Public chat relay and minigame queue joins", authors={"AurorasChaos (on behalf of Player Ready)"},
         dependencies = {@com.velocitypowered.api.plugin.Dependency(id="floodgate", optional=true)})
 public final class VelocityBridge {
     private static final MinecraftChannelIdentifier CHANNEL = MinecraftChannelIdentifier.from(Wire.CHANNEL);
@@ -35,13 +35,19 @@ public final class VelocityBridge {
     private Set<String> paperBackends = Set.of();
     private record Visit(String origin, String destination, String request) {}
     private final Map<UUID, Visit> visits = new ConcurrentHashMap<>();
+    private record Resume(Visit visit, long expires) {}
+    private final Map<UUID, Resume> resuming = new ConcurrentHashMap<>();
     private final Map<UUID, Long> reconnectUntil = new ConcurrentHashMap<>();
     private final Set<UUID> returning = ConcurrentHashMap.newKeySet();
     private final QueueDirectory queues = new QueueDirectory();
     private final Map<UUID, Pending> pending = new ConcurrentHashMap<>();
     private final Map<UUID, Long> chatTimes = new ConcurrentHashMap<>(), joinTimes = new ConcurrentHashMap<>();
     private final Map<String, Long> announcements = new ConcurrentHashMap<>();
-    private record Pending(String request, QueueDirectory.Queue queue, long expires) {}
+    private record Pending(String request, QueueDirectory.Queue queue, long expires, UUID leader, List<UUID> members) {}
+    private final NetworkParties parties = new NetworkParties();
+    private long lastPartySync;
+    private final Map<UUID, Long> partyTimes = new ConcurrentHashMap<>();
+    private final Map<String, Long> cancelledGroups = new ConcurrentHashMap<>();
     @Inject public VelocityBridge(ProxyServer proxy, Logger logger, @DataDirectory Path directory) {
         this.proxy = proxy; this.logger = logger; this.directory = directory;
     }
@@ -82,6 +88,9 @@ public final class VelocityBridge {
                 if (invocation.arguments().length == 1) join(p, invocation.arguments()[0]); else showQueues(p, false);
             }
         });
+        commands.register(commands.metaBuilder("networkparty").aliases("party").plugin(this).build(), (SimpleCommand) invocation -> {
+            if (invocation.source() instanceof Player player) partyCommand(player, invocation.arguments());
+        });
         proxy.getScheduler().buildTask(this, this::retryJoins).repeat(Duration.ofSeconds(1)).schedule();
     }
     private static Set<String> csv(String value) {
@@ -103,6 +112,7 @@ public final class VelocityBridge {
         wire.decode(event.getData()).filter(m -> m.player().equals(carrier.getUniqueId())).ifPresent(m -> {
             try {
                 switch (m.kind()) {
+                    case "PARTYCMD" -> partyCommand(carrier, m.fields().toArray(String[]::new));
                     case "CHAT" -> { if (m.fields().size() == 1) chat(carrier, server, m.fields().getFirst()); }
                     case "QUEUE" -> {
                         if (!queueServers.contains(server) || m.fields().size() != 4) return;
@@ -116,9 +126,18 @@ public final class VelocityBridge {
                         Visit visit = visits.get(carrier.getUniqueId());
                         if (visit != null && visit.destination().equals(server) && m.fields().equals(List.of(visit.request()))) returnHome(carrier, visit);
                     }
+                    case "RESUMEACK" -> {
+                        Resume resume = resuming.get(carrier.getUniqueId());
+                        if (resume != null && resume.visit().destination().equals(server)
+                                && m.fields().equals(List.of(resume.visit().request()))) resuming.remove(carrier.getUniqueId(), resume);
+                    }
                     case "ACK" -> {
                         Pending request = pending.get(carrier.getUniqueId());
-                        if (request != null && request.queue().server().equals(server) && m.fields().equals(List.of(request.request()))) pending.remove(carrier.getUniqueId(), request);
+                        if (request != null && request.queue().server().equals(server) && m.fields().equals(List.of(request.request()))) {
+                            if (request.members().size() == 1) pending.remove(carrier.getUniqueId(), request);
+                            else if (request.leader().equals(carrier.getUniqueId()))
+                                request.members().forEach(id -> pending.remove(id, request));
+                        }
                     }
                     default -> { }
                 }
@@ -170,6 +189,55 @@ public final class VelocityBridge {
         // Copyable command is also usable by clients without clickable chat or forms.
         for (var q : list) player.sendMessage(Component.text(q.title() + ": /joinqueue " + q.token(), NamedTextColor.GRAY));
     }
+    private void partyCommand(Player player, String[] args) {
+        if (!allowed(player)) return;
+        long now = System.currentTimeMillis();
+        Long previous = partyTimes.put(player.getUniqueId(), now);
+        if (previous != null && now - previous < 1000) return;
+        try {
+            List<UUID> before = parties.members(player.getUniqueId());
+            if (before.stream().anyMatch(pending::containsKey)) throw new IllegalArgumentException("Wait for your party queue transfer to finish first.");
+            String command = args.length == 0 ? "help" : args[0].toLowerCase(Locale.ROOT);
+            switch (command) {
+                case "invite" -> {
+                    if (args.length != 2) throw new IllegalArgumentException("Use /party invite <player>.");
+                    Player target = proxy.getPlayer(args[1]).orElseThrow(() -> new IllegalArgumentException("Player is not online."));
+                    if (!allowed(target) || pending.containsKey(target.getUniqueId())) throw new IllegalArgumentException("That player is unavailable.");
+                    parties.invite(player.getUniqueId(), target.getUniqueId());
+                    target.sendMessage(Component.text(player.getUsername() + " invited you to a network party. Type /party accept or /party deny.")
+                            .clickEvent(ClickEvent.runCommand("/party accept")));
+                    player.sendMessage(Component.text("Party invitation sent."));
+                }
+                case "accept" -> {
+                    UUID inviter = parties.inviter(player.getUniqueId());
+                    if (inviter != null && parties.members(inviter).stream().anyMatch(pending::containsKey))
+                        throw new IllegalArgumentException("Wait until that party's queue transfer finishes.");
+                    parties.accept(player.getUniqueId()); player.sendMessage(Component.text("Joined the network party. Your leader can choose /queues.")); }
+                case "deny" -> { parties.deny(player.getUniqueId()); player.sendMessage(Component.text("Invitation declined.")); }
+                case "leave" -> { parties.leave(player.getUniqueId()); player.sendMessage(Component.text("Left the network party.")); }
+                case "disband" -> { parties.disband(player.getUniqueId()); player.sendMessage(Component.text("Network party disbanded.")); }
+                case "chat" -> {
+                    if (args.length < 2) throw new IllegalArgumentException("Use /party chat <message>.");
+                    String text = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
+                    if (text.length() > 512) throw new IllegalArgumentException("Party messages are limited to 512 characters.");
+                    for (UUID id : parties.members(player.getUniqueId())) proxy.getPlayer(id).ifPresent(member ->
+                            member.sendMessage(Component.text("[Party] " + player.getUsername() + ": " + text)));
+                }
+                case "list" -> player.sendMessage(Component.text("Party: " + String.join(", ", parties.members(player.getUniqueId()).stream()
+                        .map(id -> proxy.getPlayer(id).map(Player::getUsername).orElse("Offline member")).toList())));
+                default -> player.sendMessage(Component.text("/party invite <player>, accept, deny, list, leave, disband, chat. Your leader uses /queues to join together across servers."));
+            }
+        } catch (IllegalArgumentException rejected) { player.sendMessage(Component.text(rejected.getMessage())); }
+        syncParties();
+    }
+    private void syncParties() {
+        for (Player member : proxy.getAllPlayers()) {
+            UUID leader = parties.leader(member.getUniqueId());
+            String roster = leader == null ? "" : String.join(",", parties.members(member.getUniqueId()).stream().map(UUID::toString).toList());
+            member.getCurrentServer().filter(c -> backends.contains(c.getServerInfo().getName())).ifPresent(c ->
+                    c.sendPluginMessage(CHANNEL, wire.encode("PARTYSTATE", member.getUniqueId(), leader == null ? "" : leader.toString(), roster)));
+        }
+    }
     private void join(Player player, String token) {
         if (!allowed(player)) return;
         long now = System.currentTimeMillis();
@@ -178,7 +246,23 @@ public final class VelocityBridge {
         if (queue == null || !queueServers.contains(queue.server())) { player.sendMessage(Component.text("That queue has closed. Use /queues again.")); return; }
         var target = proxy.getServer(queue.server()).orElse(null);
         if (target == null) { player.sendMessage(Component.text("The minigame server is unavailable.")); return; }
-        Pending request = new Pending(UUID.randomUUID().toString(), queue, now + 15_000);
+        UUID leader = parties.leader(player.getUniqueId());
+        if (leader != null && !leader.equals(player.getUniqueId())) { player.sendMessage(Component.text("Only your party leader can queue the group.")); return; }
+        List<UUID> members = parties.members(player.getUniqueId());
+        List<Player> group = members.stream().map(id -> proxy.getPlayer(id).orElse(null)).toList();
+        if (group.stream().anyMatch(member -> member == null || !allowed(member) || pending.containsKey(member.getUniqueId()))
+                || members.size() > queue.maximum()) {
+            player.sendMessage(Component.text("Your whole party must be online, available, and fit this queue.")); return;
+        }
+        Pending request = new Pending(UUID.randomUUID().toString(), queue, now + 15_000, player.getUniqueId(), members);
+        // Publish the complete transfer before any asynchronous connection can finish.
+        for (Player member : group) pending.put(member.getUniqueId(), request);
+        for (Player member : group) transfer(member, request);
+    }
+    private void transfer(Player player, Pending request) {
+        var queue = request.queue();
+        var target = proxy.getServer(queue.server()).orElse(null);
+        if (target == null || pending.get(player.getUniqueId()) != request) { cancelGroup(request); return; }
         String current = player.getCurrentServer().map(c -> c.getServerInfo().getName()).orElse("");
         if (!current.equals(queue.server())) visits.compute(player.getUniqueId(), (id, old) ->
                 new Visit(old != null && old.destination().equals(current) ? old.origin() : current, queue.server(), request.request()));
@@ -188,21 +272,30 @@ public final class VelocityBridge {
         player.sendMessage(Component.text("Connecting to " + queue.title() + "…"));
         player.createConnectionRequest(target).connect().whenComplete((result, failure) -> {
             if (failure != null || result == null || !result.isSuccessful()) {
-                if (pending.remove(player.getUniqueId(), request)) {
-                    visits.computeIfPresent(player.getUniqueId(), (id, visit) -> visit.request().equals(request.request()) ? null : visit);
-                    player.sendMessage(Component.text("Could not connect. Your current server has been kept."));
-                }
+                if (!cancelledGroups.containsKey(request.request()) && request.members().stream().noneMatch(id -> pending.get(id) == request)) return;
+                cancelGroup(request);
+                visits.computeIfPresent(player.getUniqueId(), (id, visit) -> visit.request().equals(request.request()) ? null : visit);
+            } else if (cancelledGroups.containsKey(request.request())) {
+                Visit visit = visits.get(player.getUniqueId());
+                if (visit != null && visit.request().equals(request.request())) returnHome(player, visit);
             }
         });
     }
     @Subscribe public void connected(ServerPostConnectEvent event) {
         Player player = event.getPlayer(); Pending request = pending.get(player.getUniqueId());
         Visit visit = visits.get(player.getUniqueId());
+        if (visit != null && cancelledGroups.containsKey(visit.request()) && player.getCurrentServer()
+                .filter(c -> c.getServerInfo().getName().equals(visit.destination())).isPresent()) { returnHome(player, visit); return; }
         Long reconnect = reconnectUntil.remove(player.getUniqueId());
         if (reconnect != null && visit != null) {
             if (reconnect < System.currentTimeMillis()) { visits.remove(player.getUniqueId(), visit); return; }
             String current = player.getCurrentServer().map(c -> c.getServerInfo().getName()).orElse("");
-            if (current.equals(visit.destination())) { returnHome(player, visit); return; }
+            if (current.equals(visit.destination())) {
+                Resume resume = new Resume(visit, System.currentTimeMillis() + 15_000);
+                resuming.put(player.getUniqueId(), resume);
+                resumeVisit(player, resume);
+                return;
+            }
             if (current.equals(visit.origin())) player.getCurrentServer().ifPresent(c -> c.sendPluginMessage(CHANNEL,wire.encode("RESTORE",player.getUniqueId(),visit.request())));
         }
         if (visit != null && player.getCurrentServer().map(c -> !c.getServerInfo().getName().equals(visit.destination())).orElse(false)) {
@@ -214,6 +307,7 @@ public final class VelocityBridge {
         var target = proxy.getServer(visit.origin()).orElse(null);
         if (target == null || !backends.contains(visit.origin()) || !returning.add(player.getUniqueId())) return;
         pending.remove(player.getUniqueId());
+        resuming.remove(player.getUniqueId());
         player.createConnectionRequest(target).connect().whenComplete((result, failure) -> {
             // A disconnect may complete this request after a new login has begun.
             // Keep the saved origin for that login and never act on a newer queue visit.
@@ -234,28 +328,67 @@ public final class VelocityBridge {
     }
     private void deliver(Player player, Pending request) {
         if (pending.get(player.getUniqueId()) != request) return;
+        if (request.members().size() > 1) {
+            Player leader = proxy.getPlayer(request.leader()).orElse(null);
+            boolean allArrived = request.members().stream().allMatch(id -> pending.get(id) == request && proxy.getPlayer(id)
+                    .flatMap(Player::getCurrentServer).filter(c -> c.getServerInfo().getName().equals(request.queue().server())).isPresent());
+            if (leader != null && allArrived) leader.getCurrentServer().ifPresent(connection -> connection.sendPluginMessage(CHANNEL,
+                    wire.encode("GROUPJOIN", leader.getUniqueId(), request.request(), request.queue().instance(),
+                            String.join(",", request.members().stream().map(UUID::toString).toList()))));
+            return;
+        }
         player.getCurrentServer().filter(s -> s.getServerInfo().getName().equals(request.queue().server()))
                 .ifPresent(s -> s.sendPluginMessage(CHANNEL, wire.encode("JOIN", player.getUniqueId(), request.request(), request.queue().instance())));
     }
+    private void resumeVisit(Player player, Resume resume) {
+        player.getCurrentServer().filter(c -> c.getServerInfo().getName().equals(resume.visit().destination()))
+                .ifPresent(c -> c.sendPluginMessage(CHANNEL, wire.encode("RESUMEVISIT", player.getUniqueId(), resume.visit().request())));
+    }
     private void retryJoins() {
         long now = System.currentTimeMillis();
+        if (now - lastPartySync >= 5000) { lastPartySync = now; syncParties(); }
+        cancelledGroups.values().removeIf(expiry -> expiry < now);
         reconnectUntil.forEach((id,expiry)-> { if(expiry<now && reconnectUntil.remove(id,expiry)) visits.remove(id); });
+        resuming.forEach((id, resume) -> {
+            Player player = proxy.getPlayer(id).orElse(null);
+            if (player == null) resuming.remove(id, resume);
+            else if (resume.expires() < now) {
+                if (resuming.remove(id, resume)) returnHome(player, resume.visit());
+            } else resumeVisit(player, resume);
+        });
         pending.forEach((id, request) -> {
             Player player = proxy.getPlayer(id).orElse(null);
             if (player == null || request.expires() < now) {
-                if (pending.remove(id, request) && player != null) {
-                    player.sendMessage(Component.text("Queue join timed out. Returning to your previous server where possible."));
-                    Visit visit = visits.get(id);
-                    if (visit != null && player.getCurrentServer().map(c -> c.getServerInfo().getName().equals(visit.destination())).orElse(false)) returnHome(player, visit);
-                }
+                cancelGroup(request);
             } else deliver(player, request);
         });
     }
+    private void cancelGroup(Pending request) {
+        if (!cancelledGroups.containsKey(request.request()) && request.members().stream().noneMatch(id -> pending.get(id) == request)) return;
+        cancelledGroups.put(request.request(), System.currentTimeMillis() + 60_000);
+        for (UUID id : request.members()) {
+            if (!pending.remove(id, request)) continue;
+            Player member = proxy.getPlayer(id).orElse(null);
+            Visit visit = visits.get(id);
+            if (member != null) {
+                member.sendMessage(Component.text("Party queue transfer could not complete. Returning each player to their own previous server where possible."));
+                if (visit != null && visit.request().equals(request.request())) {
+                    if (member.getCurrentServer().filter(c -> c.getServerInfo().getName().equals(visit.destination())).isPresent()) returnHome(member, visit);
+                    // A connection already in flight may still succeed; keep its return origin.
+
+                }
+            }
+        }
+    }
     @Subscribe public void quit(DisconnectEvent event) {
-        UUID id = event.getPlayer().getUniqueId(); if (visits.containsKey(id)) reconnectUntil.put(id,System.currentTimeMillis()+300_000); returning.remove(id); pending.remove(id); chatTimes.remove(id); joinTimes.remove(id);
+        UUID id = event.getPlayer().getUniqueId();
+        Pending group = pending.get(id); if (group != null) cancelGroup(group);
+        parties.leave(id); partyTimes.remove(id); resuming.remove(id);
+        syncParties();
+        if (visits.containsKey(id)) reconnectUntil.put(id,System.currentTimeMillis()+300_000); returning.remove(id); pending.remove(id); chatTimes.remove(id); joinTimes.remove(id);
     }
     @Subscribe public void stop(com.velocitypowered.api.event.proxy.ProxyShutdownEvent event) {
         if (ingress != null) ingress.close();
-        pending.clear();visits.clear();reconnectUntil.clear();
+        pending.clear();visits.clear();reconnectUntil.clear();resuming.clear();cancelledGroups.clear();
     }
 }

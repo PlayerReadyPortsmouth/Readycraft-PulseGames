@@ -54,7 +54,7 @@ public final class GameListener implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         if (event.getPlayer().hasMetadata("NPC")) return;
-        plugin.lobby().sendToLobby(event.getPlayer());
+        if (!plugin.instances().rejoin(event.getPlayer())) plugin.lobby().sendToLobby(event.getPlayer());
         plugin.economy().handleDailyBonus(event.getPlayer());
     }
 
@@ -62,7 +62,7 @@ public final class GameListener implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         if (event.getPlayer().hasMetadata("NPC")) return;
         GameInstance instance = instanceOf(event.getPlayer());
-        if (instance != null) instance.remove(event.getPlayer(), false);
+        if (instance != null) plugin.instances().disconnect(event.getPlayer());
         plugin.playService().cancelPending(event.getPlayer());
         plugin.parties().handleQuit(event.getPlayer());
     }

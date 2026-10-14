@@ -163,6 +163,8 @@ public final class WorldService {
                 // place means a mid-copy failure destroys the only copy of the map.
                 deleteRecursively(staging.toPath());
                 copyDirectory(source.toPath(), staging.toPath());
+                // Bind review evidence to this exact capture, even if the separate review ledger write fails.
+                Files.writeString(staging.toPath().resolve(".pulse-capture-revision"), java.util.UUID.randomUUID().toString());
                 deleteRecursively(target.toPath());
                 move(staging.toPath(), target.toPath());
                 Bukkit.getScheduler().runTask(plugin, () -> { buildLifecycle().release(world); onDone.run(); });

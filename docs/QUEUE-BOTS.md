@@ -13,7 +13,10 @@ and destroys its bots; bots never create unattended matches.
 | Game | Modes | Behaviour |
 |---|---|---|
 | Duels | classic, op, sumo | visible opponents, navigation, ordinary melee |
-| Kit PvP | ffa | visible opponents, melee, normal respawn |
+| Kit PvP | ffa, oitc | visible opponents, melee/respawn; OITC real arrows, bow draw, finite ammunition and sword fallback |
+| Prop Hunt | classic, infection | supported-cell hiding and normal grid locking; seekers use visible motion, short memory, audible clues and ordinary reach inspections |
+| Skywars | solo, doubles, insane and team-size variants | nearby chest looting, finite gear, checked height steps/bridges, melee and bows |
+| Bedwars | duos, quads and team-size variants | real resource pickup, finite purchases, bounded bed defence/bridges, public bed objectives and combat |
 | King of the Hill | solo, teams | capture hill, fight visible opponents, respawn |
 | Dodgeball preview | solo, teams | approach/retreat and the same projectile throw as humans |
 | Villager Defense | easy, hard | defend objective, fight wave enemies |
@@ -24,7 +27,7 @@ and destroys its bots; bots never create unattended matches.
 | TNT Run | classic | continuous routes across surviving floor; no double-jump controller yet |
 | Volcano | classic, eruption | climb reachable ground, avoid lava and visible falling rocks |
 
-Other modes stay human-only. In particular, no Prop Hunt, racing, building, OITC,
+Other modes stay human-only. In particular, no racing, building, Crystal/Mace Duels,
 parkour or TNT Run Double Jump bot controller is claimed. The table describes the
 prepared source, not the deployed server; consult the tracker for live status. Bots do not discover hidden players,
 attack through walls, teleport out of stuck paths, or receive custom damage.
@@ -50,14 +53,55 @@ bots:
   wait-seconds: 30
   max-per-match: 31
   max-total: 64
-  difficulty: normal
+  difficulty: adaptive
 ```
 
-The fill target is half the mode/map capacity, rounded up, or the full capacity
-when its maximum is four or fewer. The playable minimum can raise that target.
-Configured match/server caps still apply; existing installation caps are not
-silently increased by an update. Difficulty may be overridden per arena with
-`bot-difficulty: easy|normal|hard`.
+For maps above four slots, bots fill up to **floor(capacity / 2)** alongside the
+human players, bounded by free seats. For capacities of four or fewer, retain the
+small-lobby exception and fill every remaining seat. Match/server caps still apply;
+if they cannot satisfy the minimum, no bots are added. Joining humans reclaim bot
+seats during waiting/countdown; there is no mid-round replacement.
+
+| Capacity | Humans | Bots (if caps allow) | Competitive eligibility |
+|---|---|---|---|
+| 12 | 5 | 6 | No |
+| 12 | 6 | 6 | Yes |
+| 12 | 7 | 5 | Yes |
+| 4 | 1 | 3 | No |
+| 4 | 2 | 2 | No |
+| 4 | 3 | 1 | Yes |
+| 2 | 1 | 1 | No |
+
+Difficulty can be overridden per arena with `bot-difficulty: adaptive|easy|normal|hard`.
+The Setup Book cycles these choices. Existing explicit `normal` settings remain
+fixed until changed; updating the jar does not silently rewrite arena configuration.
+
+## Adaptive calibration
+
+`adaptive` uses separate per-player/per-mode results in `bot-skill.yml`, from
+completed human and bot-assisted rounds. Existing competitive totals mix variants,
+so they are not imported. New profiles start at Normal. At least six completed
+rounds are required, with an eight-result neutral prior and the latest 40 results
+retained. Results are normalised by the expected chance of winning (team count or
+FFA roster; co-op and Prop Hunt use an initial 50% baseline). This is a first-pass
+calibration, not a measured matchmaking rating.
+
+The group's lower median controls general navigation and objectives. A bot facing
+a visible opponent uses that opponent's frozen round profile for attack cadence
+and accuracy. No health, damage, reach, hidden-location access or preferential
+victim selection is added. Fixed arena difficulty overrides adaptation.
+
+Forced, drawn, zero-duration and abandoned rounds do not train profiles. Team
+wins include eliminated teammates; co-op outcomes follow mission success; Infection
+credits the original role rather than rewarding a caught hider's conversion. Bot
+records are never persisted as players. Storage is local to the minigames backend;
+shared SQL calibration is future work. Real client tests must tune the baseline,
+difficulty thresholds before a broad rollout.
+
+Custom block Prop Hunt bots require PulseContent Paper **0.5.4**'s explicit NPC prop
+API, plus block snapping. The paired API verifies the owned Citizens actor while
+preserving real viewers' resource-pack checks. Older renderers refuse custom bot
+fills. Bots do not yet use Prop Hunt power-ups or authored hiding routes.
 
 All humans in a match must be trial members. An empty canary list admits nobody.
 `features.broad: true` is a deliberate wider rollout. In each approved arena's
@@ -68,10 +112,27 @@ after fixing its cause. Turning `bots.enabled` off ends bot rounds and removes
 bots. Match and server caps are bounded; when there is insufficient capacity to
 reach the normal minimum, no partial bot fill starts an undersized match.
 
-A match that starts with bots stays unranked even if they are later removed.
-Competitive records and match kill/win/participation tokens are suppressed for
-all contestants. Human daily and playtime bonuses remain available. Bots receive
-no persistent economy, stats, inventory snapshot or lobby daily bonus.
+Competitive eligibility freezes at round start from the **actual starting roster**.
+Maps above four slots need humans to be at least half that roster; maps with four
+or fewer need a strict human majority. Eligible rounds use the existing competitive
+stats and match kill/win/participation rewards. Other rounds suppress those records
+and rewards. Departures cannot change eligibility. Ordinary daily/playtime bonuses
+are unaffected. Bots never receive persistent stats or rewards.
+
+PulseNetwork 0.1.4 adds proxy-owned parties and group joins to advertised queues.
+Without that helper, parties remain backend-local. The game menu exposes commands
+and typed accept/deny instructions for Bedrock. Team modes reject parties larger than the
+chosen team size; solo parties may play as opponents. Matchmaking skips queues
+whose human groups cannot fit intact. Whole-party admission reclaims enough bot
+seats before anyone moves, serialises reentrant admissions and rechecks membership
+and connection state. Cancelled or failed joins roll back newly attempted members;
+they do not restore a departed source match. Rounds cannot start inside admission.
+
+Teams pack whole parties first, then use coarse calibrated strength to distribute
+experienced players and bots. Fixed bot difficulty overrides are reflected in that
+strength. The bounded allocator can use additional configured teams when necessary;
+it waits rather than splitting an unplaceable party. This is a heuristic balance,
+not a guarantee of equal teams. See `PLAYTEST-WORKFLOW.md` for network party limits.
 
 Flag owner: Aurora. Review date: 2026-10-25. Remove the canary restriction only
 after real human sessions cover every enabled mode, seat replacement, party/team
@@ -105,3 +166,52 @@ for the next KitPvP spawn, never applied mid-fight. One in the Chamber keeps its
 fixed loadout. On servers with another `/kits` command, use `/pulsekits` explicitly.
 Check selecting, death/respawn, switching back to the default and reconnecting on
 both clients. More Duels presets and shop inventory are separate follow-ups.
+
+## Candidate acceptance checklist (14 October)
+
+1. Verify the queue and eligibility examples above, including a human replacing a bot during countdown.
+2. Check a party join, stale invite, membership change while queued, and a party too large for a team.
+3. Use fixed Easy/Normal/Hard first to assess differences; then Adaptive with established profiles.
+4. OITC: verify bow draw, arrow consumption, one-shot/arrow-return rules, melee fallback and respawn on both clients.
+5. Prop Hunt: test both roles and Infection, visible motion versus stationary cover, heartbeat search, locking and viewer packs on both clients.
+6. End/leave concurrent rounds and confirm NPCs, visuals and instance worlds are cleaned up.
+
+This candidate is not deployed. Crystal/Mace, racing and building
+controllers remain future work; maps and player acceptance are still needed for the
+existing controllers too.
+
+## Current bot diagnostics
+
+Admins can use `/pulse bots inspect` for a bounded list, then
+`/pulse bots inspect <name-or-UUID>` for the current objective, difficulty, visible
+target or destination, route, state, reason and elapsed time since movement progress.
+The view contains no player win/loss history. A stalled report means observed lack
+of progress, not a claimed diagnosis of Citizens' internal pathfinder. Skywars
+also reports missing blocks, placement refusal, unsafe terrain and bridge budget.
+
+## Skywars map and acceptance requirements
+
+Use level island walkways and give each starting island a chest visible within
+4.5 blocks of its bot spawn. Loot is generated by the same ordinary chest rules;
+bots receive no guaranteed equipment or free bridge blocks. Authored patrol/routes
+can identify safe landing points on other islands. Without a route, bots use the
+normal spawn patrol and actually visible opponents as goals. They inspect only
+loaded nearby chest blocks and do not read hidden chests across the map.
+
+A bot takes finite chest items through inventory opening/click permission checks,
+equips better material-tier armour and swords, and spends planks/cobblestone on
+one adjacent bridge cell at a time. Block placement is cancellable and rolled back
+when refused. `settings.bot-bridge-limit` defaults to 64 placements per bot per round,
+clamped 0–128. Existing map bot opt-ins and trial access remain required.
+
+Movement now includes checked adjacent height changes, straight stairs/slabs and
+normal jump physics, plus finite bow ammunition. Unsafe routes still stop. No
+teleport rescue, long void jumps, food/potion tactics or pearl use is claimed.
+Material tier selection does not compare enchantments.
+Actual Citizens movement, fair combat, chest protection interoperability, refill,
+bridge exhaustion, multiple teams and instance cleanup require Java/Bedrock tests.
+
+
+The latest party, results, rejoin and private practice commands are documented in
+[PLAYTEST-WORKFLOW.md](PLAYTEST-WORKFLOW.md). Its island-game checks also cover the
+new Bedwars controller and expanded Skywars movement/ranged actions.

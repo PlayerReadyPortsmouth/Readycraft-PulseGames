@@ -47,6 +47,25 @@ public final class PulseContentBridge implements AutoCloseable {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private <T> java.util.concurrent.CompletionStage<T> progressionCall(String method,Class<?>[] types,Object... args) {
+        try {
+            Plugin provider=plugin.getServer().getPluginManager().getPlugin("PulseContent");
+            if(provider==null || !provider.isEnabled() || !Integer.valueOf(1).equals(provider.getClass().getMethod("matchProgressionApiVersion").invoke(provider)))
+                throw new IllegalStateException("Progression provider unavailable");
+            Object result=provider.getClass().getMethod(method,types).invoke(provider,args);
+            if(!(result instanceof java.util.concurrent.CompletionStage<?> stage))throw new IllegalStateException("Missing progression acknowledgement");
+            return (java.util.concurrent.CompletionStage<T>)stage;
+        }catch(ReflectiveOperationException|RuntimeException|LinkageError failure){return java.util.concurrent.CompletableFuture.failedFuture(failure);}
+    }
+    public java.util.concurrent.CompletionStage<Boolean> recordCompetitiveMatch(uk.co.playerready.pulsegames.core.progression.ProgressionOutbox.Result row) {
+        return progressionCall("recordCompetitiveMatch",new Class<?>[]{Plugin.class,UUID.class,UUID.class,String.class,boolean.class,int.class,String.class},
+                plugin,row.player(),row.match(),row.game(),row.won(),row.kills(),row.event());
+    }
+    public java.util.concurrent.CompletionStage<List<String>> matchProgression(UUID player) {
+        return progressionCall("matchProgression",new Class<?>[]{Plugin.class,UUID.class},plugin,player);
+    }
+
     /** A user-facing reason, or null when every participant and configured prop is ready. */
     public String startProblem(List<String> props, List<Player> viewers) {
         if (props.isEmpty()) return "Custom Prop Hunt has no configured PulseContent props.";
@@ -112,6 +131,22 @@ public final class PulseContentBridge implements AutoCloseable {
     public boolean propVisualsReady() {
         try { api().props(); return true; }
         catch (ReflectiveOperationException | IllegalStateException e) { return false; }
+    }
+    public boolean npcPropVisualsReady() {
+        try { Api current = api(); return Integer.valueOf(1).equals(current.provider.getClass().getMethod("npcPropVisualsApiVersion").invoke(current.provider)); }
+        catch (ReflectiveOperationException | IllegalStateException e) { return false; }
+    }
+    public PropVisual createNpcProp(String model, Player participant, org.bukkit.Location position, Collection<UUID> viewers, float scale) {
+        try {
+            Api current = api();
+            if (!npcPropVisualsReady()) throw new IllegalStateException("NPC props unavailable");
+            Object result = current.provider.getClass().getMethod("createNpcPropVisual", Plugin.class, String.class,
+                    Player.class, org.bukkit.Location.class, Collection.class, float.class)
+                    .invoke(current.provider, plugin, model, participant, position, List.copyOf(viewers), scale);
+            if (!(result instanceof AutoCloseable visual)) throw new IllegalStateException("Missing NPC prop visual");
+            OwnedVisual owned = new OwnedVisual(visual); handles.add(owned);
+            return new PropVisual(current, owned);
+        } catch (ReflectiveOperationException e) { throw new IllegalStateException("Cannot create NPC prop visual", e); }
     }
     public PropVisual createProp(String model, Player participant, org.bukkit.Location position, Collection<UUID> viewers, float scale) {
         try {

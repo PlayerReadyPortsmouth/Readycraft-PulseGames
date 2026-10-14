@@ -26,7 +26,18 @@ commands:
   shop:
     description: Open the token shop.
     aliases: [tokens, cosmetics]
+  challenges:
+    description: View competitive minigame challenges and cosmetic rewards.
+    usage: /challenges
+  results:
+    description: View your latest match and choose what to do next.
+    usage: /results [again|games|return]
   pulse:
     description: PulseGames admin commands.
-    usage: /pulse <list|start|end|setlobby|reload>
+    usage: /pulse <setup|maps|practice|bots|list|start|end|setlobby|reload>
     permission: pulsegames.admin
+
+permissions:
+  pulsegames.maps.approve:
+    description: Record human visual map review evidence separately from map setup access.
+    default: op

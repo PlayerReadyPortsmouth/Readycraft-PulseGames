@@ -14,8 +14,8 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /** Owns ephemeral contestants and bounded game-specific decisions, all on the server thread. */
 public final class BotService implements AutoCloseable {
-    private static final Set<String> SUPPORTED = Set.of("duels:classic", "duels:op", "duels:sumo",
-            "koth:solo", "koth:teams", "kitpvp:ffa", "dodgeball:solo", "dodgeball:teams",
+    private static final Set<String> SUPPORTED = Set.of("duels:classic", "duels:op", "duels:sumo", "duels:crystal", "duels:mace",
+            "koth:solo", "koth:teams", "kitpvp:ffa", "kitpvp:oitc", "prophunt:classic", "prophunt:infection", "skywars:solo", "skywars:doubles", "skywars:insane", "bedwars:duos", "bedwars:quads", "dodgeball:solo", "dodgeball:teams",
             "villagerdefense:easy", "villagerdefense:hard",
             "readyplayerz:classic", "readyplayerz:frenzy", "blockparty:classic", "blockparty:hardcore",
             "tntrun:classic", "volcano:classic", "volcano:eruption", "avalanche:classic", "spleef:classic", "spleef:decay", "spleef:splegg");
@@ -23,15 +23,24 @@ public final class BotService implements AutoCloseable {
         final GameInstance game;
         final BotActor actor;
         Location lastPosition, destination, progressPosition;
-        long progressTick;
+        long progressTick, lastStallReportTick;
         Player entity;
         long nextAttack, nextPath;
+        int routeIndex;
+        Location recovery;
+        long recoverUntil;
+        String objective = "Waiting for the round", target = "", route = "", state = "WAITING", reason = "";
+        BotDifficulty difficulty = BotDifficulty.NORMAL;
+        boolean stalled;
         Slot(GameInstance game, BotActor actor) { this.game = game; this.actor = actor; }
     }
     private final PulseGamesPlugin plugin;
     private final Map<UUID, Slot> slots = new LinkedHashMap<>();
     private final Map<GameInstance, Integer> waiting = new HashMap<>();
     private BotProvider provider;
+    private AdaptiveBotSkillStore skills;
+    private final Map<GameInstance, SkillRound> skillRounds = new HashMap<>();
+    private record SkillRound(String mode, Map<UUID, BotDifficulty> levels, BotDifficulty group, double expected) {}
     private boolean failed;
     private int sequence;
     private long tick;
@@ -42,6 +51,7 @@ public final class BotService implements AutoCloseable {
     }
 
     public void start() {
+        skills = new AdaptiveBotSkillStore(new java.io.File(plugin.getDataFolder(), "bot-skill.yml"), plugin.getLogger());
         if (plugin.getConfig().getBoolean("bots.enabled", false)) connect();
         plugin.getServer().getScheduler().runTaskTimer(plugin, this::think, 5L, 5L);
     }
@@ -55,6 +65,11 @@ public final class BotService implements AutoCloseable {
     BotService(PulseGamesPlugin plugin, BotProvider provider, java.util.function.IntUnaryOperator random) {
         this(plugin, provider);
         this.random = random;
+    }
+
+    BotService(PulseGamesPlugin plugin, BotProvider provider, AdaptiveBotSkillStore skills) {
+        this(plugin, provider);
+        this.skills = skills;
     }
 
     private void connect() {
@@ -78,11 +93,98 @@ public final class BotService implements AutoCloseable {
                 + "; active=" + slots.size() + "; supported=" + String.join(", ", new TreeSet<>(SUPPORTED));
     }
 
+    public boolean supports(String game, String rules) { return SUPPORTED.contains(game + ":" + rules); }
+
     public boolean eligible(GameInstance game) {
         return plugin.getConfig().getBoolean("bots.enabled", false)
                 && game.arena().settings().getBoolean("bots-enabled", false)
                 && game.players().stream().filter(p -> !isBot(p)).allMatch(plugin::canUseNewFeatures)
-                && SUPPORTED.contains(game.type().id() + ":" + game.mode().rulesId());
+                && SUPPORTED.contains(game.type().id() + ":" + game.mode().rulesId())
+                && (!game.type().id().equals("prophunt") || !plugin.getConfig().getBoolean("content.prophunt.enabled", false)
+                    || plugin.getConfig().getBoolean("content.prophunt.block-snapping", false)
+                        && plugin.content() != null && plugin.content().npcPropVisualsReady());
+    }
+
+    /** Coarse calibration for allocation only; does not expose a player's stored results. */
+    public int teamStrength(GameInstance game, Player player) {
+        if (game.practice()) return game.practiceDifficulty().ordinal() + 1;
+        String key = game.type().id() + ":" + game.mode().id();
+        if (!isBot(player)) return (skills == null ? BotDifficulty.NORMAL : skills.difficulty(player.getUniqueId(), key)).ordinal() + 1;
+        String selection = game.arena().settings().getString("bot-difficulty", plugin.getConfig().getString("bots.difficulty", "adaptive"));
+        if (!"adaptive".equalsIgnoreCase(selection)) return BotDifficulty.parse(selection).ordinal() + 1;
+        var humanLevels = game.players().stream().filter(p -> !isBot(p))
+                .map(p -> skills == null ? BotDifficulty.NORMAL : skills.difficulty(p.getUniqueId(), key)).sorted().toList();
+        return (humanLevels.isEmpty() ? BotDifficulty.NORMAL : humanLevels.get((humanLevels.size() - 1) / 2)).ordinal() + 1;
+    }
+
+    public List<BotDiagnostics.Snapshot> diagnostics() {
+        return slots.values().stream().limit(64).map(slot -> new BotDiagnostics.Snapshot(
+                slot.actor.player().getUniqueId(), slot.actor.player().getName(), slot.game.id(), slot.objective,
+                slot.difficulty, slot.target, slot.route, slot.state, diagnosticReason(slot),
+                slot.progressPosition == null ? 0 : Math.max(0, tick - slot.progressTick))).toList();
+    }
+
+    private String diagnosticReason(Slot slot) {
+        String detail;
+        if(slot.game.practice()) detail="Fixed practice difficulty; this round does not train adaptive history.";
+        else {
+            String selection=slot.game.arena().settings().getString("bot-difficulty",plugin.getConfig().getString("bots.difficulty","adaptive"));
+            Player target=slot.game.players().stream().filter(p->!isBot(p) && p.getName().equals(slot.target)).findFirst().orElse(null);
+            if(!"adaptive".equalsIgnoreCase(selection)) detail="Fixed difficulty override: "+selection;
+            else if(target==null || skills==null) detail="Adaptive group difficulty; no visible human target selected.";
+            else detail=skills.calibration(target.getUniqueId(),slot.game.type().id()+":"+slot.game.mode().id()).reason();
+        }
+        return slot.reason.isBlank()?detail:slot.reason+"; "+detail;
+    }
+
+    /** Freeze calibration for the round; profiles never change during a fight. */
+    public void onRoundStart(GameInstance game) {
+        if (skills == null || game.practice()) return;
+        String mode = game.type().id() + ":" + game.mode().id();
+        Map<UUID, BotDifficulty> levels = new HashMap<>();
+        for (Player p : game.players()) if (!isBot(p)) levels.put(p.getUniqueId(), skills.difficulty(p.getUniqueId(), mode));
+        var sorted = levels.values().stream().sorted().toList();
+        BotDifficulty group = sorted.isEmpty() ? BotDifficulty.NORMAL : sorted.get((sorted.size() - 1) / 2);
+        long teams = game.teams().stream().filter(t -> !t.members().isEmpty()).count();
+        double expected = game.logic().cooperative() || game.type().id().equals("prophunt") ? 0.5
+                : teams > 1 ? 1.0 / teams : 1.0 / Math.max(2, game.players().size());
+        skillRounds.put(game, new SkillRound(mode, Map.copyOf(levels), group, expected));
+    }
+
+    public BotDifficulty difficultyFor(GameInstance game, Player opponent) {
+        if (game.practice()) return game.practiceDifficulty();
+        String selection = game.arena().settings().getString("bot-difficulty",
+                plugin.getConfig().getString("bots.difficulty", "adaptive"));
+        if (!"adaptive".equalsIgnoreCase(selection)) return BotDifficulty.parse(selection);
+        SkillRound round = skillRounds.get(game);
+        if (round == null) return BotDifficulty.NORMAL;
+        return opponent == null ? round.group : round.levels.getOrDefault(opponent.getUniqueId(), round.group);
+    }
+
+    /** Practice history is separate from competitive records, tokens and rewards. */
+    public void onRoundEnd(GameInstance game, List<Player> winners, String reason) {
+        SkillRound round = skillRounds.remove(game);
+        if (game.practice() || round == null || skills == null || game.state() != GameState.RUNNING || game.gameTime() < 1
+                || reason == null || reason.equals("forced") || reason.contains("draw") || reason.equals("no-seekers")
+                || winners.isEmpty() && !game.logic().cooperative()) return;
+        Set<UUID> won = new HashSet<>();
+        winners.forEach(p -> won.add(p.getUniqueId()));
+        // A departure invalidates the sample: winning an abandoned lobby is not a skill measurement.
+        Set<UUID> present = new HashSet<>();
+        game.players().stream().filter(p -> !isBot(p)).forEach(p -> present.add(p.getUniqueId()));
+        if (!present.equals(round.levels.keySet())) return;
+        for (Player player : game.players()) {
+            UUID id = player.getUniqueId();
+            if (!present.contains(id)) continue;
+            boolean success = won.contains(id);
+            if (game.logic() instanceof uk.co.playerready.pulsegames.games.prophunt.PropHuntGame prop)
+                success = prop.botSkillWin(player, winners);
+            else if (game.logic().cooperative()) success = !winners.isEmpty();
+            else if (game.mode().isTeams() && game.teamOf(player) != null)
+                success = winners.stream().anyMatch(game.teamOf(player)::contains);
+            skills.record(id, round.mode, success, round.expected);
+        }
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, skills::save);
     }
 
     /** Called once per second by the instance before its lobby state transition. */
@@ -104,11 +206,12 @@ public final class BotService implements AutoCloseable {
         connect();
         if (provider == null || failed) return;
         int elapsed = waiting.merge(game, 1, Integer::sum);
-        if (elapsed < Math.max(1, plugin.getConfig().getInt("bots.wait-seconds", 30))) return;
+        if (elapsed < (game.practice() ? 2 : Math.max(1, plugin.getConfig().getInt("bots.wait-seconds", 30)))) return;
         int current = count(game);
         int desired = QueueFillPolicy.desiredBots(game.humanCount(), game.minPlayers(), game.maxPlayers(),
                 Math.max(0, Math.min(63, plugin.getConfig().getInt("bots.max-per-match", 31))),
                 Math.max(0, Math.min(64, plugin.getConfig().getInt("bots.max-total", 64))) - slots.size() + current);
+        if (game.practice()) desired = Math.min(desired, game.practiceBotTarget());
         while (count(game) > desired) removeOne(game);
         for (int i = count(game); i < desired; i++) {
             try {
@@ -155,6 +258,7 @@ public final class BotService implements AutoCloseable {
     }
     public void forget(GameInstance game) {
         waiting.remove(game);
+        skillRounds.remove(game);
         for (var entry : Map.copyOf(slots).entrySet()) if (entry.getValue().game == game) destroy(entry.getKey());
     }
 
@@ -195,6 +299,9 @@ public final class BotService implements AutoCloseable {
         if (game.state() != GameState.RUNNING || game.frozen() || !game.isActive(bot) || !game.logic().acceptsDeath(bot)) {
             slot.actor.stopNavigation();
             slot.lastPosition = null;
+            slot.state = game.state() == GameState.RUNNING ? "PAUSED" : game.state().name();
+            slot.objective = game.frozen() ? "Waiting for start countdown" : "Waiting / inactive contestant";
+            slot.target = ""; slot.route = "";
             return;
         }
         Location here = bot.getLocation();
@@ -214,16 +321,26 @@ public final class BotService implements AutoCloseable {
         }
         if (slot.destination != null && slot.destination.getWorld().equals(here.getWorld()) && slot.destination.distanceSquared(here)>9) {
             if (slot.progressPosition==null || !slot.progressPosition.getWorld().equals(here.getWorld()) || slot.progressPosition.distanceSquared(here)>1) {
-                slot.progressPosition=here.clone();slot.progressTick=tick;
-            } else if (tick-slot.progressTick>=300) {
-                game.note("bot-navigation-stalled", "No block of progress toward a distant goal for 15 seconds");slot.progressTick=tick;
+                slot.progressPosition=here.clone();slot.progressTick=tick;slot.stalled=false;
+            } else if (tick-slot.progressTick>=300 && tick-slot.lastStallReportTick>=300) {
+                game.note("bot-navigation-stalled", "No block of progress toward a distant goal for 15 seconds");slot.lastStallReportTick=tick;slot.stalled=true;
+                if (!game.type().id().equals("skywars") && !game.type().id().equals("bedwars") && (!(game.logic() instanceof BotMovement) || game.type().id().equals("prophunt"))) {
+                    Location recovery = BotNavigationHints.nearestSafe(game, here, "bot-recovery-points");
+                    if (recovery != null && recovery.distanceSquared(here) <= 144 && recovery.distanceSquared(here) > 1) {
+                        slot.recovery = recovery; slot.recoverUntil = tick + 100; slot.nextPath = 0;
+                    }
+                }
             }
-        } else {slot.progressPosition=null;slot.progressTick=tick;}
+        } else {slot.progressPosition=null;slot.progressTick=tick;slot.stalled=false;}
         slot.lastPosition = here.clone();
         if (game.state() != GameState.RUNNING || !game.isActive(bot)) return;
-        BotDifficulty difficulty = BotDifficulty.parse(game.arena().settings().getString("bot-difficulty",
-                plugin.getConfig().getString("bots.difficulty", "normal")));
+        BotDifficulty difficulty = difficultyFor(game, null);
+        slot.difficulty = difficulty; slot.target = "";
+        slot.state = slot.stalled ? "STALLED" : "ACTIVE";
+        slot.reason = slot.stalled ? "No progress for 15 seconds; check route clearance and reachability" : "";
+        slot.objective = "Looking for an objective";
         if (game.logic() instanceof BotMovement movement) {
+            slot.objective = "Following " + game.type().id() + " controller";
             movement.botTick(bot, tick, difficulty);
             if (game.state() != GameState.RUNNING || !game.isActive(bot)) return;
             navigate(slot, here, movement.botDestination(bot), difficulty);
@@ -239,10 +356,13 @@ public final class BotService implements AutoCloseable {
                 : game.alivePlayers().stream()
                 .filter(p -> !p.equals(bot) && game.isActive(p) && p.getWorld().equals(here.getWorld()))
                 .filter(p -> game.teamOf(bot) == null || !game.teamOf(bot).contains(p))
-                .filter(p -> here.distanceSquared(p.getLocation()) <= 24 * 24 && bot.hasLineOfSight(p))
+                .filter(p -> bot.canSee(p) && !p.isInvisible() && here.distanceSquared(p.getLocation()) <= 24 * 24 && bot.hasLineOfSight(p))
                 .min(Comparator.comparingDouble(p -> here.distanceSquared(p.getLocation()))).orElse(null);
         Location goal = null;
         if (enemy != null) {
+            difficulty = difficultyFor(game, enemy instanceof Player target ? target : null);
+            slot.difficulty = difficulty; slot.target = enemy.getName();
+            slot.objective = "Engaging a visible opponent"; slot.route = "";
             double distance = here.distanceSquared(enemy.getLocation());
             slot.actor.face(enemy.getEyeLocation());
             if (game.logic() instanceof DodgeballGame dodgeball) {
@@ -254,9 +374,17 @@ public final class BotService implements AutoCloseable {
                 if (distance > 9 * 9) goal = enemy.getLocation();
                 else if (distance > 0.01 && distance < 4 * 4) goal = here.clone().add(here.toVector().subtract(enemy.getLocation().toVector()).normalize().multiply(3));
             } else {
-                if (distance <= 2.8 * 2.8 && tick >= slot.nextAttack) {
+                boolean handled = game.logic() instanceof uk.co.playerready.pulsegames.games.kitpvp.KitPvpGame kit
+                        && kit.botCombat(bot, enemy, tick, difficulty);
+                if (!handled && game.logic() instanceof uk.co.playerready.pulsegames.games.duels.DuelsGame duels)
+                    handled = duels.botCombat(bot, enemy, tick, difficulty);
+                if (!handled && game.logic() instanceof uk.co.playerready.pulsegames.games.skywars.SkywarsGame sky)
+                    handled = sky.botCombat(bot, enemy, tick, difficulty);
+                if (!handled && game.logic() instanceof uk.co.playerready.pulsegames.games.bedwars.BedwarsGame bed)
+                    handled = bed.botCombat(bot, enemy, tick, difficulty);
+                if (!handled && distance <= 2.8 * 2.8 && tick >= slot.nextAttack) {
                     if (random.applyAsInt(100) < difficulty.accuracy) {
-                        if (objectives != null) selectSword(bot);
+                        if (objectives != null || game.type().id().equals("skywars") || game.type().id().equals("bedwars")) selectSword(bot);
                         bot.swingMainHand();
                         if (game.mode().combatStyle() != GameMode.CombatStyle.MODERN || bot.getAttackCooldown() >= 0.9f)
                             bot.attack(enemy);
@@ -268,25 +396,73 @@ public final class BotService implements AutoCloseable {
         }
         if (game.type().id().equals("koth") && (enemy == null || here.distanceSquared(enemy.getLocation()) > 6 * 6)) {
             var hill = game.arena().region("hill");
-            if (hill != null) goal = hill.center(game.world());
+            if (hill != null) { goal = hill.center(game.world()); slot.objective = "Capturing the hill"; }
         }
         if (goal == null && enemy == null) {
-            goal = objectives != null ? objectives.botGuardPoint() : game.arena().spawn((int) ((tick / 100 + bot.getEntityId()) % Math.max(1, game.arena().spawnCount())), game.world());
+            slot.objective = objectives != null ? "Guarding the objective" : "Patrolling";
+            goal = objectives != null ? objectives.botGuardPoint() : patrolDestination(game, bot);
+            if (goal == null) goal = game.arena().spawn((int) ((tick / 100 + bot.getEntityId()) % Math.max(1, game.arena().spawnCount())), game.world());
+        }
+        if (game.logic() instanceof uk.co.playerready.pulsegames.games.skywars.SkywarsGame skywars) {
+            goal = skywars.botObjective(bot, goal, tick, difficulty);
+            slot.objective = skywars.botStatus(bot);
+            if (goal == null && enemy != null && here.distanceSquared(enemy.getLocation()) <= 2.8 * 2.8)
+                slot.objective = "Fighting a visible opponent at melee range";
+            else if (goal == null) { slot.state = "WAITING_FOR_SAFE_STEP"; slot.reason = slot.objective; }
+        }
+        if (game.logic() instanceof uk.co.playerready.pulsegames.games.bedwars.BedwarsGame bedwars) {
+            goal = bedwars.botObjective(bot, goal, tick, difficulty);
+            slot.objective = bedwars.botStatus(bot);
+            if (goal == null && enemy != null && here.distanceSquared(enemy.getLocation()) <= 2.8 * 2.8)
+                slot.objective = "Fighting a visible opponent at melee range";
+            else if (goal == null) { slot.state = "WAITING_FOR_SAFE_STEP"; slot.reason = slot.objective; }
+        }
+        if (game.logic() instanceof uk.co.playerready.pulsegames.games.duels.DuelsGame duels
+                && Set.of("crystal", "mace").contains(game.mode().rulesId())) {
+            goal = duels.botObjective(bot, goal);
+            slot.objective = duels.botStatus(bot);
         }
         navigate(slot, here, goal, difficulty);
     }
 
+    /** Optional ordered map hints, only used when the controller has no immediate objective. */
+    public Location patrolDestination(GameInstance game, Player bot) {
+        Slot slot = slots.get(bot.getUniqueId());
+        if (slot == null) return null;
+        List<String> routes = game.arena().settings().getKeys(false).stream()
+                .filter(k -> k.startsWith("bot-route-")).sorted().limit(32).toList();
+        slot.route = routes.isEmpty() ? "bot-patrol-points" : routes.get(Math.floorMod(bot.getEntityId(), routes.size()));
+        List<Location> points = routes.isEmpty() ? List.of() : BotNavigationHints.points(game,
+                routes.get(Math.floorMod(bot.getEntityId(), routes.size())));
+        if (points.size() < 2) { points = BotNavigationHints.points(game, "bot-patrol-points"); slot.route = "bot-patrol-points"; }
+        if (points.isEmpty()) { slot.route = ""; return null; }
+        int index = Math.floorMod(slot.routeIndex, points.size());
+        if (bot.getLocation().distanceSquared(points.get(index)) < 1) index = (index + 1) % points.size();
+        slot.routeIndex = index;
+        return points.get(index).clone();
+    }
+
     private void navigate(Slot slot, Location here, Location goal, BotDifficulty difficulty) {
+        boolean skywars = slot.game.logic() instanceof uk.co.playerready.pulsegames.games.skywars.SkywarsGame
+                || slot.game.logic() instanceof uk.co.playerready.pulsegames.games.bedwars.BedwarsGame;
+        boolean precise = skywars || slot.game.logic() instanceof BotMovement;
+        if (slot.recovery != null) {
+            if (tick >= slot.recoverUntil || !here.getWorld().equals(slot.recovery.getWorld()) || here.distanceSquared(slot.recovery) < 1)
+                slot.recovery = null;
+            else if (goal != null) { goal = slot.recovery; slot.objective = "Walking to a recovery point"; slot.route = "bot-recovery-points"; }
+            else slot.recovery = null;
+        }
+        if (goal != null && slot.target.isEmpty()) slot.target = String.format(Locale.ROOT, "%.1f, %.1f, %.1f", goal.getX(), goal.getY(), goal.getZ());
         if (goal != null && !here.getWorld().equals(goal.getWorld())) {
             slot.actor.stopNavigation();
             slot.destination = null;
             return;
         }
-        if (goal == null || here.distanceSquared(goal) < (slot.game.logic() instanceof BotMovement ? 0.04 : 1)) {
+        if (goal == null || here.distanceSquared(goal) < (precise ? 0.04 : 1)) {
             slot.actor.stopNavigation();
             slot.destination = null;
-        } else if (tick >= slot.nextPath && (slot.destination == null || slot.destination.distanceSquared(goal) > (slot.game.logic() instanceof BotMovement ? 0.01 : 2) || tick % 100 == 0)) {
-            if (slot.game.logic() instanceof BotMovement movement && movement.straightNavigation()) slot.actor.navigateStraight(goal);
+        } else if (tick >= slot.nextPath && (slot.destination == null || slot.destination.distanceSquared(goal) > (precise ? 0.01 : 2) || tick % 100 == 0)) {
+            if (skywars || slot.game.logic() instanceof BotMovement movement && movement.straightNavigation()) slot.actor.navigateStraight(goal);
             else slot.actor.navigate(goal);
             slot.destination = goal.clone();
             slot.nextPath = tick + (slot.game.logic() instanceof BotMovement movement
@@ -315,6 +491,8 @@ public final class BotService implements AutoCloseable {
     @Override public void close() {
         for (UUID id : List.copyOf(slots.keySet())) destroy(id);
         waiting.clear();
+        skillRounds.clear();
+        if (skills != null) skills.save();
         if (provider != null) provider.close();
         provider = null;
     }

@@ -22,7 +22,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
 
     public Commands(PulseGamesPlugin plugin) {
         this.plugin = plugin;
-        for (String name : List.of("play", "party", "lobby", "pulse", "stats", "shop", "pulsekits", "duels")) {
+        for (String name : List.of("play", "party", "lobby", "pulse", "stats", "shop", "pulsekits", "duels", "results", "challenges")) {
             var command = plugin.getCommand(name);
             command.setExecutor(this);
             command.setTabCompleter(this);
@@ -34,7 +34,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
         // Console-capable admin subcommands (map generation needs no player).
         if (command.getName().equalsIgnoreCase("pulse") && args.length >= 1) {
             String sub = args[0].toLowerCase(Locale.ROOT);
-            if (sub.equals("build") || sub.equals("blueprints") || sub.equals("bots") || sub.equals("diagnose")) {
+            if (sub.equals("build") || sub.equals("blueprints") || sub.equals("bots") || sub.equals("diagnose") || sub.equals("maps")) {
                 adminConsole(sender, args);
                 return true;
             }
@@ -48,6 +48,8 @@ public final class Commands implements CommandExecutor, TabCompleter {
             case "party" -> party(player, args);
             case "lobby" -> plugin.playService().leave(player);
             case "stats" -> stats(player);
+            case "challenges" -> plugin.progression().show(player);
+            case "results" -> plugin.results().command(player,args);
             case "duels" -> plugin.duelMenu().open(player);
             case "pulsekits" -> plugin.kitSelection().open(player);
             case "shop" -> plugin.tokenShop().openMain(player);
@@ -101,6 +103,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
     }
 
     private void party(Player player, String[] args) {
+        if (!plugin.parties().localOnly(player) && plugin.networkPartyCommand(player,args)) return;
         if (args.length == 0) {
             player.sendMessage(Text.msg("Usage: <yellow>/party <invite|accept|deny|leave|disband|list|chat>"));
             return;
@@ -149,13 +152,30 @@ public final class Commands implements CommandExecutor, TabCompleter {
             return;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
+            case "maps" -> plugin.maps().handle(sender, java.util.Arrays.copyOfRange(args, 1, args.length));
             case "diagnose" -> {
                 var rows=args.length>1?plugin.diagnostics().report(args[1]):plugin.diagnostics().recent();
                 sender.sendMessage(net.kyori.adventure.text.Component.text(args.length>1?"Match report (latest 20 events):":"Recent match references: /pulse diagnose <reference>"));
                 if(rows.isEmpty()) sender.sendMessage(net.kyori.adventure.text.Component.text("No report in memory. Older reports are in plugins/PulseGames/match-reports."));
                 rows.forEach(row->sender.sendMessage(net.kyori.adventure.text.Component.text(row)));
             }
-            case "bots" -> sender.sendMessage(Text.msg(plugin.bots().status()));
+            case "bots" -> {
+                if (args.length == 1) {
+                    sender.sendMessage(Text.msg(plugin.bots().status()));
+                    return;
+                }
+                if (!sender.hasPermission("pulsegames.admin")) {
+                    sender.sendMessage(Text.msg("<red>No permission."));
+                    return;
+                }
+                if (!args[1].equalsIgnoreCase("inspect") || args.length > 3) {
+                    sender.sendMessage(net.kyori.adventure.text.Component.text("Usage: /pulse bots inspect [bot name or UUID]"));
+                    return;
+                }
+                uk.co.playerready.pulsegames.core.bot.BotDiagnostics.report(plugin.bots().diagnostics(),
+                        args.length == 3 ? args[2] : null).forEach(line ->
+                        sender.sendMessage(net.kyori.adventure.text.Component.text(line)));
+            }
             case "blueprints" -> sender.sendMessage(Text.msg("Blueprints: <yellow>"
                     + String.join(", ", plugin.mapBuilder().available())));
             case "build" -> {
@@ -172,10 +192,12 @@ public final class Commands implements CommandExecutor, TabCompleter {
 
     private void admin(Player player, String[] args) {
         if (args.length == 0) {
-            player.sendMessage(Text.msg("Usage: <yellow>/pulse <setup|shape|build|blueprints|diagnose|world|games|list|arenas|start|end|setlobby|reload>"));
+            player.sendMessage(Text.msg("Usage: <yellow>/pulse <setup|shape|build|blueprints|bots|diagnose|maps|world|games|list|arenas|start|end|setlobby|reload>"));
             return;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
+            case "results" -> plugin.results().command(player, java.util.Arrays.copyOfRange(args, 1, args.length));
+            case "practice" -> plugin.practice().handle(player, java.util.Arrays.copyOfRange(args, 1, args.length));
             case "setup" -> plugin.setup().handle(player, java.util.Arrays.copyOfRange(args, 1, args.length));
             case "shape" -> {
                 if (args.length < 2) {
@@ -282,8 +304,48 @@ public final class Commands implements CommandExecutor, TabCompleter {
                 }
             }
             case "pulse" -> {
+                if (args.length >= 2 && args[0].equalsIgnoreCase("maps")) {
+                    if (!sender.hasPermission("pulsegames.admin")) return List.of();
+                    List<String> choices = List.of();
+                    if (args.length == 2) choices = List.of("list", "check", "report", "export", "register", "revision", "mark");
+                    else if (args.length == 3) choices = plugin.registry().all().stream().map(GameType::id).toList();
+                    else if (args.length == 4 && !args[1].equalsIgnoreCase("list"))
+                        choices = plugin.arenas().all().stream().filter(arena -> arena.gameId().equalsIgnoreCase(args[2])).map(arena -> arena.id()).distinct().toList();
+                    else if (args.length == 5 && args[1].equalsIgnoreCase("mark"))
+                        choices = java.util.Arrays.stream(uk.co.playerready.pulsegames.core.maps.MapReviewStore.Check.values())
+                                .filter(check -> check != uk.co.playerready.pulsegames.core.maps.MapReviewStore.Check.VISUAL || sender.hasPermission("pulsegames.maps.approve"))
+                                .map(check -> check.name().toLowerCase(Locale.ROOT)).toList();
+                    else if (args.length == 6 && args[1].equalsIgnoreCase("mark"))
+                        choices = java.util.Arrays.stream(uk.co.playerready.pulsegames.core.maps.MapReviewStore.Outcome.values()).map(outcome -> outcome.name().toLowerCase(Locale.ROOT)).toList();
+                    String prefix = args[args.length - 1].toLowerCase(Locale.ROOT);
+                    return choices.stream().filter(choice -> choice.toLowerCase(Locale.ROOT).startsWith(prefix)).limit(64).toList();
+                }
+                if (args.length >= 2 && args[0].equalsIgnoreCase("practice")) {
+                    if (!sender.hasPermission("pulsegames.admin")) return List.of();
+                    if (args.length == 2) return List.of("start", "repeat", "end", "report");
+                    if (args[1].equalsIgnoreCase("start")) {
+                        if (args.length == 3) return plugin.registry().all().stream().map(GameType::id).toList();
+                        var type = plugin.registry().get(args[2]);
+                        if (args.length == 4 && type != null) return type.modes().stream().map(GameMode::id).toList();
+                        if (args.length == 5 && type != null) return plugin.arenas().forGame(type.id(),args[3]).stream().map(a -> a.id()).toList();
+                        if (args.length == 6) return List.of("easy", "normal", "hard");
+                    }
+                    return List.of();
+                }
+                if (args.length >= 2 && args[0].equalsIgnoreCase("bots")) {
+                    if (!sender.hasPermission("pulsegames.admin")) return List.of();
+                    if (args.length == 2) return "inspect".startsWith(args[1].toLowerCase(Locale.ROOT)) ? List.of("inspect") : List.of();
+                    if (args.length == 3 && args[1].equalsIgnoreCase("inspect")) {
+                        String prefix = args[2].toLowerCase(Locale.ROOT);
+                        return plugin.bots().diagnostics().stream()
+                                .flatMap(bot -> bot.id() == null ? java.util.stream.Stream.of(bot.name())
+                                        : java.util.stream.Stream.of(bot.name(), bot.id().toString()))
+                                .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(prefix)).distinct().limit(64).toList();
+                    }
+                    return List.of();
+                }
                 if (args.length == 1) {
-                    return List.of("setup", "shape", "build", "blueprints", "bots", "diagnose", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
+                    return List.of("setup", "shape", "build", "blueprints", "bots", "diagnose", "maps", "practice", "results", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
                 }
                 if (args.length == 3 && args[0].equalsIgnoreCase("world")) return List.of("void", "normal");
                 if (args.length == 2 && args[0].equalsIgnoreCase("build")) {
@@ -296,8 +358,8 @@ public final class Commands implements CommandExecutor, TabCompleter {
                     return plugin.shapes().available();
                 }
                 if (args.length == 2 && args[0].equalsIgnoreCase("setup")) {
-                    return List.of("start", "wand", "lobby", "spectator", "addspawn", "clearspawns",
-                            "region", "setloc", "addloc", "set", "check", "validate", "gui", "book", "save", "cancel");
+                    return List.of("start", "wand", "pos1", "pos2", "lobby", "spectator", "addspawn", "clearspawns",
+                            "region", "removeregion", "removespawn", "setloc", "addloc", "removeloc", "clearloc", "set", "check", "validate", "gui", "book", "save", "cancel");
                 }
                 if (args.length == 3 && args[0].equalsIgnoreCase("setup") && args[1].equalsIgnoreCase("start")) {
                     return plugin.registry().all().stream().map(GameType::id).toList();

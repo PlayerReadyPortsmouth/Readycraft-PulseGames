@@ -23,12 +23,23 @@ public final class DuelsGame extends MiniGame {
     private final Map<UUID, UUID> crystalOwners = new HashMap<>();
     private final Map<UUID, Integer> roundWins = new HashMap<>();
     private final java.util.Set<UUID> roundOut = new java.util.HashSet<>();
+    private final DuelBotCombat botCombat;
     private int round = 1;
     private boolean roundOver;
 
     public DuelsGame(GameInstance game) {
         super(game);
+        botCombat = new DuelBotCombat(game, this);
     }
+
+    public boolean botCombat(Player bot, org.bukkit.entity.LivingEntity enemy, long tick,
+            uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty) { return botCombat.combat(bot,enemy,tick,difficulty); }
+    public org.bukkit.Location botObjective(Player bot,org.bukkit.Location proposed) { return botCombat.objective(bot,proposed); }
+    public String botStatus(Player bot) { return botCombat.status(bot); }
+    java.util.Set<UUID> botCrystals() { return java.util.Set.copyOf(crystalOwners.keySet()); }
+    boolean botCombatArea(org.bukkit.Location location) { return inCombatArea(location); }
+    void rememberBotBlock(org.bukkit.block.Block block, org.bukkit.block.BlockState previous) { placedBlocks.putIfAbsent(block.getLocation(),previous); }
+    void forgetBotCrystal(UUID crystal) { crystalOwners.remove(crystal); }
 
     @Override
     public boolean acceptsDeath(Player player) { return !roundOver && !roundOut.contains(player.getUniqueId()); }
@@ -96,7 +107,7 @@ public final class DuelsGame extends MiniGame {
         if (!(event.getEntity() instanceof org.bukkit.entity.EnderCrystal)) return;
         crystalOwners.keySet().removeIf(id -> game.world().getEntity(id) == null);
         if (!isCrystal() || roundOver || !game.isActive(event.getPlayer()) || roundOut.contains(event.getPlayer().getUniqueId())
-                || !inCombatArea(event.getEntity().getLocation()) || crystalOwners.size() >= 128) {
+                || !inCombatArea(event.getEntity().getLocation()) || crystalOwners.size() >= 128 && !crystalOwners.containsKey(event.getEntity().getUniqueId())) {
             event.setCancelled(true); return;
         }
         crystalOwners.put(event.getEntity().getUniqueId(), event.getPlayer().getUniqueId());
@@ -137,6 +148,7 @@ public final class DuelsGame extends MiniGame {
                 && (!isCrystal() || event.getClickedBlock() == null || !inCombatArea(event.getClickedBlock().getLocation()))) event.setCancelled(true);
     }
     private void resetArena() {
+        botCombat.clear();
         if (game.world() != null) {
             crystalOwners.keySet().forEach(id -> { var entity = game.world().getEntity(id); if (entity != null) entity.remove(); });
             game.world().getEntitiesByClass(org.bukkit.entity.Projectile.class).forEach(org.bukkit.entity.Entity::remove);
@@ -190,6 +202,7 @@ public final class DuelsGame extends MiniGame {
     @Override
     public void onQuit(Player player) {
         roundWins.remove(player.getUniqueId());
+        botCombat.forget(player);
     }
 
     @Override

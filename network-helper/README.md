@@ -1,5 +1,19 @@
 # PulseNetwork
 
+## Cross-server parties — prepared draft, not deployed
+
+PulseNetwork **0.1.4** credits **AurorasChaos (on behalf of Player Ready)**. The current draft adds proxy-owned `/party` (also `/networkparty`) invitations, acceptance, list, leave, disband and private party chat. Invitations expire after 60 seconds; parties hold up to eight online players. Java has a clickable invitation; Bedrock can type `/party accept` or `/party deny`. Leaving the proxy removes a member and promotes another leader if needed. Backend transfers preserve membership; proxy restarts do not preserve parties yet.
+
+The leader selects an advertised game through `/queues` or `/joinqueue <id>`. Every party member transfers with their **own** saved origin. The destination receives one authenticated group admission only after everyone arrives. Transfer failure or timeout cancels the group and returns transferred members where possible; late successful transfers also return. The destination rejects conflicting local parties rather than overwriting them. A leader acknowledgement completes the whole proxy request atomically. Game capacity, team packing, preview access and admission remain PulseGames decisions.
+
+This requires matching draft PulseNetwork Velocity/Paper and PulseGames builds. Backend command forwarding uses `PulseNetwork.networkPartyCommand(Player,String[])`; membership snapshots call `PulseGames.networkPartyState(Player,UUID,List)`; admission calls `PulseGames.joinNetworkParty(Player,String,List)`. Signed snapshots refresh every five seconds and permit local menu guards while members are elsewhere. Use `/queues` for cross-server parties; creating a brand-new unadvertised queue directly from another server is not implemented in this increment. Local parties and network parties must not silently overwrite one another.
+
+Reconnects on the destination restore the signed return ticket without re-queuing or forcing a transfer home. PulseGames can retain a waiting seat or allow a spectator rejoin; otherwise normal return polling sends the player home. Missing resume acknowledgement has a 15-second fallback.
+
+Group transfers and source-position restoration still require live Java/Bedrock acceptance. No rollout or restart is authorised by this draft. Existing details below describe the original helper baseline and deployment history, not proof of current live configuration.
+
+## Original baseline
+
 Prepared network helper, not installed on any live server. Three server-side artifacts:
 
 - `paper/build/libs/PulseNetwork-paper-0.1.0.jar`: Paper backends.

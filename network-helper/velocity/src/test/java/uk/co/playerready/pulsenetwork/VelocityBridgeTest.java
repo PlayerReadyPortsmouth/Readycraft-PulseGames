@@ -35,6 +35,29 @@ class VelocityBridgeTest {
     PluginMessageEvent message(String kind,String...fields) {
         return new PluginMessageEvent(source,sender,MinecraftChannelIdentifier.from(Wire.CHANNEL),wire.encode(kind,sender.getUniqueId(),fields));
     }
+    @Test void reconnectToGameResumesReturnTicketWithoutForcingReturn() throws Exception {
+        Class<?> visitClass = Class.forName(VelocityBridge.class.getName() + "$Visit");
+        var ctor = visitClass.getDeclaredConstructors()[0]; ctor.setAccessible(true);
+        String request = UUID.randomUUID().toString();
+        var visits = new java.util.concurrent.ConcurrentHashMap<UUID, Object>();
+        visits.put(sender.getUniqueId(), ctor.newInstance("survival", "minigamestest", request));
+        set(bridge, "visits", visits);
+        set(bridge, "reconnectUntil", new java.util.concurrent.ConcurrentHashMap<>(Map.of(sender.getUniqueId(), System.currentTimeMillis() + 30_000)));
+        source = connection(sender, "minigamestest");
+        var event = mock(com.velocitypowered.api.event.player.ServerPostConnectEvent.class);
+        when(event.getPlayer()).thenReturn(sender);
+        bridge.connected(event);
+        var packet = org.mockito.ArgumentCaptor.forClass(byte[].class);
+        verify(source).sendPluginMessage(any(), packet.capture());
+        var message = new Wire(KEY).decode(packet.getValue()).orElseThrow();
+        assertEquals("RESUMEVISIT", message.kind());
+        assertEquals(List.of(request), message.fields());
+        verify(sender, never()).createConnectionRequest(any());
+        assertFalse(visits.isEmpty());
+        bridge.message(message("RESUMEACK", request));
+        var resumeField = VelocityBridge.class.getDeclaredField("resuming"); resumeField.setAccessible(true);
+        assertTrue(((Map<?, ?>) resumeField.get(bridge)).isEmpty());
+    }
     @Test void approvedChatDeliveredOnlyRemotelyAndReplayRejected() {
         var event=message("CHAT","Hello"); bridge.message(event); bridge.message(event);
         assertFalse(event.getResult().isAllowed());verify(remote,times(1)).sendMessage(any(Component.class));verify(sender,never()).sendMessage(any(Component.class));
