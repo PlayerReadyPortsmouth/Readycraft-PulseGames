@@ -90,6 +90,37 @@ reachability still needs map testing, and full-player clearance remains required
 65 focused tests pass and the candidate jar builds. Prepared only: no merge,
 deployment, map changes or restart. See `docs/MAP-SETUP.md` for syntax and limits.
 
+## 14 October - Parties, team balance, diagnostics and Skywars: draft extension
+
+All four improvements are prepared in draft PR13, with 87 targeted tests passing
+and the PulseGames 0.3.12 jar rebuilt. Nothing deployed or restarted in this pass.
+
+- **Party admission:** whole groups reserve room before joining, reclaim waiting
+  bot seats together, and cannot trigger a start part-way through admission.
+  Cancelled/failed additions roll back. Parties too large for a team are rejected;
+  team placement keeps parties intact. Solo modes still treat friends as opponents.
+- **Team balance:** coarse recent player difficulty and bot strength guide team
+  allocation while preserving parties and configured capacity. It is a bounded
+  balancing heuristic, not a promise of perfectly equal matches.
+- **Diagnostics:** admins can use `/pulse bots inspect [name-or-UUID]` for current
+  objective, difficulty, target/destination, route, progress and stall reason.
+  No player win/loss history is exposed.
+- **Skywars:** solo, doubles, insane and generated team-size variants gain nearby
+  visible chest looting, finite inventory/equipment upgrades, bounded level
+  bridging and ordinary melee. Inventory and placement protections are respected.
+  Flat full-cube paths are required; stairs, mining, bows and advanced item tactics
+  are not implemented. Missing blocks or an unsafe step causes a stop.
+
+Candidate source coverage is now **13/23 games**; deployed coverage remains
+unchanged. Cross-server parties, Crystal/Mace controllers, Bedwars and the other
+remaining game controllers still need work. Earlier dated entries describe their
+state at that checkpoint, not the latest candidate.
+
+Next acceptance: party joins during countdown, failed/cancelled admissions,
+whole-party team placement and mixed skill balance; then Skywars chest protection,
+bridging/exhaustion, movement, team combat and cleanup on Java and Bedrock.
+See `docs/QUEUE-BOTS.md` and `docs/MAP-SETUP.md` for the test and map requirements.
+
 ## Current test-server baseline
 
 - Last verified deployed on 13 October: PulseGames **0.3.11** and PulseContent Paper **0.5.2**. The new bot candidate below is not deployed. Older dated entries are historical checkpoints.
@@ -245,7 +276,7 @@ needed. Do not bypass team/role requirements and call that a completed test.
 | Parkour | No accepted map/test recorded | None | Sprint yes; elimination needs 3 | Builder-authored routes, real jumps and checkpoints |
 | Elytra Racing | No accepted map/test recorded | None | Yes | Flight routes, checkpoint passage, rockets and recovery |
 | PulseKarts | No accepted map/test recorded | None | Yes | Ice track, boat steering, checkpoints, laps and item use |
-| Skywars | No accepted map/test recorded | None | Solo/insane yes; doubles needs 4 | Loot/equip, bridging, safe combat and team tests |
+| Skywars | No accepted map/test recorded | Candidate: loot/equip, level bridging, melee | Solo/insane yes; doubles needs 4 | Flat full-cube maps; chest, bridge, combat and team acceptance |
 | Bedwars | No accepted map/test recorded | None | Duos needs 4; quads needs 8 | Resources, shops, bed defence/destruction, bridging and respawns |
 | Build Battle | No accepted map/test recorded | None | Yes | Theme-aware building in plots, phases and fair voting bots |
 | Death Run | No accepted map/test recorded | None | Classic needs 3; double trouble 4 | Runner routes, Death roles and trap timing |

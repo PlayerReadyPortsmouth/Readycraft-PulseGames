@@ -379,6 +379,7 @@ public final class GameInstance {
         // Only a pre-start lobby may start: replaying a RUNNING/ENDING round re-awards
         // wins and tokens, and a LOADING one has no world to teleport into.
         if (state != GameState.WAITING && state != GameState.COUNTDOWN) return;
+        if (plugin.playService() != null && plugin.playService().admitting(this)) return;
         if (humanCount() == 0) { cleanup(); return; }
         if (mode.isTeams() && teamCount() < 2) {
             state = GameState.WAITING;
@@ -399,7 +400,15 @@ public final class GameInstance {
         }
         if (mode.isTeams()) {
             teams.clear();
-            teams.addAll(TeamAllocator.allocate(players(), mode.teamSize(), teamCount(), plugin.parties()));
+            try {
+                teams.addAll(TeamAllocator.allocate(players(), mode.teamSize(), teamCount(), plugin.parties(),
+                        player -> plugin.bots() == null ? 2 : plugin.bots().teamStrength(this, player)));
+            } catch (IllegalArgumentException noPacking) {
+                state = GameState.WAITING;
+                broadcast("<yellow>Your parties cannot fit together in this map's teams. Choose a larger team mode or another map.");
+                note("team-packing-blocked", noPacking.getMessage());
+                return;
+            }
             if (teams.stream().filter(team -> !team.members().isEmpty()).count() < 2) {
                 teams.clear();
                 state = GameState.WAITING;

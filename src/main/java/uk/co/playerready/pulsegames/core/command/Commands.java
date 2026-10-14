@@ -155,7 +155,23 @@ public final class Commands implements CommandExecutor, TabCompleter {
                 if(rows.isEmpty()) sender.sendMessage(net.kyori.adventure.text.Component.text("No report in memory. Older reports are in plugins/PulseGames/match-reports."));
                 rows.forEach(row->sender.sendMessage(net.kyori.adventure.text.Component.text(row)));
             }
-            case "bots" -> sender.sendMessage(Text.msg(plugin.bots().status()));
+            case "bots" -> {
+                if (args.length == 1) {
+                    sender.sendMessage(Text.msg(plugin.bots().status()));
+                    return;
+                }
+                if (!sender.hasPermission("pulsegames.admin")) {
+                    sender.sendMessage(Text.msg("<red>No permission."));
+                    return;
+                }
+                if (!args[1].equalsIgnoreCase("inspect") || args.length > 3) {
+                    sender.sendMessage(net.kyori.adventure.text.Component.text("Usage: /pulse bots inspect [bot name or UUID]"));
+                    return;
+                }
+                uk.co.playerready.pulsegames.core.bot.BotDiagnostics.report(plugin.bots().diagnostics(),
+                        args.length == 3 ? args[2] : null).forEach(line ->
+                        sender.sendMessage(net.kyori.adventure.text.Component.text(line)));
+            }
             case "blueprints" -> sender.sendMessage(Text.msg("Blueprints: <yellow>"
                     + String.join(", ", plugin.mapBuilder().available())));
             case "build" -> {
@@ -172,7 +188,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
 
     private void admin(Player player, String[] args) {
         if (args.length == 0) {
-            player.sendMessage(Text.msg("Usage: <yellow>/pulse <setup|shape|build|blueprints|diagnose|world|games|list|arenas|start|end|setlobby|reload>"));
+            player.sendMessage(Text.msg("Usage: <yellow>/pulse <setup|shape|build|blueprints|bots|diagnose|world|games|list|arenas|start|end|setlobby|reload>"));
             return;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
@@ -282,6 +298,18 @@ public final class Commands implements CommandExecutor, TabCompleter {
                 }
             }
             case "pulse" -> {
+                if (args.length >= 2 && args[0].equalsIgnoreCase("bots")) {
+                    if (!sender.hasPermission("pulsegames.admin")) return List.of();
+                    if (args.length == 2) return "inspect".startsWith(args[1].toLowerCase(Locale.ROOT)) ? List.of("inspect") : List.of();
+                    if (args.length == 3 && args[1].equalsIgnoreCase("inspect")) {
+                        String prefix = args[2].toLowerCase(Locale.ROOT);
+                        return plugin.bots().diagnostics().stream()
+                                .flatMap(bot -> bot.id() == null ? java.util.stream.Stream.of(bot.name())
+                                        : java.util.stream.Stream.of(bot.name(), bot.id().toString()))
+                                .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(prefix)).distinct().limit(64).toList();
+                    }
+                    return List.of();
+                }
                 if (args.length == 1) {
                     return List.of("setup", "shape", "build", "blueprints", "bots", "diagnose", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
                 }

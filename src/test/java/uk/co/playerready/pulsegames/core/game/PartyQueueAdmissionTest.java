@@ -23,14 +23,16 @@ class PartyQueueAdmissionTest {
         when(plugin.gameAvailable(type)).thenReturn(true);
         GameMode mode = GameMode.ffa("classic", "Classic", 2, 4);
         GameInstance destination = mock(GameInstance.class);
-        when(plugin.instances().findOrCreate(type, mode, 2)).thenReturn(destination);
+        when(plugin.instances().findOrCreate(eq(type), eq(mode), eq(2), any())).thenReturn(destination);
         when(destination.state()).thenReturn(GameState.WAITING);
         when(destination.isParticipant(member)).thenReturn(true);
         when(plugin.instances().byPlayer(member)).thenReturn(destination);
         when(destination.joinable(1)).thenReturn(true);
         when(destination.add(leader)).thenReturn(true);
         new PlayService(plugin).join(leader, type, mode);
-        verify(destination).add(leader);
+        var order = inOrder(plugin.bots(), destination);
+        order.verify(plugin.bots()).makeRoom(destination, 1);
+        order.verify(destination).add(leader);
         verify(destination, never()).add(member);
         verify(destination, never()).remove(member, true);
     }

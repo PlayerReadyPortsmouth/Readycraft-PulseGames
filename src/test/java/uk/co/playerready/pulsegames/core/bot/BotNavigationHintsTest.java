@@ -74,6 +74,17 @@ class BotNavigationHintsTest {
         f.config.set("bot-route-courtyard", List.of("1.5,64,2.5"));
         assertEquals(1, BotNavigationHints.points(f.game,"bot-route-courtyard").size());
     }
+    @Test void thinOrHollowSupportDoesNotQualifyAsSafeHint() {
+        var f = new Fixture(); f.points("1.5,64,2.5");
+        Block floor = mock(Block.class);
+        when(floor.getType()).thenReturn(Material.OAK_TRAPDOOR);
+        when(floor.getBoundingBox()).thenReturn(new BoundingBox(1,63,2,2,64,3));
+        when(f.world.getBlockAt(1,63,2)).thenReturn(floor);
+        assertTrue(BotNavigationHints.points(f.game,"bot-patrol-points").isEmpty());
+        when(floor.getType()).thenReturn(Material.OAK_STAIRS);
+        assertTrue(BotNavigationHints.points(f.game,"bot-patrol-points").isEmpty());
+    }
+
     @Test void nearestUsesInstanceWorldRejectsWrongWorldAndRevalidatesChangedTerrain() {
         var f = new Fixture(); f.points("1.5,64,2.5", "9.5,64,2.5");
         assertEquals(9.5, BotNavigationHints.nearestSafe(f.game,new Location(f.world,8,64,2),"bot-patrol-points").getX());

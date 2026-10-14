@@ -74,9 +74,15 @@ public final class BotNavigationHints {
                 if (block.isLiquid() || HAZARDS.contains(block.getType())
                         || (!block.isPassable() && block.getBoundingBox().overlaps(body))) return false;
             }
-        var floor = world.getBlockAt(feet.getBlockX(), floor(feet.getY() - .02), feet.getBlockZ());
-        return !floor.isPassable() && !floor.isLiquid() && !HAZARDS.contains(floor.getType())
-                && Math.abs(floor.getBoundingBox().getMaxY() - feet.getY()) < .04;
+        for (int x = minX; x <= maxX; x++) for (int z = minZ; z <= maxZ; z++) {
+            var floor = world.getBlockAt(x, floor(feet.getY() - .02), z);
+            var top = floor.getBoundingBox();
+            if (floor.isPassable() || floor.isLiquid() || !BotFloorSafety.fullCube(floor.getType()) || HAZARDS.contains(floor.getType())
+                    || Math.abs(top.getMaxY() - feet.getY()) >= .04
+                    || top.getMinX() > Math.max(x, body.getMinX()) + .001 || top.getMaxX() < Math.min(x + 1, body.getMaxX()) - .001
+                    || top.getMinZ() > Math.max(z, body.getMinZ()) + .001 || top.getMaxZ() < Math.min(z + 1, body.getMaxZ()) - .001) return false;
+        }
+        return true;
     }
     private static int floor(double value) { return (int) Math.floor(value); }
 }

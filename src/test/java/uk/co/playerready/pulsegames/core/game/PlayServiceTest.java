@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Queue;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -75,14 +75,81 @@ class PlayServiceTest {
         Party party = mock(Party.class);
         when(parties.partyOf(leader)).thenReturn(party);
         when(party.isLeader(leader)).thenReturn(true);
+        when(parties.partyOf(member)).thenReturn(party);
+        when(party.size()).thenReturn(2);
         when(party.onlineMembers()).thenReturn(List.of(leader, member));
         return member;
     }
 
     @Test
+    void oversizedPartyRejectedBeforeAnyQueueChanges() {
+        Player member = party(), third = player();
+        Party party = parties.partyOf(leader);
+        when(party.onlineMembers()).thenReturn(List.of(leader, member, third));
+        when(party.size()).thenReturn(3);
+        service.join(leader, type, GameMode.teams("doubles", "Doubles", 2, 12, 2));
+        verify(instances, never()).findOrCreate(any(), any(), anyInt(), any());
+        verify(instances, never()).byPlayer(any());
+    }
+
+    @Test
+    void synchronousReentrantJoinWaitsUntilWholeAdmissionCompletes() {
+        Player other = player();
+        GameInstance target = destination(GameState.WAITING);
+        when(instances.findOrCreate(eq(type), eq(mode), eq(1), any())).thenReturn(target);
+        when(target.add(leader)).thenAnswer(invocation -> {
+            assertTrue(service.admitting(target));
+            service.join(other, type, mode);
+            verify(target, never()).add(other);
+            return true;
+        });
+        service.join(leader, type, mode);
+        assertFalse(service.admitting(target));
+        callbacks.remove().run();
+        verify(target).add(other);
+    }
+
+    @Test
+    void cancellationDuringFirstTeleportRollsBackWithoutRetrying() {
+        Player member = party();
+        GameInstance target = destination(GameState.WAITING);
+        when(instances.findOrCreate(eq(type), eq(mode), eq(2), any())).thenReturn(target);
+        when(target.add(leader)).thenAnswer(invocation -> { service.cancelPending(member); return true; });
+        service.join(leader, type, mode);
+        verify(target).remove(leader, true);
+        verify(target, never()).add(member);
+        verify(instances, times(1)).findOrCreate(any(), any(), anyInt(), any());
+        assertFalse(service.admitting(target));
+        assertFalse(service.hasPending(leader));
+    }
+
+    @Test
+    void disconnectDuringAdmissionRollsBackEarlierMember() {
+        Player member = party();
+        GameInstance target = destination(GameState.WAITING);
+        when(instances.findOrCreate(eq(type), eq(mode), eq(2), any())).thenReturn(target);
+        when(target.add(leader)).thenAnswer(invocation -> { when(member.isOnline()).thenReturn(false); return true; });
+        service.join(leader, type, mode);
+        verify(target).remove(leader, true);
+        verify(target, never()).add(member);
+        assertFalse(service.admitting(target));
+    }
+
+    @Test
+    void thrownAdmissionClearsTicketAndLockAndRollsBackAttempt() {
+        GameInstance target = destination(GameState.WAITING);
+        when(instances.findOrCreate(eq(type), eq(mode), eq(1), any())).thenReturn(target);
+        when(target.add(leader)).thenThrow(new IllegalStateException("teleport callback"));
+        service.join(leader, type, mode);
+        verify(target).remove(leader, true);
+        assertFalse(service.hasPending(leader));
+        assertFalse(service.admitting(target));
+    }
+
+    @Test
     void leavingDuringLoadingCancelsLaterAdmission() {
         GameInstance target = destination(GameState.LOADING);
-        when(instances.findOrCreate(type, mode, 1)).thenReturn(target);
+        when(instances.findOrCreate(eq(type), eq(mode), eq(1), any())).thenReturn(target);
         service.join(leader, type, mode);
         service.leave(leader);
         when(target.state()).thenReturn(GameState.WAITING);
@@ -95,7 +162,7 @@ class PlayServiceTest {
     void newerQueueSupersedesOlderLoadingCallback() {
         GameInstance first = destination(GameState.LOADING);
         GameInstance second = destination(GameState.WAITING);
-        when(instances.findOrCreate(type, mode, 1)).thenReturn(first, second);
+        when(instances.findOrCreate(eq(type), eq(mode), eq(1), any())).thenReturn(first, second);
         service.join(leader, type, mode);
         service.join(leader, type, mode);
         when(first.state()).thenReturn(GameState.WAITING);
@@ -107,7 +174,7 @@ class PlayServiceTest {
     @Test
     void evenUnavailableNewQueueCancelsOldRequest() {
         GameInstance first = destination(GameState.LOADING);
-        when(instances.findOrCreate(type, mode, 1)).thenReturn(first).thenReturn(null);
+        when(instances.findOrCreate(eq(type), eq(mode), eq(1), any())).thenReturn(first).thenReturn(null);
         service.join(leader, type, mode);
         service.join(leader, type, mode);
         when(first.state()).thenReturn(GameState.WAITING);
@@ -119,7 +186,7 @@ class PlayServiceTest {
     void oneMemberLeavingCancelsEntirePendingParty() {
         Player member = party();
         GameInstance target = destination(GameState.LOADING);
-        when(instances.findOrCreate(type, mode, 2)).thenReturn(target);
+        when(instances.findOrCreate(eq(type), eq(mode), eq(2), any())).thenReturn(target);
         service.join(leader, type, mode);
         service.leave(member);
         when(target.state()).thenReturn(GameState.WAITING);
@@ -131,7 +198,7 @@ class PlayServiceTest {
     void offlineMemberPreventsPartialPartyAdmission() {
         Player member = party();
         GameInstance target = destination(GameState.LOADING);
-        when(instances.findOrCreate(type, mode, 2)).thenReturn(target);
+        when(instances.findOrCreate(eq(type), eq(mode), eq(2), any())).thenReturn(target);
         service.join(leader, type, mode);
         when(member.isOnline()).thenReturn(false);
         when(target.state()).thenReturn(GameState.WAITING);
@@ -143,7 +210,7 @@ class PlayServiceTest {
     @Test
     void quitCancellationSurvivesReconnect() {
         GameInstance target = destination(GameState.LOADING);
-        when(instances.findOrCreate(type, mode, 1)).thenReturn(target);
+        when(instances.findOrCreate(eq(type), eq(mode), eq(1), any())).thenReturn(target);
         service.join(leader, type, mode);
         service.cancelPending(leader);
         when(target.state()).thenReturn(GameState.WAITING);
@@ -156,7 +223,7 @@ class PlayServiceTest {
         Player member = party();
         GameInstance first = destination(GameState.LOADING);
         GameInstance second = destination(GameState.WAITING);
-        when(instances.findOrCreate(type, mode, 2)).thenReturn(first, second);
+        when(instances.findOrCreate(eq(type), eq(mode), eq(2), any())).thenReturn(first, second);
         service.join(leader, type, mode);
         when(first.state()).thenReturn(GameState.WAITING);
         when(first.joinable(2)).thenReturn(false);
@@ -172,7 +239,7 @@ class PlayServiceTest {
         GameInstance first = destination(GameState.WAITING);
         GameInstance second = destination(GameState.WAITING);
         when(first.add(member)).thenReturn(false);
-        when(instances.findOrCreate(type, mode, 2)).thenReturn(first, second);
+        when(instances.findOrCreate(eq(type), eq(mode), eq(2), any())).thenReturn(first, second);
         service.join(leader, type, mode);
         verify(first).remove(leader, true);
         verify(second).add(leader);
@@ -184,7 +251,7 @@ class PlayServiceTest {
         GameInstance current = destination(GameState.RUNNING);
         GameInstance target = destination(GameState.LOADING);
         when(instances.byPlayer(leader)).thenReturn(current);
-        when(instances.findOrCreate(type, mode, 1)).thenReturn(target);
+        when(instances.findOrCreate(eq(type), eq(mode), eq(1), any())).thenReturn(target);
         service.join(leader, type, mode);
         int count = 0;
         while (!callbacks.isEmpty() && count++ < 100) callbacks.remove().run();
@@ -197,7 +264,7 @@ class PlayServiceTest {
     @Test
     void failedLoadingReturnsUngroupedPlayerSafelyToLobby() {
         GameInstance target = destination(GameState.LOADING);
-        when(instances.findOrCreate(type, mode, 1)).thenReturn(target).thenReturn(null);
+        when(instances.findOrCreate(eq(type), eq(mode), eq(1), any())).thenReturn(target).thenReturn(null);
         service.join(leader, type, mode);
         when(target.state()).thenReturn(GameState.RESETTING);
         when(target.joinable(anyInt())).thenReturn(false);
@@ -215,19 +282,19 @@ class PlayServiceTest {
         Player member = party(); GameInstance target = networkTarget();
         service.joinNetworkQueue(leader, "queue_one");
         verify(target).add(leader); verify(target).add(member);
-        verify(instances, never()).findOrCreate(any(), any(), anyInt());
+        verify(instances, never()).findOrCreate(any(), any(), anyInt(), any());
     }
     @Test void staleNetworkQueueDoesNotMovePlayerOrCreateAnotherGame() {
         GameInstance current = destination(GameState.RUNNING), target = networkTarget();
         when(instances.byPlayer(leader)).thenReturn(current); when(target.joinable(1)).thenReturn(false);
         service.joinNetworkQueue(leader, "queue_one");
         verify(current, never()).remove(any(), anyBoolean()); verify(target, never()).add(any());
-        verify(instances, never()).findOrCreate(any(), any(), anyInt());
+        verify(instances, never()).findOrCreate(any(), any(), anyInt(), any());
     }
     @Test void networkQueueCapacityIsCheckedForWholeParty() {
         party(); GameInstance target = networkTarget(); when(target.joinable(2)).thenReturn(false);
         service.joinNetworkQueue(leader, "queue_one");
-        verify(target, never()).add(any()); verify(instances, never()).findOrCreate(any(), any(), anyInt());
+        verify(target, never()).add(any()); verify(instances, never()).findOrCreate(any(), any(), anyInt(), any());
     }
     @Test void networkQueueCannotBypassPreviewPermission() {
         GameInstance target = networkTarget(); when(type.wip()).thenReturn(true);

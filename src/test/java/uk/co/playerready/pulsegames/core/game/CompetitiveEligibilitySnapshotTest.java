@@ -30,6 +30,17 @@ class CompetitiveEligibilitySnapshotTest {
         bots.clear();
         assertFalse(game.ranked());
     }
+    @Test void roundCannotStartInsidePartyAdmissionCallback() throws Exception {
+        PulseGamesPlugin plugin = mock(PulseGamesPlugin.class, RETURNS_DEEP_STUBS);
+        GameType type = mock(GameType.class); Arena arena = mock(Arena.class);
+        GameInstance game = new GameInstance(plugin, type, GameMode.ffa("solo", "Solo", 2, 4), arena);
+        var state = GameInstance.class.getDeclaredField("state"); state.setAccessible(true); state.set(game, GameState.COUNTDOWN);
+        when(plugin.playService().admitting(game)).thenReturn(true);
+        game.start();
+        assertEquals(GameState.COUNTDOWN, game.state());
+        verify(plugin, never()).playerState();
+    }
+
     private GameInstance started(int humans, int bots, int capacity) throws Exception {
         PulseGamesPlugin plugin = mock(PulseGamesPlugin.class, RETURNS_DEEP_STUBS);
         GameType type = mock(GameType.class);

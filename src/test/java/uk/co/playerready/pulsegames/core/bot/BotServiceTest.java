@@ -95,7 +95,7 @@ class BotServiceTest {
         verify(game).cleanup();
     }
     @Test void unsupportedGamesAndNonCanaryPlayersNeverReceiveBots() {
-        when(game.type().id()).thenReturn("skywars");
+        when(game.type().id()).thenReturn("bedwars");
         for(int i=0;i<5;i++) bots.reconcile(game);
         verify(provider,never()).create(any(),any());
         when(game.type().id()).thenReturn("duels");
@@ -167,6 +167,22 @@ class BotServiceTest {
             assertEquals(first, bots.patrolDestination(game, bot));
             verify(bot, never()).teleport(any(Location.class));
         }
+    }
+
+    @Test void allocationUsesHumanCalibrationAndConfiguredBotStrength() {
+        var skills = mock(AdaptiveBotSkillStore.class);
+        bots = new BotService(plugin, provider, skills);
+        when(skills.difficulty(human.getUniqueId(), "duels:classic")).thenReturn(BotDifficulty.HARD);
+        bots.reconcile(game); bots.reconcile(game);
+        Player bot = roster.get(1);
+        when(game.arena().settings().getString(eq("bot-difficulty"), anyString())).thenReturn("adaptive");
+        assertEquals(3, bots.teamStrength(game, human));
+        assertEquals(3, bots.teamStrength(game, bot));
+        when(game.arena().settings().getString(eq("bot-difficulty"), anyString())).thenReturn("easy");
+        assertEquals(1, bots.teamStrength(game, bot));
+        assertEquals(3, bots.teamStrength(game, human));
+        assertEquals(bot.getUniqueId(), bots.diagnostics().getFirst().id());
+        assertEquals("WAITING", bots.diagnostics().getFirst().state());
     }
 
     @Test void flagOffRemovesWaitingBots() {

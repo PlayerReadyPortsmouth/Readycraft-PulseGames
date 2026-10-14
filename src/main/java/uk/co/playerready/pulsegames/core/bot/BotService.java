@@ -15,7 +15,7 @@ import java.util.concurrent.ThreadLocalRandom;
 /** Owns ephemeral contestants and bounded game-specific decisions, all on the server thread. */
 public final class BotService implements AutoCloseable {
     private static final Set<String> SUPPORTED = Set.of("duels:classic", "duels:op", "duels:sumo",
-            "koth:solo", "koth:teams", "kitpvp:ffa", "kitpvp:oitc", "prophunt:classic", "prophunt:infection", "dodgeball:solo", "dodgeball:teams",
+            "koth:solo", "koth:teams", "kitpvp:ffa", "kitpvp:oitc", "prophunt:classic", "prophunt:infection", "skywars:solo", "skywars:doubles", "skywars:insane", "dodgeball:solo", "dodgeball:teams",
             "villagerdefense:easy", "villagerdefense:hard",
             "readyplayerz:classic", "readyplayerz:frenzy", "blockparty:classic", "blockparty:hardcore",
             "tntrun:classic", "volcano:classic", "volcano:eruption", "avalanche:classic", "spleef:classic", "spleef:decay", "spleef:splegg");
@@ -23,12 +23,15 @@ public final class BotService implements AutoCloseable {
         final GameInstance game;
         final BotActor actor;
         Location lastPosition, destination, progressPosition;
-        long progressTick;
+        long progressTick, lastStallReportTick;
         Player entity;
         long nextAttack, nextPath;
         int routeIndex;
         Location recovery;
         long recoverUntil;
+        String objective = "Waiting for the round", target = "", route = "", state = "WAITING", reason = "";
+        BotDifficulty difficulty = BotDifficulty.NORMAL;
+        boolean stalled;
         Slot(GameInstance game, BotActor actor) { this.game = game; this.actor = actor; }
     }
     private final PulseGamesPlugin plugin;
@@ -98,6 +101,24 @@ public final class BotService implements AutoCloseable {
                 && (!game.type().id().equals("prophunt") || !plugin.getConfig().getBoolean("content.prophunt.enabled", false)
                     || plugin.getConfig().getBoolean("content.prophunt.block-snapping", false)
                         && plugin.content() != null && plugin.content().npcPropVisualsReady());
+    }
+
+    /** Coarse calibration for allocation only; does not expose a player's stored results. */
+    public int teamStrength(GameInstance game, Player player) {
+        String key = game.type().id() + ":" + game.mode().id();
+        if (!isBot(player)) return (skills == null ? BotDifficulty.NORMAL : skills.difficulty(player.getUniqueId(), key)).ordinal() + 1;
+        String selection = game.arena().settings().getString("bot-difficulty", plugin.getConfig().getString("bots.difficulty", "adaptive"));
+        if (!"adaptive".equalsIgnoreCase(selection)) return BotDifficulty.parse(selection).ordinal() + 1;
+        var humanLevels = game.players().stream().filter(p -> !isBot(p))
+                .map(p -> skills == null ? BotDifficulty.NORMAL : skills.difficulty(p.getUniqueId(), key)).sorted().toList();
+        return (humanLevels.isEmpty() ? BotDifficulty.NORMAL : humanLevels.get((humanLevels.size() - 1) / 2)).ordinal() + 1;
+    }
+
+    public List<BotDiagnostics.Snapshot> diagnostics() {
+        return slots.values().stream().limit(64).map(slot -> new BotDiagnostics.Snapshot(
+                slot.actor.player().getUniqueId(), slot.actor.player().getName(), slot.game.id(), slot.objective,
+                slot.difficulty, slot.target, slot.route, slot.state, slot.reason,
+                slot.progressPosition == null ? 0 : Math.max(0, tick - slot.progressTick))).toList();
     }
 
     /** Freeze calibration for the round; profiles never change during a fight. */
@@ -260,6 +281,9 @@ public final class BotService implements AutoCloseable {
         if (game.state() != GameState.RUNNING || game.frozen() || !game.isActive(bot) || !game.logic().acceptsDeath(bot)) {
             slot.actor.stopNavigation();
             slot.lastPosition = null;
+            slot.state = game.state() == GameState.RUNNING ? "PAUSED" : game.state().name();
+            slot.objective = game.frozen() ? "Waiting for start countdown" : "Waiting / inactive contestant";
+            slot.target = ""; slot.route = "";
             return;
         }
         Location here = bot.getLocation();
@@ -279,21 +303,26 @@ public final class BotService implements AutoCloseable {
         }
         if (slot.destination != null && slot.destination.getWorld().equals(here.getWorld()) && slot.destination.distanceSquared(here)>9) {
             if (slot.progressPosition==null || !slot.progressPosition.getWorld().equals(here.getWorld()) || slot.progressPosition.distanceSquared(here)>1) {
-                slot.progressPosition=here.clone();slot.progressTick=tick;
-            } else if (tick-slot.progressTick>=300) {
-                game.note("bot-navigation-stalled", "No block of progress toward a distant goal for 15 seconds");slot.progressTick=tick;
-                if (!(game.logic() instanceof BotMovement) || game.type().id().equals("prophunt")) {
+                slot.progressPosition=here.clone();slot.progressTick=tick;slot.stalled=false;
+            } else if (tick-slot.progressTick>=300 && tick-slot.lastStallReportTick>=300) {
+                game.note("bot-navigation-stalled", "No block of progress toward a distant goal for 15 seconds");slot.lastStallReportTick=tick;slot.stalled=true;
+                if (!game.type().id().equals("skywars") && (!(game.logic() instanceof BotMovement) || game.type().id().equals("prophunt"))) {
                     Location recovery = BotNavigationHints.nearestSafe(game, here, "bot-recovery-points");
                     if (recovery != null && recovery.distanceSquared(here) <= 144 && recovery.distanceSquared(here) > 1) {
                         slot.recovery = recovery; slot.recoverUntil = tick + 100; slot.nextPath = 0;
                     }
                 }
             }
-        } else {slot.progressPosition=null;slot.progressTick=tick;}
+        } else {slot.progressPosition=null;slot.progressTick=tick;slot.stalled=false;}
         slot.lastPosition = here.clone();
         if (game.state() != GameState.RUNNING || !game.isActive(bot)) return;
         BotDifficulty difficulty = difficultyFor(game, null);
+        slot.difficulty = difficulty; slot.target = "";
+        slot.state = slot.stalled ? "STALLED" : "ACTIVE";
+        slot.reason = slot.stalled ? "No progress for 15 seconds; check route clearance and reachability" : "";
+        slot.objective = "Looking for an objective";
         if (game.logic() instanceof BotMovement movement) {
+            slot.objective = "Following " + game.type().id() + " controller";
             movement.botTick(bot, tick, difficulty);
             if (game.state() != GameState.RUNNING || !game.isActive(bot)) return;
             navigate(slot, here, movement.botDestination(bot), difficulty);
@@ -314,6 +343,8 @@ public final class BotService implements AutoCloseable {
         Location goal = null;
         if (enemy != null) {
             difficulty = difficultyFor(game, enemy instanceof Player target ? target : null);
+            slot.difficulty = difficulty; slot.target = enemy.getName();
+            slot.objective = "Engaging a visible opponent"; slot.route = "";
             double distance = here.distanceSquared(enemy.getLocation());
             slot.actor.face(enemy.getEyeLocation());
             if (game.logic() instanceof DodgeballGame dodgeball) {
@@ -329,7 +360,7 @@ public final class BotService implements AutoCloseable {
                         && kit.botCombat(bot, enemy, tick, difficulty);
                 if (!handled && distance <= 2.8 * 2.8 && tick >= slot.nextAttack) {
                     if (random.applyAsInt(100) < difficulty.accuracy) {
-                        if (objectives != null) selectSword(bot);
+                        if (objectives != null || game.type().id().equals("skywars")) selectSword(bot);
                         bot.swingMainHand();
                         if (game.mode().combatStyle() != GameMode.CombatStyle.MODERN || bot.getAttackCooldown() >= 0.9f)
                             bot.attack(enemy);
@@ -341,11 +372,19 @@ public final class BotService implements AutoCloseable {
         }
         if (game.type().id().equals("koth") && (enemy == null || here.distanceSquared(enemy.getLocation()) > 6 * 6)) {
             var hill = game.arena().region("hill");
-            if (hill != null) goal = hill.center(game.world());
+            if (hill != null) { goal = hill.center(game.world()); slot.objective = "Capturing the hill"; }
         }
         if (goal == null && enemy == null) {
+            slot.objective = objectives != null ? "Guarding the objective" : "Patrolling";
             goal = objectives != null ? objectives.botGuardPoint() : patrolDestination(game, bot);
             if (goal == null) goal = game.arena().spawn((int) ((tick / 100 + bot.getEntityId()) % Math.max(1, game.arena().spawnCount())), game.world());
+        }
+        if (game.logic() instanceof uk.co.playerready.pulsegames.games.skywars.SkywarsGame skywars) {
+            goal = skywars.botObjective(bot, goal, tick, difficulty);
+            slot.objective = skywars.botStatus(bot);
+            if (goal == null && enemy != null && here.distanceSquared(enemy.getLocation()) <= 2.8 * 2.8)
+                slot.objective = "Fighting a visible opponent at melee range";
+            else if (goal == null) { slot.state = "WAITING_FOR_SAFE_STEP"; slot.reason = slot.objective; }
         }
         navigate(slot, here, goal, difficulty);
     }
@@ -356,10 +395,11 @@ public final class BotService implements AutoCloseable {
         if (slot == null) return null;
         List<String> routes = game.arena().settings().getKeys(false).stream()
                 .filter(k -> k.startsWith("bot-route-")).sorted().limit(32).toList();
+        slot.route = routes.isEmpty() ? "bot-patrol-points" : routes.get(Math.floorMod(bot.getEntityId(), routes.size()));
         List<Location> points = routes.isEmpty() ? List.of() : BotNavigationHints.points(game,
                 routes.get(Math.floorMod(bot.getEntityId(), routes.size())));
-        if (points.size() < 2) points = BotNavigationHints.points(game, "bot-patrol-points");
-        if (points.isEmpty()) return null;
+        if (points.size() < 2) { points = BotNavigationHints.points(game, "bot-patrol-points"); slot.route = "bot-patrol-points"; }
+        if (points.isEmpty()) { slot.route = ""; return null; }
         int index = Math.floorMod(slot.routeIndex, points.size());
         if (bot.getLocation().distanceSquared(points.get(index)) < 1) index = (index + 1) % points.size();
         slot.routeIndex = index;
@@ -367,22 +407,25 @@ public final class BotService implements AutoCloseable {
     }
 
     private void navigate(Slot slot, Location here, Location goal, BotDifficulty difficulty) {
+        boolean skywars = slot.game.logic() instanceof uk.co.playerready.pulsegames.games.skywars.SkywarsGame;
+        boolean precise = skywars || slot.game.logic() instanceof BotMovement;
         if (slot.recovery != null) {
             if (tick >= slot.recoverUntil || !here.getWorld().equals(slot.recovery.getWorld()) || here.distanceSquared(slot.recovery) < 1)
                 slot.recovery = null;
-            else if (goal != null) goal = slot.recovery;
+            else if (goal != null) { goal = slot.recovery; slot.objective = "Walking to a recovery point"; slot.route = "bot-recovery-points"; }
             else slot.recovery = null;
         }
+        if (goal != null && slot.target.isEmpty()) slot.target = String.format(Locale.ROOT, "%.1f, %.1f, %.1f", goal.getX(), goal.getY(), goal.getZ());
         if (goal != null && !here.getWorld().equals(goal.getWorld())) {
             slot.actor.stopNavigation();
             slot.destination = null;
             return;
         }
-        if (goal == null || here.distanceSquared(goal) < (slot.game.logic() instanceof BotMovement ? 0.04 : 1)) {
+        if (goal == null || here.distanceSquared(goal) < (precise ? 0.04 : 1)) {
             slot.actor.stopNavigation();
             slot.destination = null;
-        } else if (tick >= slot.nextPath && (slot.destination == null || slot.destination.distanceSquared(goal) > (slot.game.logic() instanceof BotMovement ? 0.01 : 2) || tick % 100 == 0)) {
-            if (slot.game.logic() instanceof BotMovement movement && movement.straightNavigation()) slot.actor.navigateStraight(goal);
+        } else if (tick >= slot.nextPath && (slot.destination == null || slot.destination.distanceSquared(goal) > (precise ? 0.01 : 2) || tick % 100 == 0)) {
+            if (skywars || slot.game.logic() instanceof BotMovement movement && movement.straightNavigation()) slot.actor.navigateStraight(goal);
             else slot.actor.navigate(goal);
             slot.destination = goal.clone();
             slot.nextPath = tick + (slot.game.logic() instanceof BotMovement movement

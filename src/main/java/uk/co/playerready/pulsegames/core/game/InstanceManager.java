@@ -43,8 +43,13 @@ public final class InstanceManager {
      * players, or spins up a new one on a random eligible map.
      */
     public GameInstance findOrCreate(GameType type, GameMode mode, int groupSize) {
+        return findOrCreate(type, mode, groupSize, instance -> true);
+    }
+
+    public GameInstance findOrCreate(GameType type, GameMode mode, int groupSize,
+                                     java.util.function.Predicate<GameInstance> acceptsGroup) {
         for (GameInstance instance : instances) {
-            if (instance.type() == type && instance.mode().id().equals(mode.id()) && instance.joinable(groupSize)) {
+            if (instance.type() == type && instance.mode().id().equals(mode.id()) && instance.joinable(groupSize) && acceptsGroup.test(instance)) {
                 return instance;
             }
         }
