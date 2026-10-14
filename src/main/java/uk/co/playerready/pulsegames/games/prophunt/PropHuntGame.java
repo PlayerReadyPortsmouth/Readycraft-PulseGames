@@ -329,13 +329,13 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
             boolean valid = currentAudience.equals(visualAudience);
             for (UUID id : hiders) {
                 Player hider = game.player(id);
-                Locked anchor = locked.get(id);
+                if (hider != null) reconcileLock(hider);
                 valid &= hider != null && (blockProps ? visuals.get(id) instanceof PropRig rig && rig.active()
                         : game.plugin().content().isActive(hider));
-                if (anchor != null && hider != null) valid &= hider.getWorld().equals(anchor.standing().getWorld())
-                        && hider.getLocation().distanceSquared(anchor.standing()) < 0.25;
             }
             if (!valid) {
+                game.note("prop-content-invalid", "Audience changed=" + !currentAudience.equals(visualAudience)
+                        + "; one or more hider visuals may be inactive");
                 game.broadcast("<yellow>Custom Prop Hunt stopped because its content or viewing players changed. Please queue again.");
                 game.forceEnd();
                 return;
@@ -447,7 +447,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
             choices.put(player.getUniqueId(), option);
             player.sendActionBar(Text.mm("<green>Disguise: " + option.name()));
             game.runLater(1, player::closeInventory);
-        } catch (RuntimeException e) { stopForPropFailure(); }
+        } catch (RuntimeException e) { stopForPropFailure(e); }
     }
 
     @Override public void onInventoryDrag(Player player, org.bukkit.event.inventory.InventoryDragEvent event) {
@@ -558,7 +558,9 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
                 feet.getX() + half, feet.getY() + option.height(), feet.getZ() + half);
     }
 
-    private void stopForPropFailure() {
+    private void stopForPropFailure(RuntimeException error) {
+        game.note("prop-failure", error.getClass().getSimpleName() + ": " + error.getMessage());
+        game.plugin().getLogger().log(java.util.logging.Level.WARNING, "Prop Hunt visual failure in " + game.id(), error);
         game.broadcast("<yellow>Prop Hunt stopped because a disguise could not be safely changed. Please queue again.");
         game.forceEnd();
     }
@@ -629,7 +631,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
         }
         if (!hiders.contains(victim.getUniqueId())) return;
         try { closeVisual(victim.getUniqueId()); }
-        catch (RuntimeException e) { stopForPropFailure(); return; }
+        catch (RuntimeException e) { stopForPropFailure(e); return; }
         releaseBody(victim.getUniqueId()); clearDecoys(victim.getUniqueId()); choices.remove(victim.getUniqueId());
         hiders.remove(victim.getUniqueId());
         if (isInfection()) {
@@ -654,7 +656,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
     @Override
     public void onQuit(Player player) {
         try { closeVisual(player.getUniqueId()); }
-        catch (RuntimeException e) { stopForPropFailure(); return; }
+        catch (RuntimeException e) { stopForPropFailure(e); return; }
         releaseBody(player.getUniqueId()); clearDecoys(player.getUniqueId()); choices.remove(player.getUniqueId());
         boolean wasSeeker = seekers.remove(player.getUniqueId());
         boolean wasHider = hiders.remove(player.getUniqueId());
@@ -680,7 +682,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
 
     @Override public void onEliminated(Player player) {
         try { closeVisual(player.getUniqueId()); releaseBody(player.getUniqueId()); clearDecoys(player.getUniqueId()); choices.remove(player.getUniqueId()); }
-        catch (RuntimeException e) { stopForPropFailure(); }
+        catch (RuntimeException e) { stopForPropFailure(e); }
     }
     @Override public void onEnd(List<Player> winners) { onCleanup(); }
     @Override public void onCleanup() {
@@ -723,16 +725,31 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
         }
         return decoys.values().stream().anyMatch(d -> box.overlaps(movingBounds(d.feet(), d.option())));
     }
+    /** Citizens movement does not pass through PlayerMoveEvent. Never leave a
+     * disguise at a detached anchor, or abort everyone else's match for local drift. */
+    Location reconcileLock(Player player) {
+        UUID id = player.getUniqueId();
+        Locked anchor = locked.get(id);
+        Location actual = player.getLocation();
+        if (anchor == null) return actual;
+        if (actual.getWorld() == anchor.standing().getWorld()
+                && actual.distanceSquared(anchor.standing()) < .25) return anchor.standing();
+        locked.remove(id);
+        game.note("prop-unlocked", "Hider moved away from locked anchor; following body again");
+        player.sendActionBar(Text.mm("<yellow>Your prop moved away from its spot and was unlocked."));
+        return actual;
+    }
+
     private void updateProps() {
         if (game.state() != GameState.RUNNING) return;
         try {
             for (UUID id : List.copyOf(hiders)) {
                 Player player = game.player(id);
-                if (player != null && visuals.get(id) instanceof PropRig rig) rig.move(locked.containsKey(id) ? locked.get(id).standing() : player.getLocation());
+                if (player != null && visuals.get(id) instanceof PropRig rig) rig.move(reconcileLock(player));
             }
             for (Decoy decoy : decoys.values()) if (!(decoy.visual() instanceof uk.co.playerready.pulsegames.core.content.PulseContentBridge.PropVisual visual) || !visual.active())
                 throw new IllegalStateException("Decoy content is inactive");
-        } catch (RuntimeException error) { stopForPropFailure(); }
+        } catch (RuntimeException error) { stopForPropFailure(error); }
     }
     private final class PropRig implements AutoCloseable {
         private final List<uk.co.playerready.pulsegames.core.content.PulseContentBridge.PropVisual> parts = new ArrayList<>();
@@ -743,8 +760,8 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
                 if (!others.isEmpty()) parts.add(game.isBot(player)
                         ? game.plugin().content().createNpcProp(option.model(), player, feet, others, 1f)
                         : game.plugin().content().createProp(option.model(), player, feet, others, 1f));
-                // Small local preview avoids placing the reduced first-person camera inside a full cube.
-                if (!game.isBot(player)) parts.add(game.plugin().content().createProp(option.model(), player, feet, Set.of(player.getUniqueId()), .4f));
+                // Owners see the same model size as other viewers, independently of body scale.
+                if (!game.isBot(player)) parts.add(game.plugin().content().createProp(option.model(), player, feet, Set.of(player.getUniqueId()), 1f));
             } catch (RuntimeException error) { try { close(); } catch (RuntimeException cleanup) { error.addSuppressed(cleanup); } throw error; }
         }
         boolean active() { return !parts.isEmpty() && parts.stream().allMatch(uk.co.playerready.pulsegames.core.content.PulseContentBridge.PropVisual::active); }
@@ -795,7 +812,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
             decoys.put(UUID.randomUUID(), new Decoy(player.getUniqueId(), option, feet, visual, game.gameTime() + decoyLifetime));
             used(player, "Decoy", decoyCooldown);
             player.sendActionBar(Text.mm("<green>Placed " + option.name() + " decoy for " + decoyLifetime + "s."));
-        } catch (RuntimeException error) { stopForPropFailure(); }
+        } catch (RuntimeException error) { stopForPropFailure(error); }
     }
     private void clearDecoys(UUID owner) {
         for (UUID id : List.copyOf(decoys.keySet())) if (decoys.get(id).owner().equals(owner)) removeDecoy(id);
