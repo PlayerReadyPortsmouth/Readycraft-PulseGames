@@ -322,3 +322,63 @@ position; existing combat controllers also recognise their team-size variants.
 Bedwars, Skywars and other objective bots remain outstanding. Team modes do not
 imply bot support. Global/arena enablement and existing canary permissions still
 apply. Live configuration and server restarts require separate approval.
+
+## Agent-friendly setup and optional bot navigation (0.3.12 candidate)
+
+An agent's authorised in-game player can complete setup using commands, without
+clicking blocks or opening menus. Commands still require `pulsegames.admin`, an
+active setup session, and the map world. These are player commands, not a new
+console/RCON session API. Explicit coordinates are absolute; `~` and `^` are not
+supported. Points allow decimal coordinates and optional yaw/pitch; corners use
+whole block coordinates. Omitting coordinates keeps the existing current-position
+behaviour. Coordinates do not teleport the player or load chunks.
+
+```text
+/pulse setup start spleef frosty
+/pulse setup lobby 0.5 80 0.5 90 0
+/pulse setup spectator 0.5 90 0.5
+/pulse setup addspawn 5.5 80 5.5 180 0
+/pulse setup region floor1 -10 79 -10 10 79 10
+/pulse setup pos1 -12 78 -12
+/pulse setup pos2 12 100 12
+/pulse setup region bounds
+/pulse setup setloc villager 0.5 80 0.5
+/pulse setup addloc diamond-generators 8.5 80 8.5
+/pulse setup check
+/pulse setup validate
+```
+
+Use only the named locations/regions required by the selected game's checklist;
+the examples above show syntax across different games, not a complete Spleef map.
+All game-specific named regions use the same direct-coordinate command. Correct
+mistakes with `removeregion <name>`, `removespawn <1-based index>`,
+`removeloc <key> <1-based index>` or `clearloc <key>`. Removing a spawn or list entry
+shifts later indexes. Finish the checklist and validation before `/pulse setup save`;
+saving publishes the template, so keep the established map approval process.
+
+The Setup Book now includes **Bot navigation**, with optional patrol points, hiding
+spots, recovery walk targets and named routes. The equivalent commands are:
+
+```text
+/pulse setup addloc bot-patrol-points 10.5 80 4.5
+/pulse setup addloc bot-hide-points 14.5 80 8.5
+/pulse setup addloc bot-recovery-points 5.5 80 5.5
+/pulse setup addloc bot-route-courtyard 2.5 80 2.5
+/pulse setup addloc bot-route-courtyard 8.5 80 2.5
+/pulse setup removeloc bot-route-courtyard 2
+/pulse setup clearloc bot-route-courtyard
+```
+
+Routes need at least two ordered waypoints. Keep points on supported, clear ground
+and lists within 128 entries. Validation checks saved points without loading chunks;
+visit unloaded chunks to complete physical checks. At runtime, invalid, obstructed,
+unloaded or hazardous hints are ignored. Authored routes are guidance, not proof
+that Citizens can traverse every segment: test stairs, doors, gaps and corners.
+
+Generic combat bots use patrol/routes when they have no immediate objective;
+Prop Hunt seekers can patrol and hiders can choose authored hiding spots. Recovery
+walk targets within 12 blocks may be tried for five seconds after 15 seconds of
+stalled progress. They never teleport bots. Hazard games retain their own movement
+controllers; these options do not imply every game consumes every hint. Bots use
+conservative full-player clearance for hints, so one-block-high hiding hints are
+not supported by this first navigation pass.

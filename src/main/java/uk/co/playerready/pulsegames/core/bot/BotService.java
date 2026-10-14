@@ -26,6 +26,9 @@ public final class BotService implements AutoCloseable {
         long progressTick;
         Player entity;
         long nextAttack, nextPath;
+        int routeIndex;
+        Location recovery;
+        long recoverUntil;
         Slot(GameInstance game, BotActor actor) { this.game = game; this.actor = actor; }
     }
     private final PulseGamesPlugin plugin;
@@ -279,6 +282,12 @@ public final class BotService implements AutoCloseable {
                 slot.progressPosition=here.clone();slot.progressTick=tick;
             } else if (tick-slot.progressTick>=300) {
                 game.note("bot-navigation-stalled", "No block of progress toward a distant goal for 15 seconds");slot.progressTick=tick;
+                if (!(game.logic() instanceof BotMovement) || game.type().id().equals("prophunt")) {
+                    Location recovery = BotNavigationHints.nearestSafe(game, here, "bot-recovery-points");
+                    if (recovery != null && recovery.distanceSquared(here) <= 144 && recovery.distanceSquared(here) > 1) {
+                        slot.recovery = recovery; slot.recoverUntil = tick + 100; slot.nextPath = 0;
+                    }
+                }
             }
         } else {slot.progressPosition=null;slot.progressTick=tick;}
         slot.lastPosition = here.clone();
@@ -335,12 +344,35 @@ public final class BotService implements AutoCloseable {
             if (hill != null) goal = hill.center(game.world());
         }
         if (goal == null && enemy == null) {
-            goal = objectives != null ? objectives.botGuardPoint() : game.arena().spawn((int) ((tick / 100 + bot.getEntityId()) % Math.max(1, game.arena().spawnCount())), game.world());
+            goal = objectives != null ? objectives.botGuardPoint() : patrolDestination(game, bot);
+            if (goal == null) goal = game.arena().spawn((int) ((tick / 100 + bot.getEntityId()) % Math.max(1, game.arena().spawnCount())), game.world());
         }
         navigate(slot, here, goal, difficulty);
     }
 
+    /** Optional ordered map hints, only used when the controller has no immediate objective. */
+    public Location patrolDestination(GameInstance game, Player bot) {
+        Slot slot = slots.get(bot.getUniqueId());
+        if (slot == null) return null;
+        List<String> routes = game.arena().settings().getKeys(false).stream()
+                .filter(k -> k.startsWith("bot-route-")).sorted().limit(32).toList();
+        List<Location> points = routes.isEmpty() ? List.of() : BotNavigationHints.points(game,
+                routes.get(Math.floorMod(bot.getEntityId(), routes.size())));
+        if (points.size() < 2) points = BotNavigationHints.points(game, "bot-patrol-points");
+        if (points.isEmpty()) return null;
+        int index = Math.floorMod(slot.routeIndex, points.size());
+        if (bot.getLocation().distanceSquared(points.get(index)) < 1) index = (index + 1) % points.size();
+        slot.routeIndex = index;
+        return points.get(index).clone();
+    }
+
     private void navigate(Slot slot, Location here, Location goal, BotDifficulty difficulty) {
+        if (slot.recovery != null) {
+            if (tick >= slot.recoverUntil || !here.getWorld().equals(slot.recovery.getWorld()) || here.distanceSquared(slot.recovery) < 1)
+                slot.recovery = null;
+            else if (goal != null) goal = slot.recovery;
+            else slot.recovery = null;
+        }
         if (goal != null && !here.getWorld().equals(goal.getWorld())) {
             slot.actor.stopNavigation();
             slot.destination = null;

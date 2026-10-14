@@ -138,6 +138,8 @@ final class ArenaSetupMenu implements Listener {
             session.settings.put("bot-difficulty", switch (current) { case "easy" -> "normal"; case "normal" -> "hard"; case "hard" -> "adaptive"; default -> "easy"; });
             open(player, session);
         }, "Click to cycle Adaptive / Easy / Normal / Hard", "Normal damage and reach at every level"));
+        buttons.add(button(Material.COMPASS, "Bot navigation (optional)", () -> navigation(player, session),
+                "Patrol points, hiding spots and named safe routes", "Recovery points are walk targets, never teleports"));
         buttons.add(button(Material.BLAZE_ROD, "Get selection wand", () -> { manager.giveWand(player); player.closeInventory(); }));
         buttons.add(button(Material.SPYGLASS, "Validate arena", () -> { player.closeInventory(); manager.validate(player, session); }, "Check coordinates, objectives, teams and spawn clearance", "Read-only; does not load unexplored chunks"));
         long missing = manager.checklist(session).stream().filter(e -> e.required() && !e.done()).count();
@@ -209,6 +211,77 @@ final class ArenaSetupMenu implements Listener {
                     session.regions.remove(name); open(player, session);
                 }), region.toString())));
         show(player, session, "Saved regions", buttons, 0);
+    }
+    private void navigation(Player player, ArenaSetupManager.Session session) {
+        List<Button> buttons = new ArrayList<>();
+        for (String key : List.of("bot-patrol-points", "bot-hide-points", "bot-recovery-points")) {
+            String label = switch (key) {
+                case "bot-patrol-points" -> "Patrol points";
+                case "bot-hide-points" -> "Hiding spots";
+                default -> "Recovery walk targets";
+            };
+            buttons.add(button(Material.COMPASS, label + " (" + navigationPoints(session.settings, key).size() + ")",
+                    () -> navigationPoints(player, session, key), "/pulse setup addloc " + key,
+                    key.equals("bot-recovery-points") ? "Reachable safe ground; never teleports bots" : "Optional guidance for supported bot controllers"));
+        }
+        session.settings.keySet().stream().filter(key -> key.startsWith("bot-route-")).sorted().forEach(key ->
+                buttons.add(button(Material.RAIL, "Route: " + key.substring("bot-route-".length())
+                                + " (" + navigationPoints(session.settings, key).size() + ")",
+                        () -> navigationPoints(player, session, key), "Waypoints are followed in saved order",
+                        "/pulse setup addloc " + key)));
+        buttons.add(button(Material.EMERALD, "Create named safe route", () -> prompt(player, session,
+                "Route name (1–32 letters, numbers, underscores or hyphens)", value -> {
+                    String key = navigationRouteKey(value);
+                    if (session.settings.containsKey(key)) throw new IllegalArgumentException("That route already exists.");
+                    session.settings.put(key, new ArrayList<String>());
+                }), "Then select the route and add points in order", "Use walkable ground; avoid hazards and jumps"));
+        show(player, session, "Bot navigation", buttons, 0);
+    }
+    private void navigationPoints(Player player, ArenaSetupManager.Session session, String key) {
+        List<Button> buttons = new ArrayList<>();
+        List<String> snapshot = navigationPoints(session.settings, key);
+        buttons.add(button(Material.EMERALD, "Add your current position (" + snapshot.size() + "/128)", () -> {
+            manager.handle(player, new String[]{"addloc", key}); navigationPoints(player, session, key);
+        }, "/pulse setup addloc " + key, "Or: /pulse setup addloc " + key + " x y z [yaw pitch]"));
+        for (int i = 0; i < snapshot.size(); i++) {
+            int index = i;
+            buttons.add(button(Material.REDSTONE, "Remove point " + (index + 1), () -> confirm(player, session,
+                    "Remove point " + (index + 1) + "?", () -> {
+                        if (removeNavigationPoint(session.settings, key, snapshot, index))
+                            navigationPoints(player, session, key);
+                        else {
+                            player.sendMessage(Component.text("These points changed. Review the refreshed list first."));
+                            navigationPoints(player, session, key);
+                        }
+                    }), snapshot.get(index), "/pulse setup removeloc " + key + " " + (index + 1),
+                    "Removing shifts later point numbers"));
+        }
+        buttons.add(button(Material.BARRIER, key.startsWith("bot-route-") ? "Delete this route" : "Clear all points",
+                () -> confirm(player, session, "Clear " + snapshot.size() + " points?", () -> {
+                    if (navigationPoints(session.settings, key).equals(snapshot)) session.settings.remove(key);
+                    else player.sendMessage(Component.text("These points changed. Review the refreshed list first."));
+                    navigation(player, session);
+                }), "/pulse setup clearloc " + key, "Requires confirmation; affects unsaved setup only"));
+        buttons.add(button(Material.ARROW, "Back to bot navigation", () -> navigation(player, session)));
+        show(player, session, key, buttons, 0);
+    }
+    static String navigationRouteKey(String value) {
+        String name = value.trim().toLowerCase(Locale.ROOT);
+        if (!name.matches("[a-z0-9_-]{1,32}"))
+            throw new IllegalArgumentException("Use 1–32 letters, numbers, underscores or hyphens.");
+        return "bot-route-" + name;
+    }
+    static List<String> navigationPoints(Map<String, Object> settings, String key) {
+        Object value = settings.get(key);
+        return value instanceof List<?> list ? list.stream().map(String::valueOf).toList() : List.of();
+    }
+    static boolean removeNavigationPoint(Map<String, Object> settings, String key, List<String> expected, int index) {
+        List<String> current = navigationPoints(settings, key);
+        if (!current.equals(expected) || index < 0 || index >= current.size()) return false;
+        List<String> updated = new ArrayList<>(current);
+        updated.remove(index);
+        settings.put(key, updated);
+        return true;
     }
     private boolean supportsSetupMode(ArenaSetupManager.Session session, uk.co.playerready.pulsegames.core.game.GameMode mode) {
         return session.modes.isEmpty() || session.modes.contains(mode.id())

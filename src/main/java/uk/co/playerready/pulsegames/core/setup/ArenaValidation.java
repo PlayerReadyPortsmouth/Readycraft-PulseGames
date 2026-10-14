@@ -69,6 +69,14 @@ public final class ArenaValidation {
             if(traps!=triggers)error(out,"Each trap needs a matching trigger with the same number.");
         }
         if(s.game.id().equals("dropper"))for(String name:s.regions.keySet())if(name.matches("checkpoint[1-9][0-9]*"))point(out,"checkpoint-spawn"+name.substring(10),Objects.toString(s.settings.get("checkpoint-spawn"+name.substring(10)),null),w,true,true);
+        s.settings.forEach((key, value) -> {
+            if (!Set.of("bot-patrol-points", "bot-hide-points", "bot-recovery-points").contains(key) && !key.startsWith("bot-route-")) return;
+            if (!(value instanceof List<?> points)) { error(out, key + " must be a location list."); return; }
+            if (points.size() > 128) error(out, key + " exceeds 128 points.");
+            if (key.startsWith("bot-route-") && points.size() < 2) error(out, key + " needs at least two ordered waypoints.");
+            for (int i = 0; i < Math.min(128, points.size()); i++)
+                point(out, key + " #" + (i + 1), Objects.toString(points.get(i), null), w, true, true);
+        });
         if(!s.regions.containsKey("bounds"))out.add(new Issue(false,"No bounds region recorded. Verify the playable boundary during map testing."));
         return new Report(out.stream().distinct().toList());
     }

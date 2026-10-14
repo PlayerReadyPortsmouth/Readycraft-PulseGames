@@ -97,53 +97,60 @@ public final class ArenaSetupManager implements Listener {
         }
         // Every point below is stored as bare coordinates and re-read against the
         // cloned template world, so capturing one outside the map world is meaningless.
-        if (List.of("lobby", "spectator", "addspawn", "setloc", "addloc").contains(sub)
+        if (List.of("lobby", "spectator", "addspawn", "setloc", "addloc", "pos1", "pos2", "region").contains(sub)
                 && !player.getWorld().equals(session.world)) {
             player.sendMessage(Text.msg("<red>You're in <yellow>" + player.getWorld().getName()
                     + "</yellow>; this setup is for <yellow>" + session.world.getName() + "</yellow>."));
             return;
         }
+        try {
         switch (sub) {
             case "validate" -> validate(player, session);
             case "wand" -> giveWand(player);
             case "book" -> menu.giveBook(player);
+            case "pos1", "pos2" -> {
+                Location point = SetupCoordinates.point(session.world, player.getLocation(), args, 1, true);
+                if (sub.equals("pos1")) session.pos1 = point; else session.pos2 = point;
+                player.sendMessage(Text.msg("<green>" + sub + ": " + point.getBlockX() + ", " + point.getBlockY() + ", " + point.getBlockZ()));
+            }
             case "lobby" -> {
-                session.lobby = LocUtil.serialize(player.getLocation());
-                player.sendMessage(Text.msg("<green>Waiting lobby set here."));
+                session.lobby = LocUtil.serialize(SetupCoordinates.point(session.world, player.getLocation(), args, 1, false));
+                player.sendMessage(Text.msg("<green>Waiting lobby point set."));
             }
             case "spectator" -> {
-                session.spectator = LocUtil.serialize(player.getLocation());
-                player.sendMessage(Text.msg("<green>Spectator point set here."));
+                session.spectator = LocUtil.serialize(SetupCoordinates.point(session.world, player.getLocation(), args, 1, false));
+                player.sendMessage(Text.msg("<green>Spectator point set."));
             }
             case "addspawn" -> {
-                session.spawns.add(LocUtil.serialize(player.getLocation()));
+                session.spawns.add(LocUtil.serialize(SetupCoordinates.point(session.world, player.getLocation(), args, 1, false)));
                 player.sendMessage(Text.msg("<green>Spawn #" + session.spawns.size() + " added."));
             }
             case "clearspawns" -> {
                 session.spawns.clear();
                 player.sendMessage(Text.msg("Spawns cleared."));
             }
+            case "removespawn" -> {
+                if (args.length != 2) throw new IllegalArgumentException("Usage: /pulse setup removespawn <1-based index>");
+                int index = Integer.parseInt(args[1]) - 1;
+                if (index < 0 || index >= session.spawns.size()) throw new IllegalArgumentException("Spawn index is out of range.");
+                session.spawns.remove(index);
+                player.sendMessage(Text.msg("<green>Spawn removed; later spawn numbers shift down."));
+            }
+            case "removeregion" -> {
+                if (args.length != 2) throw new IllegalArgumentException("Usage: /pulse setup removeregion <name>");
+                session.regions.remove(SetupCoordinates.key(args[1]));
+                player.sendMessage(Text.msg("<green>Region removed."));
+            }
             case "region" -> {
-                if (args.length < 2) {
-                    player.sendMessage(Text.msg("<red>Usage: /pulse setup region <name> <gray>(select with the wand first)"));
-                    return;
+                if (args.length != 2 && args.length != 8) throw new IllegalArgumentException("Usage: /pulse setup region <name> [x1 y1 z1 x2 y2 z2]");
+                String name = SetupCoordinates.key(args[1]);
+                Location first = session.pos1, second = session.pos2;
+                if (args.length == 8) {
+                    first = SetupCoordinates.point(session.world, player.getLocation(), new String[]{args[2], args[3], args[4]}, 0, true);
+                    second = SetupCoordinates.point(session.world, player.getLocation(), new String[]{args[5], args[6], args[7]}, 0, true);
                 }
-                if (session.pos1 == null || session.pos2 == null) {
-                    player.sendMessage(Text.msg("<red>Select two corners with the wand first (<yellow>/pulse setup wand</yellow>)."));
-                    return;
-                }
-                String name = args[1].toLowerCase(Locale.ROOT);
-                Cuboid region;
-                try {
-                    // Cuboid rejects anything big enough to hang a round: games walk
-                    // whole regions block by block on the main thread.
-                    region = new Cuboid(
-                            session.pos1.getBlockX(), session.pos1.getBlockY(), session.pos1.getBlockZ(),
-                            session.pos2.getBlockX(), session.pos2.getBlockY(), session.pos2.getBlockZ());
-                } catch (IllegalArgumentException ex) {
-                    player.sendMessage(Text.msg("<red>Selection too large: " + ex.getMessage()));
-                    return;
-                }
+                if (first == null || second == null) throw new IllegalArgumentException("Set pos1 and pos2 with commands or the wand, or supply both corners directly.");
+                Cuboid region = new Cuboid(first.getBlockX(), first.getBlockY(), first.getBlockZ(), second.getBlockX(), second.getBlockY(), second.getBlockZ());
                 session.regions.put(name, region);
                 player.sendMessage(Text.msg("<green>Region <yellow>" + name + "</yellow> saved."));
             }
@@ -152,19 +159,36 @@ public final class ArenaSetupManager implements Listener {
                     player.sendMessage(Text.msg("<red>Usage: /pulse setup setloc <key>"));
                     return;
                 }
-                session.settings.put(args[1].toLowerCase(Locale.ROOT), LocUtil.serialize(player.getLocation()));
-                player.sendMessage(Text.msg("<green>Location <yellow>" + args[1] + "</yellow> set here."));
+                session.settings.put(SetupCoordinates.key(args[1]), LocUtil.serialize(SetupCoordinates.point(session.world, player.getLocation(), args, 2, false)));
+                player.sendMessage(Text.msg("<green>Location <yellow>" + args[1] + "</yellow> set."));
             }
             case "addloc" -> {
                 if (args.length < 2) {
                     player.sendMessage(Text.msg("<red>Usage: /pulse setup addloc <list-key>"));
                     return;
                 }
-                String key = args[1].toLowerCase(Locale.ROOT);
+                String key = SetupCoordinates.key(args[1]);
+                String point = LocUtil.serialize(SetupCoordinates.point(session.world, player.getLocation(), args, 2, false));
+                if (session.settings.containsKey(key) && !(session.settings.get(key) instanceof List<?>))
+                    throw new IllegalArgumentException("That setting is not a location list.");
                 @SuppressWarnings("unchecked")
                 List<String> list = (List<String>) session.settings.computeIfAbsent(key, k -> new ArrayList<String>());
-                list.add(LocUtil.serialize(player.getLocation()));
+                if (key.startsWith("bot-") && list.size() >= 128) throw new IllegalArgumentException("Bot point lists are limited to 128 entries.");
+                list.add(point);
                 player.sendMessage(Text.msg("<green>Added location #" + list.size() + " to <yellow>" + key + "</yellow>."));
+            }
+            case "removeloc", "clearloc" -> {
+                if (args.length != (sub.equals("removeloc") ? 3 : 2)) throw new IllegalArgumentException("Usage: /pulse setup " + sub + " <key>" + (sub.equals("removeloc") ? " <1-based index>" : ""));
+                String key = SetupCoordinates.key(args[1]);
+                Object existing = session.settings.get(key);
+                if (!(existing instanceof List<?> list)) throw new IllegalArgumentException("That setting is not a location list.");
+                if (sub.equals("clearloc")) session.settings.remove(key);
+                else {
+                    int index = Integer.parseInt(args[2]) - 1;
+                    if (index < 0 || index >= list.size()) throw new IllegalArgumentException("Index must be between 1 and " + list.size());
+                    List<Object> updated = new ArrayList<>(list); updated.remove(index); session.settings.put(key, updated);
+                }
+                player.sendMessage(Text.msg("<green>Location list updated."));
             }
             case "set" -> {
                 if (args.length < 3) {
@@ -190,6 +214,9 @@ public final class ArenaSetupManager implements Listener {
                 player.sendMessage(Text.msg("Setup cancelled."));
             }
             default -> help(player);
+        }
+        } catch (IllegalArgumentException ex) {
+            player.sendMessage(Text.msg("<red>" + ex.getMessage()));
         }
     }
 
@@ -240,9 +267,12 @@ public final class ArenaSetupManager implements Listener {
         for (String line : List.of(
                 "start <game> <arenaId> <dark_gray>- begin in your map world",
                 "wand / book <dark_gray>- recover setup tools",
-                "lobby / spectator / addspawn <dark_gray>- set points where you stand",
-                "region <name> <dark_gray>- save wand selection as region",
-                "setloc <key> / addloc <key> <dark_gray>- location settings",
+                "lobby / spectator / addspawn [x y z [yaw pitch]] <dark_gray>- set points",
+                "pos1 / pos2 [x y z] <dark_gray>- select region corners",
+                "region <name> [x1 y1 z1 x2 y2 z2] <dark_gray>- save a region",
+                "setloc / addloc <key> [x y z [yaw pitch]] <dark_gray>- location settings",
+                "removeloc <key> <index> / clearloc <key> <dark_gray>- edit location lists",
+                "removespawn <index> / removeregion <name> <dark_gray>- remove saved entries",
                 "set <key> <value> <dark_gray>- e.g. set void-y 40",
                 "check / gui <dark_gray>- requirement checklist",
                 "save / cancel")) {

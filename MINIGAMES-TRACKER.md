@@ -71,6 +71,25 @@ OITC ammunition/respawn and both Prop Hunt roles on approved maps in Java/Bedroc
 Existing explicit arena difficulty overrides are preserved; choose Adaptive to
 activate calibration. See `docs/QUEUE-BOTS.md` for rules and acceptance steps.
 
+## 14 October - Command setup and optional bot navigation: draft extension
+
+PulseGames draft #13 now includes coordinate-based arena setup. `pos1`/`pos2`
+accept explicit block coordinates; `region` accepts both corners directly.
+Lobby, spectator, spawn, named location and location-list commands accept absolute
+coordinates with optional facing. Region/spawn/list removal commands support
+corrections without clicking an item. Existing permissions, map-world checks,
+selection limits, validation and save requirements remain enforced. These are
+commands for an authorised in-game agent account, not a console session API.
+
+The Setup Book includes optional patrol points, hiding spots, recovery walk targets
+and named ordered routes, all with command equivalents. Generic combat patrols and
+Prop Hunt consume the relevant hints; hazard modes retain their own movement.
+Hints do not load chunks or teleport bots. Unsafe hints are ignored, route
+reachability still needs map testing, and full-player clearance remains required.
+
+65 focused tests pass and the candidate jar builds. Prepared only: no merge,
+deployment, map changes or restart. See `docs/MAP-SETUP.md` for syntax and limits.
+
 ## Current test-server baseline
 
 - Last verified deployed on 13 October: PulseGames **0.3.11** and PulseContent Paper **0.5.2**. The new bot candidate below is not deployed. Older dated entries are historical checkpoints.

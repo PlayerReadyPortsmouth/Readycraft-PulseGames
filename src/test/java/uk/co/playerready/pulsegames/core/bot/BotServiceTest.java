@@ -152,6 +152,23 @@ class BotServiceTest {
         verify(skills, times(1)).record(any(), anyString(), anyBoolean(), anyDouble());
     }
 
+    @Test void authoredPatrolRouteAdvancesInOrderWithoutTeleporting() {
+        bots.reconcile(game); bots.reconcile(game);
+        Player bot = roster.get(1);
+        when(game.arena().settings().getKeys(false)).thenReturn(Set.of("bot-route-courtyard"));
+        Location first = new Location(world, 0.5, 80, 0.5), second = new Location(world, 6.5, 80, 0.5);
+        try (var hints = mockStatic(BotNavigationHints.class)) {
+            hints.when(() -> BotNavigationHints.points(game, "bot-route-courtyard")).thenReturn(List.of(first, second));
+            when(bot.getLocation()).thenReturn(new Location(world, -3, 80, .5));
+            assertEquals(first, bots.patrolDestination(game, bot));
+            when(bot.getLocation()).thenReturn(first);
+            assertEquals(second, bots.patrolDestination(game, bot));
+            when(bot.getLocation()).thenReturn(second);
+            assertEquals(first, bots.patrolDestination(game, bot));
+            verify(bot, never()).teleport(any(Location.class));
+        }
+    }
+
     @Test void flagOffRemovesWaitingBots() {
         bots.reconcile(game); bots.reconcile(game);
         config.set("bots.enabled",false);

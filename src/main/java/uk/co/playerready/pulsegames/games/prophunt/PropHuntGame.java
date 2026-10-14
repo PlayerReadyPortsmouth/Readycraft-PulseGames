@@ -141,6 +141,15 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
         if (goal != null && goal.getWorld() == bot.getWorld() && goal.distanceSquared(bot.getLocation()) > 2
                 && tick < botNextAction.getOrDefault(id, 0L)) return;
         botNextAction.put(id, tick + 100);
+        if (hiders.contains(id)) {
+            var spots = uk.co.playerready.pulsegames.core.bot.BotNavigationHints.points(game, "bot-hide-points");
+            if (!spots.isEmpty()) {
+                botGoals.put(id, spots.get(ThreadLocalRandom.current().nextInt(spots.size()))); return;
+            }
+        } else if (game.plugin().bots() != null) {
+            Location patrol = game.plugin().bots().patrolDestination(game, bot);
+            if (patrol != null) { botGoals.put(id, patrol); return; }
+        }
         // Explore loaded, supported cells only. Unreachable choices time out through the navigator.
         var random = ThreadLocalRandom.current();
         for (int attempt = 0; attempt < 12; attempt++) {
