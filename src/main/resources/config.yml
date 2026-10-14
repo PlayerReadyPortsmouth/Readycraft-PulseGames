@@ -60,11 +60,12 @@ games:
 bots:
   enabled: false
   # Each arena must also set settings.bots-enabled: true.
-  # easy, normal or hard; arena settings.bot-difficulty overrides this.
-  difficulty: normal
+  # adaptive, easy, normal or hard; arena settings.bot-difficulty overrides this.
+  # Adaptive uses separate recent practice results; no changes to ranked stats/rewards.
+  difficulty: adaptive
   wait-seconds: 30
-  # Target total roster: full for capacities <=4, otherwise ceil(max/2), at least mode minimum.
-  # Humans count towards that target; hard bot caps below remain in force.
+  # Maps with up to four seats fill completely; larger maps allow floor(maximum / 2) bots.
+  # Bots sit alongside humans within map capacity. Humans reclaim waiting seats; hard caps also apply.
   max-per-match: 31
   max-total: 64
 

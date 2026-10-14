@@ -1,6 +1,6 @@
 # Minigames development and play-test tracker
 
-Last updated: 12 October 2026. Owner: Aurora. Agents should update this file as
+Last updated: 14 October 2026. Owner: Aurora. Agents should update this file as
 work and player feedback arrive; keep it in the PulseGames repository.
 
 Readable report: [HTML](MINIGAMES-TRACKER.html) · [PDF](MINIGAMES-TRACKER.pdf).
@@ -27,9 +27,54 @@ After editing this source, regenerate both exports with
 - Before changing a status, check current source, PR and server version. Append
   significant results to the dated log; do not erase failures to make a row green.
 
+## 14 October - Adaptive bots, queue rules and parties: prepared candidate
+
+Maps are being built; existing controllers still need player testing. PulseGames
+0.3.12 and paired PulseContent Paper 0.5.4 are prepared, not merged or deployed.
+The content candidate excludes the separate cosmetic movement trial.
+
+- **Filling:** maps above four slots allow bots up to half capacity, rounded down,
+  alongside humans: 12 slots + five humans permits six bots. Four slots or fewer
+  retain the full-fill exception. Match/global caps, playable minimum and map
+  opt-in still apply. Humans replace bots during waiting/countdown, not mid-round.
+- **Competitive eligibility:** freeze the actual starting roster. Larger games
+  count with at least 50% humans; small games need more humans than bots. Thus
+  3 humans + 1 bot in a four-slot game counts, while 2 + 2 does not. Eligible
+  rounds use existing records and match rewards; NPCs never earn either.
+- **Adaptive difficulty:** per-player/per-mode recent results calibrate reaction
+  and accuracy; general decisions use the group's lower median. Profiles freeze
+  per round. New profiles start Normal; six results minimum, neutral smoothing,
+  last 40 outcomes. No damage, health or reach advantage. Fixed Easy/Normal/Hard
+  overrides remain available through the Setup Book.
+- Calibration has separate local storage; old mixed-mode competitive totals are
+  not imported. Forced, drawn, short and abandoned rounds do not train it. Winning
+  teammates, co-op outcomes and Infection role conversion receive explicit handling.
+- **New controllers:** KitPvP One in the Chamber uses actual arrows, ammunition,
+  bow draw and melee fallback. Prop Hunt Classic/Infection hiders use supported
+  cells and normal locking; seekers use visible motion, short memory, nearby
+  heartbeat clues and ordinary reach inspections. No role powers or authored hiding routes yet.
+- Custom Prop Hunt bots require the paired NPC prop API, which validates owned
+  Citizens subjects while retaining resource-pack checks for real viewers.
+- **Parties:** existing server-local parties are exposed from the game menu;
+  stale invitations, changed queue membership and duplicate admission counting
+  are corrected. Bedrock has typed accept/deny commands. Cross-server parties
+  and guaranteed team-preserving placement are future work.
+
+Focused bot, queue, party, Prop Hunt and eligibility tests pass; paired renderer
+has 16 focused tests passing. Both jars build. No live world/configuration changes
+or restart are part of this preparation. Source coverage becomes **12/23 games**
+with the Prop Hunt addition; OITC expands an existing game. Crystal/Mace Duels,
+Skywars/Bedwars, racing/building controllers and TNT Run Double Jump remain future work.
+
+Next: test queue counts and replacement, eligible/ineligible rewards, parties,
+OITC ammunition/respawn and both Prop Hunt roles on approved maps in Java/Bedrock.
+Existing explicit arena difficulty overrides are preserved; choose Adaptive to
+activate calibration. See `docs/QUEUE-BOTS.md` for rules and acceptance steps.
+
 ## Current test-server baseline
 
-- PulseGames **0.3.2** and PulseContent Paper **0.3.1**, last verified 11 October.
+- Last verified deployed on 13 October: PulseGames **0.3.11** and PulseContent Paper **0.5.2**. The new bot candidate below is not deployed. Older dated entries are historical checkpoints.
+- MinigamesTest now has **4 CPUs / 5 GiB RAM**. PulseNetwork 0.1.2 is installed for Lobby, SurvivalTest and MinigamesTest plus the primary proxy.
 - Java and Bedrock can connect through the primary proxy. Access is no longer
   restricted by MinigamesTest's whitelist; proxy authentication remains in place.
 - Lobby mob spawning disabled; 62 loaded hostile mobs removed earlier.
@@ -37,29 +82,28 @@ After editing this source, regenerate both exports with
   platform. Existing worlds and edits persist. Use `normal` explicitly for terrain.
 - Six initial test arenas existed. Three user-built Duels arenas were subsequently
   saved, and the server logged **9 loaded arenas** at 17:20 UTC on 11 October.
-- Current bot controllers cover only **4/23 games**: Duels, KitPvP FFA, KOTH and
-  Dodgeball. Global enablement, per-arena permission, capacity and feature access
+- Current bot controllers cover only **11/23 games**: Duels, KitPvP FFA, KOTH,
+  Dodgeball, Villager Defense, ReadyPlayerZ, Block Party, Avalanche, Spleef, TNT Run and Volcano. Global enablement, per-arena permission, capacity and feature access
   also matter. Other games are not ready simply by setting `bots-enabled: true`.
 
-## Prepared update — not deployed
+## Released update — player acceptance outstanding
 
 | Change | Current status | Remaining acceptance |
 |---|---|---|
 | Arena Setup Book and interactive checklist | Implemented; approved mockup; focused tests and local Paper menu probe passed | Real Java/Bedrock clicks, prompts and save flow |
 | 1.8-style PvP | Scoped OCM candidate passed local module/attack-speed restoration check on an owned NPC | Mixed human/bot damage, knockback and blocking checks on both clients |
 | Dodgeball pacing and feedback | Prepared: 0.75s → 0.35s default throw delay; visible cooldown, hit sounds/messages, elimination title | Player feel and crossplay feedback acceptance |
-| Prop Hunt startup failure | Root cause confirmed; corrected validation accepted all 10 actual BetterModel props; tracker creation passed locally | Actual disguise attachment and full two-client round |
-| Prop Hunt two-player start | Prepared: both modes minimum 2; reject a solo forced start | One seeker and one hider completing Classic and Infection |
+| Prop Hunt startup failure | Fix deployed; Aurora reports Prop Hunt works nicely on Bedrock (13 October) | Record tested map/mode/player count; revised movement, preview and powers need separate acceptance |
+| Prop Hunt two-player start | Deployed: both modes minimum 2; reject a solo forced start | One seeker and one hider completing Classic and Infection |
 | Bot difficulty and co-op controllers | Villager Defense merged in PR4; ReadyPlayerZ fighting, earned-point purchases and revival locally checked in the next candidate | Full multi-wave survival, human/bot balance and crossplay |
 | Bot queue target and Block Party | Merged candidate targets half of map/mode capacity, or full capacity for maxima 1–4; Block Party public-colour tile navigation locally checked | Capacity/load tests, full colour rounds and human/bot acceptance |
-| PulseNetwork helper | Paper, Velocity and Create/NeoForge adapters prepared; public chat, local fallback chat games and queue Join actions | Per-plugin moderation/privacy/ignore checks, Java click and Bedrock form acceptance; not installed |
+| PulseNetwork helper | Paper, Velocity and Create/NeoForge adapters prepared; public chat, local fallback chat games and queue Join actions | Java click, Bedrock form and real two-player moderation/return acceptance |
 | PvP team sizes and map capacity | Prepared solo/doubles/triples/squads for main combat games, 2v2 Duels rounds and per-mode map limits | Test each mode on suitable maps; do not enable team modes on undersized maps |
-| CoBuilder command-announcement disconnect | Client mod 0.4.1 prepared separately | Install/relaunch client at a convenient time and retest announcements |
+| CoBuilder command-announcement disconnect | Client mod 0.4.1 installed locally; running client must be relaunched | Fixed mod installed locally; fully relaunch Minecraft and retest announcements |
 | Distant lobby Trial Chamber | Diagnosed; bounded cleanup tooling prepared | Separate permission and fresh edit-preserving checks before cleanup |
 
 PulseGames PR4 was merged at Aurora’s request on 11 October (merge `0eda3bd`).
-PulseContent PR28 remains a draft. PR5 (merge `f511551`) is now merged and its helper bundles are staged privately for all 12 Minecraft services;
-none of these merge/build results means the update is deployed.
+PulseContent PR28 and PulseGames PR6, PR7 and PR8 are merged. Game/content updates are running on MinigamesTest; the final helper activation is restricted to Lobby, SurvivalTest and MinigamesTest plus their primary proxy. Human acceptance remains outstanding.
 
 ## Active map batch: Prop Hunt
 
@@ -130,12 +174,12 @@ are currently queued.
   Existing saved arena modes and live maps have not been changed.
 - Prop Hunt's seeker/hider roles and Party Games' individual rotating competition
   remain distinct; symmetric team variants for these need a separate rules design.
-- Team modes do not imply bot support. Live controllers still cover 4/23 games;
+- Team modes do not imply bot support. Deployed controllers now cover 11/23 games;
   Villager Defense, ReadyPlayerZ and Block Party are merged; the latter two passed focused local checks.
-  Avalanche, Spleef, TNT Run and Volcano are prepared in draft PR6, bringing controllers to 11/23; live support remains 4/23.
+  Avalanche, Spleef, TNT Run and Volcano are prepared in merged PR6, bringing deployed controllers to 11/23. Full player acceptance is still pending.
 - See [team and capacity instructions](TEAM-MODES.md) for exact settings and examples.
 
-## Queue bots and network helper — merged and staged
+## Queue bots and network helper
 
 - Requested fill target counts **humans plus bots**: maximum 2 → 2 total, 4 → 4,
   5 → 3, 8 → 4, 16 → 8. Odd halves round up. The playable minimum can raise
@@ -143,23 +187,21 @@ are currently queued.
 - No human means no bot-only queue. Per-arena permission, feature access and
   server-wide safety caps remain enforced. Prepared defaults allow 31 bots per
   match and 64 total; existing installations retain their configured caps.
-  MinigamesTest’s smaller live caps have **not** been raised.
+  MinigamesTest now permits up to **15 bots per match / 24 total**, while retaining the half-capacity fill rule.
 - Citizens skin refresh can replace the Bukkit player entity. The merged candidate
   follows the replacement instead of ending the game; its precise pathfinder
   can reach single safe tiles without teleporting.
 - PulseNetwork is a separate helper with Paper, Velocity and NeoForge artifacts.
-  `/g` toggles global public chat; `/localchat` restores local chat. Local chat
+  Public chat is configured globally by default on the three active servers; `/g` toggles it and `/localchat` restores local chat. Local chat
   plugins retain their own events and formatting. Optional local maths/scramble
   games defer to existing chat-game providers.
 - Waiting queues advertise a Java **Join** action; Bedrock gets a native
   `/queues` form and `/queues chat` fallback. Exact-instance joins retain normal
   party/capacity/preview checks; expired links cannot create another match.
 - Global chat is a distinct channel: synchronising third-party mute/ignore lists
-  and custom private-channel rules needs compatibility acceptance. All helper
-  features default off; nothing is installed on the network yet.
-- Resource increase proposal remains pending separate restart approval:
-  MinigamesTest 2 → 4 CPU quota, 3 → 5 GiB container RAM (4 GiB derived heap).
-  No resource change or server restart was performed for this candidate.
+  and custom private-channel rules needs compatibility acceptance. The helper is installed; 0.1.2 is installed. Third-party mute/ignore compatibility has focused tests but still needs player acceptance.
+- Authorised resource increase is applied: MinigamesTest **4 CPUs / 5 GiB RAM**.
+  Restart permission was supplied for this rollout; future unrelated restarts still require approval.
 - Implementation and acceptance checklist: [PulseNetwork guide](network-helper/README.md).
 
 ## Per-game readiness
@@ -170,17 +212,17 @@ needed. Do not bypass team/role requirements and call that a completed test.
 
 | Game | Maps / player testing | Current bots | Two humans | Next work |
 |---|---|---|---|---|
-| **Duels** | **3 user-built maps: Courtyard, Ruined Temple, Foundry. Aurora reports gameplay works.** Initial trial arena also retained. | Regular/Sumo; Crystal/Mace pending | Yes | Draft: combat-style selector, individual kits and Crystal/Mace. Balance kits; test clients, team sizes and opted-in maps |
+| **Duels** | **3 user-built maps: Courtyard, Ruined Temple, Foundry. Aurora reports gameplay works.** Initial trial arena also retained. | Regular/Sumo; Crystal/Mace pending | Yes | Deployed: combat-style selector, individual kits and Crystal/Mace. Balance kits; test clients, team sizes and opted-in maps |
 | KitPvP | Trial arena; standalone kit picker prepared | FFA only | Yes | Test default/owned kit selection and respawn; kit balance; OITC bot |
 | KOTH | Trial arena available; full acceptance not recorded | Solo and teams | Solo yes; teams currently needs 8 total | Fix test arena capacity for teams; hill contesting and team balance |
-| Dodgeball | Court test arena; Aurora reports cooldown too slow and hits unclear | Solo and teams | Yes | Test prepared cooldown/feedback; dodge and lead targets; difficulty |
+| Dodgeball | Court test arena; Aurora reports cooldown too slow and hits unclear | Solo and teams | Yes | Test deployed cooldown/feedback; dodge and lead targets; difficulty |
 | Dropper | Two-drops test arena | None | Race yes; practice is solo | Test landing/checkpoint/reset behaviour; controlled-fall bots |
-| Prop Hunt | **All five upper-area/barrier revisions checked; All five maps approved and registered; gameplay tests pending.** Trial arena exists; startup fix pending deployment | None | Live minimum 3; prepared update lowers to 2 | Deploy validated startup fix; test palette, snapping and head props; fair seeker/hider bots |
-| Spleef | No accepted map/test recorded | Prepared: Classic, Decay, Splegg | Yes | Maps; full rounds, floor loss, projectile impacts and balance |
-| TNT Run | No accepted map/test recorded | Prepared: Classic | Yes | Full rounds, corners and layers; Double Jump remains human-only |
-| Block Party | No accepted map/player test recorded | Prepared Classic/Hardcore | Yes | Build maps; full rounds, elimination, difficulty and two-client tests |
-| Avalanche | No accepted map/test recorded | Prepared: Classic | Yes | Maps; full falling-block rounds and survival balance |
-| Volcano | No accepted map/test recorded | Prepared: Classic, Eruption | Yes | Full lava/rock rounds; map-specific climbing routes |
+| Prop Hunt | Five commissioned maps approved and registered. Aurora reports Bedrock works nicely (13 October); map/mode/player count not recorded. Compact movement, self-preview and role powers deployed on MinigamesTest (PR9 + PR29, 13 October). | None | Classic and Infection minimum 2 | Test one-block gaps, stable lock beside walls, independent decoys and powers on both clients; fair seeker/hider bots remain future work. |
+| Spleef | No accepted map/test recorded | Deployed: Classic, Decay, Splegg | Yes | Maps; full rounds, floor loss, projectile impacts and balance |
+| TNT Run | No accepted map/test recorded | Deployed: Classic | Yes | Full rounds, corners and layers; Double Jump remains human-only |
+| Block Party | No accepted map/player test recorded | Deployed Classic/Hardcore | Yes | Build maps; full rounds, elimination, difficulty and two-client tests |
+| Avalanche | No accepted map/test recorded | Deployed: Classic | Yes | Maps; full falling-block rounds and survival balance |
+| Volcano | No accepted map/test recorded | Deployed: Classic, Eruption | Yes | Full lava/rock rounds; map-specific climbing routes |
 | Parkour | No accepted map/test recorded | None | Sprint yes; elimination needs 3 | Builder-authored routes, real jumps and checkpoints |
 | Elytra Racing | No accepted map/test recorded | None | Yes | Flight routes, checkpoint passage, rockets and recovery |
 | PulseKarts | No accepted map/test recorded | None | Yes | Ice track, boat steering, checkpoints, laps and item use |
@@ -188,8 +230,8 @@ needed. Do not bypass team/role requirements and call that a completed test.
 | Bedwars | No accepted map/test recorded | None | Duos needs 4; quads needs 8 | Resources, shops, bed defence/destruction, bridging and respawns |
 | Build Battle | No accepted map/test recorded | None | Yes | Theme-aware building in plots, phases and fair voting bots |
 | Death Run | No accepted map/test recorded | None | Classic needs 3; double trouble 4 | Runner routes, Death roles and trap timing |
-| Villager Defense | No accepted map/player test recorded | Merged Easy/Hard | Yes | Full multi-wave survival, Mayor defence, co-op and two-client tests |
-| ReadyPlayerZ | No accepted map/player test recorded | Prepared Classic/Frenzy | Yes | Full matches, kiting/balance, power-ups and two-client tests |
+| Villager Defense | No accepted map/player test recorded | Deployed Easy/Hard | Yes | Full multi-wave survival, Mayor defence, co-op and two-client tests |
+| ReadyPlayerZ | No accepted map/player test recorded | Deployed Classic/Frenzy | Yes | Full matches, kiting/balance, power-ups and two-client tests |
 | Lucky Pillars | No accepted map/test recorded | None | Yes | Item decisions, bridging and safe combat |
 | Supermarket Sweep | No accepted map/test recorded | None | Yes | Shopping-list decisions, real chest/inventory actions and checkout |
 | Party Games | No accepted map/test recorded | None | Yes | Controller switching between colour matching, sumo and sprint |
@@ -210,7 +252,7 @@ and capitalisation; no maps were renamed by this documentation check.
 | KOTH | `Koth Test Arena` | `trial-koth` | `koth-trial-koth.yml` |
 | Dodgeball | `Dodgeball Court` | `court` | `dodgeball-court.yml` |
 | Dropper | `Two Drops` | `two-drops` | `dropper-two-drops.yml` |
-| Prop Hunt | `Prophunt Test Arena` | `trial-prophunt` | `prophunt-trial-prophunt.yml` |
+| Prop Hunt | Five commissioned maps approved and registered. Aurora reports Bedrock works nicely (13 October); map/mode/player count not recorded. Compact movement, self-preview and role powers deployed on MinigamesTest (PR9 + PR29, 13 October). | `trial-prophunt` | `prophunt-trial-prophunt.yml` | Test one-block gaps, stable lock beside walls, independent decoys and powers on both clients; fair seeker/hider bots remain future work.
 
 The three new Duels definitions all enable `classic` and `op`, minimum/maximum 2,
 two spawns, a waiting lobby and spectator point, `bots-enabled: true`, and
@@ -229,7 +271,7 @@ creation, not that every mode has been accepted on every map/client.
 | `ruined_temple` | `rc_build_duels_ruined_temple` | Built and saved | Kit/loadout tuning; record Classic/OP results per client |
 | `foundry` | `rc_build_duels_foundry` | Built and saved | Kit/loadout tuning; record Classic/OP results per client |
 
-Additional modes **prepared in draft PR6, not deployed or accepted on these maps**:
+Additional modes **prepared in merged PR6, not deployed or accepted on these maps**:
 
 - Mace PvP: define loadout, arena verticality, wind charges, fall damage and combat
   timing explicitly. Do not blindly apply legacy sword rules to a mace mode.
@@ -365,10 +407,6 @@ For each new map or mode, append:
   adapter and reached ready state, then was shut down. No live server was restarted.
 - [PR5](https://github.com/PlayerReadyPortsmouth/Readycraft-PulseGames/pull/5) merged as `f511551`; built artifacts staged outside active server folders. No install or restart.
 
-- Backstage Mayhem built in its permanent world with ten furnished rooms and three stage sets. Exact verification: 44,608/44,608 states; actual room/stair/catwalk/facade images inspected. Final review found roof access through the rear catwalk opening; one bounded correction pass requested after the workflow limit of three passes. Map is not marked finished, approved or registered.
-
-- Original map revision brief: the initial maps were too small and lacked hiding clutter. Aurora requested the larger, denser Wharf, revisions of all three earlier builds, then Backstage Mayhem.
-
 
 ## 11 October follow-up: staging and hazard bots
 
@@ -395,7 +433,7 @@ For each new map or mode, append:
 
 ### Next test batch: survival bots and kit selection
 
-- [Draft PR6](https://github.com/PlayerReadyPortsmouth/Readycraft-PulseGames/pull/6)
+- [Merged PR6](https://github.com/PlayerReadyPortsmouth/Readycraft-PulseGames/pull/6)
   now also prepares TNT Run Classic and Volcano Classic/Eruption. TNT uses short,
   continuously checked straight corridors under the normal eight-tick crumble timer.
   Volcano climbs reachable steps; navigation handles stair edges without teleporting.
@@ -415,9 +453,9 @@ For each new map or mode, append:
   Floor Is Lava is not a separate registered game; Volcano is the rising-lava mode.
 
 
-## Duels selector and personal loadouts — prepared, not live
+## Duels selector and personal loadouts — preparation record
 
-- PulseGames 0.3.6 / draft PR6: `/duels` or the game menu opens combat style → discipline
+- PulseGames 0.3.6 / merged PR6: `/duels` or the game menu opens combat style → discipline
   → team size, with a separate **Your kit** button. Each player chooses their own compatible
   kit; kit choices share a queue. Classic and Modern rules remain separate queues.
 - Classic (1.8-style): Regular PvP and Sumo. Modern (1.9+): Regular PvP, Sumo, Crystal
@@ -435,6 +473,24 @@ For each new map or mode, append:
   totems/offhand/chain blasts and resets; Mace smash/fall damage. Record results per map.
   See [Duels setup and acceptance guide](docs/DUELS.md). No live restart or installation.
 
+- Backstage Mayhem built in its permanent world with ten furnished rooms and three stage sets. Exact verification: 44,608/44,608 states; actual room/stair/catwalk/facade images inspected. Final review found roof access through the rear catwalk opening; one bounded correction pass requested after the workflow limit of three passes. Map is not marked finished, approved or registered.
+
+- Original map revision brief: the initial maps were too small and lacked hiding clutter. Aurora requested the larger, denser Wharf, revisions of all three earlier builds, then Backstage Mayhem.
+
+
+## Restart preparation — historical plan
+
+- PR6 merged as `436fd69`; the tested PulseGames 0.3.6 jar and pinned combat provider
+  are staged privately. No live installation, config replacement or restart performed.
+- PulseContent PR28 remains a separate draft and is a hold for the Prop Hunt content
+  fix. Twelve staged network-helper jars rechecked; chat compatibility holds remain.
+- Current MinigamesTest still runs PulseGames 0.3.2 / PulseContent 0.3.1, with a
+  three-bot per-match cap and six-bot global cap. Review resource allocation and caps
+  before expecting half-filled larger queues. Classic combat also needs its staged provider.
+- The restart runbook covers fresh backups after graceful save, targeted configuration
+  changes, backend/proxy order, rollback and Java/Bedrock acceptance. Aurora must approve
+  the restart window. All five Prop Hunt maps still require her visual approval before setup.
+
 - Backstage Mayhem final correction completed at Aurora’s request: framed/glazed rear catwalk wall closes roof access; castle lamps have full stone supports. Actual close-up images inspected and all 44,855 states match, with zero missing/wrong/unloaded states. All five commissioned maps are now built and awaiting Aurora visual approval; none is registered or gameplay-tested. Review starts with Market Day, then Crooked Library, Harvest Festival, Smuggler’s Wharf and Backstage Mayhem. Server updates/restarts remain with Aurora’s other agent after review/setup.
 
 - Aurora approved Market Day for setup and specified reachable upper hiding areas across all five maps, plus barrier containment to prevent escaping. Market Day now has eight ladder lofts and two mezzanines with complete barrier enclosure (47,794 checked states). Crooked Library already has reachable furnished upper levels; containment and roof preservation checked (49,062 states). Harvest Festival additions require fresh verification in the farm world after the player returned to the lobby during the build. Wharf and Backstage upper-area/containment revisions remain next. No arena registration or restart performed.
@@ -449,6 +505,169 @@ For each new map or mode, append:
 
 - Aurora approved Crooked Library after the archive clutter revision. Registered `crooked_library` with Classic/Infection, configured 2-16, seven clear-floor spawns across all three levels, bots disabled and void-y67 below the archive floor at y73. Waiting/spectator points are in the enclosed upper galleries. Checklist passed; live-save and `/pulse arenas` confirm all five commissioned Prop Hunt arena/template IDs loaded. All visual reviews and registrations are complete; played rounds, Java/Bedrock acceptance and server updates/restarts remain pending with the other agent.
 
+
+## 12 October — map approval and network rollout
+
+Aurora has explicitly approved **all five Prop Hunt maps**. The prior all-five visual
+review gate is satisfied. Saved definitions independently confirm Market Day, Crooked
+Library, Harvest Festival, Smuggler's Wharf and Backstage Mayhem. Gameplay and
+Java/Bedrock acceptance remain outstanding.
+
+Authorised releases: PulseGames 0.3.7, PulseContent Paper 0.3.2 and
+PulseNetwork 0.1.2 for global-by-default public chat and queue return trips. Active
+network scope is Lobby, SurvivalTest and MinigamesTest plus the primary proxy. Source Paper helpers preserve departure
+coordinates; leaving a queue or match cleanup returns network visitors to their origin.
+All three backends restarted and reached ready state with PulseNetwork 0.1.2. MinigamesTest loaded 14 arenas with PulseGames 0.3.7 and PulseContent 0.3.2; Classic PvP provider is ready. Primary proxy and Geyser also reached ready state; proxy loaded PulseNetwork 0.1.2 and the three-server allowlists were verified. Receipt: `output/pulsegames/2026-10-12/rollout/verification.txt` in the Ready workspace.
+
+- Global public chat defaults on for Lobby, SurvivalTest and MinigamesTest. Old Creative, Survival, SkyBlock and Minigames are excluded; Sessions/Create are excluded from the final helper scope too.
+- Java queue Join links and Bedrock `/queues` forms are deployed. Return trips restore the source server/location after queue leave or match cleanup; full human end-to-end acceptance is still pending. Disconnects/proxy restarts do not preserve an in-flight return session.
+- Checks: 26 focused helper tests, 14 queue/service tests and five content visual-runtime tests passed across the release work. These do not replace player testing.
+- CoBuilder 0.4.1 replaces the faulty 0.4.0 client mod locally. Fully relaunch Minecraft to load the null-safe server-message fix.
+- New helper metadata credits AurorasChaos (on behalf of Player Ready); the same policy is recorded for future Ready-owned plugin releases.
+- Backups on readyapp-vps: `/srv/ready-gamed/backups/minigames-rollout-20261012` and `/srv/ready-gamed/backups/global-chat-20261012`.
+- Existing unrelated startup issues remain: Lobby hologram compatibility and ProtocolLib/Paper reflection warning; SurvivalTest wizard NPC script errors. The network helper itself enabled successfully.
+- PR7 notification failed HTTP404. PR8 notification was refused because the PR had already merged; no duplicate or misleading notification was sent.
+
 - Lobby additions completed and checked (8,701 states); Aurora commissioned twelve new maps: three each for Kit PvP, KOTH, Dodgeball and Dropper. New batch build/review/registration progress is tracked above; no new arenas registered without approval.
 
 - Twelve-map construction batch completed: three each for Kit PvP, KOTH, Dodgeball and Dropper. Actual section images and full plan states checked; spawn clearance/boundaries checked, Dropper water targets/apertures checked. Sunken Citadel centre stair gap corrected and rechecked. Player returned to Sunken Citadel for Aurora review. No new batch arenas registered or played rounds claimed.
+
+## 13 October - Prop Hunt feedback and compact-prop candidate
+
+Aurora reports that the currently deployed Prop Hunt works nicely on Bedrock. The
+map, mode, player count and round outcome were not recorded, so this is not blanket
+acceptance of all five maps. Reported improvements: see the disguise continuously
+at the hider's feet, remain invisible while moving, fit in low gaps, stop locking
+from immediately undoing near neighbouring blocks, and add independently disguised
+decoys plus powers for both roles.
+
+**Deployed to MinigamesTest, 13 October:** [PulseGames PR9](https://github.com/PlayerReadyPortsmouth/Readycraft-PulseGames/pull/9)
+and [PulseContent PR29](https://github.com/PlayerReadyPortsmouth/ReadyCraft-PulseAddon/pull/29) merged.
+PulseGames 0.3.8 and PulseContent Paper 0.3.3 installed together after the approved
+restart and full saved-world backup. Startup completed at 09:54 UTC with 26 arenas,
+10 kits and 23 games. All 57 PulseGames YAML files were unchanged; installed jar
+hashes match the tested bundle. Human Java/Bedrock acceptance remains pending.
+A separate PulseNetwork saved-location load error (`unknown world`) was observed;
+world lifecycle and deferred location restoration need investigation.
+
+- Moving/locked hiders use a full-size prop for other participants and a 40% local
+  foot preview for themselves, keeping the reduced first-person camera outside it.
+- Actual player scale is 0.5 for full props (0.9-block body) and 0.25 for heads
+  (0.45-block body). Seeker hit shapes still match the full chosen prop, not the
+  tiny player. Original scale/visibility/collision are restored on role/round exit.
+- Grid locks retain floor height, do not place a solid map block and debounce paired
+  use packets. Invalid snapping preserves the moving disguise and current location.
+  Full props still require a full footprint; heads fit smaller spaces. Irregular
+  block bounding boxes are deliberately conservative.
+- Hiders: three independently disguised decoys (60-second lifetime, 12-second
+  placement cooldown), clear-scene control and four-second escape sprint.
+- Seekers: proximity pulse (12-block radius) and four-second search sprint. Sprint
+  and pulse default to 25-second cooldowns. Decoys can mislead the pulse and break
+  when hit. Powers are unavailable to seekers before release and to inactive/frozen
+  players. Bounded numeric settings appear in the existing Setup Book checklist;
+  `prop-powers: false` disables powers separately from the disguise fixes.
+- Validation: 42 focused game/bridge/setup tests, 20 content lifecycle tests and
+  13 disposable Paper 26.2/BetterModel 3.5.0 runtime checks passed. The first
+  same-tick dimension check saw stale collision bounds; after server ticks, the
+  measured heights were 0.90 and 0.45 with scale restored correctly. The temporary
+  scale modifier was also verified absent from persisted player attributes. Human camera,
+  moving-prop rendering, gap navigation and power balance still need Java/Bedrock
+  acceptance. The local lab was stopped and its previous plugin jars restored.
+- Prop Hunt bots remain unsupported. Decoys are props, not queue-filling bots.
+- Build/evidence bundle: `output/pulsegames/2026-10-13/prop-hunt-tools` in the Ready
+  workspace. Controls, settings and acceptance steps: [Prop Hunt guide](docs/PROP-HUNT.md).
+- Both required PR notifications failed HTTP404. Drafts were created successfully.
+
+## 13 October - Editing worlds and concurrent matches
+
+**Deployed to MinigamesTest, 13 October:** [PR10](https://github.com/PlayerReadyPortsmouth/Readycraft-PulseGames/pull/10) merged; PulseGames 0.3.9 installed following an approved graceful restart and full saved-server backup. Startup completed at 10:05:10 UTC with 26 arenas, 10 kits and 23 games. All 57 configuration files were unchanged and the installed jar hash matches the tested build.
+
+- Editing worlds opened with `/pulse world`, `rc_build_*` worlds and PulseGames void-marked build worlds save and unload after 15 seconds empty. Rejoining resets the timer. Build terrain is retained; template publishing still requires Setup Book Save.
+- The primary world, lobby, active matches and configured keep-loaded worlds are protected. Template capture holds its source loaded. Refused unloads retry without deleting files.
+- Same-mode/same-map concurrent matches already use independent copies and game logic, up to the configured instance cap. This draft strengthens IDs and cleans late clones after cancellation.
+- 22 focused lifecycle, storage, setup and instance tests passed; 0.3.9 is live. Live save/reopen and two simultaneous played matches remain acceptance checks. Any future restart requires fresh approval.
+- Separate follow-up: PulseNetwork 0.1.2 saved return Locations must resolve unloaded persistent worlds safely; startup currently reports an unknown-world deserialisation error.
+
+
+## 13 October - Reliability, shared SQL and the next Creative phase
+
+**Deployed, 13 October:** PulseGames 0.3.10 adds Setup Book arena validation and bounded match diagnostics. PulseNetwork 0.1.3 fixes loading saved locations for unloaded worlds and improves short reconnect returns. Player inventory restoration is idempotent. Validation covers required map settings, spawn clearance in loaded chunks and team capacity; unloaded chunks still need a visit and physical check. Proxy restart persistence and a return-message acknowledgement remain follow-up work.
+
+- Focused unit checks passed; a local Paper 26.2 probe passed 15/15 checks for inventory/vitals restoration, unsafe return spots, two independent instances of one map, instance cleanup, and saved editing-world unload/reopen. Human Java/Bedrock acceptance is still pending.
+- MariaDB on readyapp-vps has separate LuckPerms and PulseAddon databases and private staged credentials. The approved SQL scope is **Lobby, SurvivalTest, MinigamesTest and the primary proxy only**. Older servers remain separate.
+- PulseAddon 9.8.0 moves persistent data documents into an exclusive per-backend SQL namespace; it does not share world-bound claims between independent worlds. 32 focused JVM tests, four migration/export CLI tests and an isolated actual-MariaDB probe passed. The migration imported 41 documents / 300,076 bytes, with every digest verified. SQL reads and ongoing writes are active.
+- Approved rollout completed: Lobby, SurvivalTest, MinigamesTest and the primary proxy are running LuckPerms 5.5.87 with shared MariaDB and SQL messaging, plus PulseNetwork 0.1.3. SurvivalTest runs PulseAddon 9.8.0; MinigamesTest runs PulseGames 0.3.10. Permission exports match exactly (three groups, three users, no tracks), and all 57 PulseGames YAML files are unchanged. Full saved-server and SQL backups are under `/srv/ready-gamed/backups/shared-sql-rollout-20261013`. Human gameplay acceptance remains pending; future restarts require fresh approval.
+
+**Cosmetics proposal:** [wide-ranging catalogue and progression](COSMETICS-ROADMAP.html), with 11 reward families across eight style collections. PulseContent should own catalogue and presentation; shared SQL should hold player entitlements and idempotent event awards. Gameplay kits remain separate. Existing unlocks must be preserved. These are proposed features, not implemented rewards.
+
+**Next after current work:** [Creative competitions and map-art studio](CREATIVE-ROADMAP.html). Players nominate their builds; staff judge against a rubric; approved results award trophies. A separate protected plot world offers palettes, brushes, shapes, fill, selections, eyedropper, history, shading and later depth tools. Aurora confirmed **no image imports: hand-built artwork only**. Submitted renders receive AI screening followed by human approval before publication or Survival redemption. No moderation provider or external image upload is enabled. Audit the existing Creative world and preview its menus before implementation.
+
+Merged and deployed: [PulseGames PR11](https://github.com/PlayerReadyPortsmouth/Readycraft-PulseGames/pull/11) and [PulseAddon PR30](https://github.com/PlayerReadyPortsmouth/ReadyCraft-PulseAddon/pull/30). Installed artifact hashes match the tested releases. Lobby retains its pre-existing DecentHolograms compatibility failure; a later proxy connection timeout was observed, so this rollout does not establish that every client disconnect is resolved.
+
+**Merged, not deployed:** [PulseContent wardrobe foundation PR31](https://github.com/PlayerReadyPortsmouth/ReadyCraft-PulseAddon/pull/31) provides SQL-backed ownership, event-award receipts and equipment slots, with eleven focused tests passing. Runtime connection wiring, catalogue loading, menus, renderers and shop purchases are still to implement. The reserved wardrobe setting defaults off; no cosmetics database is activated. Next work is the catalogue and a read-only Java/Bedrock wardrobe preview, followed by controlled integration. The required PR notification failed HTTP404.
+
+## 13 October - Wardrobe experience and local cosmetic rules
+
+**Prepared, not deployed:** [PulseAddon PR32](https://github.com/PlayerReadyPortsmouth/ReadyCraft-PulseAddon/pull/32) and [PulseGames PR12](https://github.com/PlayerReadyPortsmouth/Readycraft-PulseGames/pull/12). PulseContent Paper 0.4.0 and PulseGames 0.3.11 jars are prepared locally. No wardrobe database provisioned or enabled, and no server restarted.
+
+- Catalogue: 25 entries across custom hats, trails, weapon effects, finish effects and win animations. Twenty use native particles; five hats are planned and unavailable until a non-hiding attachment renderer and cross-edition assets exist.
+- Aurora chose Survival hats, subtle trails and restrained weapon effects. Defaults allow the hat category, Cherry Drift/Gentle Glow and Spark Strike/Arcane Strike; finish/victory effects remain off. Rules can select server, world, game, phase, category and individual cosmetic. Ownership and equipped selections survive suppression.
+- Protected inventory wardrobe offers collection browsing, private previews and ownership-checked equip/unequip. Both clients use the normal inventory path; a Bedrock form in the HTML is a design concept only. Admin grants use stable receipts; no automatic progression or purchases yet.
+- Match integration supplies explicit contexts and completion/winner triggers. Finish means match completion here. Default competitive effects are limited to Duels/KitPvP; Prop Hunt/editing suppress cosmetics. Rendering respects invisible/spectator players, viewer visibility, distance and particle budgets.
+- Validation: 24 core, 11 Paper and 15 PulseGames focused tests passed. Schema constraints/collations and shutdown safeguards checked locally; actual wardrobe MariaDB execution and mixed-client acceptance remain before enabling. Lobby's older Paper needs a separate compatibility plan before this 26.2-targeted jar.
+- Candidate and preview: `output/pulsegames/2026-10-13/wardrobe` in the Ready workspace. Both required PR notifications failed HTTP404.
+
+Further collection ideas: shoulder companions, back accessories, animated hats, fishing bobbers/catch effects, social emotes, victory scenes, personal-best celebrations, dated event keepsakes and lobby toys. These are proposals; each needs context rules and appropriate Java/Bedrock assets.
+
+## 13 October - Accessory prototypes and expanded collections
+
+**Draft updated, not deployed:** [PulseAddon PR32](https://github.com/PlayerReadyPortsmouth/ReadyCraft-PulseAddon/pull/32), commit `38bec52`, now builds PulseContent Paper 0.5.0. [PulseGames PR12](https://github.com/PlayerReadyPortsmouth/Readycraft-PulseGames/pull/12) remains the paired 0.3.11 integration. No merges, live resource-pack changes, SQL provisioning or restarts in this increment.
+
+- 45 entries across ten categories. 27 have implementations: 20 original particle effects, three fishing-catch effects, a native arm greeting and three original accessory prototypes. The other 18 are explicitly planned.
+- Starlight Crown, Clockwork Companion and Explorer's Pack use separate non-colliding anchors, preserving the player body and real armour. Original sources compile for Java/Bedrock; they remain behind an off-by-default attachment trial and model allowlist. Actual client positioning, clipping and cleanup need acceptance.
+- Category browsing, private model previews and visit-only all/reduced/hidden controls are implemented. Reduced hides others' model accessories and quarters particles; hidden suppresses both. Native arm movements are ordinary player animations and are not filtered. Preferences reset on backend change/reconnect.
+- Survival retains the chosen hats, two subtle trails and two restrained weapon effects, plus three harmless catch effects. New shoulder/back accessories and social emotes are enabled by policy only in lobby contexts. Finish/victory effects remain off in Survival.
+- Validation: 27 core and 23 Paper focused tests passed. The paired game's earlier 15 tests remain unchanged. Real MariaDB 10.11.19 acceptance passed 19 assertions, including concurrent reward replay, equip fencing, rollback, schema/collation rejection and reopened state. Disposable test resources were removed; no live database touched.
+- Review `output/pulsegames/2026-10-13/wardrobe/accessories.html` for rotatable source geometry and the adjacent ZIP for asset sources. Full-body emotes, custom fishing bobbers, richer companion/back models, event keepsake displays and automatic progression remain future work.
+
+Next acceptance: approved isolated installation; grant/equip the three prototypes; verify both editions, armour preservation, sneak/swim/glide/vehicle suppression, invisible/spectator states, world/queue cleanup, viewer controls and private previews. Do not activate from this tracker alone.
+
+**Proposed Survival collection expansion:** Aurora suggested pet effects, fishing, mining chances and farming. Draft PR32 now records paw-print trails/pet reactions, bobber/catch flourishes, successful-break mining particles and planting/mature-harvest effects. These are plans only; Aurora confirmed mining chances mean occasional visual effects only, with no gameplay bonuses. Cosmetic ownership must not change loot, XP, growth or pet statistics. See `plugins/pulse-content/docs/survival-cosmetic-effects.md` in PulseAddon.
+
+### Survival activity cosmetics — local candidate, 13 October
+
+Nine new choices are implemented locally: three pet, three mining and three farming effects. Catalogue total: 54 entries, 13 categories, 36 implemented and 18 planned. Successful native actions and optional PulseAddon pet/custom-harvest/rare-catch signals use ownership, context, visibility, chance and cooldown checks. Mining 15%, farming 30% and pet 25% defaults control particles only; no gameplay rewards change.
+
+Validation: 32 core and 34 Paper focused tests passed; PulseContent Paper 0.5.1 and PulseAddon 9.9.0 review jars built. Not pushed or deployed: the development data drive is mounted read-only. Source patches, jars, hashes and evidence are preserved at `/home/ara/Projects/Ready/output/pulsegames/2026-10-13/activity-cosmetics/`. Apply to writable isolated branches and update draft PRs before release. Mixed Java/Bedrock acceptance remains required. No server restart or live changes.
+
+## 13 October - Cosmetics trial deployed and ready for player testing
+
+**Supersedes the preparation-only statuses above.** PulseAddon PR32 and PR33, and PulseGames PR12, are merged. After Aurora's explicit restart approval, SurvivalTest, MinigamesTest and the primary proxy were saved, backed up and restarted successfully. PulseContent Paper 0.5.2 is active on both test backends, PulseAddon 9.9.0 on SurvivalTest and PulseGames 0.3.11 on MinigamesTest.
+
+- Shared wardrobe SQL is ready on both backends. Java pack downloads match the built files; matching Geyser acknowledgements and all three accessory registrations are verified. Existing arena configuration hashes are unchanged.
+- The catalogue has 54 entries across 13 categories: 36 implemented and 18 planned. Owned, ready choices can be selected ahead of a match; local policy still controls previews and actual effects. No automatic progression, purchases or player grants were enabled.
+- Initial Survival testing is in the `prettyworld` overworld. Its active Nether and End world names are not mapped in this trial. The separate Lobby backend remains excluded because its older Paper version is incompatible; use the MinigamesTest lobby for cross-server wardrobe checks.
+- Local validation passed 474 tests (32 core, 37 Paper, 399 PulseAddon and six focused PulseGames tests). Hosted checks could not start due to account billing/spending restrictions. Human Java/Bedrock visual and gameplay acceptance is still pending.
+- Full saved-server archives and SQL backup: `/srv/ready-gamed/backups/wardrobe-release-20261013`. Release evidence: `output/pulsegames/2026-10-13/wardrobe-release` in the Ready workspace. Future restarts require fresh approval.
+- Start with the [testing runbook](COSMETICS-TESTING-RUNBOOK.html), also available as `COSMETICS-TESTING-RUNBOOK.pdf`. Record edition, server, world, cosmetic ID and expected/actual result for failures.
+
+The required PR33 opening notification failed: the temporary recovery checkout was outside the helper's permitted workspace, and the retry after merging was rejected because the PR was already merged. The merge and deployment succeeded.
+
+## 13 October - Bot readiness and next map batch verified
+
+Read-only live verification confirms PulseGames 0.3.11 matches the released artifact. Bots are enabled, wait 15 seconds, and have caps of 15 per match / 24 server-wide. The two-account trial remains restricted; half-capacity filling (full when maximum is four or less) still applies, subject to playable minimum and caps.
+
+The deployed allowlist covers 11 games / 21 modes: Duels Classic/OP/Sumo; KitPvP FFA; KOTH Solo/Teams; Dodgeball Solo/Teams; Villager Defense Easy/Hard; ReadyPlayerZ Classic/Frenzy; Block Party Classic/Hardcore; Avalanche Classic; Spleef Classic/Decay/Splegg; TNT Run Classic; Volcano Classic/Eruption. Controller availability is not full played acceptance.
+
+All registered Duels, KitPvP, KOTH and Dodgeball maps permit bots. Dropper and Prop Hunt maps explicitly do not. Seven supported games have no registered maps yet: Block Party, Spleef, Avalanche, TNT Run, Volcano, Villager Defense and ReadyPlayerZ. Recommended build order: Block Party, Spleef and Avalanche first, then TNT Run/Volcano, then the two co-op games. Give Volcano connected climbable paths; do not expect bots to bridge or teleport.
+
+Still unsupported: Prop Hunt, Dropper, Parkour, Elytra Racing, PulseKarts, Skywars, Bedwars, Build Battle, Death Run, Lucky Pillars, Supermarket Sweep and Party Games. Duels Crystal/Mace, KitPvP OITC and TNT Run Double Jump also remain human-only.
+
+### Cosmetic feedback
+Aurora reports Bedrock functional checks pass, then identifies visible attachment lag during movement/rotation. Responsiveness acceptance stays open. Models currently follow separate server-positioned anchors, while the local player moves predictively. Direct client attachment needs a prototype on both editions; mounting can improve position without proving local head rotation. No follow-latency fix has been deployed or server restarted.
+
+### Cosmetic movement follow-up: opt-in client attachment prototype
+
+[PulseAddon draft PR34](https://github.com/PlayerReadyPortsmouth/ReadyCraft-PulseAddon/pull/34), commit `9715701`, prepares Paper0.5.3 and Geyser0.3.2. Java displays now have an opt-in direct player parent; a separate Geyser adapter links Bedrock model carriers as non-controlling passengers. Armour, actual passengers, wardrobe ownership, local rules and existing prop/preview paths are preserved.
+
+49 focused tests passed (34 Paper,15 Geyser); jars and trial instructions are at `output/pulsegames/2026-10-13/cosmetic-follow` in the Ready workspace. Disabled by default, draft only, not deployed. Java yaw remains server-driven; Bedrock alignment/rotation and lifecycle need actual client acceptance. Aurora chose **keep it prepared for later**: do not merge, deploy or restart for this trial without a new go-ahead. PR opening notification failed HTTP404.

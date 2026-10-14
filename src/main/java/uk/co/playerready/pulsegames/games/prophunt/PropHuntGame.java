@@ -29,7 +29,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * The flag-off game retains its original invisible helmet disguises.
  * Modes: classic (found = spectate), infection (found = join the seekers).
  */
-public final class PropHuntGame extends MiniGame {
+public final class PropHuntGame extends MiniGame implements uk.co.playerready.pulsegames.core.bot.BotMovement {
 
     private static final Material[] DISGUISES = {
             Material.HAY_BLOCK, Material.BARREL, Material.CRAFTING_TABLE, Material.BOOKSHELF,
@@ -38,6 +38,7 @@ public final class PropHuntGame extends MiniGame {
 
     private final Set<UUID> seekers = new HashSet<>();
     private final Set<UUID> hiders = new HashSet<>();
+    private final Set<UUID> originalHiders = new HashSet<>();
     private final Map<UUID, AutoCloseable> visuals = new HashMap<>();
     private final Map<UUID, HiderBody> bodies = new HashMap<>();
     private final Map<UUID, Long> nextLock = new HashMap<>();
@@ -70,20 +71,123 @@ public final class PropHuntGame extends MiniGame {
         super(game);
     }
 
+    private final Map<UUID, Location> botGoals = new HashMap<>();
+    private final Map<UUID, PropBotMemory> botMemories = new HashMap<>();
+    private final Map<UUID, Long> botNextAction = new HashMap<>();
+
+    @Override public Location botDestination(Player bot) {
+        if (seekers.contains(bot.getUniqueId()) && hidePhase > 0 || locked.containsKey(bot.getUniqueId())) return null;
+        Location goal = botGoals.get(bot.getUniqueId());
+        return goal == null ? null : goal.clone();
+    }
+
+    @Override public void botTick(Player bot, long tick, uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty) {
+        if (game.frozen() || game.state() != GameState.RUNNING || !game.isActive(bot)) return;
+        UUID id = bot.getUniqueId();
+        if (seekers.contains(id)) {
+            if (hidePhase > 0) { botGoals.remove(id); return; }
+            PropBotMemory memory = botMemories.computeIfAbsent(id, ignored -> new PropBotMemory());
+            for (UUID hiderId : hiders) {
+                Player hider = game.player(hiderId);
+                if (hider == null || !game.isActive(hider)) continue;
+                PropPalette.Option option = choices.get(hiderId);
+                Location centre = hider.getLocation().add(0, option == null ? 1.5 : option.height() / 2, 0);
+                boolean visible = visibleProp(bot, centre);
+                boolean moving = hider.getVelocity().lengthSquared() > .003;
+                // A visible moving prop is a legitimate clue. Stationary props are not identified from role metadata.
+                memory.observe(hiderId, centre, visible, moving, tick);
+            }
+            Location clue = memory.destination(tick);
+            if (clue != null) {
+                if (game.plugin().bots() != null) difficulty = game.plugin().bots().difficultyFor(game, game.player(memory.target()));
+                botGoals.put(id, clue.clone().subtract(0, .25, 0));
+                if (tick >= botNextAction.getOrDefault(id, 0L) && visibleProp(bot, clue)) {
+                    botNextAction.put(id, tick + difficulty.meleeDelayTicks());
+                    Location eye = bot.getEyeLocation();
+                    eye.setDirection(clue.toVector().subtract(eye.toVector()));
+                    bot.setRotation(eye.getYaw(), eye.getPitch());
+                    if (eye.distanceSquared(clue) <= 9 && ThreadLocalRandom.current().nextInt(100) < difficulty.accuracyPercent()) {
+                        bot.swingMainHand();
+                        if (blockProps) hitAimedProp(bot, null);
+                        else {
+                            Player target = game.player(memory.target());
+                            if (target != null && target.getWorld() == bot.getWorld() && hiders.contains(target.getUniqueId())
+                                    && bot.getEyeLocation().distanceSquared(target.getLocation().add(0, 1, 0)) <= 9 && bot.hasLineOfSight(target)) bot.attack(target);
+                        }
+                    }
+                }
+                return;
+            }
+        } else if (hiders.contains(id)) {
+            if (locked.containsKey(id)) { botGoals.remove(id); return; }
+            // Use the same lock validation as humans; navigation never teleports into a hiding space.
+            if (hidePhase <= 5 && blockProps && bot.isOnGround()) {
+                toggleLock(bot);
+                if (locked.containsKey(id)) { botGoals.remove(id); return; }
+            }
+        } else return;
+        if (seekers.contains(id) && tick % 40 == 0) {
+            // Inspect along an arbitrary facing, never auto-aim at a stationary hider's coordinates.
+            bot.setRotation(ThreadLocalRandom.current().nextFloat() * 360f, 30f);
+            bot.swingMainHand();
+            if (blockProps) hitAimedProp(bot, null);
+            else {
+                var hit = bot.getWorld().rayTraceEntities(bot.getEyeLocation(), bot.getEyeLocation().getDirection(), 3,
+                        entity -> entity instanceof Player p && !p.equals(bot) && game.isActive(p));
+                if (hit != null && hit.getHitEntity() instanceof Player target && bot.hasLineOfSight(target)) bot.attack(target);
+            }
+        }
+        Location goal = botGoals.get(id);
+        if (goal != null && goal.getWorld() == bot.getWorld() && goal.distanceSquared(bot.getLocation()) > 2
+                && tick < botNextAction.getOrDefault(id, 0L)) return;
+        botNextAction.put(id, tick + 100);
+        // Explore loaded, supported cells only. Unreachable choices time out through the navigator.
+        var random = ThreadLocalRandom.current();
+        for (int attempt = 0; attempt < 12; attempt++) {
+            Location candidate = bot.getLocation().add(random.nextInt(-6, 7), 0, random.nextInt(-6, 7));
+            candidate.setX(candidate.getBlockX() + .5); candidate.setZ(candidate.getBlockZ() + .5);
+            if (PropSpace.clear(candidate, 1.8) && PropSpace.supported(candidate)) {
+                botGoals.put(id, candidate); return;
+            }
+        }
+        botGoals.remove(id);
+    }
+
+    static boolean visibleProp(Player observer, Location point) {
+        Location eye = observer.getEyeLocation();
+        if (eye.getWorld() != point.getWorld()) return false;
+        var delta = point.toVector().subtract(eye.toVector());
+        double distance = delta.length();
+        if (distance > 16 || distance < .001) return false;
+        if (eye.getDirection().dot(delta.clone().normalize()) < .25) return false;
+        return eye.getWorld().rayTraceBlocks(eye, delta.normalize(), distance,
+                org.bukkit.FluidCollisionMode.NEVER, true) == null;
+    }
+
+    /** Skill outcome follows the starting role; conversion must not reward being caught. Call before onEnd cleanup. */
+    public boolean botSkillWin(Player player, List<Player> winners) {
+        if (!winners.contains(player)) return false;
+        if (!isInfection()) return true;
+        UUID id = player.getUniqueId();
+        if (originalHiders.contains(id)) return hiders.contains(id);
+        return hiders.isEmpty() && seekers.contains(id);
+    }
+
     private boolean isInfection() { return game.mode().id().equals("infection"); }
 
     @Override
     public String startProblem(List<Player> players) {
         if (players.size() < 2) return "Prop Hunt needs at least one seeker and one hider (2 players).";
         if (!game.plugin().getConfig().getBoolean("content.prophunt.enabled", false)) return null;
-        if (players.stream().anyMatch(game::isBot)) return "Custom Prop Hunt does not support NPC props yet.";
+        if (players.stream().anyMatch(game::isBot) && (!game.plugin().getConfig().getBoolean("content.prophunt.block-snapping", false)
+                || !game.plugin().content().npcPropVisualsReady())) return "Prop Hunt bots need block disguises and PulseContent NPC prop support.";
         List<String> models = game.plugin().getConfig().getStringList("content.prophunt.props");
         if (game.plugin().getConfig().getBoolean("content.prophunt.block-snapping", false)) {
             if (!game.plugin().content().propVisualsReady()) return "Moving block disguises need PulseContent 0.3.3 or newer (prop visual API).";
             try { models = PropPalette.read(game.plugin().getConfig()).stream().map(PropPalette.Option::model).toList(); }
             catch (IllegalArgumentException e) { return e.getMessage(); }
         }
-        return game.plugin().content().startProblem(models, players);
+        return game.plugin().content().startProblem(models, players.stream().filter(p -> !game.isBot(p)).toList());
     }
 
     @Override
@@ -96,7 +200,7 @@ public final class PropHuntGame extends MiniGame {
         if (customProps) {
             String problem = startProblem(game.everyone());
             if (problem != null) throw new IllegalStateException(problem);
-            visualAudience = game.everyone().stream().map(Player::getUniqueId).collect(java.util.stream.Collectors.toUnmodifiableSet());
+            visualAudience = game.everyone().stream().filter(p -> !game.isBot(p)).map(Player::getUniqueId).collect(java.util.stream.Collectors.toUnmodifiableSet());
         }
         powers = blockProps && game.arena().settings().getBoolean("prop-powers", true);
         decoyLimit = bounded("decoy-limit", 3, 1, 3);
@@ -124,6 +228,7 @@ public final class PropHuntGame extends MiniGame {
                 Text.title(player, "<red><b>SEEKER", "<gray>Released in " + hidePhase + "s...");
             } else {
                 hiders.add(player.getUniqueId());
+                originalHiders.add(player.getUniqueId());
                 String disguiseName;
                 if (customProps) {
                     int index = random.nextInt(props.size());
@@ -131,7 +236,7 @@ public final class PropHuntGame extends MiniGame {
                     if (blockProps) {
                         HiderBody body = new HiderBody(game.plugin(), player);
                         bodies.put(player.getUniqueId(), body);
-                        body.apply(palette.get(index).height(), game.everyone());
+                        body.apply(palette.get(index).height(), game.everyone().stream().filter(p -> !game.isBot(p)).toList());
                         visuals.put(player.getUniqueId(), new PropRig(player, palette.get(index)));
                     } else visuals.put(player.getUniqueId(), game.plugin().content().attach(id, player, visualAudience));
                     disguiseName = blockProps ? palette.get(index).name() : "custom prop";
@@ -145,7 +250,7 @@ public final class PropHuntGame extends MiniGame {
                             giveControl(player, 5, Material.FEATHER, "Escape sprint");
                         }
                         player.sendMessage(Text.msg("<yellow>Choose a disguise during hiding time. Right-click the slime ball to lock to the block grid or move again."));
-                        game.runLater(1, () -> openPalette(player));
+                        if (!game.isBot(player)) game.runLater(1, () -> openPalette(player));
                     }
                 } else {
                     Material disguise = DISGUISES[random.nextInt(DISGUISES.length)];
@@ -169,10 +274,10 @@ public final class PropHuntGame extends MiniGame {
     public void onSecond(int gameTime) {
         for (UUID id : List.copyOf(decoys.keySet())) if (decoys.get(id).expires() <= gameTime) removeDecoy(id);
         if (customProps) {
-            Set<UUID> currentAudience = game.everyone().stream().map(Player::getUniqueId).collect(java.util.stream.Collectors.toSet());
+            Set<UUID> currentAudience = game.everyone().stream().filter(p -> !game.isBot(p)).map(Player::getUniqueId).collect(java.util.stream.Collectors.toSet());
             boolean valid = currentAudience.equals(visualAudience);
             for (UUID id : hiders) {
-                Player hider = game.plugin().getServer().getPlayer(id);
+                Player hider = game.player(id);
                 Locked anchor = locked.get(id);
                 valid &= hider != null && (blockProps ? visuals.get(id) instanceof PropRig rig && rig.active()
                         : game.plugin().content().isActive(hider));
@@ -189,7 +294,7 @@ public final class PropHuntGame extends MiniGame {
             hidePhase--;
             // Hold seekers at spawn during the hide phase.
             for (UUID id : seekers) {
-                Player seeker = game.plugin().getServer().getPlayer(id);
+                Player seeker = game.player(id);
                 if (seeker != null && (!seeker.getWorld().equals(seekerHold.getWorld())
                         || seeker.getLocation().distanceSquared(seekerHold) > 4)) {
                     seeker.teleport(seekerHold);
@@ -198,7 +303,7 @@ public final class PropHuntGame extends MiniGame {
             if (hidePhase == 0) {
                 game.broadcast("<red><b>The seekers have been released!");
                 for (UUID id : seekers) {
-                    Player seeker = game.plugin().getServer().getPlayer(id);
+                    Player seeker = game.player(id);
                     if (seeker != null) equipSeeker(seeker);
                 }
             }
@@ -208,9 +313,20 @@ public final class PropHuntGame extends MiniGame {
         if (gameTime % 30 == 0) {
             game.broadcast("<dark_gray>The props made a sound...");
             for (UUID id : hiders) {
-                Player hider = game.plugin().getServer().getPlayer(id);
+                Player hider = game.player(id);
                 if (hider == null) continue;
                 game.world().playSound(hider.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1.2f, 0.8f);
+                for (UUID seekerId : seekers) {
+                    Player seeker = game.player(seekerId);
+                    if (seeker != null && game.isBot(seeker) && seeker.getWorld() == hider.getWorld()
+                            && seeker.getLocation().distanceSquared(hider.getLocation()) <= 12 * 12) {
+                        // Sound supplies a rough search area, never an identified attack target.
+                        Location cue = hider.getLocation();
+                        cue.setX(Math.floor(cue.getX() / 4) * 4 + 2);
+                        cue.setZ(Math.floor(cue.getZ() / 4) * 4 + 2);
+                        botGoals.put(seekerId, cue);
+                    }
+                }
                 game.world().spawnParticle(org.bukkit.Particle.NOTE,
                         hider.getLocation().add(0, 2, 0), 3, 0.2, 0.2, 0.2);
             }
@@ -528,7 +644,7 @@ public final class PropHuntGame extends MiniGame {
         for (Player player : game.everyone()) {
             if (player.getOpenInventory().getTopInventory().getHolder() instanceof PaletteMenu) player.closeInventory();
         }
-        choices.clear(); nextBlockHit.clear(); routedBlockHits.clear(); nextLock.clear(); cooldowns.clear(); locked.clear();
+        originalHiders.clear(); botGoals.clear(); botMemories.clear(); botNextAction.clear(); choices.clear(); nextBlockHit.clear(); routedBlockHits.clear(); nextLock.clear(); cooldowns.clear(); locked.clear();
         if (failure != null) throw failure;
     }
 
@@ -568,9 +684,11 @@ public final class PropHuntGame extends MiniGame {
             try {
                 Set<UUID> others = new HashSet<>(visualAudience); others.remove(player.getUniqueId());
                 Location feet = player.getLocation().clone(); feet.setYaw(0); feet.setPitch(0);
-                if (!others.isEmpty()) parts.add(game.plugin().content().createProp(option.model(), player, feet, others, 1f));
+                if (!others.isEmpty()) parts.add(game.isBot(player)
+                        ? game.plugin().content().createNpcProp(option.model(), player, feet, others, 1f)
+                        : game.plugin().content().createProp(option.model(), player, feet, others, 1f));
                 // Small local preview avoids placing the reduced first-person camera inside a full cube.
-                parts.add(game.plugin().content().createProp(option.model(), player, feet, Set.of(player.getUniqueId()), .4f));
+                if (!game.isBot(player)) parts.add(game.plugin().content().createProp(option.model(), player, feet, Set.of(player.getUniqueId()), .4f));
             } catch (RuntimeException error) { try { close(); } catch (RuntimeException cleanup) { error.addSuppressed(cleanup); } throw error; }
         }
         boolean active() { return !parts.isEmpty() && parts.stream().allMatch(uk.co.playerready.pulsegames.core.content.PulseContentBridge.PropVisual::active); }

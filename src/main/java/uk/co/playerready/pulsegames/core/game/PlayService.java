@@ -19,7 +19,7 @@ public final class PlayService {
     private final Map<UUID, QueueTicket> pending = new HashMap<>();
 
     /** One ticket owns the entire group until admission succeeds or someone cancels. */
-    private record QueueTicket(List<Player> group, GameType type, GameMode mode, GameInstance preferred) {}
+    private record QueueTicket(List<Player> group, GameType type, GameMode mode, GameInstance preferred, Party party) {}
 
     public boolean hasPending(Player player) { return pending.containsKey(player.getUniqueId()); }
 
@@ -78,7 +78,7 @@ public final class PlayService {
         }
         // A new request supersedes old requests even if no map is available for it.
         group.forEach(this::cancelPending);
-        QueueTicket ticket = new QueueTicket(group, type, mode, preferred);
+        QueueTicket ticket = new QueueTicket(group, type, mode, preferred, party);
         group.forEach(member -> pending.put(member.getUniqueId(), ticket));
         findDestination(ticket, 0);
     }
@@ -99,7 +99,13 @@ public final class PlayService {
 
     private boolean readyGroup(QueueTicket ticket) {
         if (!current(ticket)) return false;
-        if (ticket.group().stream().allMatch(Player::isOnline)) return true;
+        if (ticket.group().stream().allMatch(Player::isOnline)) {
+            boolean sameParty = ticket.group().stream().allMatch(p -> plugin.parties().partyOf(p) == ticket.party());
+            boolean sameSize = ticket.party() == null || ticket.party().size() == ticket.group().size();
+            if (sameParty && sameSize) return true;
+            fail(ticket, "<red>Your party changed while loading. Please queue again.");
+            return false;
+        }
         fail(ticket, "<red>A queued player left. Please queue your party again.");
         return false;
     }
@@ -132,7 +138,8 @@ public final class PlayService {
         }
         // Main-thread preflight reserves the group's capacity for this admission: no
         // scheduler callback can insert another party between this check and the adds.
-        if (!instance.joinable(ticket.group().size())) {
+        int incoming = (int) ticket.group().stream().filter(p -> !instance.isParticipant(p)).count();
+        if (!instance.joinable(incoming)) {
             retry(ticket, requeues);
             return;
         }
@@ -142,6 +149,7 @@ public final class PlayService {
         }
         List<Player> admitted = new ArrayList<>();
         for (Player member : ticket.group()) {
+            if (instance.isParticipant(member)) continue;
             GameInstance old = plugin.instances().byPlayer(member);
             if (old != null) old.remove(member, true);
             if (!instance.add(member)) {

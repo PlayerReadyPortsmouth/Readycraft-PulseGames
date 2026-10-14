@@ -56,7 +56,7 @@ public final class GameInstance {
     private final Set<UUID> botIds = new LinkedHashSet<>();
     private final Set<UUID> respawning = new LinkedHashSet<>();
     private final Set<UUID> handlingDeaths = new LinkedHashSet<>();
-    private boolean botRound;
+    private boolean competitiveEligible = true;
     private final Set<UUID> alive = new LinkedHashSet<>();
     private final Set<UUID> spectators = new LinkedHashSet<>();
     private final List<GameTeam> teams = new ArrayList<>();
@@ -158,7 +158,8 @@ public final class GameInstance {
 
     public boolean isBot(Player player) { return botIds.contains(player.getUniqueId()); }
     public int humanCount() { return (int) participants.stream().filter(id -> !botIds.contains(id)).count(); }
-    public boolean ranked() { return !botRound; }
+    /** Fixed when the round starts; later departures cannot change rewards. */
+    public boolean ranked() { return competitiveEligible; }
     public boolean isActive(Player player) {
         return isAlive(player) && !respawning.contains(player.getUniqueId())
                 && player.getGameMode() != org.bukkit.GameMode.SPECTATOR;
@@ -406,8 +407,12 @@ public final class GameInstance {
                 return;
             }
         }
-        botRound = !botIds.isEmpty();
-        if (botRound) broadcast("<yellow>This match includes bots. Competitive records and match token rewards are disabled.");
+        competitiveEligible = CompetitiveEligibility.eligible(humanCount(), botIds.size(), maxPlayers());
+        if (!botIds.isEmpty()) {
+            broadcast(competitiveEligible
+                    ? "<green>This bot-assisted match counts for competitive records and match token rewards."
+                    : "<yellow>Practice match: not enough human players for competitive records or match token rewards.");
+        }
         state = GameState.RUNNING;
         gameTime = 0;
         alive.clear();
@@ -433,8 +438,9 @@ public final class GameInstance {
             }
         }
         frozenUntil = System.currentTimeMillis() + logic.startFreezeSeconds() * 1000L;
-        note("started", "participants="+participants.size()+" bots="+botIds.size());
+        note("started", "participants="+participants.size()+" bots="+botIds.size()+" competitive="+competitiveEligible);
         runLogic("onStart", logic::onStart);
+        if (state == GameState.RUNNING && plugin.bots() != null) plugin.bots().onRoundStart(this);
     }
 
     /** Player spawn point: their team's spawn, or their join-order spawn for FFA. */
@@ -534,6 +540,7 @@ public final class GameInstance {
     public void end(List<Player> winners, String reason) {
         note("ending", reason);
         if (state == GameState.ENDING || state == GameState.RESETTING) return;
+        if (plugin.bots() != null) plugin.bots().onRoundEnd(this, winners, reason);
         state = GameState.ENDING;
         countdown = plugin.getConfig().getInt("end.celebrate-seconds", 10);
         String names = winners.isEmpty() ? "Nobody"

@@ -95,7 +95,7 @@ class BotServiceTest {
         verify(game).cleanup();
     }
     @Test void unsupportedGamesAndNonCanaryPlayersNeverReceiveBots() {
-        when(game.type().id()).thenReturn("prophunt");
+        when(game.type().id()).thenReturn("skywars");
         for(int i=0;i<5;i++) bots.reconcile(game);
         verify(provider,never()).create(any(),any());
         when(game.type().id()).thenReturn("duels");
@@ -103,6 +103,55 @@ class BotServiceTest {
         for(int i=0;i<5;i++) bots.reconcile(game);
         verify(provider,never()).create(any(),any());
     }
+    @Test void customPropBotsRequirePairedContentAndBlockDisguises() {
+        when(game.type().id()).thenReturn("prophunt");
+        config.set("content.prophunt.enabled", true);
+        assertFalse(bots.eligible(game));
+        config.set("content.prophunt.block-snapping", true);
+        var content = mock(uk.co.playerready.pulsegames.core.content.PulseContentBridge.class);
+        when(plugin.content()).thenReturn(content);
+        assertFalse(bots.eligible(game));
+        when(content.npcPropVisualsReady()).thenReturn(true);
+        assertTrue(bots.eligible(game));
+    }
+
+    @Test void adaptiveOpponentLevelsAreFrozenAndGroupUsesLowerMedian() {
+        var skills = mock(AdaptiveBotSkillStore.class);
+        bots = new BotService(plugin, provider, skills);
+        Player expert = player("Expert");
+        roster.add(expert);
+        when(game.arena().settings().getString(eq("bot-difficulty"), anyString())).thenReturn("adaptive");
+        when(skills.difficulty(human.getUniqueId(), "duels:classic")).thenReturn(BotDifficulty.EASY);
+        when(skills.difficulty(expert.getUniqueId(), "duels:classic")).thenReturn(BotDifficulty.HARD);
+        bots.onRoundStart(game);
+        assertEquals(BotDifficulty.EASY, bots.difficultyFor(game, human));
+        assertEquals(BotDifficulty.HARD, bots.difficultyFor(game, expert));
+        assertEquals(BotDifficulty.EASY, bots.difficultyFor(game, null));
+        when(skills.difficulty(expert.getUniqueId(), "duels:classic")).thenReturn(BotDifficulty.EASY);
+        assertEquals(BotDifficulty.HARD, bots.difficultyFor(game, expert));
+        when(game.arena().settings().getString(eq("bot-difficulty"), anyString())).thenReturn("normal");
+        assertEquals(BotDifficulty.NORMAL, bots.difficultyFor(game, expert));
+    }
+
+    @Test void onlyCompletedPresentPlayerRoundsTrainPracticeHistoryOnce() {
+        var skills = mock(AdaptiveBotSkillStore.class);
+        bots = new BotService(plugin, provider, skills);
+        when(skills.difficulty(any(), anyString())).thenReturn(BotDifficulty.NORMAL);
+        when(plugin.getServer()).thenReturn(mock(org.bukkit.Server.class, RETURNS_DEEP_STUBS));
+        when(game.state()).thenReturn(GameState.RUNNING);
+        when(game.gameTime()).thenReturn(40);
+        bots.onRoundStart(game);
+        bots.onRoundEnd(game, List.of(human), "last-standing");
+        bots.onRoundEnd(game, List.of(human), "last-standing");
+        verify(skills, times(1)).record(human.getUniqueId(), "duels:classic", true, .5);
+        bots.onRoundStart(game);
+        bots.onRoundEnd(game, List.of(human), "forced");
+        bots.onRoundStart(game);
+        roster.clear();
+        bots.onRoundEnd(game, List.of(human), "last-standing");
+        verify(skills, times(1)).record(any(), anyString(), anyBoolean(), anyDouble());
+    }
+
     @Test void flagOffRemovesWaitingBots() {
         bots.reconcile(game); bots.reconcile(game);
         config.set("bots.enabled",false);

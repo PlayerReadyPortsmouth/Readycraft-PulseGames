@@ -1,6 +1,7 @@
 package uk.co.playerready.pulsegames.core.party;
 
 import org.bukkit.entity.Player;
+import net.kyori.adventure.text.Component;
 import org.bukkit.plugin.java.JavaPlugin;
 import uk.co.playerready.pulsegames.core.util.Text;
 
@@ -60,10 +61,15 @@ public final class PartyManager {
         target.sendMessage(Text.msg("<yellow>" + inviter.getName()
                 + "</yellow> invited you to a party. <green><click:run_command:'/party accept'>[ACCEPT]</click></green> "
                 + "<red><click:run_command:'/party deny'>[DENY]</click></red>"));
+        target.sendMessage(Text.msg("Type <yellow>/party accept</yellow> or <yellow>/party deny</yellow>. Your leader queues the group together."));
         return true;
     }
 
     public void accept(Player player) {
+        if (partyOf(player) != null) {
+            player.sendMessage(Text.msg("<red>Leave your current party before accepting another invite."));
+            return;
+        }
         Invite invite = invites.remove(player.getUniqueId());
         if (invite == null || invite.expiresAt() < System.currentTimeMillis()) {
             player.sendMessage(Text.msg("<red>You have no pending party invite."));
@@ -119,7 +125,7 @@ public final class PartyManager {
         }
         for (Player member : party.onlineMembers()) {
             member.sendMessage(Text.mm("<blue>Party</blue> <dark_gray>» <yellow>" + sender.getName()
-                    + "</yellow><gray>: <white>" + message));
+                    + "</yellow><gray>: <white>").append(Component.text(message)));
         }
     }
 

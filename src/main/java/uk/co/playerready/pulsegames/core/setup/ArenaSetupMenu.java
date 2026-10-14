@@ -133,11 +133,11 @@ final class ArenaSetupMenu implements Listener {
         buttons.add(button(Material.ARMOR_STAND, "Queue bots: " + session.settings.getOrDefault("bots-enabled", false), () -> {
             session.settings.put("bots-enabled", !Boolean.TRUE.equals(session.settings.get("bots-enabled"))); open(player, session);
         }, "Toggle arena bot permission", "Only supported games can fill queues"));
-        buttons.add(button(Material.IRON_SWORD, "Bot difficulty: " + session.settings.getOrDefault("bot-difficulty", "normal"), () -> {
-            String current = String.valueOf(session.settings.getOrDefault("bot-difficulty", "normal"));
-            session.settings.put("bot-difficulty", switch (current) { case "easy" -> "normal"; case "normal" -> "hard"; default -> "easy"; });
+        buttons.add(button(Material.IRON_SWORD, "Bot difficulty: " + session.settings.getOrDefault("bot-difficulty", "adaptive"), () -> {
+            String current = String.valueOf(session.settings.getOrDefault("bot-difficulty", "adaptive"));
+            session.settings.put("bot-difficulty", switch (current) { case "easy" -> "normal"; case "normal" -> "hard"; case "hard" -> "adaptive"; default -> "easy"; });
             open(player, session);
-        }, "Click to cycle Easy / Normal / Hard", "Normal damage and reach at every level"));
+        }, "Click to cycle Adaptive / Easy / Normal / Hard", "Normal damage and reach at every level"));
         buttons.add(button(Material.BLAZE_ROD, "Get selection wand", () -> { manager.giveWand(player); player.closeInventory(); }));
         buttons.add(button(Material.SPYGLASS, "Validate arena", () -> { player.closeInventory(); manager.validate(player, session); }, "Check coordinates, objectives, teams and spawn clearance", "Read-only; does not load unexplored chunks"));
         long missing = manager.checklist(session).stream().filter(e -> e.required() && !e.done()).count();

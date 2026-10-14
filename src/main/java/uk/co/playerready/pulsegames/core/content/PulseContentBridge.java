@@ -113,6 +113,22 @@ public final class PulseContentBridge implements AutoCloseable {
         try { api().props(); return true; }
         catch (ReflectiveOperationException | IllegalStateException e) { return false; }
     }
+    public boolean npcPropVisualsReady() {
+        try { Api current = api(); return Integer.valueOf(1).equals(current.provider.getClass().getMethod("npcPropVisualsApiVersion").invoke(current.provider)); }
+        catch (ReflectiveOperationException | IllegalStateException e) { return false; }
+    }
+    public PropVisual createNpcProp(String model, Player participant, org.bukkit.Location position, Collection<UUID> viewers, float scale) {
+        try {
+            Api current = api();
+            if (!npcPropVisualsReady()) throw new IllegalStateException("NPC props unavailable");
+            Object result = current.provider.getClass().getMethod("createNpcPropVisual", Plugin.class, String.class,
+                    Player.class, org.bukkit.Location.class, Collection.class, float.class)
+                    .invoke(current.provider, plugin, model, participant, position, List.copyOf(viewers), scale);
+            if (!(result instanceof AutoCloseable visual)) throw new IllegalStateException("Missing NPC prop visual");
+            OwnedVisual owned = new OwnedVisual(visual); handles.add(owned);
+            return new PropVisual(current, owned);
+        } catch (ReflectiveOperationException e) { throw new IllegalStateException("Cannot create NPC prop visual", e); }
+    }
     public PropVisual createProp(String model, Player participant, org.bukkit.Location position, Collection<UUID> viewers, float scale) {
         try {
             Api current = api();

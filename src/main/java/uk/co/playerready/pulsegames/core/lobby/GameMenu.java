@@ -60,6 +60,14 @@ public final class GameMenu implements Listener {
             inv.setItem(slot++, item);
         }
         addKitButton(holder, inv);
+        ItemStack party = new ItemStack(Material.PLAYER_HEAD);
+        party.editMeta(meta -> {
+            meta.displayName(Text.mm("<aqua>Play with a party"));
+            meta.lore(List.of(Text.mm("<gray>Invite friends with /party invite [name]"),
+                    Text.mm("<gray>Your leader queues everyone together"),
+                    Text.mm("<yellow>Click for party commands")));
+        });
+        inv.setItem(inv.getSize() - 2, party);
         player.openInventory(inv);
     }
 
@@ -109,6 +117,13 @@ public final class GameMenu implements Listener {
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getType() == Material.AIR) return;
 
+        if (holder.gameOrNull == null && event.getSlot() == event.getInventory().getSize() - 2) {
+            player.closeInventory();
+            player.sendMessage(Text.msg("<yellow>/party invite [name]</yellow> — invite a player on this server"));
+            player.sendMessage(Text.msg("<yellow>/party accept</yellow>, <yellow>/party list</yellow>, <yellow>/party leave</yellow>"));
+            player.sendMessage(Text.msg("Your party leader selects the game. Parties may face each other in solo modes."));
+            return;
+        }
         if ((holder.gameOrNull == null && event.getSlot() == event.getInventory().getSize() - 1)
                 || (holder.gameOrNull != null && holder.gameOrNull.id().equals("kitpvp") && event.getSlot() == 4)) {
             plugin.kitSelection().open(player); return;
