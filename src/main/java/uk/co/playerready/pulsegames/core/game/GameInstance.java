@@ -307,7 +307,10 @@ public final class GameInstance {
             plugin.bots().destroy(player.getUniqueId());
             botIds.remove(player.getUniqueId());
         }
-        if (humanCount() == 0 && !botIds.isEmpty()) {
+        // An explicit last-human exit must retire the queue immediately. Disconnected
+        // players retain their participant seat until their reconnect reservation expires.
+        if (humanCount() == 0 && (!botIds.isEmpty()
+                || state == GameState.WAITING || state == GameState.COUNTDOWN)) {
             cleanup();
             return;
         }
@@ -359,9 +362,8 @@ public final class GameInstance {
     }
 
     /**
-     * Pre-start lobbies are exempt from the empty-instance cleanup in {@link #remove},
-     * so an abandoned queue would otherwise hold its cloned world and one of the
-     * max-concurrent slots until the server restarts.
+     * Fallback for queues abandoned before a player was admitted (for example a
+     * cancelled world load). Explicit last-player exits clean up in remove().
      */
     private boolean reapIfAbandoned() {
         boolean pending = state == GameState.WAITING || state == GameState.COUNTDOWN;
