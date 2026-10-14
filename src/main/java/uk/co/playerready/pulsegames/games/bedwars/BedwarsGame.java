@@ -39,23 +39,26 @@ public final class BedwarsGame extends MiniGame {
         @Override public Inventory getInventory() { return inventory; }
     }
 
-    private record ShopItem(ItemStack product, Material currency, int cost) {}
+    private record ShopItem(Material material,int amount,Material currency,int cost) {
+        ShopItem(Material material,Material currency,int cost) { this(material,1,currency,cost); }
+        ItemStack product() { return new ItemStack(material,amount); }
+    }
 
     private static final List<ShopItem> SHOP = List.of(
-            new ShopItem(new ItemStack(Material.WHITE_WOOL, 16), Material.IRON_INGOT, 4),
-            new ShopItem(new ItemStack(Material.OAK_PLANKS, 16), Material.GOLD_INGOT, 4),
-            new ShopItem(new ItemStack(Material.END_STONE, 12), Material.IRON_INGOT, 24),
-            new ShopItem(new ItemStack(Material.STONE_SWORD), Material.IRON_INGOT, 10),
-            new ShopItem(new ItemStack(Material.IRON_SWORD), Material.GOLD_INGOT, 7),
-            new ShopItem(new ItemStack(Material.DIAMOND_SWORD), Material.DIAMOND, 4),
-            new ShopItem(new ItemStack(Material.CHAINMAIL_CHESTPLATE), Material.IRON_INGOT, 30),
-            new ShopItem(new ItemStack(Material.IRON_CHESTPLATE), Material.GOLD_INGOT, 12),
-            new ShopItem(new ItemStack(Material.BOW), Material.GOLD_INGOT, 12),
-            new ShopItem(new ItemStack(Material.ARROW, 6), Material.GOLD_INGOT, 2),
-            new ShopItem(new ItemStack(Material.GOLDEN_APPLE), Material.GOLD_INGOT, 3),
-            new ShopItem(new ItemStack(Material.SHEARS), Material.IRON_INGOT, 20),
-            new ShopItem(new ItemStack(Material.IRON_PICKAXE), Material.IRON_INGOT, 25),
-            new ShopItem(new ItemStack(Material.TNT), Material.GOLD_INGOT, 8));
+            new ShopItem(Material.WHITE_WOOL, 16, Material.IRON_INGOT, 4),
+            new ShopItem(Material.OAK_PLANKS, 16, Material.GOLD_INGOT, 4),
+            new ShopItem(Material.END_STONE, 12, Material.IRON_INGOT, 24),
+            new ShopItem(Material.STONE_SWORD, Material.IRON_INGOT, 10),
+            new ShopItem(Material.IRON_SWORD, Material.GOLD_INGOT, 7),
+            new ShopItem(Material.DIAMOND_SWORD, Material.DIAMOND, 4),
+            new ShopItem(Material.CHAINMAIL_CHESTPLATE, Material.IRON_INGOT, 30),
+            new ShopItem(Material.IRON_CHESTPLATE, Material.GOLD_INGOT, 12),
+            new ShopItem(Material.BOW, Material.GOLD_INGOT, 12),
+            new ShopItem(Material.ARROW, 6, Material.GOLD_INGOT, 2),
+            new ShopItem(Material.GOLDEN_APPLE, Material.GOLD_INGOT, 3),
+            new ShopItem(Material.SHEARS, Material.IRON_INGOT, 20),
+            new ShopItem(Material.IRON_PICKAXE, Material.IRON_INGOT, 25),
+            new ShopItem(Material.TNT, Material.GOLD_INGOT, 8));
 
     private static final org.bukkit.Color[] TEAM_COLORS = {
             org.bukkit.Color.RED, org.bukkit.Color.BLUE, org.bukkit.Color.LIME, org.bukkit.Color.YELLOW,
@@ -69,6 +72,14 @@ public final class BedwarsGame extends MiniGame {
     private final Set<Integer> hasteTeams = new HashSet<>();
     private List<Cuboid> bedRegions = List.of();
     private int generatorTier = 1;
+    private final uk.co.playerready.pulsegames.games.skywars.SkywarsBotBow botBow=new uk.co.playerready.pulsegames.games.skywars.SkywarsBotBow();
+    private final uk.co.playerready.pulsegames.games.skywars.SkywarsBotTraversal botTraversal=new uk.co.playerready.pulsegames.games.skywars.SkywarsBotTraversal();
+    private final Map<java.util.UUID,Long> botNextAction=new HashMap<>();
+    private final Map<java.util.UUID,Integer> botPlaced=new HashMap<>();
+    private final Map<java.util.UUID,String> botStatuses=new HashMap<>();
+    private final Set<java.util.UUID> botPurchaseProbes=new HashSet<>();
+    private record Mining(Location block,Material type,long lastTick,double progress) {}
+    private final Map<java.util.UUID,Mining> botMining=new HashMap<>();
 
     public BedwarsGame(GameInstance game) {
         super(game);
@@ -181,7 +192,7 @@ public final class BedwarsGame extends MiniGame {
                 player.sendMessage(Text.msg("<red>You can't break your own bed!"));
                 return false;
             }
-            destroyBed(bedTeam, player);
+            if(!game.isBot(player)) destroyBed(bedTeam, player); // NPC mining commits only after Player.breakBlock succeeds.
             return true;
         }
         return playerBlocks.contains(block.getLocation());
@@ -258,6 +269,7 @@ public final class BedwarsGame extends MiniGame {
     @Override
     public void onRespawn(Player player) {
         equipBase(player);
+        botTraversal.remove(player); botBow.remove(player); botMining.remove(player.getUniqueId());
     }
 
     // ---- shop --------------------------------------------------------------------
@@ -311,6 +323,7 @@ public final class BedwarsGame extends MiniGame {
 
     @Override
     public void onInventoryClick(Player player, InventoryClickEvent event) {
+        if (botPurchaseProbes.contains(player.getUniqueId())) return;
         if (!(event.getInventory().getHolder() instanceof ShopHolder)) return;
         event.setCancelled(true);
         int slot = event.getSlot();
@@ -321,19 +334,23 @@ public final class BedwarsGame extends MiniGame {
         }
         if (slot >= SHOP.size()) return;
         ShopItem entry = SHOP.get(slot);
-        if (!player.getInventory().containsAtLeast(new ItemStack(entry.currency()), entry.cost())) {
-            player.sendMessage(Text.msg("<red>You can't afford that."));
-            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
-            return;
+        buyItem(player,entry);
+    }
+
+    private boolean buyItem(Player player,ShopItem entry) {
+        ItemStack product=entry.product();
+        if(product.getType()==Material.WHITE_WOOL) {
+            GameTeam team=game.teamOf(player);
+            if(team!=null) product=new ItemStack(team.palette().wool(),product.getAmount());
         }
-        player.getInventory().removeItem(new ItemStack(entry.currency(), entry.cost()));
-        ItemStack product = entry.product().clone();
-        if (product.getType() == Material.WHITE_WOOL) {
-            GameTeam team = game.teamOf(player);
-            if (team != null) product = new ItemStack(team.palette().wool(), product.getAmount());
+        if(!BedwarsPurchase.buy(player.getInventory(),entry.currency(),entry.cost(),product)) {
+            if(!game.isBot(player)) player.sendMessage(Text.msg("<red>Not enough currency or inventory space."));
+            return false;
         }
-        player.getInventory().addItem(product);
-        player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
+        GameTeam team=game.teamOf(player);
+        if(team!=null) applyUpgrades(player,team.index());
+        player.playSound(player.getLocation(),Sound.ENTITY_EXPERIENCE_ORB_PICKUP,1f,1.4f);
+        return true;
     }
 
     private void buyTeamUpgrade(Player player, TeamUpgrade upgrade) {
@@ -365,6 +382,171 @@ public final class BedwarsGame extends MiniGame {
         game.runLater(1L, () -> {
             if (player.isOnline() && game.isAlive(player)) openShop(player);
         });
+    }
+
+    public String botStatus(Player bot) { return botStatuses.getOrDefault(bot.getUniqueId(),"Gathering resources"); }
+    public boolean botCombat(Player bot,org.bukkit.entity.LivingEntity enemy,long tick,
+            uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty) { return botBow.combat(game,bot,enemy,tick,difficulty); }
+
+    public Location botObjective(Player bot,Location combatGoal,long tick,uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty) {
+        if(!botActive(bot)) return null;
+        GameTeam team=game.teamOf(bot); if(team==null) return null;
+        var id=bot.getUniqueId();
+        if(tick>=botNextAction.getOrDefault(id,0L)) {
+            botNextAction.put(id,tick+20);
+            BedwarsBotResources.collect(game,bot);
+            botPurchase(bot);
+            uk.co.playerready.pulsegames.games.skywars.SkywarsBotInventory.equip(bot.getInventory());
+        }
+        Location flight=botTraversal.airborne(bot,tick); if(flight!=null) return flight;
+        if(!bot.isOnGround()) return null;
+        Location goal;
+        boolean closeEnemy=combatGoal!=null && combatGoal.getWorld()==bot.getWorld()
+                && bot.getLocation().distanceSquared(combatGoal)<8*8;
+        if(closeEnemy) { botMining.remove(id); goal=combatGoal; }
+        else {
+            Block defence=nextDefence(team);
+            int blocks=uk.co.playerready.pulsegames.games.skywars.SkywarsBotInventory.blockSlot(bot.getInventory());
+            if(defence!=null && blocks>=0) {
+                goal=defence.getLocation().add(.5,0,.5); goal.setY(bot.getLocation().getY());
+                if(placeNear(bot,defence,blocks,tick)) { botStatuses.put(id,"Building a finite bed defence"); return null; }
+            } else if(blocks<0 || (!hasSword(bot,Material.STONE_SWORD) && !hasSword(bot,Material.IRON_SWORD)
+                    && !hasSword(bot,Material.DIAMOND_SWORD))) {
+                goal=generator(team); botStatuses.put(id,"Collecting actual generator drops");
+            } else {
+                Cuboid enemy=enemyBed(team,bot.getLocation());
+                goal=enemy==null?combatGoal:enemy.center(game.world());
+                if(enemy!=null) {
+                    botStatuses.put(id,"Approaching a public enemy bed objective");
+                    if(mineVisibleDefence(bot,enemy,tick)) return null;
+                }
+            }
+        }
+        if(goal==null) goal=generator(team);
+        Location here=bot.getLocation(),step=uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.step(here,goal);
+        if(step==null) return null;
+        if(uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.corridor(here,step)) return step;
+        Location height=botTraversal.start(game,bot,step,tick); if(height!=null) return height;
+        if(uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.safe(here,true)
+                && uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.safe(step,false)
+                && Math.abs(here.getY()-Math.rint(here.getY()))<.04) {
+            Block target=game.world().getBlockAt(step.getBlockX(),step.getBlockY()-1,step.getBlockZ());
+            int slot=uk.co.playerready.pulsegames.games.skywars.SkywarsBotInventory.blockSlot(bot.getInventory());
+            if(slot>=0 && placeNear(bot,target,slot,tick)
+                    && uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.corridor(here,step)) return step;
+        }
+        botStatuses.put(id,"Waiting for materials or a safe route"); return null;
+    }
+    private boolean botActive(Player bot) {
+        return game.state()==uk.co.playerready.pulsegames.core.game.GameState.RUNNING && !game.frozen()
+                && game.isBot(bot) && game.isActive(bot) && bot.getWorld()==game.world();
+    }
+    private Location generator(GameTeam team) {
+        try { return game.arena().settingLocation("generator"+(team.index()+1),game.world()); }
+        catch(IllegalArgumentException badMap) { return null; }
+    }
+    private boolean hasSword(Player bot,Material material) { return BedwarsPurchase.count(bot.getInventory(),material)>0; }
+    private void botPurchase(Player bot) {
+        int selection=-1; var inventory=bot.getInventory();
+        if(uk.co.playerready.pulsegames.games.skywars.SkywarsBotInventory.blockSlot(inventory)<0) selection=0;
+        else if(!hasSword(bot,Material.DIAMOND_SWORD) && BedwarsPurchase.count(inventory,Material.DIAMOND)>=4) selection=5;
+        else if(!hasSword(bot,Material.IRON_SWORD) && !hasSword(bot,Material.DIAMOND_SWORD)
+                && BedwarsPurchase.count(inventory,Material.GOLD_INGOT)>=7) selection=4;
+        else if(!hasSword(bot,Material.STONE_SWORD) && !hasSword(bot,Material.IRON_SWORD) && !hasSword(bot,Material.DIAMOND_SWORD)) selection=3;
+        else if(uk.co.playerready.pulsegames.games.skywars.SkywarsBotInventory.rank(inventory.getChestplate())<3) selection=6;
+        else if(uk.co.playerready.pulsegames.games.skywars.SkywarsBotInventory.rank(inventory.getChestplate())<4
+                && BedwarsPurchase.count(inventory,Material.GOLD_INGOT)>=12) selection=7;
+        else if(BedwarsPurchase.count(inventory,Material.BOW)==0) selection=8;
+        else if(BedwarsPurchase.count(inventory,Material.ARROW)<12) selection=9;
+        if(selection<0) return;
+        ShopItem entry=SHOP.get(selection);
+        if(BedwarsPurchase.count(inventory,entry.currency())<entry.cost()) return;
+        openShop(bot);
+        var view=bot.getOpenInventory();
+        if(!(view.getTopInventory().getHolder() instanceof ShopHolder)) return;
+        botPurchaseProbes.add(bot.getUniqueId());
+        try {
+            var click=new InventoryClickEvent(view,org.bukkit.event.inventory.InventoryType.SlotType.CONTAINER,selection,
+                    org.bukkit.event.inventory.ClickType.LEFT,org.bukkit.event.inventory.InventoryAction.PICKUP_ALL);
+            game.plugin().getServer().getPluginManager().callEvent(click);
+            if(!click.isCancelled() && botActive(bot)) buyItem(bot,entry);
+        } finally { botPurchaseProbes.remove(bot.getUniqueId()); bot.closeInventory(); }
+    }
+    private Block nextDefence(GameTeam team) {
+        if(!bedAlive.getOrDefault(team.index(),false) || team.index()>=bedRegions.size()) return null;
+        Cuboid region=bedRegions.get(team.index()); if(region.volume()>64) return null;
+        for(int x=region.minX();x<=region.maxX();x++) for(int z=region.minZ();z<=region.maxZ();z++) {
+            if(!game.world().isChunkLoaded(x>>4,z>>4)) continue;
+            for(int y=Math.max(region.minY(),game.world().getMinHeight()+1);y<=Math.min(region.maxY(),game.world().getMaxHeight()-2);y++) {
+                Block bed=game.world().getBlockAt(x,y,z); if(!bed.getType().name().endsWith("_BED")) continue;
+                for(var face:List.of(org.bukkit.block.BlockFace.UP,org.bukkit.block.BlockFace.NORTH,org.bukkit.block.BlockFace.SOUTH,
+                        org.bukkit.block.BlockFace.EAST,org.bukkit.block.BlockFace.WEST)) {
+                    int nx=x+face.getModX(),nz=z+face.getModZ(); if(!game.world().isChunkLoaded(nx>>4,nz>>4)) continue;
+                    Block target=game.world().getBlockAt(nx,y+face.getModY(),nz);
+                    if(uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.air(target.getType())) {
+                        var box=new org.bukkit.util.BoundingBox(nx,y+face.getModY(),nz,nx+1,y+face.getModY()+1,nz+1);
+                        if(game.world().getNearbyEntities(box).stream().noneMatch(entity->entity instanceof org.bukkit.entity.LivingEntity
+                                && entity.getBoundingBox().overlaps(box))) return target;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+    private final Map<java.util.UUID,Long> botNextPlace=new HashMap<>();
+    private boolean placeNear(Player bot,Block target,int slot,long tick) {
+        var id=bot.getUniqueId();
+        if(tick<botNextPlace.getOrDefault(id,0L) || botPlaced.getOrDefault(id,0)>=128) return false;
+        if(bot.getEyeLocation().distanceSquared(target.getLocation().add(.5,.5,.5))>4.5*4.5) return false;
+        botNextPlace.put(id,tick+15);
+        for(var face:List.of(org.bukkit.block.BlockFace.DOWN,org.bukkit.block.BlockFace.NORTH,org.bukkit.block.BlockFace.SOUTH,
+                org.bukkit.block.BlockFace.EAST,org.bukkit.block.BlockFace.WEST)) {
+            int x=target.getX()+face.getModX(),z=target.getZ()+face.getModZ();
+            if(!game.world().isChunkLoaded(x>>4,z>>4)) continue;
+            Block support=game.world().getBlockAt(x,target.getY()+face.getModY(),z);
+            if(!support.isPassable() && uk.co.playerready.pulsegames.games.skywars.IslandBotPlacement.place(game,bot,target,support,slot,b->canPlace(bot,b))) {
+                botPlaced.merge(id,1,Integer::sum); return true;
+            }
+        }
+        return false;
+    }
+    private Cuboid enemyBed(GameTeam team,Location from) {
+        Cuboid nearest=null; double distance=Double.POSITIVE_INFINITY;
+        for(int i=0;i<Math.min(bedRegions.size(),64);i++) if(i!=team.index() && bedAlive.getOrDefault(i,false)) {
+            double candidate=from.distanceSquared(bedRegions.get(i).center(game.world()));
+            if(candidate<distance) { nearest=bedRegions.get(i); distance=candidate; }
+        }
+        return nearest;
+    }
+    private boolean mineVisibleDefence(Player bot,Cuboid bed,long tick) {
+        Location centre=bed.center(game.world()),eye=bot.getEyeLocation();
+        var direction=centre.toVector().subtract(eye.toVector());
+        if(direction.lengthSquared()<.01) return false;
+        direction.normalize();
+        if(!uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.loadedSegment(eye,eye.clone().add(direction.clone().multiply(4.5)))) return false;
+        var ray=game.world().rayTraceBlocks(eye,direction,4.5,org.bukkit.FluidCollisionMode.NEVER,true);
+        if(ray==null || ray.getHitBlock()==null) { botMining.remove(bot.getUniqueId()); return false; }
+        Block block=ray.getHitBlock();
+        if(block.getLocation().distanceSquared(centre)>36 || (!playerBlocks.contains(block.getLocation())
+                && !(block.getType().name().endsWith("_BED") && bed.contains(block.getLocation())))) return false;
+        Mining mining=botMining.get(bot.getUniqueId());
+        if(mining==null || !mining.block().equals(block.getLocation()) || mining.type()!=block.getType()) {
+            botMining.put(bot.getUniqueId(),new Mining(block.getLocation(),block.getType(),tick,0)); return true;
+        }
+        float speed=block.getBreakSpeed(bot);
+        if(!Float.isFinite(speed) || speed<=0) return true;
+        bot.swingMainHand();
+        double progress=mining.progress()+speed*Math.min(5,Math.max(0,tick-mining.lastTick()));
+        botMining.put(bot.getUniqueId(),new Mining(block.getLocation(),block.getType(),tick,progress));
+        if(progress<1) return true;
+        int bedTeam=block.getType().name().endsWith("_BED")?bedTeamIndex(block.getLocation()):-1;
+        boolean broken=bot.breakBlock(block);
+        if(broken && bedTeam>=0 && !block.getType().name().endsWith("_BED")) destroyBed(bedTeam,bot);
+        botMining.remove(bot.getUniqueId()); return true;
+    }
+    @Override public void onCleanup() {
+        botBow.clear(); botTraversal.clear(); botNextAction.clear(); botPlaced.clear(); botStatuses.clear();
+        botPurchaseProbes.clear(); botMining.clear(); botNextPlace.clear();
     }
 
     // ---- rules ----------------------------------------------------------------------

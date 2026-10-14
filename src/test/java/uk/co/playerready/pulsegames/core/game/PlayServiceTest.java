@@ -35,6 +35,7 @@ class PlayServiceTest {
         plugin = mock(PulseGamesPlugin.class);
         instances = mock(InstanceManager.class);
         parties = mock(PartyManager.class);
+        when(parties.localQueueReady(any())).thenReturn(true);
         lobby = mock(LobbyService.class);
         Server server = mock(Server.class);
         BukkitScheduler scheduler = mock(BukkitScheduler.class);

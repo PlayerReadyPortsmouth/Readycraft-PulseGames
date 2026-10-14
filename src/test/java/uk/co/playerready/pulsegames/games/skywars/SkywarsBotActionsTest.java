@@ -68,6 +68,9 @@ class SkywarsBotActionsTest {
         final Location here=new Location(world,.5,64,.5),step=new Location(world,1.5,64,.5);
         final SkywarsGame logic=new SkywarsGame(game);
         BridgeFixture() {
+            when(world.isChunkLoaded(anyInt(),anyInt())).thenReturn(true);
+            when(world.getMinHeight()).thenReturn(-64); when(world.getMaxHeight()).thenReturn(320);
+            WorldBorder border=mock(WorldBorder.class); when(border.isInside(any())).thenReturn(true); when(world.getWorldBorder()).thenReturn(border);
             when(game.world()).thenReturn(world); when(bot.getWorld()).thenReturn(world); when(bot.getUniqueId()).thenReturn(UUID.randomUUID());
             when(game.state()).thenReturn(GameState.RUNNING); when(game.isActive(bot)).thenReturn(true);
             when(game.arena().settings()).thenReturn(new MemoryConfiguration());

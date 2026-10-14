@@ -20,6 +20,61 @@ public final class PartyManager {
     private final JavaPlugin plugin;
     private final List<Party> parties = new ArrayList<>();
     private final Map<UUID, Invite> invites = new HashMap<>();
+    private record NetworkParty(UUID leader, Set<UUID> members) {}
+    private final Map<UUID, NetworkParty> network = new HashMap<>();
+    private final Set<Party> imported = new java.util.HashSet<>();
+
+    /** Trusted backend bridge snapshot; clients cannot invoke this method through commands. */
+    public void networkState(Player player, UUID leader, List<UUID> members) {
+        UUID id=player.getUniqueId();
+        NetworkParty known=network.get(id);
+        if(known!=null && java.util.Objects.equals(known.leader(),leader) && members!=null
+                && known.members().equals(new LinkedHashSet<>(members))) return;
+        Party old=partyOf(player);
+        if (old != null && imported.remove(old)) parties.remove(old);
+        network.remove(id);
+        if (leader==null || members==null || members.isEmpty()) return;
+        Set<UUID> ids=new LinkedHashSet<>(members);
+        if(ids.size()!=members.size() || ids.size()>Math.min(8,maxSize()) || !ids.contains(leader) || !ids.contains(id)) return;
+        network.put(id,new NetworkParty(leader,Set.copyOf(ids)));
+        Player lead=plugin.getServer().getPlayer(leader);
+        if(lead!=null && lead.isOnline()) importNetworkParty(lead,List.copyOf(ids));
+    }
+
+    /** All-or-nothing import, refusing to overwrite unrelated backend parties. */
+    public boolean importNetworkParty(Player leader, List<UUID> members) {
+        if(members==null || members.isEmpty() || members.size()>Math.min(8,maxSize())) return false;
+        Set<UUID> ids=new LinkedHashSet<>(members);
+        if(ids.size()!=members.size() || !ids.contains(leader.getUniqueId())) return false;
+        List<Player> local=new ArrayList<>();
+        for(UUID id:ids) {
+            Player p=plugin.getServer().getPlayer(id);
+            if(p==null || !p.isOnline()) return false;
+            Party existing=partyOf(p);
+            if(existing!=null && (!existing.leader().equals(leader.getUniqueId()) || !existing.members().equals(ids))) return false;
+            local.add(p);
+        }
+        Party party=partyOf(leader);
+        if(party==null) { party=new Party(leader);party.members().addAll(ids);parties.add(party);imported.add(party); }
+        NetworkParty snapshot=new NetworkParty(leader.getUniqueId(),Set.copyOf(ids));
+        local.forEach(p->network.put(p.getUniqueId(),snapshot));
+        return true;
+    }
+
+    public boolean localOnly(Player player) {
+        Party party=partyOf(player);
+        return party!=null && !imported.contains(party) && !network.containsKey(player.getUniqueId());
+    }
+
+    public boolean localQueueReady(Player player) {
+        NetworkParty party=network.get(player.getUniqueId());
+        if(party==null) return true;
+        Player leader=plugin.getServer().getPlayer(party.leader());
+        if(leader!=null && leader.isOnline() && importNetworkParty(leader,List.copyOf(party.members()))) return true;
+        player.sendMessage(Component.text("Your network party is spread across servers or has a conflicting local party. Use /queues and let your leader join the group."));
+        return false;
+    }
+
 
     public PartyManager(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -136,7 +191,10 @@ public final class PartyManager {
     }
 
     public void handleQuit(Player player) {
-        if (partyOf(player) != null) leave(player);
+        network.remove(player.getUniqueId());
+        Party party=partyOf(player);
+        if(party!=null && imported.remove(party)) parties.remove(party);
+        else if(party!=null) leave(player);
         invites.remove(player.getUniqueId());
     }
 

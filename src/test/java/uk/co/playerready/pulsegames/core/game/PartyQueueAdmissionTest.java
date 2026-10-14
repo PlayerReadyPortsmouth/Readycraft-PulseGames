@@ -12,6 +12,7 @@ class PartyQueueAdmissionTest {
     @Test void partyMemberAlreadyAtDestinationIsNotRemovedOrCountedTwice() {
         PulseGamesPlugin plugin = mock(PulseGamesPlugin.class, RETURNS_DEEP_STUBS);
         Player leader = player(), member = player();
+        when(plugin.parties().localQueueReady(any())).thenReturn(true);
         Party party = mock(Party.class);
         when(party.isLeader(leader)).thenReturn(true);
         when(party.onlineMembers()).thenReturn(List.of(leader, member));

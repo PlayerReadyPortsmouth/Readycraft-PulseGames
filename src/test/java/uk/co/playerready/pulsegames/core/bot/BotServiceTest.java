@@ -95,7 +95,7 @@ class BotServiceTest {
         verify(game).cleanup();
     }
     @Test void unsupportedGamesAndNonCanaryPlayersNeverReceiveBots() {
-        when(game.type().id()).thenReturn("bedwars");
+        when(game.type().id()).thenReturn("buildbattle");
         for(int i=0;i<5;i++) bots.reconcile(game);
         verify(provider,never()).create(any(),any());
         when(game.type().id()).thenReturn("duels");
@@ -298,5 +298,24 @@ class BotServiceTest {
         when(inventory.getItem(4)).thenReturn(diamond);
         BotService.selectSword(bot);
         verify(inventory).setHeldItemSlot(4);
+    }
+    @Test void privatePracticeUsesFixedDifficultyAndRequestedCount() {
+        when(game.practice()).thenReturn(true);
+        when(game.practiceDifficulty()).thenReturn(BotDifficulty.EASY);
+        when(game.practiceBotTarget()).thenReturn(1);
+        when(game.maxPlayers()).thenReturn(4);
+        bots.reconcile(game); bots.reconcile(game);
+        assertEquals(1,bots.count(game));
+        assertEquals(BotDifficulty.EASY,bots.difficultyFor(game,human));
+        assertEquals(1,bots.teamStrength(game,human));
+    }
+    @Test void privatePracticeDoesNotCalibratePlayerHistory() {
+        var store=mock(AdaptiveBotSkillStore.class);
+        bots=new BotService(plugin,provider,store);
+        when(game.practice()).thenReturn(true);
+        bots.onRoundStart(game);
+        when(game.state()).thenReturn(GameState.RUNNING);
+        bots.onRoundEnd(game,List.of(human),"last-standing");
+        verifyNoInteractions(store);
     }
 }

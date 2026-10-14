@@ -43,6 +43,8 @@ public final class SkywarsGame extends MiniGame {
             new Loot(Material.ARROW, 24), new Loot(Material.OAK_PLANKS, 64),
             new Loot(Material.TNT, 4), new Loot(Material.LAVA_BUCKET));
 
+    private final SkywarsBotTraversal botTraversal = new SkywarsBotTraversal();
+    private final SkywarsBotBow botBow = new SkywarsBotBow();
     private final Set<Location> filledChests = new HashSet<>();
     private final Set<Location> playerBlocks = new HashSet<>();
     private final java.util.Map<java.util.UUID, Set<Location>> botLooted = new java.util.HashMap<>();
@@ -104,6 +106,9 @@ public final class SkywarsGame extends MiniGame {
         }
     }
 
+    public boolean botCombat(Player bot,org.bukkit.entity.LivingEntity enemy,long tick,
+            uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty) { return botBow.combat(game,bot,enemy,tick,difficulty); }
+
     public String botStatus(Player bot) { return botStatuses.getOrDefault(bot.getUniqueId(), "Preparing to loot"); }
 
     /** Called after ordinary visible-enemy selection; null means stop, never use an unvalidated fallback. */
@@ -117,11 +122,15 @@ public final class SkywarsGame extends MiniGame {
             lootNearby(bot);
             SkywarsBotInventory.equip(bot.getInventory());
         }
+        Location airborne=botTraversal.airborne(bot,tick);
+        if(airborne!=null) return airborne;
         if (!bot.isOnGround()) { botStatuses.put(id,"Waiting for safe footing"); return null; }
         Location here=bot.getLocation();
         Location step=SkywarsBotTerrain.step(here,proposedGoal);
         if (step==null) { botStatuses.put(id,"No nearby objective"); return null; }
         if (SkywarsBotTerrain.corridor(here,step)) { botStatuses.put(id,"Walking on supported terrain"); return step; }
+        Location raised=botTraversal.start(game,bot,step,tick);
+        if(raised!=null) { botStatuses.put(id,"Traversing a checked adjacent step"); return raised; }
         if (!SkywarsBotTerrain.safe(here,true) || !SkywarsBotTerrain.safe(step,false)) {
             botStatuses.put(id,"Route obstructed or unsafe"); return null;
         }
@@ -148,6 +157,7 @@ public final class SkywarsGame extends MiniGame {
                     Location centre=block.getLocation().add(.5,.5,.5);
                     double squared=eye.distanceSquared(centre);
                     if(squared>4.5*4.5 || squared>=distance) continue;
+                    if(!SkywarsBotTerrain.loadedSegment(eye,centre)) continue;
                     var direction=centre.toVector().subtract(eye.toVector());
                     var hit=game.world().rayTraceBlocks(eye,direction.normalize(),Math.sqrt(squared)+.05,
                             org.bukkit.FluidCollisionMode.NEVER,true);
@@ -208,36 +218,14 @@ public final class SkywarsGame extends MiniGame {
         }
         int slot=SkywarsBotInventory.blockSlot(bot.getInventory());
         if(slot<0) { botStatuses.put(id,"No bridge blocks: needs planks or cobblestone from loot"); return false; }
-        if(slot>=9) {
-            ItemStack displaced=bot.getInventory().getItem(8);
-            bot.getInventory().setItem(8,bot.getInventory().getItem(slot)); bot.getInventory().setItem(slot,displaced); slot=8;
-        }
-        bot.getInventory().setHeldItemSlot(slot);
-        ItemStack stack=bot.getInventory().getItem(slot), held=stack.clone();
-        var before=target.getState();
-        if(!canPlace(bot,target)) return false;
-        target.setType(stack.getType(),false);
-        var place=new org.bukkit.event.block.BlockPlaceEvent(target,before,support,held,bot,true,org.bukkit.inventory.EquipmentSlot.HAND);
-        boolean accepted=false;
-        try {
-            game.plugin().getServer().getPluginManager().callEvent(place);
-            ItemStack remaining=bot.getInventory().getItem(slot);
-            if(place.isCancelled() || !place.canBuild() || !game.isActive(bot) || game.frozen()
-                    || remaining==null || !remaining.isSimilar(held) || remaining.getAmount()!=held.getAmount()
-                    || bot.getInventory().getHeldItemSlot()!=slot || bot.getWorld()!=game.world()
-                    || game.state()!=uk.co.playerready.pulsegames.core.game.GameState.RUNNING
-                    || target.getType()!=held.getType()) return false;
-            if(remaining.getAmount()==1) bot.getInventory().setItem(slot,null);
-            else { ItemStack reduced=remaining.clone(); reduced.setAmount(remaining.getAmount()-1); bot.getInventory().setItem(slot,reduced); }
-            botBridged.merge(id,1,Integer::sum); bot.swingMainHand(); accepted=true; return true;
-        } finally {
-            if(!accepted) { before.update(true,false); botStatuses.put(id,"Bridge placement denied"); }
-            SkywarsBotInventory.equip(bot.getInventory());
-        }
+        boolean placed=IslandBotPlacement.place(game,bot,target,support,slot,block->canPlace(bot,block));
+        if(placed) botBridged.merge(id,1,Integer::sum);
+        else botStatuses.put(id,"Bridge placement denied");
+        return placed;
     }
 
     @Override public void onCleanup() {
-        botLooted.clear(); botNextLoot.clear(); botNextBridge.clear(); botBridged.clear(); botStatuses.clear();
+        botTraversal.clear(); botBow.clear(); botLooted.clear(); botNextLoot.clear(); botNextBridge.clear(); botBridged.clear(); botStatuses.clear();
     }
 
     @Override

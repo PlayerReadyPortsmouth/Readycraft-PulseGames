@@ -319,9 +319,9 @@ Difficulty changes attack/throw timing, melee accuracy and path update cadence;
 health, reach and damage are unchanged. Villager Defense Easy/Hard now have a
 prepared co-op controller, using only tracked wave zombies and the Mayor's guard
 position; existing combat controllers also recognise their team-size variants.
-Skywars now has a candidate level-route looting/bridging controller; see
-`QUEUE-BOTS.md` for map restrictions and acceptance checks. Bedwars and other
-objective bots remain outstanding. Team modes do not
+Skywars and Bedwars now have candidate island-game controllers; see
+`PLAYTEST-WORKFLOW.md` for map restrictions and acceptance checks. Other
+objective bot controllers remain outstanding. Team modes do not
 imply bot support. Global/arena enablement and existing canary permissions still
 apply. Live configuration and server restarts require separate approval.
 
@@ -390,8 +390,9 @@ not supported by this first navigation pass.
 
 Start with flat, full-cube island walkways and a visible chest within 4.5 blocks
 of each bot spawn. Optional routes should lead towards safe island landing points.
-The initial controller handles level steps and adjacent bridges, not stairs,
-slabs, jumping, mining or ranged tactics. It uses real chest loot and finite
+The controller handles level steps, adjacent bridges and checked height changes,
+including straight stairs/slabs and normal jump physics. It also supports bows.
+Long void jumps, pearl and potion tactics remain unsupported. It uses real chest loot and finite
 planks/cobblestone; a bot without bridge materials stops rather than receiving
 free blocks. `settings.bot-bridge-limit` defaults to 64 per bot per round (0-128).
 
@@ -400,3 +401,7 @@ player footprint. Thin or hollow support such as trapdoors and stairs is rejecte
 Use `/pulse bots inspect <name-or-UUID>` to check objectives, route and stall
 reasons. Complete the Skywars acceptance checks in `QUEUE-BOTS.md` before enabling
 bots for wider play; source support does not mean the map has passed testing.
+
+Bedwars requires the existing per-team bed regions, spawns and generator locations.
+The new bot controller uses those public objectives and actual resource drops;
+see `PLAYTEST-WORKFLOW.md` for finite purchase, defence and protected-break checks.

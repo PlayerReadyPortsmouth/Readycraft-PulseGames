@@ -15,7 +15,7 @@ import java.util.concurrent.ThreadLocalRandom;
 /** Owns ephemeral contestants and bounded game-specific decisions, all on the server thread. */
 public final class BotService implements AutoCloseable {
     private static final Set<String> SUPPORTED = Set.of("duels:classic", "duels:op", "duels:sumo",
-            "koth:solo", "koth:teams", "kitpvp:ffa", "kitpvp:oitc", "prophunt:classic", "prophunt:infection", "skywars:solo", "skywars:doubles", "skywars:insane", "dodgeball:solo", "dodgeball:teams",
+            "koth:solo", "koth:teams", "kitpvp:ffa", "kitpvp:oitc", "prophunt:classic", "prophunt:infection", "skywars:solo", "skywars:doubles", "skywars:insane", "bedwars:duos", "bedwars:quads", "dodgeball:solo", "dodgeball:teams",
             "villagerdefense:easy", "villagerdefense:hard",
             "readyplayerz:classic", "readyplayerz:frenzy", "blockparty:classic", "blockparty:hardcore",
             "tntrun:classic", "volcano:classic", "volcano:eruption", "avalanche:classic", "spleef:classic", "spleef:decay", "spleef:splegg");
@@ -93,6 +93,8 @@ public final class BotService implements AutoCloseable {
                 + "; active=" + slots.size() + "; supported=" + String.join(", ", new TreeSet<>(SUPPORTED));
     }
 
+    public boolean supports(String game, String rules) { return SUPPORTED.contains(game + ":" + rules); }
+
     public boolean eligible(GameInstance game) {
         return plugin.getConfig().getBoolean("bots.enabled", false)
                 && game.arena().settings().getBoolean("bots-enabled", false)
@@ -105,6 +107,7 @@ public final class BotService implements AutoCloseable {
 
     /** Coarse calibration for allocation only; does not expose a player's stored results. */
     public int teamStrength(GameInstance game, Player player) {
+        if (game.practice()) return game.practiceDifficulty().ordinal() + 1;
         String key = game.type().id() + ":" + game.mode().id();
         if (!isBot(player)) return (skills == null ? BotDifficulty.NORMAL : skills.difficulty(player.getUniqueId(), key)).ordinal() + 1;
         String selection = game.arena().settings().getString("bot-difficulty", plugin.getConfig().getString("bots.difficulty", "adaptive"));
@@ -123,7 +126,7 @@ public final class BotService implements AutoCloseable {
 
     /** Freeze calibration for the round; profiles never change during a fight. */
     public void onRoundStart(GameInstance game) {
-        if (skills == null) return;
+        if (skills == null || game.practice()) return;
         String mode = game.type().id() + ":" + game.mode().id();
         Map<UUID, BotDifficulty> levels = new HashMap<>();
         for (Player p : game.players()) if (!isBot(p)) levels.put(p.getUniqueId(), skills.difficulty(p.getUniqueId(), mode));
@@ -136,6 +139,7 @@ public final class BotService implements AutoCloseable {
     }
 
     public BotDifficulty difficultyFor(GameInstance game, Player opponent) {
+        if (game.practice()) return game.practiceDifficulty();
         String selection = game.arena().settings().getString("bot-difficulty",
                 plugin.getConfig().getString("bots.difficulty", "adaptive"));
         if (!"adaptive".equalsIgnoreCase(selection)) return BotDifficulty.parse(selection);
@@ -147,7 +151,7 @@ public final class BotService implements AutoCloseable {
     /** Practice history is separate from competitive records, tokens and rewards. */
     public void onRoundEnd(GameInstance game, List<Player> winners, String reason) {
         SkillRound round = skillRounds.remove(game);
-        if (round == null || skills == null || game.state() != GameState.RUNNING || game.gameTime() < 1
+        if (game.practice() || round == null || skills == null || game.state() != GameState.RUNNING || game.gameTime() < 1
                 || reason == null || reason.equals("forced") || reason.contains("draw") || reason.equals("no-seekers")
                 || winners.isEmpty() && !game.logic().cooperative()) return;
         Set<UUID> won = new HashSet<>();
@@ -189,11 +193,12 @@ public final class BotService implements AutoCloseable {
         connect();
         if (provider == null || failed) return;
         int elapsed = waiting.merge(game, 1, Integer::sum);
-        if (elapsed < Math.max(1, plugin.getConfig().getInt("bots.wait-seconds", 30))) return;
+        if (elapsed < (game.practice() ? 2 : Math.max(1, plugin.getConfig().getInt("bots.wait-seconds", 30)))) return;
         int current = count(game);
         int desired = QueueFillPolicy.desiredBots(game.humanCount(), game.minPlayers(), game.maxPlayers(),
                 Math.max(0, Math.min(63, plugin.getConfig().getInt("bots.max-per-match", 31))),
                 Math.max(0, Math.min(64, plugin.getConfig().getInt("bots.max-total", 64))) - slots.size() + current);
+        if (game.practice()) desired = Math.min(desired, game.practiceBotTarget());
         while (count(game) > desired) removeOne(game);
         for (int i = count(game); i < desired; i++) {
             try {
@@ -306,7 +311,7 @@ public final class BotService implements AutoCloseable {
                 slot.progressPosition=here.clone();slot.progressTick=tick;slot.stalled=false;
             } else if (tick-slot.progressTick>=300 && tick-slot.lastStallReportTick>=300) {
                 game.note("bot-navigation-stalled", "No block of progress toward a distant goal for 15 seconds");slot.lastStallReportTick=tick;slot.stalled=true;
-                if (!game.type().id().equals("skywars") && (!(game.logic() instanceof BotMovement) || game.type().id().equals("prophunt"))) {
+                if (!game.type().id().equals("skywars") && !game.type().id().equals("bedwars") && (!(game.logic() instanceof BotMovement) || game.type().id().equals("prophunt"))) {
                     Location recovery = BotNavigationHints.nearestSafe(game, here, "bot-recovery-points");
                     if (recovery != null && recovery.distanceSquared(here) <= 144 && recovery.distanceSquared(here) > 1) {
                         slot.recovery = recovery; slot.recoverUntil = tick + 100; slot.nextPath = 0;
@@ -358,9 +363,13 @@ public final class BotService implements AutoCloseable {
             } else {
                 boolean handled = game.logic() instanceof uk.co.playerready.pulsegames.games.kitpvp.KitPvpGame kit
                         && kit.botCombat(bot, enemy, tick, difficulty);
+                if (!handled && game.logic() instanceof uk.co.playerready.pulsegames.games.skywars.SkywarsGame sky)
+                    handled = sky.botCombat(bot, enemy, tick, difficulty);
+                if (!handled && game.logic() instanceof uk.co.playerready.pulsegames.games.bedwars.BedwarsGame bed)
+                    handled = bed.botCombat(bot, enemy, tick, difficulty);
                 if (!handled && distance <= 2.8 * 2.8 && tick >= slot.nextAttack) {
                     if (random.applyAsInt(100) < difficulty.accuracy) {
-                        if (objectives != null || game.type().id().equals("skywars")) selectSword(bot);
+                        if (objectives != null || game.type().id().equals("skywars") || game.type().id().equals("bedwars")) selectSword(bot);
                         bot.swingMainHand();
                         if (game.mode().combatStyle() != GameMode.CombatStyle.MODERN || bot.getAttackCooldown() >= 0.9f)
                             bot.attack(enemy);
@@ -386,6 +395,13 @@ public final class BotService implements AutoCloseable {
                 slot.objective = "Fighting a visible opponent at melee range";
             else if (goal == null) { slot.state = "WAITING_FOR_SAFE_STEP"; slot.reason = slot.objective; }
         }
+        if (game.logic() instanceof uk.co.playerready.pulsegames.games.bedwars.BedwarsGame bedwars) {
+            goal = bedwars.botObjective(bot, goal, tick, difficulty);
+            slot.objective = bedwars.botStatus(bot);
+            if (goal == null && enemy != null && here.distanceSquared(enemy.getLocation()) <= 2.8 * 2.8)
+                slot.objective = "Fighting a visible opponent at melee range";
+            else if (goal == null) { slot.state = "WAITING_FOR_SAFE_STEP"; slot.reason = slot.objective; }
+        }
         navigate(slot, here, goal, difficulty);
     }
 
@@ -407,7 +423,8 @@ public final class BotService implements AutoCloseable {
     }
 
     private void navigate(Slot slot, Location here, Location goal, BotDifficulty difficulty) {
-        boolean skywars = slot.game.logic() instanceof uk.co.playerready.pulsegames.games.skywars.SkywarsGame;
+        boolean skywars = slot.game.logic() instanceof uk.co.playerready.pulsegames.games.skywars.SkywarsGame
+                || slot.game.logic() instanceof uk.co.playerready.pulsegames.games.bedwars.BedwarsGame;
         boolean precise = skywars || slot.game.logic() instanceof BotMovement;
         if (slot.recovery != null) {
             if (tick >= slot.recoverUntil || !here.getWorld().equals(slot.recovery.getWorld()) || here.distanceSquared(slot.recovery) < 1)

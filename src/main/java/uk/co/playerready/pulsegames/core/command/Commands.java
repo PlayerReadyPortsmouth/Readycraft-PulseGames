@@ -22,7 +22,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
 
     public Commands(PulseGamesPlugin plugin) {
         this.plugin = plugin;
-        for (String name : List.of("play", "party", "lobby", "pulse", "stats", "shop", "pulsekits", "duels")) {
+        for (String name : List.of("play", "party", "lobby", "pulse", "stats", "shop", "pulsekits", "duels", "results")) {
             var command = plugin.getCommand(name);
             command.setExecutor(this);
             command.setTabCompleter(this);
@@ -48,6 +48,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
             case "party" -> party(player, args);
             case "lobby" -> plugin.playService().leave(player);
             case "stats" -> stats(player);
+            case "results" -> plugin.results().command(player,args);
             case "duels" -> plugin.duelMenu().open(player);
             case "pulsekits" -> plugin.kitSelection().open(player);
             case "shop" -> plugin.tokenShop().openMain(player);
@@ -101,6 +102,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
     }
 
     private void party(Player player, String[] args) {
+        if (!plugin.parties().localOnly(player) && plugin.networkPartyCommand(player,args)) return;
         if (args.length == 0) {
             player.sendMessage(Text.msg("Usage: <yellow>/party <invite|accept|deny|leave|disband|list|chat>"));
             return;
@@ -192,6 +194,8 @@ public final class Commands implements CommandExecutor, TabCompleter {
             return;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
+            case "results" -> plugin.results().command(player, java.util.Arrays.copyOfRange(args, 1, args.length));
+            case "practice" -> plugin.practice().handle(player, java.util.Arrays.copyOfRange(args, 1, args.length));
             case "setup" -> plugin.setup().handle(player, java.util.Arrays.copyOfRange(args, 1, args.length));
             case "shape" -> {
                 if (args.length < 2) {
@@ -298,6 +302,18 @@ public final class Commands implements CommandExecutor, TabCompleter {
                 }
             }
             case "pulse" -> {
+                if (args.length >= 2 && args[0].equalsIgnoreCase("practice")) {
+                    if (!sender.hasPermission("pulsegames.admin")) return List.of();
+                    if (args.length == 2) return List.of("start", "repeat", "end", "report");
+                    if (args[1].equalsIgnoreCase("start")) {
+                        if (args.length == 3) return plugin.registry().all().stream().map(GameType::id).toList();
+                        var type = plugin.registry().get(args[2]);
+                        if (args.length == 4 && type != null) return type.modes().stream().map(GameMode::id).toList();
+                        if (args.length == 5 && type != null) return plugin.arenas().forGame(type.id(),args[3]).stream().map(a -> a.id()).toList();
+                        if (args.length == 6) return List.of("easy", "normal", "hard");
+                    }
+                    return List.of();
+                }
                 if (args.length >= 2 && args[0].equalsIgnoreCase("bots")) {
                     if (!sender.hasPermission("pulsegames.admin")) return List.of();
                     if (args.length == 2) return "inspect".startsWith(args[1].toLowerCase(Locale.ROOT)) ? List.of("inspect") : List.of();
@@ -311,7 +327,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
                     return List.of();
                 }
                 if (args.length == 1) {
-                    return List.of("setup", "shape", "build", "blueprints", "bots", "diagnose", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
+                    return List.of("setup", "shape", "build", "blueprints", "bots", "diagnose", "practice", "results", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
                 }
                 if (args.length == 3 && args[0].equalsIgnoreCase("world")) return List.of("void", "normal");
                 if (args.length == 2 && args[0].equalsIgnoreCase("build")) {

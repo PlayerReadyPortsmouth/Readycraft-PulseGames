@@ -6,7 +6,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 
 /** Finite chest transfers and inventory swaps; no generated equipment or ammunition. */
-final class SkywarsBotInventory {
+public final class SkywarsBotInventory {
     private SkywarsBotInventory() {}
     static int transfer(Inventory chest, PlayerInventory target) { return transfer(chest,target,slot->true); }
     static int transfer(Inventory chest, PlayerInventory target, java.util.function.IntPredicate mayMoveSlot) {
@@ -25,7 +25,7 @@ final class SkywarsBotInventory {
         }
         return moved;
     }
-    static void equip(PlayerInventory inventory) {
+    public static void equip(PlayerInventory inventory) {
         for (int slot = 0; slot < 36; slot++) {
             ItemStack candidate = inventory.getItem(slot);
             if (candidate == null) continue;
@@ -54,7 +54,7 @@ final class SkywarsBotInventory {
         }
         if (best >= 0) inventory.setHeldItemSlot(best);
     }
-    static int rank(ItemStack item) {
+    public static int rank(ItemStack item) {
         if (item == null || SkywarsBotTerrain.air(item.getType())) return 0;
         String name = item.getType().name();
         if (name.startsWith("NETHERITE_")) return 6;
@@ -64,11 +64,12 @@ final class SkywarsBotInventory {
         if (name.startsWith("GOLDEN_")) return 2;
         return 1;
     }
-    static int blockSlot(PlayerInventory inventory) {
+    public static int blockSlot(PlayerInventory inventory) {
         for (int slot = 0; slot < 36; slot++) {
             ItemStack item = inventory.getItem(slot);
             if (item != null && item.getAmount() > 0
-                    && (item.getType() == Material.OAK_PLANKS || item.getType() == Material.COBBLESTONE)) return slot;
+                    && (item.getType() == Material.OAK_PLANKS || item.getType() == Material.COBBLESTONE
+                        || item.getType() == Material.END_STONE || item.getType().name().endsWith("_WOOL"))) return slot;
         }
         return -1;
     }

@@ -121,6 +121,43 @@ whole-party team placement and mixed skill balance; then Skywars chest protectio
 bridging/exhaustion, movement, team combat and cleanup on Java and Bedrock.
 See `docs/QUEUE-BOTS.md` and `docs/MAP-SETUP.md` for the test and map requirements.
 
+## 14 October - Network parties, match flow and bot practice
+
+All five follow-ups are prepared in the existing draft, not deployed. PulseGames
+remains the unreleased 0.3.12 candidate; the network helper becomes 0.1.4.
+
+- **Network parties:** proxy-owned invitations and group transfers to advertised
+  queues. Everyone must arrive before group admission. Each person retains their
+  own source-server return ticket; failed and late transfers have cancellation
+  handling. Parties are memory-only across proxy restarts. Split-server parties
+  join existing advertised queues, rather than creating a new remote queue.
+- **Results:** personal/team scores, kills/deaths, actual end-of-round token credit
+  and competitive eligibility. `/results` offers Play again, Change game and Return
+  through an inventory menu or typed commands. Reopening results cannot pay again;
+  eliminated participating teammates receive their team's victory outcome.
+- **Rejoining:** a default 30-second waiting-seat reservation pauses countdown and
+  forced starts. Live-round disconnects retain elimination rules; a quick return
+  can spectate an ongoing round, without a new life or reward entitlement. Proxy
+  reconnect acknowledgement allows this before normal source-return handling.
+- **Private practice:** `/pulse practice start <game> <mode> <map> <difficulty> [bots]`,
+  plus report/end/repeat. One tester gets a private cloned map, fixed difficulty,
+  normal bot caps and no competitive rewards or adaptive history. Five-second
+  samples report observed objectives, stalls and blocked-route reasons. Repeating
+  preserves the scenario settings, not random loot or exact outcomes.
+- **Island bots:** Skywars gains checked adjacent height steps, straight stairs/slabs,
+  ordinary jumping and finite bow actions. Bedwars gains real resource pickup,
+  finite shop purchases, bounded bed defence/bridges and public enemy-bed objectives.
+  Protection events and finite inventories remain enforced. Long void jumps,
+  pearls, potion tactics and polished map navigation remain outside this baseline.
+
+Validation: **176 targeted PulseGames tests and 39 network-helper tests passed**,
+with no failures or skips. All three candidate jars built. No live world or server
+configuration changes, merges, deployments or restarts were performed.
+
+Candidate source coverage becomes **14/23 games** with Bedwars. This is not a
+claim of player-tested or deployed coverage. See `docs/PLAYTEST-WORKFLOW.md` for
+commands, test cases, limitations and the required Java/Bedrock acceptance pass.
+
 ## Current test-server baseline
 
 - Last verified deployed on 13 October: PulseGames **0.3.11** and PulseContent Paper **0.5.2**. The new bot candidate below is not deployed. Older dated entries are historical checkpoints.
@@ -276,8 +313,8 @@ needed. Do not bypass team/role requirements and call that a completed test.
 | Parkour | No accepted map/test recorded | None | Sprint yes; elimination needs 3 | Builder-authored routes, real jumps and checkpoints |
 | Elytra Racing | No accepted map/test recorded | None | Yes | Flight routes, checkpoint passage, rockets and recovery |
 | PulseKarts | No accepted map/test recorded | None | Yes | Ice track, boat steering, checkpoints, laps and item use |
-| Skywars | No accepted map/test recorded | Candidate: loot/equip, level bridging, melee | Solo/insane yes; doubles needs 4 | Flat full-cube maps; chest, bridge, combat and team acceptance |
-| Bedwars | No accepted map/test recorded | None | Duos needs 4; quads needs 8 | Resources, shops, bed defence/destruction, bridging and respawns |
+| Skywars | No accepted map/test recorded | Candidate: loot/equip, bridges, height steps, melee/bows | Solo/insane yes; doubles needs 4 | Chest, stairs, bridge, ranged combat and team acceptance |
+| Bedwars | No accepted map/test recorded | Candidate: resources, purchases, defence and bed objectives | Duos needs 4; quads needs 8 | Resources, shops, bed defence/destruction, bridging and respawns |
 | Build Battle | No accepted map/test recorded | None | Yes | Theme-aware building in plots, phases and fair voting bots |
 | Death Run | No accepted map/test recorded | None | Classic needs 3; double trouble 4 | Runner routes, Death roles and trap timing |
 | Villager Defense | No accepted map/player test recorded | Deployed Easy/Hard | Yes | Full multi-wave survival, Mayor defence, co-op and two-client tests |

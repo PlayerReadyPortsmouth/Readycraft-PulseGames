@@ -41,7 +41,14 @@ class CompetitiveEligibilitySnapshotTest {
         verify(plugin, never()).playerState();
     }
 
+    @Test void explicitPracticeRemainsUnrankedEvenWithEligibleRoster() throws Exception {
+        GameInstance game=started(3,1,4,true);
+        assertFalse(game.ranked());
+    }
     private GameInstance started(int humans, int bots, int capacity) throws Exception {
+        return started(humans,bots,capacity,false);
+    }
+    private GameInstance started(int humans, int bots, int capacity, boolean practice) throws Exception {
         PulseGamesPlugin plugin = mock(PulseGamesPlugin.class, RETURNS_DEEP_STUBS);
         GameType type = mock(GameType.class);
         MiniGame logic = mock(MiniGame.class);
@@ -50,6 +57,7 @@ class CompetitiveEligibilitySnapshotTest {
         when(arena.id()).thenReturn("arena");
         GameInstance game = spy(new GameInstance(plugin, type,
                 GameMode.ffa("classic", "Classic", 2, capacity), arena));
+        if(practice) game.configurePractice(uk.co.playerready.pulsegames.core.bot.BotDifficulty.NORMAL,bots);
         var state = GameInstance.class.getDeclaredField("state");
         state.setAccessible(true);
         state.set(game, GameState.WAITING);

@@ -119,7 +119,7 @@ public final class GameMenu implements Listener {
 
         if (holder.gameOrNull == null && event.getSlot() == event.getInventory().getSize() - 2) {
             player.closeInventory();
-            player.sendMessage(Text.msg("<yellow>/party invite [name]</yellow> — invite a player on this server"));
+            player.sendMessage(Text.msg("<yellow>/party invite [name]</yellow> — invite a friend (network-wide when PulseNetwork is active)"));
             player.sendMessage(Text.msg("<yellow>/party accept</yellow>, <yellow>/party list</yellow>, <yellow>/party leave</yellow>"));
             player.sendMessage(Text.msg("Your party leader selects the game. Parties may face each other in solo modes."));
             return;

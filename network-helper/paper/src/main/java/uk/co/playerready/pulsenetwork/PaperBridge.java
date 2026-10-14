@@ -146,6 +146,17 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
             } catch (ReflectiveOperationException e) { return; }
         }
     }
+    /** Optional backend integration; proxy owns party commands across every server. */
+    public boolean networkPartyCommand(Player player, String[] arguments) {
+        if (wire == null) return false;
+        if (arguments.length > 0 && arguments[0].equalsIgnoreCase("chat"))
+            arguments = new String[]{"chat", String.join(" ", Arrays.copyOfRange(arguments, 1, arguments.length))};
+        if (arguments.length > 12 || Arrays.stream(arguments).anyMatch(value -> value.length() > 512)) {
+            player.sendMessage(Component.text("That party command is too long.")); return true;
+        }
+        send(player, "PARTYCMD", arguments);
+        return true;
+    }
     @Override public void onPluginMessageReceived(String channel, Player player, byte[] bytes) {
         if (!channel.equals(Wire.CHANNEL) || wire == null) return;
         var decoded = wire.decode(bytes);
@@ -165,7 +176,70 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
             getServer().getScheduler().runTaskLater(this, () -> restore(player,request), 20L);
             return;
         }
+        if (decoded.isPresent() && decoded.get().kind().equals("RESUMEVISIT")) {
+            var message = decoded.get();
+            if (!message.player().equals(player.getUniqueId()) || message.fields().size() != 1
+                    || !getConfig().getBoolean("queues.enabled")) return;
+            String request = message.fields().getFirst();
+            try { UUID.fromString(request); } catch (IllegalArgumentException invalid) { return; }
+            var games = getServer().getPluginManager().getPlugin("PulseGames");
+            if (games == null || !games.isEnabled()) return;
+            visits.compute(player.getUniqueId(), (id, previous) -> previous != null && previous.request().equals(request)
+                    ? previous : new Visit(request, System.currentTimeMillis()));
+            send(player, "RESUMEACK", request);
+            return;
+        }
+        if (decoded.isPresent() && decoded.get().kind().equals("PARTYSTATE")) {
+            var message = decoded.get();
+            if (!message.player().equals(player.getUniqueId()) || message.fields().size() != 2) return;
+            try {
+                UUID leader = message.fields().get(0).isEmpty() ? null : UUID.fromString(message.fields().get(0));
+                List<UUID> members = message.fields().get(1).isEmpty() ? List.of()
+                        : Arrays.stream(message.fields().get(1).split(",")).map(UUID::fromString).toList();
+                if (members.size() > 8 || new HashSet<>(members).size() != members.size()
+                        || leader == null && !members.isEmpty()
+                        || leader != null && (!members.contains(player.getUniqueId()) || !members.getFirst().equals(leader))) return;
+                var games = getServer().getPluginManager().getPlugin("PulseGames");
+                if (games != null && games.isEnabled()) games.getClass()
+                        .getMethod("networkPartyState", Player.class, UUID.class, List.class).invoke(games, player, leader, members);
+            } catch (ReflectiveOperationException | IllegalArgumentException ignored) { /* Older backends keep existing local behaviour. */ }
+            return;
+        }
         if (!getConfig().getBoolean("queues.enabled")) return;
+        if (decoded.isPresent() && decoded.get().kind().equals("GROUPJOIN")) {
+            var message = decoded.get();
+            if (!message.player().equals(player.getUniqueId()) || message.fields().size() != 3) return;
+            String request = message.fields().get(0), instance = message.fields().get(1);
+            if (!Wire.id(instance)) return;
+            List<UUID> members;
+            try {
+                UUID.fromString(request);
+                members = Arrays.stream(message.fields().get(2).split(",")).map(UUID::fromString).toList();
+                if (members.size() < 2 || members.size() > 8 || new HashSet<>(members).size() != members.size()
+                        || !members.getFirst().equals(player.getUniqueId())) return;
+            } catch (IllegalArgumentException invalid) { return; }
+            List<Player> group = members.stream().map(Bukkit::getPlayer).toList();
+            if (group.stream().anyMatch(member -> member == null || !member.isOnline())) return;
+            long now = System.currentTimeMillis();
+            handled.values().removeIf(expiry -> expiry < now);
+            String key = "party/" + request;
+            if (!handled.containsKey(key)) {
+                if (handled.size() >= 1000) return;
+                var games = getServer().getPluginManager().getPlugin("PulseGames");
+                if (games == null || !games.isEnabled()) return;
+                try {
+                    boolean accepted = Boolean.TRUE.equals(games.getClass()
+                            .getMethod("joinNetworkParty", Player.class, String.class, List.class).invoke(games, player, instance, members));
+                    if (!accepted) return;
+                    for (Player member : group) visits.put(member.getUniqueId(), new Visit(request, now));
+                    handled.put(key, now + 30_000);
+                } catch (ReflectiveOperationException unavailable) {
+                    player.sendMessage(Component.text("This server needs network party support. No party members have been queued.")); return;
+                }
+            }
+            for (Player member : group) send(member, "ACK", request);
+            return;
+        }
         decoded.filter(m -> m.kind().equals("JOIN") && m.player().equals(player.getUniqueId()) && m.fields().size() == 2).ifPresent(m -> {
             String request = m.fields().get(0), instance = m.fields().get(1);
             if (!Wire.id(instance)) return;

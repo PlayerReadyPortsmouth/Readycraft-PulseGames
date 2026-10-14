@@ -29,6 +29,8 @@ public final class PulseGamesPlugin extends JavaPlugin {
 
     private uk.co.playerready.pulsegames.core.bot.BotService bots;
     private uk.co.playerready.pulsegames.core.content.PulseContentBridge content;
+    private uk.co.playerready.pulsegames.core.practice.PracticeService practice;
+    private uk.co.playerready.pulsegames.core.game.MatchResults results;
     private GameRegistry registry;
     private ArenaService arenas;
     private WorldService worlds;
@@ -76,6 +78,8 @@ public final class PulseGamesPlugin extends JavaPlugin {
         sidebar = new SidebarService();
         stats = new StatsService(this);
         playService = new PlayService(this);
+        results = new uk.co.playerready.pulsegames.core.game.MatchResults(this);
+        practice = new uk.co.playerready.pulsegames.core.practice.PracticeService(this);
         setup = new ArenaSetupManager(this);
         economy = new EconomyService(this);
         cosmetics = new CosmeticsService(economy);
@@ -105,8 +109,10 @@ public final class PulseGamesPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(tokenShop, this);
         getServer().getPluginManager().registerEvents(kitSelection, this);
         getServer().getPluginManager().registerEvents(duelMenu, this);
+        getServer().getPluginManager().registerEvents(results, this);
         new Commands(this);
         bots.start();
+        practice.start();
         buildWorlds.start();
         combat = new uk.co.playerready.pulsegames.core.combat.ClassicCombatService(this);
         combat.start();
@@ -145,6 +151,10 @@ public final class PulseGamesPlugin extends JavaPlugin {
 
     public uk.co.playerready.pulsegames.core.content.PulseContentBridge content() { return content; }
 
+    public uk.co.playerready.pulsegames.core.practice.PracticeService practice() { return practice; }
+
+    public uk.co.playerready.pulsegames.core.game.MatchResults results() { return results; }
+
     public GameRegistry registry() { return registry; }
     public ArenaService arenas() { return arenas; }
     public uk.co.playerready.pulsegames.core.world.BuildWorldLifecycle buildWorlds() { return buildWorlds; }
@@ -180,14 +190,33 @@ public final class PulseGamesPlugin extends JavaPlugin {
         return instances().all().stream()
                 .filter(g -> (g.state() == uk.co.playerready.pulsegames.core.game.GameState.WAITING
                         || g.state() == uk.co.playerready.pulsegames.core.game.GameState.COUNTDOWN)
-                        && g.humanCount() > 0 && g.joinable(1) && !g.type().wip() && gameAvailable(g.type()))
+                        && !g.practice() && g.humanCount() > 0 && g.joinable(1) && !g.type().wip() && gameAvailable(g.type()))
                 .map(g -> java.util.Map.of("id", g.id(), "title", g.type().displayName() + " / " + g.mode().displayName(),
                         "players", Integer.toString(g.players().size()), "maximum", Integer.toString(g.maxPlayers())))
                 .toList();
     }
 
     public boolean networkPlayerBusy(org.bukkit.entity.Player player) {
-        return instances().byPlayer(player) != null || playService().hasPending(player);
+        return instances().byPlayer(player) != null || playService().hasPending(player)
+                || results != null && results.holdsReturn(player);
+    }
+
+    public void networkPartyState(org.bukkit.entity.Player player, java.util.UUID leader, java.util.List<java.util.UUID> members) {
+        parties.networkState(player, leader, members);
+    }
+
+    public boolean joinNetworkParty(org.bukkit.entity.Player leader, String instanceId, java.util.List<java.util.UUID> members) {
+        if (!parties.importNetworkParty(leader,members)) return false;
+        var players=members.stream().map(getServer()::getPlayer).toList();
+        return playService.joinNetworkPartyQueue(leader,instanceId,players);
+    }
+
+    public boolean networkPartyCommand(org.bukkit.entity.Player player, String[] arguments) {
+        var helper=getServer().getPluginManager().getPlugin("PulseNetwork");
+        if(helper==null || !helper.isEnabled()) return false;
+        try { return Boolean.TRUE.equals(helper.getClass().getMethod("networkPartyCommand",org.bukkit.entity.Player.class,String[].class).invoke(helper,player,arguments)); }
+        catch(NoSuchMethodException absent) { return false; }
+        catch(ReflectiveOperationException failure) { player.sendMessage(net.kyori.adventure.text.Component.text("Network party service is unavailable. Please try again.")); return true; }
     }
 
     public void joinNetworkQueue(org.bukkit.entity.Player player, String instanceId) {

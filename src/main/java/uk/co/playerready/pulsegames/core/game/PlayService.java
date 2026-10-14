@@ -37,7 +37,7 @@ public final class PlayService {
 
     public void joinNetworkQueue(Player player, String instanceId) {
         GameInstance instance = plugin.instances().all().stream().filter(g -> g.id().equals(instanceId)).findFirst().orElse(null);
-        if (instance == null || !instance.joinable(1)) {
+        if (instance == null || instance.practice() || !instance.joinable(1)) {
             player.sendMessage(Text.msg("<red>That queue has closed. Use /queues to choose another."));
             return;
         }
@@ -48,7 +48,27 @@ public final class PlayService {
         join(player, instance.type(), instance.mode(), instance);
     }
 
+    /** Accept a complete transferred network party only after every member is actually admitted. */
+    public boolean joinNetworkPartyQueue(Player leader, String instanceId, List<Player> members) {
+        if (members == null || members.isEmpty() || members.size() > 64 || !members.contains(leader)
+                || members.stream().anyMatch(p -> p == null || !p.isOnline() || hasPending(p)
+                    || plugin.instances().byPlayer(p) != null)) return false;
+        var requested = members.stream().map(Player::getUniqueId).collect(java.util.stream.Collectors.toSet());
+        if (requested.size() != members.size()) return false;
+        Party party = plugin.parties().partyOf(leader);
+        if (party == null || !party.isLeader(leader) || !party.onlineMembers().stream()
+                .map(Player::getUniqueId).collect(java.util.stream.Collectors.toSet()).equals(requested)) return false;
+        GameInstance destination = plugin.instances().all().stream().filter(g -> g.id().equals(instanceId)).findFirst().orElse(null);
+        if (destination == null || destination.practice() || destination.world() == null
+                || !destination.joinable(members.size()) || admitting(destination)) return false;
+        join(leader, destination.type(), destination.mode(), destination);
+        boolean admitted = members.stream().allMatch(p -> plugin.instances().byPlayer(p) == destination && destination.isParticipant(p));
+        if (!admitted) members.forEach(this::cancelPending);
+        return admitted;
+    }
+
     private void join(Player player, GameType type, GameMode mode, GameInstance preferred) {
+        if (!plugin.parties().localQueueReady(player)) return;
         if (!plugin.gameAvailable(type)) {
             player.sendMessage(Text.msg("<red>This game is not enabled yet."));
             return;
@@ -180,7 +200,7 @@ public final class PlayService {
                     if (!readyGroup(ticket)) { complete = false; break; }
                     if (instance.isParticipant(member)) continue;
                     GameInstance old = plugin.instances().byPlayer(member);
-                    if (old != null) old.remove(member, true);
+                    if (old != null) old.remove(member, false);
                     if (!readyGroup(ticket)) { complete = false; break; }
                     attempted.add(member);
                     if (!instance.add(member)) { complete = false; shouldRetry = current(ticket); break; }
@@ -232,6 +252,7 @@ public final class PlayService {
     }
 
     public void leave(Player player) {
+        if (plugin.results() != null) plugin.results().clearReturnHold(player);
         cancelPending(player);
         GameInstance instance = plugin.instances().byPlayer(player);
         if (instance == null) {

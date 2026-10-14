@@ -56,6 +56,35 @@ class SkywarsBotTerrainTest {
         when(f.world.getBlockAt(0,63,0)).thenAnswer(i->f.block(Material.OAK_TRAPDOOR,0,63,0));
         assertFalse(SkywarsBotTerrain.safe(f.at(.5,.5),true));
     }
+    @Test void adjacentFullBlockRiseHasSafeLandingAndLowCeilingRejectsJump() {
+        var f=new Fixture();
+        when(f.world.getBlockAt(1,64,0)).thenAnswer(i->f.block(Material.STONE,1,64,0));
+        Location landing=SkywarsBotTerrain.heightStep(f.at(.5,.5),f.at(1.5,.5));
+        assertNotNull(landing); assertEquals(65,landing.getY());
+        when(f.world.getBlockAt(1,66,0)).thenAnswer(i->f.block(Material.STONE,1,66,0));
+        assertNull(SkywarsBotTerrain.heightStep(f.at(.5,.5),f.at(1.5,.5)));
+    }
+    @Test void straightStairUsesItsActualUpperHalfButCornerShapeIsRejected() {
+        var f=new Fixture(); Block stair=f.block(Material.OAK_STAIRS,1,64,0);
+        var data=mock(org.bukkit.block.data.type.Stairs.class);
+        when(data.getHalf()).thenReturn(org.bukkit.block.data.Bisected.Half.BOTTOM);
+        when(data.getShape()).thenReturn(org.bukkit.block.data.type.Stairs.Shape.STRAIGHT);
+        when(data.getFacing()).thenReturn(org.bukkit.block.BlockFace.EAST);
+        when(stair.getBlockData()).thenReturn(data); when(stair.getY()).thenReturn(64);
+        when(f.world.getBlockAt(1,64,0)).thenReturn(stair);
+        Location landing=SkywarsBotTerrain.heightStep(f.at(.5,.5),f.at(1.5,.5));
+        assertNotNull(landing); assertEquals(1.7,landing.getX(),.001); assertEquals(65,landing.getY());
+        when(data.getShape()).thenReturn(org.bukkit.block.data.type.Stairs.Shape.INNER_LEFT);
+        assertNull(SkywarsBotTerrain.heightStep(f.at(.5,.5),f.at(1.5,.5)));
+    }
+    @Test void lowerSlabCanBeWalkedOntoAtHalfHeight() {
+        var f=new Fixture(); Block slab=f.block(Material.OAK_SLAB,1,64,0);
+        var data=mock(org.bukkit.block.data.type.Slab.class); when(data.getType()).thenReturn(org.bukkit.block.data.type.Slab.Type.BOTTOM);
+        when(slab.getBlockData()).thenReturn(data); when(slab.getBoundingBox()).thenReturn(new BoundingBox(1,64,0,2,64.5,1));
+        when(f.world.getBlockAt(1,64,0)).thenReturn(slab);
+        Location landing=SkywarsBotTerrain.heightStep(f.at(.5,.5),f.at(1.5,.5));
+        assertNotNull(landing); assertEquals(64.5,landing.getY());
+    }
     @Test void hazardousFloorAndNonFinitePositionsAreRejected() {
         var f=new Fixture(); when(f.world.getBlockAt(0,63,0)).thenAnswer(i->f.block(Material.MAGMA_BLOCK,0,63,0));
         assertFalse(SkywarsBotTerrain.safe(f.at(.5,.5),true));

@@ -57,6 +57,10 @@ public final class GameInstance {
     private final Set<UUID> respawning = new LinkedHashSet<>();
     private final Set<UUID> handlingDeaths = new LinkedHashSet<>();
     private boolean competitiveEligible = true;
+    private boolean practice;
+    private uk.co.playerready.pulsegames.core.bot.BotDifficulty practiceDifficulty = uk.co.playerready.pulsegames.core.bot.BotDifficulty.NORMAL;
+    private int practiceBotTarget;
+    private final Map<UUID, Integer> roundKills = new HashMap<>(), roundDeaths = new HashMap<>();
     private final Set<UUID> alive = new LinkedHashSet<>();
     private final Set<UUID> spectators = new LinkedHashSet<>();
     private final List<GameTeam> teams = new ArrayList<>();
@@ -159,7 +163,17 @@ public final class GameInstance {
     public boolean isBot(Player player) { return botIds.contains(player.getUniqueId()); }
     public int humanCount() { return (int) participants.stream().filter(id -> !botIds.contains(id)).count(); }
     /** Fixed when the round starts; later departures cannot change rewards. */
-    public boolean ranked() { return competitiveEligible; }
+    public boolean ranked() { return !practice && competitiveEligible; }
+    public boolean practice() { return practice; }
+    public uk.co.playerready.pulsegames.core.bot.BotDifficulty practiceDifficulty() { return practiceDifficulty; }
+    public int practiceBotTarget() { return practiceBotTarget; }
+    public void configurePractice(uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty, int bots) {
+        if (state != GameState.LOADING) throw new IllegalStateException("Configure practice before loading the world");
+        practice = true;
+        competitiveEligible = false;
+        practiceDifficulty = difficulty == null ? uk.co.playerready.pulsegames.core.bot.BotDifficulty.NORMAL : difficulty;
+        practiceBotTarget = Math.max(0, Math.min(63, bots));
+    }
     public boolean isActive(Player player) {
         return isAlive(player) && !respawning.contains(player.getUniqueId())
                 && player.getGameMode() != org.bukkit.GameMode.SPECTATOR;
@@ -222,6 +236,7 @@ public final class GameInstance {
         catch (RuntimeException ex) {
             note("join-failed",ex.getClass().getSimpleName());remove(player,true);return false;
         }
+        if (!bot && plugin.results() != null) plugin.results().clearReturnHold(player);
         note("joined", "participants="+participants.size());
         if (plugin.combat() != null) plugin.combat().refresh(player);
         return true;
@@ -231,6 +246,42 @@ public final class GameInstance {
         ItemStack bed = new ItemStack(Material.RED_BED);
         bed.editMeta(meta -> meta.displayName(Text.mm("<red>Leave game <gray>(right-click)")));
         player.getInventory().setItem(8, bed);
+    }
+
+    void suspendWaiting(Player player) {
+        plugin.instances().unindex(player);
+        releaseStep("wardrobe", () -> { if (plugin.content() != null) plugin.content().clearWardrobeContext(player); });
+        releaseStep("combat", () -> { if (plugin.combat() != null) plugin.combat().leave(player); });
+        releaseStep("inventory", () -> plugin.playerState().restore(player));
+        releaseStep("sidebar", () -> plugin.sidebar().clear(player));
+        broadcast("<yellow>" + player.getName() + " disconnected. Holding their queue seat briefly.");
+    }
+
+    boolean resumeWaiting(Player player) {
+        if (world == null || !isParticipant(player) || (state != GameState.WAITING && state != GameState.COUNTDOWN)) {
+            remove(player, false); return false;
+        }
+        plugin.playerState().save(player);
+        if (!player.teleport(arena.lobby(world))) {
+            plugin.playerState().restore(player); remove(player, false); return false;
+        }
+        player.setGameMode(org.bukkit.GameMode.ADVENTURE);
+        plugin.instances().index(player, this);
+        wardrobeContext(player, "playing");
+        giveLeaveItem(player);
+        player.sendMessage(Text.msg("<green>Your reserved queue seat has been restored."));
+        return true;
+    }
+
+    boolean returnSpectator(Player player) {
+        if (world == null || state != GameState.RUNNING || isParticipant(player)) return false;
+        plugin.playerState().save(player);
+        if (!player.teleport(arena.spectator(world))) { plugin.playerState().restore(player); return false; }
+        spectators.add(player.getUniqueId());
+        plugin.instances().index(player, this);
+        player.setGameMode(org.bukkit.GameMode.SPECTATOR);
+        player.sendMessage(Text.msg("<yellow>You disconnected during the round. You can watch, but your life and rewards are not restored. Use /lobby to return."));
+        return true;
     }
 
     /** Removes a player at any stage (quit, /lobby, kicked). */
@@ -278,6 +329,10 @@ public final class GameInstance {
         tasks.removeIf(BukkitTask::isCancelled);
         if (plugin.bots() != null) plugin.bots().reconcile(this);
         if (state == GameState.RESETTING || reapIfAbandoned()) return;
+        if ((state == GameState.WAITING || state == GameState.COUNTDOWN) && plugin.instances().hasReservedSeats(this)) {
+            updateSidebars();
+            return;
+        }
         switch (state) {
             case WAITING -> {
                 if (participants.size() >= minPlayers()) {
@@ -380,6 +435,7 @@ public final class GameInstance {
         // wins and tokens, and a LOADING one has no world to teleport into.
         if (state != GameState.WAITING && state != GameState.COUNTDOWN) return;
         if (plugin.playService() != null && plugin.playService().admitting(this)) return;
+        if (plugin.instances().hasReservedSeats(this)) return;
         if (humanCount() == 0) { cleanup(); return; }
         if (mode.isTeams() && teamCount() < 2) {
             state = GameState.WAITING;
@@ -416,7 +472,7 @@ public final class GameInstance {
                 return;
             }
         }
-        competitiveEligible = CompetitiveEligibility.eligible(humanCount(), botIds.size(), maxPlayers());
+        competitiveEligible = !practice && CompetitiveEligibility.eligible(humanCount(), botIds.size(), maxPlayers());
         if (!botIds.isEmpty()) {
             broadcast(competitiveEligible
                     ? "<green>This bot-assisted match counts for competitive records and match token rewards."
@@ -482,6 +538,8 @@ public final class GameInstance {
             victim.setFireTicks(0);
             Player resolvedKiller = killer != null ? killer : killerOf(victim);
             if (resolvedKiller != null && (!isParticipant(resolvedKiller) || resolvedKiller.equals(victim))) resolvedKiller = null;
+            roundDeaths.merge(victim.getUniqueId(), 1, Integer::sum);
+            if (resolvedKiller != null) roundKills.merge(resolvedKiller.getUniqueId(), 1, Integer::sum);
             lastDamager.remove(victim.getUniqueId());
             lastDamagerAt.remove(victim.getUniqueId());
             if (resolvedKiller != null && ranked() && !isBot(resolvedKiller)) {
@@ -546,20 +604,30 @@ public final class GameInstance {
         }
     }
 
+    static List<Player> winningMembers(List<Player> participants, List<Player> declared,
+            java.util.function.Function<Player, GameTeam> teamOf) {
+        Set<GameTeam> winnerTeams = declared.stream().filter(participants::contains).map(teamOf)
+                .filter(java.util.Objects::nonNull).collect(java.util.stream.Collectors.toSet());
+        return participants.stream().filter(p -> declared.contains(p) || winnerTeams.contains(teamOf.apply(p))).toList();
+    }
+
     public void end(List<Player> winners, String reason) {
         note("ending", reason);
         if (state == GameState.ENDING || state == GameState.RESETTING) return;
-        if (plugin.bots() != null) plugin.bots().onRoundEnd(this, winners, reason);
+        List<Player> creditedWinners = winningMembers(players(), winners, this::teamOf);
+        if (plugin.bots() != null) plugin.bots().onRoundEnd(this, creditedWinners, reason);
         state = GameState.ENDING;
+        if ("forced".equals(reason)) competitiveEligible = false;
         countdown = plugin.getConfig().getInt("end.celebrate-seconds", 10);
-        String names = winners.isEmpty() ? "Nobody"
-                : String.join("<gray>, </gray><yellow>", winners.stream().map(Player::getName).toList());
+        String names = creditedWinners.isEmpty() ? "Nobody"
+                : String.join("<gray>, </gray><yellow>", creditedWinners.stream().map(Player::getName).toList());
         broadcast("<gold><b>GAME OVER!</b></gold> <gray>Winner(s): <yellow>" + names);
         for (Player p : everyone()) {
             if (isBot(p)) { p.setGameMode(org.bukkit.GameMode.SPECTATOR); continue; }
+            int balanceBefore = plugin.economy().tokens(p);
             wardrobeContext(p, "ended");
             if (isParticipant(p)) wardrobeCelebration(p, "finish_event");
-            if (winners.contains(p)) {
+            if (creditedWinners.contains(p)) {
                 wardrobeCelebration(p, "win_animation");
                 Text.title(p, "<gold><b>VICTORY!", "<gray>You won " + type.displayName());
                 p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
@@ -578,16 +646,26 @@ public final class GameInstance {
             p.sendMessage(Text.msg("<gray>Record: <green>" + plugin.stats().get(p, type.id(), "wins")
                     + "W</green> <red>" + plugin.stats().get(p, type.id(), "losses") + "L</red> <gray>in "
                     + type.displayName() + " <dark_gray>(" + plugin.stats().get(p, type.id(), "played") + " played)"));
+            if (plugin.results() != null) {
+                GameTeam team = teamOf(p);
+                int teamScore = team == null ? score(p) : players().stream().filter(team::contains).mapToInt(this::score).sum();
+                plugin.results().publish(p, new MatchResults.Result(id, type.id(), mode.id(), arena.displayName(),
+                        !isParticipant(p) ? "Spectated" : creditedWinners.contains(p) ? "Victory" : creditedWinners.isEmpty() ? "Round ended" : "Defeat",
+                        team == null ? "Solo" : "Team " + (team.index() + 1), score(p), teamScore,
+                        roundKills.getOrDefault(p.getUniqueId(), 0), roundDeaths.getOrDefault(p.getUniqueId(), 0),
+                        Math.max(0, plugin.economy().tokens(p) - balanceBefore), ranked() && isParticipant(p), practice,
+                        System.currentTimeMillis() + 600_000L));
+            }
         }
-        // Celebration: fireworks rain on the winners until cleanup.
+        // Celebration: fireworks rain on the creditedWinners until cleanup.
         runRepeating(20L, 30L, () -> {
-            for (Player winner : winners) {
+            for (Player winner : creditedWinners) {
                 if (isBot(winner) || !winner.isOnline() || winner.getWorld() != world) continue;
                 spawnFirework(winner.getLocation());
                 plugin.cosmetics().playWinEffect(winner);
             }
         });
-        runLogic("onEnd", () -> logic.onEnd(winners));
+        runLogic("onEnd", () -> logic.onEnd(creditedWinners));
     }
 
     private void wardrobeContext(Player player, String phase) {

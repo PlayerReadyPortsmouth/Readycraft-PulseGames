@@ -15,7 +15,8 @@ and destroys its bots; bots never create unattended matches.
 | Duels | classic, op, sumo | visible opponents, navigation, ordinary melee |
 | Kit PvP | ffa, oitc | visible opponents, melee/respawn; OITC real arrows, bow draw, finite ammunition and sword fallback |
 | Prop Hunt | classic, infection | supported-cell hiding and normal grid locking; seekers use visible motion, short memory, audible clues and ordinary reach inspections |
-| Skywars | solo, doubles, insane and team-size variants | nearby visible chest looting, finite inventory/equipment upgrades, bounded level bridging and normal melee |
+| Skywars | solo, doubles, insane and team-size variants | nearby chest looting, finite gear, checked height steps/bridges, melee and bows |
+| Bedwars | duos, quads and team-size variants | real resource pickup, finite purchases, bounded bed defence/bridges, public bed objectives and combat |
 | King of the Hill | solo, teams | capture hill, fight visible opponents, respawn |
 | Dodgeball preview | solo, teams | approach/retreat and the same projectile throw as humans |
 | Villager Defense | easy, hard | defend objective, fight wave enemies |
@@ -118,8 +119,9 @@ stats and match kill/win/participation rewards. Other rounds suppress those reco
 and rewards. Departures cannot change eligibility. Ordinary daily/playtime bonuses
 are unaffected. Bots never receive persistent stats or rewards.
 
-Parties remain local to each backend. The game menu exposes commands and typed
-accept/deny instructions for Bedrock. Team modes reject parties larger than the
+PulseNetwork 0.1.4 adds proxy-owned parties and group joins to advertised queues.
+Without that helper, parties remain backend-local. The game menu exposes commands
+and typed accept/deny instructions for Bedrock. Team modes reject parties larger than the
 chosen team size; solo parties may play as opponents. Matchmaking skips queues
 whose human groups cannot fit intact. Whole-party admission reclaims enough bot
 seats before anyone moves, serialises reentrant admissions and rechecks membership
@@ -130,7 +132,7 @@ Teams pack whole parties first, then use coarse calibrated strength to distribut
 experienced players and bots. Fixed bot difficulty overrides are reflected in that
 strength. The bounded allocator can use additional configured teams when necessary;
 it waits rather than splitting an unplaceable party. This is a heuristic balance,
-not a guarantee of equal teams or cross-server matchmaking.
+not a guarantee of equal teams. See `PLAYTEST-WORKFLOW.md` for network party limits.
 
 Flag owner: Aurora. Review date: 2026-10-25. Remove the canary restriction only
 after real human sessions cover every enabled mode, seat replacement, party/team
@@ -174,7 +176,7 @@ both clients. More Duels presets and shop inventory are separate follow-ups.
 5. Prop Hunt: test both roles and Infection, visible motion versus stationary cover, heartbeat search, locking and viewer packs on both clients.
 6. End/leave concurrent rounds and confirm NPCs, visuals and instance worlds are cleaned up.
 
-This candidate is not deployed. Crystal/Mace, Bedwars, racing and building
+This candidate is not deployed. Crystal/Mace, racing and building
 controllers remain future work; maps and player acceptance are still needed for the
 existing controllers too.
 
@@ -202,8 +204,14 @@ one adjacent bridge cell at a time. Block placement is cancellable and rolled ba
 when refused. `settings.bot-bridge-limit` defaults to 64 placements per bot per round,
 clamped 0–128. Existing map bot opt-ins and trial access remain required.
 
-Movement uses checked, supported level steps and stops on unsafe geometry. No
-teleport rescue, gap jumping, stairs, mining, ranged attacks, food/potion tactics or
-pearl use is claimed yet. Material tier selection does not compare enchantments.
+Movement now includes checked adjacent height changes, straight stairs/slabs and
+normal jump physics, plus finite bow ammunition. Unsafe routes still stop. No
+teleport rescue, long void jumps, food/potion tactics or pearl use is claimed.
+Material tier selection does not compare enchantments.
 Actual Citizens movement, fair combat, chest protection interoperability, refill,
 bridge exhaustion, multiple teams and instance cleanup require Java/Bedrock tests.
+
+
+The latest party, results, rejoin and private practice commands are documented in
+[PLAYTEST-WORKFLOW.md](PLAYTEST-WORKFLOW.md). Its island-game checks also cover the
+new Bedwars controller and expanded Skywars movement/ranged actions.
