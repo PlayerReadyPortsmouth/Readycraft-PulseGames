@@ -27,7 +27,9 @@ Normal death appends configured catalogue drops once through a HIGHEST-priority 
 
 Neither the catalogue schema nor `spawnEntity` accepts runtime scale. Do not add a `scale` field: the strict catalogue parser rejects it. The separate prop/visual attachment path's scaling support is not this entity-spawn contract.
 
-Author the intended silhouette at its final model dimensions and keep the server collision footprint deliberately matched. Changing Bukkit's scale attribute may change native collision while the attached model follows a separate scale path; parity must be tested rather than assumed. A large boss needs wide spawn clearance and routes, attacks aligned to the actual hurtbox, and a consistent visual/hitbox size on both editions. Do not silently enlarge native damage reach to compensate for incorrect art.
+The pinned BetterModel 3.5.0 entity scaler multiplies model geometry by Bukkit entity scale, and GeyserModelEngine forwards that scale to Bedrock. Therefore normalize Foreman source coordinates, bone origins and animation translations by 1.5, and Plated by 1.1; the game applies those factors once at runtime. Intended resulting model heights are 2.7 and 2.0625 blocks respectively. Native collision is also scaled: the boss needs three-block-high routes. The broad visual shoulders exceed the native body width, so verify corners, damage reach and model/hitbox agreement on both clients. Do not enlarge damage reach to compensate for artwork.
+
+Primary source: [BetterModel entity scaler](https://github.com/toxicity188/BetterModel/blob/3.5.0/api/src/main/java/kr/toxicity/model/api/tracker/ModelScaler.java#L162), [GeyserModelEngine scale forwarding](https://github.com/GeyserExtensionists/GeyserModelEngine/blob/5af2f6873702359dcaaf09c7dbd44aaa507a5304/paper/src/main/java/re/imc/geysermodelengine/managers/model/propertyhandler/BetterModelPropertyHandler.java#L28). The dependency-locked jars were also inspected; actual client acceptance remains required.
 
 ## Approved original art direction
 
