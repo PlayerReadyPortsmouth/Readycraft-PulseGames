@@ -104,7 +104,12 @@ public final class GameCatalog {
                 List.of(GameMode.ffa("classic", "Classic", 2, 16)),
                 AvalancheGame::new,
                 List.of(spawns(1, "on the survival platform"),
-                        region("arena", "the platform area; blocks fall from its top Y")),
+                        region("arena", "platform footprint, player feet to falling-block ceiling"),
+                        optional(setting("void-y", "collapse support columns down to this level")),
+                        optional(setting("shrinking", "collapse arena edges inward; default true")),
+                        optional(setting("shrink-start", "first collapse after seconds; default 30")),
+                        optional(setting("shrink-interval", "seconds between collapses; default 15")),
+                        optional(setting("minimum-size", "smallest remaining width/depth; default 7"))),
                 false));
 
         registry.register(new GameType("volcano", "Volcano",
