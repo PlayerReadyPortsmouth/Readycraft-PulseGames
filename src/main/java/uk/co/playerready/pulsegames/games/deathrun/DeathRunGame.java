@@ -146,8 +146,7 @@ public final class DeathRunGame extends MiniGame {
     public List<String> sidebar(Player player) {
         return List.of(
                 "<gray>Role: " + (isDeath(player) ? "<red>Death" : "<green>Runner"),
-                "<gray>Runners: <white>" + runners().size(),
-                "<gray>Time left: <white>" + Text.time(Math.max(0, timeLimitSeconds() - game.gameTime())));
+                "<gray>Runners: <white>" + runners().size());
     }
 
     @Override

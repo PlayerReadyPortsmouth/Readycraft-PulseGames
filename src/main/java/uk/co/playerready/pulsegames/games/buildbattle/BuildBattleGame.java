@@ -232,8 +232,7 @@ public final class BuildBattleGame extends MiniGame {
     public List<String> sidebar(Player player) {
         return List.of(
                 "<gray>Theme: <yellow>" + theme,
-                "<gray>Phase: <white>" + phase.name().toLowerCase(),
-                "<gray>Time: <white>" + Math.max(phaseTimer, 0) + "s");
+                "<gray>Phase: <white>" + phase.name().toLowerCase());
     }
 
     @Override

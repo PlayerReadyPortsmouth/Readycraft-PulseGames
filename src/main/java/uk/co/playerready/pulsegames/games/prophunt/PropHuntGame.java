@@ -866,8 +866,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
     public List<String> sidebar(Player player) {
         return List.of(
                 "<gray>Role: " + (seekers.contains(player.getUniqueId()) ? "<red>Seeker" : "<green>Hider"),
-                "<gray>Hiders left: <green>" + hiders.size(),
-                "<gray>Time left: <white>" + Text.time(Math.max(0, timeLimitSeconds() - game.gameTime())));
+                "<gray>Hiders left: <green>" + hiders.size());
     }
 
     @Override
