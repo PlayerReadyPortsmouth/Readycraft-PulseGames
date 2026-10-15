@@ -47,18 +47,34 @@ public final class SupermarketSweepGame extends MiniGame {
     @Override
     public void onStart() {
         checkout = game.arena().region("checkout");
-        List<Material> pool = new ArrayList<>();
-        for (String name : game.arena().settings().getStringList("item-pool")) {
-            Material material = Material.matchMaterial(name);
-            if (material != null) pool.add(material);
-        }
-        if (pool.isEmpty()) pool = new ArrayList<>(DEFAULT_POOL);
+        List<Material> pool = new ArrayList<>(availablePool());
+        if (pool.isEmpty()) throw new IllegalStateException("No eligible shopping items; validate the arena item-pool");
         java.util.Collections.shuffle(pool, new java.util.Random(ThreadLocalRandom.current().nextLong()));
-        int size = game.arena().settings().getInt("list-size", isRush() ? 4 : 6);
+        int size = Math.max(1, game.arena().settings().getInt("list-size", isRush() ? 4 : 6));
         shoppingList = List.copyOf(pool.subList(0, Math.min(size, pool.size())));
         game.alivePlayers().forEach(p -> collected.put(p.getUniqueId(), new HashSet<>()));
         game.broadcast("<yellow><b>Shopping list:</b></yellow> <white>" + listText());
         game.broadcast("Raid the shelves, then bring everything to the <green>checkout</green>!");
+    }
+
+    @Override
+    public String startProblem(List<Player> participants) {
+        try {
+            if (availablePool().isEmpty()) return "Supermarket item-pool must contain at least one obtainable item";
+            return null;
+        } catch (IllegalStateException invalid) { return invalid.getMessage(); }
+    }
+
+    /** Shelf stock remains a map acceptance check: this game has no authored stock bounds. */
+    private List<Material> availablePool() {
+        java.util.LinkedHashSet<Material> pool = new java.util.LinkedHashSet<>();
+        List<String> configured = game.arena().settings().getStringList("item-pool");
+        if (configured.isEmpty()) pool.addAll(DEFAULT_POOL);
+        else for (String name : configured) {
+            Material material = Material.matchMaterial(name);
+            if (material != null && material.isItem() && !material.isAir()) pool.add(material);
+        }
+        return List.copyOf(pool);
     }
 
     private String listText() {

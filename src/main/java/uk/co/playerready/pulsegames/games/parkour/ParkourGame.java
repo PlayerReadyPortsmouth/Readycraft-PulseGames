@@ -18,7 +18,7 @@ public final class ParkourGame extends CheckpointRaceGame {
 
     private boolean isElimination() { return game.mode().id().equals("elimination"); }
 
-    private int elimInterval() { return game.arena().settings().getInt("elim-interval", 45); }
+    private int elimInterval() { return Math.max(1, game.arena().settings().getInt("elim-interval", 45)); }
 
     @Override
     protected int laps() { return 1; }

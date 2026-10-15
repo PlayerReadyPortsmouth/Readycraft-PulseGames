@@ -39,6 +39,7 @@ public final class PartyGamesGame extends MiniGame {
     private int phaseTimer = 5;
     private int microStep;
     private Material targetColor;
+    private final java.util.Map<Block, org.bukkit.block.data.BlockData> floorSnapshot = new java.util.LinkedHashMap<>();
     private final Set<UUID> roundAlive = new HashSet<>();
     private boolean roundDone;
 
@@ -139,10 +140,14 @@ public final class PartyGamesGame extends MiniGame {
         int cycle = microStep % 9;
         if (cycle == 1) {
             for (Block block : floor.blocks(game.world())) {
+                floorSnapshot.putIfAbsent(block, block.getBlockData().clone());
                 block.setType(COLORS[random.nextInt(COLORS.length)]);
             }
         } else if (cycle == 2) {
-            targetColor = COLORS[random.nextInt(COLORS.length)];
+            List<Material> present = floor.blocks(game.world()).stream().map(Block::getType)
+                    .filter(material -> java.util.Arrays.asList(COLORS).contains(material)).distinct().toList();
+            if (present.isEmpty()) { endRound(List.of()); return; }
+            targetColor = present.get(random.nextInt(present.size()));
             String name = targetColor.name().replace("_WOOL", "");
             game.broadcastRaw(Text.PREFIX + "<yellow><b>" + name + "!");
             game.alivePlayers().forEach(p -> Text.title(p, "<yellow><b>" + name, ""));
@@ -219,6 +224,7 @@ public final class PartyGamesGame extends MiniGame {
     private void endRound(List<Player> winners) {
         if (roundDone) return;
         roundDone = true;
+        restoreFloor();
         current = Micro.NONE;
         phaseTimer = 5;
         if (winners.isEmpty()) {
@@ -236,6 +242,15 @@ public final class PartyGamesGame extends MiniGame {
             p.teleport(game.arena().spawn(i++, game.world()));
         }
     }
+
+    /** Restore the authored floor before any phase exit teleports players back onto it. */
+    private void restoreFloor() {
+        floorSnapshot.forEach((block, data) -> block.setBlockData(data, false));
+        floorSnapshot.clear();
+    }
+
+    @Override public void onEnd(List<Player> winners) { restoreFloor(); }
+    @Override public void onCleanup() { restoreFloor(); }
 
     @Override
     public void onDamageByPlayer(Player victim, Player damager, EntityDamageByEntityEvent event) {

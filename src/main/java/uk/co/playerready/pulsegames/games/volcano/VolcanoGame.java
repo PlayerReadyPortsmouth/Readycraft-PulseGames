@@ -33,7 +33,7 @@ public final class VolcanoGame extends MiniGame implements uk.co.playerready.pul
     private boolean isEruption() { return game.mode().id().equals("eruption"); }
 
     private int lavaInterval() {
-        return game.arena().settings().getInt("lava-interval", isEruption() ? 5 : 8);
+        return Math.max(1, game.arena().settings().getInt("lava-interval", isEruption() ? 5 : 8));
     }
 
     @Override

@@ -10,7 +10,7 @@ import org.bukkit.util.BoundingBox;
 import uk.co.playerready.pulsegames.core.util.Cuboid;
 
 /** Samples authored spawn volumes at spawn time, without loading chunks. */
-final class ZSpawnSearch {
+public final class ZSpawnSearch {
     static Optional<Location> choose(World world, List<Cuboid> regions, List<Player> players, double min, double max,
         double height, Predicate<Location> allowed, RandomGenerator random) {
         if (world == null || regions.isEmpty() || players.isEmpty())
@@ -31,7 +31,7 @@ final class ZSpawnSearch {
         }
         return Optional.empty();
     }
-    static boolean safe(Location feet, double height) {
+    public static boolean safe(Location feet, double height) {
         World world = feet.getWorld();
         if (world == null || !Double.isFinite(height) || height < 1 || height > 4)
             return false;
