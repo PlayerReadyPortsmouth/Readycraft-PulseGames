@@ -160,4 +160,8 @@ public final class BlockPartyGame extends MiniGame implements uk.co.playerready.
 
     @Override
     public int timeLimitSeconds() { return 600; }
+    @Override
+    public String phaseCountdown() { if (phaseTimer <= 0) return null;
+        return (phase == Phase.STAND ? "Floor drops: " : phase == Phase.CLEARED ? "Floor returns: " : "Next colour: ") + phaseTimer + "s"; }
+
 }

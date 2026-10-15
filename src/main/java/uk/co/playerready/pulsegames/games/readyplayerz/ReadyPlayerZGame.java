@@ -634,4 +634,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
     public int timeLimitSeconds() {
         return 2400;
     }
+    @Override
+    public String phaseCountdown() { return !roundActive && breakTimer > 0 ? "Next wave: " + breakTimer + "s" : null; }
+
 }

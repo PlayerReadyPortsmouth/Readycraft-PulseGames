@@ -265,4 +265,7 @@ public final class PartyGamesGame extends MiniGame {
 
     @Override
     public int timeLimitSeconds() { return 900; }
+    @Override
+    public String phaseCountdown() { return current == Micro.NONE && phaseTimer > 0 ? "Next game: " + phaseTimer + "s" : null; }
+
 }

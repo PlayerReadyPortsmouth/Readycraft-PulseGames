@@ -26,6 +26,7 @@ public final class DuelsGame extends MiniGame {
     private final DuelBotCombat botCombat;
     private int round = 1;
     private boolean roundOver;
+    private int roundRestartSeconds;
 
     public DuelsGame(GameInstance game) {
         super(game);
@@ -62,6 +63,7 @@ public final class DuelsGame extends MiniGame {
     }
 
     private void startRound() {
+        roundRestartSeconds = 0;
         roundOver = false;
         roundOut.clear();
         resetArena();
@@ -156,7 +158,7 @@ public final class DuelsGame extends MiniGame {
         }
         crystalOwners.clear(); placedBlocks.clear();
     }
-    @Override public void onCleanup() { resetArena(); }
+    @Override public void onCleanup() { roundRestartSeconds = 0; resetArena(); }
 
     @Override
     public void onDeath(Player victim, Player killer) {
@@ -181,6 +183,10 @@ public final class DuelsGame extends MiniGame {
                 + "</yellow> wins round <yellow>" + round + "</yellow>! <gray>(" + wins + "/" + roundsToWin() + ")");
         if (wins >= roundsToWin()) { game.end(winners, "rounds"); return; }
         round++;
+        int expectedRound = round;
+        roundRestartSeconds = 3;
+        game.runLater(20L, () -> updateRoundCountdown(expectedRound, 2));
+        game.runLater(40L, () -> updateRoundCountdown(expectedRound, 1));
         game.runLater(60L, () -> {
             // The match can be decided in this window (a disconnect ends it), and
             // restarting a round mid-ENDING wipes the winner's inventory.
@@ -226,4 +232,14 @@ public final class DuelsGame extends MiniGame {
 
     @Override
     public int timeLimitSeconds() { return 600; }
+    private void updateRoundCountdown(int expectedRound, int seconds) {
+        if (game.state() == GameState.RUNNING && roundOver && round == expectedRound && roundRestartSeconds > 0)
+            roundRestartSeconds = seconds;
+    }
+
+    @Override
+    public String phaseCountdown() {
+        return roundRestartSeconds > 0 ? "Next round: " + roundRestartSeconds + "s" : null;
+    }
+
 }

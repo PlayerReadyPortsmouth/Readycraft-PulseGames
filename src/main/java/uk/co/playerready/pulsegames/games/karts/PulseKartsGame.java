@@ -398,4 +398,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
     @Override public void onCleanup(){closed=true;for(Kart kart:List.copyOf(karts.values()))removeKart(kart.driver);}
     @Override public int startFreezeSeconds(){return 15;}
     @Override public int timeLimitSeconds(){return game.arena().settings().getInt("time-limit",600);}
+    @Override
+    public String phaseCountdown() { int seconds = game.startCountdownSeconds(); return seconds > 0 ? "Choose kart: " + seconds + "s" : null; }
+
 }

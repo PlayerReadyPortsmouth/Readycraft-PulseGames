@@ -241,4 +241,8 @@ public final class BuildBattleGame extends MiniGame {
 
     @Override
     public int timeLimitSeconds() { return 3600; }
+    @Override
+    public String phaseCountdown() { if (phase == Phase.DONE || phaseTimer <= 0) return null;
+        return (phase == Phase.THEME ? "Building in: " : phase == Phase.BUILD ? "Build ends: " : "Vote ends: ") + phaseTimer + "s"; }
+
 }

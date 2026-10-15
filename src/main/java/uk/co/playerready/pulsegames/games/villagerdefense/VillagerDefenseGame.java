@@ -183,4 +183,7 @@ public final class VillagerDefenseGame extends MiniGame implements BotObjectives
 
     @Override
     public int timeLimitSeconds() { return 1800; }
+    @Override
+    public String phaseCountdown() { return !waveActive && breakTimer > 0 ? "Next wave: " + breakTimer + "s" : null; }
+
 }

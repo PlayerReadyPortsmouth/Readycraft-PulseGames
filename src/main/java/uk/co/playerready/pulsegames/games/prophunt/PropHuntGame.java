@@ -877,4 +877,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
     public int timeLimitSeconds() {
         return game.arena().settings().getInt("time-limit", 300);
     }
+    @Override
+    public String phaseCountdown() { return hidePhase > 0 ? "Seekers released in: " + hidePhase + "s" : null; }
+
 }

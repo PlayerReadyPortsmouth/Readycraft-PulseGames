@@ -109,9 +109,16 @@ public final class GameInstance {
     public GameState state() { return state; }
     public MiniGame logic() { return logic; }
     public int gameTime() { return gameTime; }
+    public int remainingSeconds() { return Math.max(0, logic.timeLimitSeconds() - gameTime); }
     public StatsService stats() { return plugin.stats(); }
     public List<GameTeam> teams() { return teams; }
-    public boolean frozen() { return System.currentTimeMillis() < frozenUntil; }
+    public boolean frozen() { return startCountdownSeconds() > 0; }
+
+    /** Same deadline as movement/combat protection; round upwards so zero means unlocked. */
+    public int startCountdownSeconds() {
+        if (state != GameState.RUNNING) return 0;
+        return (int) Math.max(0L, (frozenUntil - System.currentTimeMillis() + 999L) / 1000L);
+    }
 
     /**
      * Capacity is the arena's, not just the mode's: a map with fewer spawns/beds/plots
@@ -340,7 +347,7 @@ public final class GameInstance {
             case WAITING -> {
                 if (participants.size() >= minPlayers()) {
                     state = GameState.COUNTDOWN;
-                    countdown = plugin.getConfig().getInt("countdown.lobby-seconds", 30);
+                    countdown = Math.max(1, plugin.getConfig().getInt("countdown.lobby-seconds", 30));
                 }
             }
             case COUNTDOWN -> tickCountdown();
@@ -412,7 +419,7 @@ public final class GameInstance {
             broadcast("<red>Not enough players, countdown cancelled.");
             return;
         }
-        int full = plugin.getConfig().getInt("countdown.full-seconds", 10);
+        int full = Math.max(1, plugin.getConfig().getInt("countdown.full-seconds", 10));
         if (participants.size() >= maxPlayers() && countdown > full) {
             countdown = full;
             broadcast("<green>Arena full! Starting soon.");
@@ -429,7 +436,7 @@ public final class GameInstance {
             }
         }
         for (Player p : players()) p.setLevel(countdown);
-        if (--countdown < 0) start();
+        if (--countdown <= 0) start();
     }
 
     public void start() {

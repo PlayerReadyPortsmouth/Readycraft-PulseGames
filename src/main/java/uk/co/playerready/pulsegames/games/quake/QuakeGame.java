@@ -314,4 +314,7 @@ public final class QuakeGame extends MiniGame implements BotMovement {
         }
         abilities.clear();shields.clear();sprints.clear();originalSpeed.clear();weapons.clear();health.clear();cooldowns.clear();protectedUntil.clear();goals.clear();botReady.clear();botTargets.clear();
     }
+    @Override
+    public String phaseCountdown() { int seconds = game.startCountdownSeconds(); return seconds > 0 ? "Choose loadout: " + seconds + "s" : null; }
+
 }
