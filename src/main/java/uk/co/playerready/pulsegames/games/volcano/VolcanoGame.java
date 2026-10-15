@@ -25,6 +25,7 @@ public final class VolcanoGame extends MiniGame implements uk.co.playerready.pul
     private Cuboid area;
     private int lavaY;
     private boolean flooding;
+    private int nextRiseAt;
     private boolean closed;
     private long floodGeneration;
 
@@ -34,8 +35,13 @@ public final class VolcanoGame extends MiniGame implements uk.co.playerready.pul
 
     private boolean isEruption() { return game.mode().id().equals("eruption"); }
 
-    private int lavaInterval() {
-        return Math.max(1, game.arena().settings().getInt("lava-interval", isEruption() ? 5 : 8));
+    static int riseInterval(int initial, int accelerationSeconds, int elapsed) {
+        return Math.max(1, Math.max(1, initial) - Math.max(0, elapsed) / Math.max(1, accelerationSeconds));
+    }
+
+    private int lavaInterval(int elapsed) {
+        return riseInterval(game.arena().settings().getInt("lava-interval", isEruption() ? 3 : 4),
+                game.arena().settings().getInt("lava-acceleration-seconds", 30), elapsed);
     }
 
     @Override
@@ -43,14 +49,18 @@ public final class VolcanoGame extends MiniGame implements uk.co.playerready.pul
         closed = false;
         floodGeneration++;
         area = game.arena().region("arena");
-        lavaY = area != null ? area.minY() : 0;
+        flooding = false;
+        lavaY = area != null ? Math.max(area.minY(), Math.min(area.maxY(),
+                game.arena().settings().getInt("lava-start-y", area.minY()))) : 0;
+        nextRiseAt = Math.max(1, game.arena().settings().getInt("lava-grace-seconds", isEruption() ? 3 : 5));
         game.broadcast("<red>The volcano is erupting - climb above the lava!");
     }
 
     @Override
     public void onSecond(int gameTime) {
         if (closed || area == null) return;
-        if (!flooding && gameTime > 10 && gameTime % lavaInterval() == 0 && lavaY <= area.maxY()) {
+        if (!flooding && gameTime >= nextRiseAt && lavaY <= area.maxY()) {
+            nextRiseAt = gameTime + lavaInterval(gameTime);
             flooding = true;
             floodSlice(lavaY, 0, floodGeneration);
             lavaY++;

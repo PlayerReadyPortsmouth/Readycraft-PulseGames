@@ -31,3 +31,11 @@ Status: locally built and tested, not pushed, merged or deployed. Includes the e
 ## Still pending
 
 PulseKarts custom pickup artwork awaits the preview decision. Additional bot controllers, ReadyZ progression-aware bots, TNT floor-only destruction, Duels team spawn spreading and richer race finish ordering remain separate work. KOTH contested-hill scoring policy is unchanged. No claim that every audit item is complete.
+
+## Volcano pacing follow-up
+
+Classic now starts rising at 5 seconds, every 4 seconds initially; Eruption starts at 3 seconds, every 3 seconds initially. The interval drops by one second every 30 elapsed match seconds, minimum one second. Scheduled deadlines replace modulo timing so a busy flood cannot miss a complete interval boundary. The 1,024-cell budget and no-overlap guard remain.
+
+Arena overrides: lava-interval (initial cadence), lava-grace-seconds, lava-acceleration-seconds, lava-start-y (absolute world Y, clamped inside arena). Existing explicit lava-interval values remain honoured and also accelerate. Review deployed arena overrides before rollout. A deeply buried arena minimum can still delay visible lava; lava-start-y lets authors put the first layer at the intended floor. No live map configuration changed.
+
+Four focused Volcano tests and rebuilt jar passed after this follow-up. Client playtesting still needed to judge difficulty, especially very large footprints whose fill time can exceed the requested cadence.
