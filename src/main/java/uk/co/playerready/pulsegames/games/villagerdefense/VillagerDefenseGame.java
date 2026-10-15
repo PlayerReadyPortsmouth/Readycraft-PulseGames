@@ -111,22 +111,46 @@ public final class VillagerDefenseGame extends MiniGame implements BotObjectives
         for (Player p : game.everyone()) {
             p.playSound(p.getLocation(), Sound.EVENT_RAID_HORN, 0.8f, 1f);
         }
-        var random = ThreadLocalRandom.current();
-        pendingSpawns = 0;
+        pendingSpawns = count;
         for (int i = 0; i < count; i++) {
-            Cuboid region = mobSpawns.isEmpty() ? null : mobSpawns.get(random.nextInt(mobSpawns.size()));
-            Location loc = region != null ? region.center(game.world()) : game.arena().spawn(0, game.world());
-            pendingSpawns++;
-            game.runLater(i * 10L, () -> {
-                pendingSpawns--;
-                if (game.world() == null || !waveActive) return;
-                Zombie zombie = (Zombie) game.world().spawnEntity(loc, EntityType.ZOMBIE);
-                zombie.setShouldBurnInDay(false);
-                zombie.setRemoveWhenFarAway(false);
-                if (mayor != null && !mayor.isDead()) zombie.setTarget(mayor);
-                waveZombies.add(zombie.getUniqueId());
-            });
+            game.runLater(i * 10L, () -> spawnQueued(0));
         }
+    }
+
+    private void spawnQueued(int attempt) {
+        if (!waveActive || game.world() == null) return;
+        var location = VSpawnSearch.choose(game.world(), mobSpawns, ThreadLocalRandom.current());
+        if (location.isEmpty()) {
+            if (attempt < 5) game.runLater(20L, () -> spawnQueued(attempt + 1));
+            else {
+                waveActive = false;
+                pendingSpawns = 0;
+                game.broadcast("<red>Wave stopped: no safe loaded mobspawn location. Check spawn floors and headroom.");
+                game.forceEnd();
+            }
+            return;
+        }
+        Zombie zombie = (Zombie) game.world().spawnEntity(location.get(), EntityType.ZOMBIE);
+        waveZombies.add(zombie.getUniqueId());
+        pendingSpawns--;
+        zombie.setShouldBurnInDay(false);
+        zombie.setRemoveWhenFarAway(false);
+        if (mayor != null && !mayor.isDead()) zombie.setTarget(mayor);
+    }
+
+    @Override
+    public void onCleanup() {
+        waveActive = false;
+        pendingSpawns = 0;
+        if (game.world() != null) {
+            for (UUID id : waveZombies) {
+                var entity = game.world().getEntity(id);
+                if (entity != null) entity.remove();
+            }
+        }
+        waveZombies.clear();
+        if (mayor != null) mayor.remove();
+        mayor = null;
     }
 
     private void rewardPlayers() {
@@ -183,4 +207,7 @@ public final class VillagerDefenseGame extends MiniGame implements BotObjectives
 
     @Override
     public int timeLimitSeconds() { return 1800; }
+    @Override
+    public String phaseCountdown() { return !waveActive && breakTimer > 0 ? "Next wave: " + breakTimer + "s" : null; }
+
 }

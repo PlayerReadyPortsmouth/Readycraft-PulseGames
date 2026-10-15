@@ -87,10 +87,16 @@ public final class SpleefGame extends MiniGame implements uk.co.playerready.puls
     public void onSecond(int gameTime) {
         if (isDecay() && gameTime > 15 && !floorBlocks.isEmpty()) {
             int amount = Math.min(3 + gameTime / 15, 12);
-            var random = ThreadLocalRandom.current();
-            for (int i = 0; i < amount; i++) {
-                Block block = floorBlocks.get(random.nextInt(floorBlocks.size()));
-                if (!block.getType().isAir()) block.setType(Material.AIR);
+            // Retire sampled cells permanently, including holes made by players. Bound
+            // skipped holes as well as writes so a depleted large floor cannot stall a tick.
+            int removed = 0;
+            for (int checked = 0; checked < amount * 8 && removed < amount && !floorBlocks.isEmpty(); checked++) {
+                int index = random.applyAsInt(floorBlocks.size());
+                Block block = floorBlocks.get(index);
+                int last = floorBlocks.size() - 1;
+                floorBlocks.set(index, floorBlocks.get(last));
+                floorBlocks.remove(last);
+                if (!block.isEmpty()) { block.setType(Material.AIR); removed++; }
             }
         }
     }

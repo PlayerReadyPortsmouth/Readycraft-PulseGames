@@ -49,6 +49,7 @@ public final class GameInstance {
     private int countdown;
     private int gameTime;
     private long frozenUntil;
+    private int lastStartAnnouncement = -1;
     private long emptySince;
     private int logicFailures;
 
@@ -109,9 +110,16 @@ public final class GameInstance {
     public GameState state() { return state; }
     public MiniGame logic() { return logic; }
     public int gameTime() { return gameTime; }
+    public int remainingSeconds() { return Math.max(0, logic.timeLimitSeconds() - gameTime); }
     public StatsService stats() { return plugin.stats(); }
     public List<GameTeam> teams() { return teams; }
-    public boolean frozen() { return System.currentTimeMillis() < frozenUntil; }
+    public boolean frozen() { return startCountdownSeconds() > 0; }
+
+    /** Same deadline as movement/combat protection; round upwards so zero means unlocked. */
+    public int startCountdownSeconds() {
+        if (state != GameState.RUNNING) return 0;
+        return (int) Math.max(0L, (frozenUntil - System.currentTimeMillis() + 999L) / 1000L);
+    }
 
     /**
      * Capacity is the arena's, not just the mode's: a map with fewer spawns/beds/plots
@@ -340,7 +348,7 @@ public final class GameInstance {
             case WAITING -> {
                 if (participants.size() >= minPlayers()) {
                     state = GameState.COUNTDOWN;
-                    countdown = plugin.getConfig().getInt("countdown.lobby-seconds", 30);
+                    countdown = Math.max(1, plugin.getConfig().getInt("countdown.lobby-seconds", 30));
                 }
             }
             case COUNTDOWN -> tickCountdown();
@@ -412,7 +420,7 @@ public final class GameInstance {
             broadcast("<red>Not enough players, countdown cancelled.");
             return;
         }
-        int full = plugin.getConfig().getInt("countdown.full-seconds", 10);
+        int full = Math.max(1, plugin.getConfig().getInt("countdown.full-seconds", 10));
         if (participants.size() >= maxPlayers() && countdown > full) {
             countdown = full;
             broadcast("<green>Arena full! Starting soon.");
@@ -429,7 +437,7 @@ public final class GameInstance {
             }
         }
         for (Player p : players()) p.setLevel(countdown);
-        if (--countdown < 0) start();
+        if (--countdown <= 0) start();
     }
 
     public void start() {
@@ -492,8 +500,6 @@ public final class GameInstance {
             p.teleport(arena.spawn(team != null ? team.index() : i++, world));
             if (!isBot(p)) wardrobeContext(p, "playing");
             p.setLevel(0);
-            Text.title(p, "<green><b>GO!", "<gray>" + type.displayName() + " <dark_gray>• <gray>" + mode.displayName());
-            p.playSound(p.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 0.6f, 1.4f);
             plugin.stats().addPlayed(p, type.id());
         }
         if (mode.isTeams()) {
@@ -508,6 +514,53 @@ public final class GameInstance {
         note("started", "participants="+participants.size()+" bots="+botIds.size()+" competitive="+competitiveEligible);
         runLogic("onStart", logic::onStart);
         if (state == GameState.RUNNING && plugin.bots() != null) plugin.bots().onRoundStart(this);
+        // Games without a preparation freeze own their opening announcement.
+        if (state == GameState.RUNNING && logic.startFreezeSeconds() > 0) {
+            // Leave the opening role/round title visible until the next second.
+            lastStartAnnouncement = startCountdownSeconds();
+            tasks.add(new org.bukkit.scheduler.BukkitRunnable() {
+                @Override public void run() { if (!announceStartCountdown()) cancel(); }
+            }.runTaskTimer(plugin, 1L, 1L));
+        }
+        if (state == GameState.RUNNING) updateSidebars();
+    }
+
+    /** Returns false when the presentation task must stop, including an aborted match. */
+    boolean announceStartCountdown() {
+        if (state != GameState.RUNNING) return false;
+        int seconds = startCountdownSeconds();
+        if (seconds != lastStartAnnouncement) {
+            lastStartAnnouncement = seconds;
+            if (seconds <= 3) {
+                String phase = logic.phaseCountdown();
+                for (Player p : players()) {
+                    if (isBot(p)) continue;
+                    Text.title(p, seconds > 0 ? "<yellow><b>" + seconds
+                                    : phase == null ? "<green><b>GO!" : "<green><b>READY!",
+                            phase != null ? "<gray>" + phase : seconds > 0 ? "<gray>Get ready" : "<gray>" + type.displayName());
+                    p.playSound(p.getLocation(), seconds > 0 ? "minecraft:block.note_block.hat"
+                            : "minecraft:entity.ender_dragon.growl", 0.6f, seconds > 0 ? 2f : 1.4f);
+                }
+            }
+        }
+        return seconds > 0;
+    }
+
+    /** Reserve space for timers and the shared footer before adding game-specific scores. */
+    List<String> runningSidebar(Player player) {
+        List<String> lines = new ArrayList<>();
+        int preparation = startCountdownSeconds();
+        String phase = logic.phaseCountdown();
+        if (preparation > 0) lines.add("<yellow>Starting in: " + preparation + "s");
+        if (phase != null && !phase.isBlank()) lines.add("<yellow>" + phase);
+        lines.add("<gray>Match left: <white>" + Text.time(remainingSeconds()));
+        List<String> custom = logic.sidebar(player);
+        if (custom.isEmpty()) lines.add("<gray>Alive: <white>" + alive.size());
+        else {
+            int budget = 15 - 2 - (botIds.isEmpty() ? 3 : 4) - lines.size();
+            lines.addAll(custom.subList(0, Math.min(custom.size(), Math.max(0, budget))));
+        }
+        return lines;
     }
 
     /** Player spawn point: their team's spawn, or their join-order spawn for FFA. */
@@ -792,13 +845,7 @@ public final class GameInstance {
                     lines.add("<yellow>" + plugin.bots().queueStatus(this));
                 }
                 case RUNNING -> {
-                    List<String> custom = logic.sidebar(p);
-                    if (custom.isEmpty()) {
-                        lines.add("<gray>Alive: <white>" + alive.size());
-                        lines.add("<gray>Time: <white>" + Text.time(gameTime));
-                    } else {
-                        lines.addAll(custom);
-                    }
+                    lines.addAll(runningSidebar(p));
                 }
                 default -> { }
             }

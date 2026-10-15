@@ -95,14 +95,24 @@ public final class KothGame extends MiniGame {
 
     @Override
     public void onTimeUp() {
+        List<List<Player>> leaders = new ArrayList<>();
+        int highest = Integer.MIN_VALUE;
         if (game.mode().isTeams()) {
-            int best = teamScores.entrySet().stream()
-                    .max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(-1);
-            game.end(best < 0 ? List.of() : membersOfTeam(best), "time");
+            for (GameTeam team : game.teams()) {
+                List<Player> members = membersOfTeam(team.index());
+                if (members.isEmpty()) continue;
+                int score = teamScores.getOrDefault(team.index(), 0);
+                if (score > highest) { leaders.clear(); highest = score; }
+                if (score == highest) leaders.add(members);
+            }
         } else {
-            var top = game.topScores();
-            game.end(top.isEmpty() ? List.of() : playerList(top.get(0).getKey()), "time");
+            for (Player player : game.alivePlayers()) {
+                int score = game.score(player);
+                if (score > highest) { leaders.clear(); highest = score; }
+                if (score == highest) leaders.add(List.of(player));
+            }
         }
+        game.end(highest > 0 && leaders.size() == 1 ? leaders.get(0) : List.of(), leaders.size() > 1 ? "time-draw" : "time");
     }
 
     @Override

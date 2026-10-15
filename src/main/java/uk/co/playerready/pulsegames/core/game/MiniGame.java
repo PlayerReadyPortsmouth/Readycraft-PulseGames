@@ -52,6 +52,9 @@ public abstract class MiniGame {
     /** Called every second while RUNNING, with seconds elapsed since start. */
     public void onSecond(int gameTime) {}
 
+    /** Short labelled phase timer for the shared sidebar; null when no phase countdown is active. */
+    public String phaseCountdown() { return null; }
+
     /** Winners decided (may be empty for a draw). Clean up entities/tasks here. */
     public void onEnd(List<Player> winners) {}
 

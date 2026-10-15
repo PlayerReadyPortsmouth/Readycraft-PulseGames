@@ -42,7 +42,7 @@ public final class LuckyPillarsGame extends MiniGame {
     private boolean isChaos() { return game.mode().rulesId().equals("chaos"); }
 
     private int dropInterval() {
-        return game.arena().settings().getInt("drop-interval", isChaos() ? 6 : 10);
+        return Math.max(1, game.arena().settings().getInt("drop-interval", isChaos() ? 6 : 10));
     }
 
     @Override
@@ -99,9 +99,16 @@ public final class LuckyPillarsGame extends MiniGame {
         return item;
     }
 
-    private static void give(Player player, ItemStack item, String description) {
-        player.getInventory().addItem(item);
-        player.sendActionBar(Text.mm("<gold>Lucky drop: <yellow>" + description));
+    void give(Player player, ItemStack item, String description) {
+        if (!game.isActive(player) || player.getWorld() != game.world()) return;
+        var leftovers = player.getInventory().addItem(item);
+        for (ItemStack leftover : leftovers.values()) {
+            var dropped = game.world().dropItem(player.getLocation().clone(), leftover);
+            dropped.setVelocity(new org.bukkit.util.Vector());
+            dropped.setPickupDelay(10);
+        }
+        player.sendActionBar(Text.mm("<gold>Lucky drop: <yellow>" + description
+                + (leftovers.isEmpty() ? "" : " <gray>(inventory full; dropped beside you)")));
     }
 
     @Override

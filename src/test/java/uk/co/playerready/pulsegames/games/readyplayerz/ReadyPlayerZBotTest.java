@@ -10,10 +10,13 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class ReadyPlayerZBotTest {
+    static uk.co.playerready.pulsegames.core.arena.Arena arena(){return new uk.co.playerready.pulsegames.core.arena.Arena("z","readyplayerz","Z","world",List.of(),1,4,"0,64,0","0,64,0",List.of("0,64,0"),Map.of(),new org.bukkit.configuration.MemoryConfiguration());}
+
     @Test void purchaseChargesNormalPriceAndRejectsInactiveOrPoorPlayers() {
         var game=mock(GameInstance.class);var player=mock(Player.class);var world=mock(World.class);
         when(game.state()).thenReturn(GameState.RUNNING);when(game.world()).thenReturn(world);when(player.getWorld()).thenReturn(world);
         when(game.isActive(player)).thenReturn(true);when(game.score(player)).thenReturn(74);
+        when(game.arena()).thenReturn(arena());
         var logic=new ReadyPlayerZGame(game);
         assertFalse(logic.purchase(player,6));verify(game,never()).addScore(any(),anyInt());
         when(game.score(player)).thenReturn(75);assertTrue(logic.purchase(player,6));
@@ -26,6 +29,7 @@ class ReadyPlayerZBotTest {
         when(game.state()).thenReturn(GameState.RUNNING);when(game.world()).thenReturn(world);when(bot.getWorld()).thenReturn(world);
         when(game.isBot(bot)).thenReturn(true);when(game.isActive(bot)).thenReturn(true);
         when(bot.getHealth()).thenReturn(8.0);when(game.score(bot)).thenReturn(75);
+        when(game.arena()).thenReturn(arena());
         var logic=new ReadyPlayerZGame(game);logic.botTick(bot);
         verify(game).addScore(bot,-75);verify(bot).setHealth(20);
     }
@@ -34,6 +38,7 @@ class ReadyPlayerZBotTest {
         UUID id=UUID.randomUUID();when(bot.getUniqueId()).thenReturn(id);
         when(game.player(id)).thenReturn(bot);when(game.isParticipant(bot)).thenReturn(true);
         when(bot.getInventory()).thenReturn(mock(PlayerInventory.class));
+        when(game.arena()).thenReturn(arena());
         var logic=spy(new ReadyPlayerZGame(game));
         doNothing().when(logic).equipBase(bot);
         var field=ReadyPlayerZGame.class.getDeclaredField("downed");field.setAccessible(true);

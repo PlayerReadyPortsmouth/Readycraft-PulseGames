@@ -66,6 +66,49 @@ public final class PulseContentBridge implements AutoCloseable {
         return progressionCall("matchProgression",new Class<?>[]{Plugin.class,UUID.class},plugin,player);
     }
 
+    /** Encounter admission uses the existing explicit model allowlist and each human pack session. */
+    public String mobReadiness(Collection<Player> viewers, Collection<String> models) {
+        if (models.isEmpty()) return null;
+        try {
+            Plugin provider = plugin.getServer().getPluginManager().getPlugin("PulseContent");
+            if (provider == null || !provider.isEnabled()) return "Custom zombies need enabled PulseContent.";
+            Method has = provider.getClass().getMethod("hasVisual", String.class);
+            Method ready = provider.getClass().getMethod("isContentReady", Player.class);
+            provider.getClass().getMethod("spawnEntity", String.class, org.bukkit.Location.class);
+            for (String id : models) {
+                if (id == null || !id.matches("[a-z0-9_.-]+:[a-z0-9_./-]+")
+                        || !Boolean.TRUE.equals(has.invoke(provider, id)))
+                    return "A configured zombie model is missing or not allowed in PulseContent.";
+            }
+            for (Player viewer : viewers) {
+                if (viewer.hasMetadata("NPC")) continue;
+                if (!Boolean.TRUE.equals(ready.invoke(provider, viewer)))
+                    return "Every player must finish loading the PulseContent pack before custom zombies can start.";
+            }
+            return null;
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
+            return "Custom zombies require the compatible PulseContent encounter API.";
+        }
+    }
+
+    /** Returned mob belongs to the match: the caller removes it on every cleanup path. */
+    public org.bukkit.entity.LivingEntity spawnMob(String id, org.bukkit.Location location, Collection<Player> viewers) {
+        String problem = mobReadiness(viewers, List.of(id));
+        if (problem != null) throw new IllegalStateException(problem);
+        if (location == null || location.getWorld() == null) throw new IllegalArgumentException("Missing encounter world");
+        try {
+            Plugin provider = plugin.getServer().getPluginManager().getPlugin("PulseContent");
+            // hasVisual above checked the exact namespace/catalogue pair. The encounter API expects its local ID.
+            Object spawned = provider.getClass().getMethod("spawnEntity", String.class, org.bukkit.Location.class)
+                    .invoke(provider, id.substring(id.indexOf(':') + 1), location);
+            if (spawned instanceof org.bukkit.entity.Mob mob && mob.getWorld().equals(location.getWorld())) return mob;
+            if (spawned instanceof org.bukkit.entity.Entity entity) entity.remove();
+            throw new IllegalStateException("Configured zombie model did not spawn a mob in the match world");
+        } catch (ReflectiveOperationException failure) {
+            throw new IllegalStateException("PulseContent could not spawn the configured zombie", failure);
+        }
+    }
+
     /** A user-facing reason, or null when every participant and configured prop is ready. */
     public String startProblem(List<String> props, List<Player> viewers) {
         if (props.isEmpty()) return "Custom Prop Hunt has no configured PulseContent props.";

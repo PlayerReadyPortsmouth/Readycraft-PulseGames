@@ -94,6 +94,39 @@ class PropLockAndMenuTest {
         logic.onPlayerMove(event);
         verify(event, never()).setTo(any());
     }
+    @Test void movingFullSizeDisguiseDoesNotRejectBodyMovementAlongWallOrStep() throws Exception {
+        PropHuntGame logic = new PropHuntGame(mock(GameInstance.class));
+        Player player = player(); World world = mock(World.class);
+        when(world.getMinHeight()).thenReturn(-64); when(world.getMaxHeight()).thenReturn(320);
+        when(world.isChunkLoaded(anyInt(), anyInt())).thenReturn(true);
+        when(world.getBlockAt(anyInt(), anyInt(), anyInt())).thenAnswer(call -> {
+            int x=call.getArgument(0), y=call.getArgument(1), z=call.getArgument(2);
+            var block=mock(org.bukkit.block.Block.class);
+            when(block.isPassable()).thenReturn(x < 1 && y >= 64);
+            when(block.getBoundingBox()).thenReturn(new org.bukkit.util.BoundingBox(x,y,z,x+1,y+1,z+1));
+            return block;
+        });
+        set(logic, "blockProps", true);
+        Map<UUID,PropPalette.Option> choices=field(logic,"choices");
+        choices.put(player.getUniqueId(),new PropPalette.Option("Stone",org.bukkit.Material.STONE,"ready:stone"));
+        // The 0.3-wide body fits beside x=1; its decorative full block overlaps that wall.
+        // Include stepping upward, backing away and a camera-only change while already beside it.
+        Location from=new Location(world,.8,64,.5);
+        for (Location to : java.util.List.of(new Location(world,.8,64,.6),
+                new Location(world,.8,64.5,.6), new Location(world,.7,64,.5),
+                new Location(world,.8,64,.5,90,20))) {
+            assertFalse(PropSpace.clear(to,1), "Visual volume overlaps wall in reproduction");
+            PlayerMoveEvent event=new PlayerMoveEvent(player,from,to);
+            logic.onPlayerMove(event);
+            assertFalse(event.isCancelled(), "Unsnapped visual must not veto native body movement");
+            assertEquals(to,event.getTo());
+        }
+    }
+    @Test void movementDoesNotOverrideAnotherPluginsCancellation() throws Exception {
+        PropHuntGame logic=new PropHuntGame(mock(GameInstance.class)); Player player=player();
+        PlayerMoveEvent event=new PlayerMoveEvent(player,new Location(null,0,64,0),new Location(null,1,64,0));
+        event.setCancelled(true); logic.onPlayerMove(event); assertTrue(event.isCancelled());
+    }
     @Test void paletteDragAndExpiredSelectionAreCancelledWithoutReplacingVisual() throws Exception {
         GameInstance game = mock(GameInstance.class, RETURNS_DEEP_STUBS);
         PropHuntGame logic = new PropHuntGame(game);

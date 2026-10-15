@@ -98,9 +98,12 @@ public final class SkywarsGame extends MiniGame {
         var random = ThreadLocalRandom.current();
         List<Loot> pool = isInsane() ? INSANE_LOOT : BASIC_LOOT;
         chest.getBlockInventory().clear();
-        int items = random.nextInt(4, 7);
+        int items = Math.min(random.nextInt(4, 7), chest.getBlockInventory().getSize());
+        List<Integer> slots = new java.util.ArrayList<>();
+        for (int slot = 0; slot < chest.getBlockInventory().getSize(); slot++) slots.add(slot);
+        java.util.Collections.shuffle(slots, random);
         for (int i = 0; i < items; i++) {
-            int slot = random.nextInt(chest.getBlockInventory().getSize());
+            int slot = slots.get(i);
             Loot loot=pool.get(random.nextInt(pool.size()));
             chest.getBlockInventory().setItem(slot,new ItemStack(loot.material(),loot.amount()));
         }

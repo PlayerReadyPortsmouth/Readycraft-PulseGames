@@ -26,6 +26,7 @@ public final class DuelsGame extends MiniGame {
     private final DuelBotCombat botCombat;
     private int round = 1;
     private boolean roundOver;
+    private int roundRestartSeconds;
 
     public DuelsGame(GameInstance game) {
         super(game);
@@ -56,12 +57,24 @@ public final class DuelsGame extends MiniGame {
         };
     }
 
+    private Kit selectedKit(Player player) {
+        return game.mode().combatStyle() == uk.co.playerready.pulsegames.core.game.GameMode.CombatStyle.DEFAULT
+                ? game.plugin().kits().get(kitId()) : game.plugin().duelMenu().kitFor(player, game.mode());
+    }
+
+    @Override public String startProblem(List<Player> players) {
+        for (Player player : players) if (selectedKit(player) == null)
+            return "A selected Duels kit is unavailable. Check the mode's compatible kits before starting.";
+        return null;
+    }
+
     @Override
     public void onStart() {
         startRound();
     }
 
     private void startRound() {
+        roundRestartSeconds = 0;
         roundOver = false;
         roundOut.clear();
         resetArena();
@@ -72,8 +85,7 @@ public final class DuelsGame extends MiniGame {
             var team = game.teamOf(player);
             player.teleport(game.arena().spawn(team != null ? team.index() : i++, game.world()));
             if (game.plugin().combat() != null) game.plugin().combat().refresh(player);
-            Kit kit = game.mode().combatStyle() == uk.co.playerready.pulsegames.core.game.GameMode.CombatStyle.DEFAULT
-                    ? game.plugin().kits().get(kitId()) : game.plugin().duelMenu().kitFor(player, game.mode());
+            Kit kit = selectedKit(player);
             if (kit != null) kit.apply(player);
             Text.title(player, "<yellow><b>ROUND " + round, isSumo() ? "<gray>Knock them off!" : "<gray>Fight!");
         }
@@ -156,7 +168,7 @@ public final class DuelsGame extends MiniGame {
         }
         crystalOwners.clear(); placedBlocks.clear();
     }
-    @Override public void onCleanup() { resetArena(); }
+    @Override public void onCleanup() { roundRestartSeconds = 0; resetArena(); }
 
     @Override
     public void onDeath(Player victim, Player killer) {
@@ -181,6 +193,10 @@ public final class DuelsGame extends MiniGame {
                 + "</yellow> wins round <yellow>" + round + "</yellow>! <gray>(" + wins + "/" + roundsToWin() + ")");
         if (wins >= roundsToWin()) { game.end(winners, "rounds"); return; }
         round++;
+        int expectedRound = round;
+        roundRestartSeconds = 3;
+        game.runLater(20L, () -> updateRoundCountdown(expectedRound, 2));
+        game.runLater(40L, () -> updateRoundCountdown(expectedRound, 1));
         game.runLater(60L, () -> {
             // The match can be decided in this window (a disconnect ends it), and
             // restarting a round mid-ENDING wipes the winner's inventory.
@@ -226,4 +242,14 @@ public final class DuelsGame extends MiniGame {
 
     @Override
     public int timeLimitSeconds() { return 600; }
+    private void updateRoundCountdown(int expectedRound, int seconds) {
+        if (game.state() == GameState.RUNNING && roundOver && round == expectedRound && roundRestartSeconds > 0)
+            roundRestartSeconds = seconds;
+    }
+
+    @Override
+    public String phaseCountdown() {
+        return roundRestartSeconds > 0 ? "Next round: " + roundRestartSeconds + "s" : null;
+    }
+
 }

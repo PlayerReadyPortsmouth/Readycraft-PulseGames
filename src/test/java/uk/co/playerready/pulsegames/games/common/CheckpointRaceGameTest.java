@@ -28,6 +28,10 @@ class CheckpointRaceGameTest {
         when(player.getLocation()).thenReturn(at(0));
         when(player.isInsideVehicle()).thenReturn(true);
         when(game.world()).thenReturn(world);
+        when(world.getMinHeight()).thenReturn(-64);when(world.getMaxHeight()).thenReturn(320);
+        when(world.isChunkLoaded(anyInt(),anyInt())).thenReturn(true);
+        org.bukkit.block.Block air=mock(org.bukkit.block.Block.class);when(air.isPassable()).thenReturn(true);
+        when(world.getBlockAt(anyInt(),anyInt(),anyInt())).thenReturn(air);
         when(game.alivePlayers()).thenReturn(List.of(player));
         when(game.spawnFor(player)).thenReturn(at(0));
         when(game.arena().regionsByPrefix("checkpoint")).thenReturn(checkpoints);
@@ -60,6 +64,9 @@ class CheckpointRaceGameTest {
         Race race = race(true, List.of(gate(2)));
         Location reviewed = new Location(world, 3, 81, 0.5, 90, 10);
         when(game.arena().settingLocation("checkpoint-spawn1", world)).thenReturn(reviewed);
+        org.bukkit.block.Block floor=mock(org.bukkit.block.Block.class);
+        when(floor.getBoundingBox()).thenReturn(new org.bukkit.util.BoundingBox(3,80,0,4,81,1));
+        when(world.getBlockAt(3,80,0)).thenReturn(floor);
         race.onMove(player, at(0), at(4));
         assertEquals(reviewed, race.resetLocation(player));
         race.resetLocation(player).setYaw(0);
@@ -69,6 +76,22 @@ class CheckpointRaceGameTest {
         Race race = race(true, List.of(gate(2)));
         race.onMove(player, at(0), at(4));
         assertEquals(at(4), race.resetLocation(player));
+    }
+    @Test void ordinaryCheckpointAlsoUsesReviewedResetAndClearsMomentum() {
+        Race race=race(false,List.of(gate(2)));
+        Location reviewed=at(3);
+        when(game.arena().settingLocation("checkpoint-spawn1",world)).thenReturn(reviewed);
+        org.bukkit.block.Block floor=mock(org.bukkit.block.Block.class);
+        when(floor.getBoundingBox()).thenReturn(new org.bukkit.util.BoundingBox(3,79,0,4,80,1));
+        when(world.getBlockAt(3,79,0)).thenReturn(floor);
+        race.onMove(player,at(0),at(2.5));assertEquals(reviewed,race.resetLocation(player));
+        when(player.teleport(reviewed)).thenReturn(true);race.sendBack(player);
+        verify(player,times(2)).setVelocity(new org.bukkit.util.Vector());
+    }
+    @Test void airborneCrossingWithoutSafeAuthoredPointRetainsPreviousReset() {
+        Race race=race(true,List.of(gate(2)));when(player.isInsideVehicle()).thenReturn(false);when(player.isGliding()).thenReturn(true);
+        when(game.arena().settingLocation("checkpoint-spawn1",world)).thenReturn(at(3));
+        race.onMove(player,at(0),at(4));assertEquals(at(0),race.resetLocation(player));
     }
     @Test void intersectionRejectsDifferentWorldNonFiniteAndOutsideAxis() {
         assertTrue(Double.isNaN(RaceGateCrossing.entry(gate(2), at(0), new Location(mock(World.class), 4,80,.5))));

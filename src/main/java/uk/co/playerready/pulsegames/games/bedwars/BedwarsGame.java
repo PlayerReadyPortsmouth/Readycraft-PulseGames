@@ -176,6 +176,15 @@ public final class BedwarsGame extends MiniGame {
     }
 
     private void drop(Location location, Material material) {
+        if (location.getWorld() != game.world()) return;
+        int cap = switch (material) { case IRON_INGOT -> 64; case GOLD_INGOT -> 16; case DIAMOND -> 8; default -> 64; };
+        int nearby = 0;
+        for (var entity : game.world().getNearbyEntities(location, 2.5, 2.0, 2.5)) {
+            if (!(entity instanceof org.bukkit.entity.Item existing) || !existing.isValid()) continue;
+            ItemStack stack = existing.getItemStack();
+            if (stack.getType() == material) nearby += stack.getAmount();
+            if (nearby >= cap) return;
+        }
         var item = game.world().dropItem(location.clone().add(0, 0.5, 0), new ItemStack(material));
         item.setVelocity(new org.bukkit.util.Vector(0, 0.1, 0));
     }

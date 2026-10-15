@@ -32,6 +32,9 @@ public final class BlockPartyGame extends MiniGame implements uk.co.playerready.
     private int phaseTimer = 3;
     private int round = 0;
     private Material target;
+    private DanceFloor.Pattern lastPattern;
+    private int callSeconds;
+    private final java.util.Map<java.util.UUID, org.bukkit.Location> botGoals = new java.util.HashMap<>();
 
     public BlockPartyGame(GameInstance game) {
         super(game);
@@ -41,7 +44,12 @@ public final class BlockPartyGame extends MiniGame implements uk.co.playerready.
 
     private int maxRounds() { return game.arena().settings().getInt("rounds", 15); }
 
-    private int colorCount() { return Math.min(isHardcore() ? 8 : 5, COLORS.length); }
+    @Override public String startProblem(List<Player> players) {
+        Cuboid region = game.arena().region("floor");
+        if (region == null || region.minY() != region.maxY() || region.volume() > 4096)
+            return "Block Party needs a one-block-high floor of at most 4096 tiles";
+        return null;
+    }
 
     private int standSeconds() {
         int base = isHardcore() ? 5 : 7;
@@ -70,9 +78,9 @@ public final class BlockPartyGame extends MiniGame implements uk.co.playerready.
                     game.end(game.alivePlayers(), "survived");
                     return;
                 }
-                pickTarget();
+                if (!pickTarget()) return;
                 phase = Phase.STAND;
-                phaseTimer = standSeconds();
+                phaseTimer = callSeconds;
             }
             case STAND -> {
                 clearFloor();
@@ -88,20 +96,53 @@ public final class BlockPartyGame extends MiniGame implements uk.co.playerready.
     }
 
     private void shuffleFloor() {
-        var random = ThreadLocalRandom.current();
-        for (Block block : floor.blocks(game.world())) {
-            block.setType(COLORS[random.nextInt(colorCount())]);
-        }
+        botGoals.clear();
+        int width=floor.maxX()-floor.minX()+1,depth=floor.maxZ()-floor.minZ()+1;
+        var layout=DanceFloor.create(width,depth,round+1,isHardcore(),lastPattern,ThreadLocalRandom.current());
+        lastPattern=layout.pattern();
+        for(int x=0;x<width;x++) for(int z=0;z<depth;z++)
+            game.world().getBlockAt(floor.minX()+x,floor.minY(),floor.minZ()+z)
+                    .setType(COLORS[layout.colors()[x*depth+z]],false);
     }
 
-    private void pickTarget() {
-        target = COLORS[ThreadLocalRandom.current().nextInt(colorCount())];
+    private boolean pickTarget() {
+        botGoals.clear();
+        int width=floor.maxX()-floor.minX()+1,depth=floor.maxZ()-floor.minZ()+1;
+        int[] colors=new int[width*depth]; boolean[] clear=new boolean[colors.length];
+        java.util.Arrays.fill(colors,-1);
+        for(int x=0;x<width;x++) for(int z=0;z<depth;z++) {
+            int i=x*depth+z,wx=floor.minX()+x,wz=floor.minZ()+z,y=floor.maxY();
+            Material material=game.world().getBlockAt(wx,y,wz).getType();
+            colors[i]=java.util.Arrays.asList(COLORS).indexOf(material);
+            clear[i]=colors[i]>=0 && game.world().getBlockAt(wx,y+1,wz).isPassable()
+                    && game.world().getBlockAt(wx,y+2,wz).isPassable();
+        }
+        var starts=new java.util.ArrayList<Integer>();
+        for(Player player:List.copyOf(game.alivePlayers())) {
+            var at=player.getLocation();
+            // A contestant already off the dance floor must not abort everybody else's match.
+            if(at.getWorld()!=game.world() || !floor.containsColumn(at) || at.getY()<floor.maxY()+0.5
+                    || at.getY()>floor.maxY()+3) {
+                game.eliminate(player);
+                if(game.state()!=uk.co.playerready.pulsegames.core.game.GameState.RUNNING) return false;
+                continue;
+            }
+            starts.add((at.getBlockX()-floor.minX())*depth+at.getBlockZ()-floor.minZ());
+        }
+        if(starts.isEmpty()) return false;
+        var call=DanceFloor.choose(width,depth,colors,clear,starts,standSeconds(),
+                java.util.Arrays.asList(COLORS).indexOf(target),ThreadLocalRandom.current());
+        if(call==null) {
+            game.broadcast("<red>No fair reachable colour on this floor. Check spawns, obstacles and floor size.");
+            game.end(List.of(),"invalid-floor");return false;
+        }
+        target=COLORS[call.color()];callSeconds=call.seconds();
         String name = target.name().replace("_WOOL", "").replace('_', ' ');
-        game.broadcast("<yellow><b>" + name + "!</b></yellow> <gray>(" + standSeconds() + "s)");
+        game.broadcast("<yellow><b>" + name + "!</b></yellow> <gray>(" + callSeconds + "s)");
         boolean hideHint = isHardcore() && round > 5;
         for (Player player : game.alivePlayers()) {
             Text.title(player, "<yellow><b>" + name, "");
-            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 1.4f);
+            player.playSound(player.getLocation(), "minecraft:block.note_block.pling", 1f, 1.4f);
             player.getInventory().clear();
             if (!hideHint) {
                 for (int i = 0; i < 9; i++) {
@@ -109,6 +150,7 @@ public final class BlockPartyGame extends MiniGame implements uk.co.playerready.
                 }
             }
         }
+        return true;
     }
 
     private void clearFloor() {
@@ -124,14 +166,16 @@ public final class BlockPartyGame extends MiniGame implements uk.co.playerready.
     @Override
     public org.bukkit.Location botDestination(Player bot) {
         if (floor == null || target == null || phase == Phase.SHUFFLE) return null;
+        var cached = botGoals.get(bot.getUniqueId());
+        if (cached != null) return cached.clone();
         var here = bot.getLocation();
         org.bukkit.Location best = null;
         double distance = Double.MAX_VALUE;
         int y = floor.maxY();
         // The called colour is public, including when Hardcore hides the inventory hint.
-        // Keep scanning bounded independently of the builder's total floor dimensions.
-        for (int x = Math.max(floor.minX(), here.getBlockX() - 12); x <= Math.min(floor.maxX(), here.getBlockX() + 12); x++) {
-            for (int z = Math.max(floor.minZ(), here.getBlockZ() - 12); z <= Math.min(floor.maxZ(), here.getBlockZ() + 12); z++) {
+        // The validated floor is bounded to 4096 cells; don't miss a fair distant patch.
+        for (int x = floor.minX(); x <= floor.maxX(); x++) {
+            for (int z = floor.minZ(); z <= floor.maxZ(); z++) {
                 if (game.world().getBlockAt(x, y, z).getType() != target
                         || !game.world().getBlockAt(x, y + 1, z).isPassable()
                         || !game.world().getBlockAt(x, y + 2, z).isPassable()) continue;
@@ -142,8 +186,12 @@ public final class BlockPartyGame extends MiniGame implements uk.co.playerready.
                 if (candidate < distance) { best = point; distance = candidate; }
             }
         }
+        if (best != null) botGoals.put(bot.getUniqueId(), best.clone());
         return best;
     }
+
+    @Override public void onCleanup() { botGoals.clear(); }
+    @Override public void onQuit(Player player) { botGoals.remove(player.getUniqueId()); }
 
     @Override
     public void onDeath(Player victim, Player killer) {
@@ -160,4 +208,8 @@ public final class BlockPartyGame extends MiniGame implements uk.co.playerready.
 
     @Override
     public int timeLimitSeconds() { return 600; }
+    @Override
+    public String phaseCountdown() { if (phaseTimer <= 0) return null;
+        return (phase == Phase.STAND ? "Floor drops: " : phase == Phase.CLEARED ? "Floor returns: " : "Next colour: ") + phaseTimer + "s"; }
+
 }

@@ -12,18 +12,39 @@ class ReadyPlayerZWavesTest {
   game=mock(GameInstance.class,RETURNS_DEEP_STUBS);human=mock(Player.class);bot=mock(Player.class);
   when(human.getUniqueId()).thenReturn(UUID.randomUUID());when(bot.getUniqueId()).thenReturn(UUID.randomUUID());
   when(game.everyone()).thenReturn(List.of(human,bot));when(game.alivePlayers()).thenReturn(List.of(human,bot));when(game.isBot(bot)).thenReturn(true);
-  settings=new YamlConfiguration();when(game.arena().settings()).thenReturn(settings);when(game.mode().id()).thenReturn("classic");
+  settings=new YamlConfiguration();
+  var region=new uk.co.playerready.pulsegames.core.util.Cuboid(10,64,0,10,64,0);
+  var arena=new uk.co.playerready.pulsegames.core.arena.Arena("z","readyplayerz","Z","world",List.of(),1,4,"0,64,0","0,64,0",List.of("0,64,0"),Map.of("mobspawn1",region),settings);
+  when(game.arena()).thenReturn(arena);when(game.mode().id()).thenReturn("classic");
+  when(game.world().getName()).thenReturn("pulse_test");
   logic=spy(new ReadyPlayerZGame(game));doNothing().when(logic).darken(any());doNothing().when(logic).clearDarkness(any());
-  var f=ReadyPlayerZGame.class.getDeclaredField("mobSpawns");f.setAccessible(true);f.set(logic,List.of());
+  var f=ReadyPlayerZGame.class.getDeclaredField("mobSpawns");f.setAccessible(true);f.set(logic,game.arena().regionsByPrefix("mobspawn"));
   spawns=new ArrayList<>();doAnswer(i->{spawns.add(i.getArgument(1));return null;}).when(game).runLater(anyLong(),any(Runnable.class));
  }
  void start() throws Exception {var m=ReadyPlayerZGame.class.getDeclaredMethod("startRound");m.setAccessible(true);m.invoke(logic);}
- @Test void roundSoundDoesNotPreventTenZombiesBeingScheduledAndSpawned() throws Exception {
+ @Test void roundSoundSchedulesAndSpawnsTenZombiesOnSafeAuthoredFloor() throws Exception {
+  when(game.state()).thenReturn(GameState.RUNNING);World world=game.world();
+  when(world.getMaxHeight()).thenReturn(320);when(world.getWorldBorder()).thenReturn(null);when(world.isChunkLoaded(anyInt(),anyInt())).thenReturn(true);
+  var air=mock(org.bukkit.block.Block.class);when(air.isPassable()).thenReturn(true);
+  var floor=mock(org.bukkit.block.Block.class);when(floor.getBoundingBox()).thenReturn(new org.bukkit.util.BoundingBox(10,63,0,11,64,1));
+  when(world.getBlockAt(anyInt(),anyInt(),anyInt())).thenReturn(air);when(world.getBlockAt(10,63,0)).thenReturn(floor);
+  for(Player p:List.of(human,bot)){when(game.isActive(p)).thenReturn(true);when(p.getWorld()).thenReturn(world);when(p.getLocation()).thenReturn(new Location(world,.5,64,.5));}
+  doNothing().when(logic).configureEnemy(any(),any());
+  List<Zombie> spawned=new ArrayList<>();
+  when(world.spawnEntity(any(),eq(EntityType.ZOMBIE))).thenAnswer(invocation->{Zombie zombie=mock(Zombie.class);when(zombie.getUniqueId()).thenReturn(UUID.randomUUID());spawned.add(zombie);return zombie;});
   start();org.junit.jupiter.api.Assertions.assertEquals(10,spawns.size());
-  var zombie=mock(Zombie.class);when(zombie.getUniqueId()).thenReturn(UUID.randomUUID());
-  when(game.world().spawnEntity(any(),eq(EntityType.ZOMBIE))).thenReturn(zombie);
-  spawns.forEach(Runnable::run);verify(game.world(),times(10)).spawnEntity(any(),eq(EntityType.ZOMBIE));
-  verify(human).playSound(nullable(Location.class),eq("minecraft:entity.zombie.ambient"),eq(1f),eq(.7f));
+  List.copyOf(spawns).forEach(Runnable::run);
+  verify(world,times(10)).spawnEntity(any(),eq(EntityType.ZOMBIE));verify(game,never()).forceEnd();
+  for(Zombie zombie:spawned)verify(zombie).setTarget(human);
+  var tracked=ReadyPlayerZGame.class.getDeclaredField("zombies");tracked.setAccessible(true);org.junit.jupiter.api.Assertions.assertEquals(10,((Set<?>)tracked.get(logic)).size());
+  var pending=ReadyPlayerZGame.class.getDeclaredField("pendingSpawns");pending.setAccessible(true);org.junit.jupiter.api.Assertions.assertEquals(0,pending.get(logic));
+  verify(human).playSound(any(Location.class),eq("minecraft:entity.zombie.ambient"),eq(1f),eq(.7f));
+ }
+ @Test void unloadedSpawnNeverFallsBackOntoPlayers()throws Exception{
+  when(game.state()).thenReturn(GameState.RUNNING);World world=game.world();when(world.getMaxHeight()).thenReturn(320);when(world.getWorldBorder()).thenReturn(null);
+  for(Player p:List.of(human,bot)){when(game.isActive(p)).thenReturn(true);when(p.getWorld()).thenReturn(world);when(p.getLocation()).thenReturn(new Location(world,.5,64,.5));}
+  start();List.copyOf(spawns).forEach(Runnable::run);verify(world,never()).spawnEntity(any(),any());
+  org.junit.jupiter.api.Assertions.assertEquals(20,spawns.size());
  }
  @Test void darknessOnlyAffectsHumansDuringWavesAndCanBeDisabled() throws Exception {
   logic.refreshDarkness();verify(logic,never()).darken(any());start();verify(logic).darken(human);verify(logic,never()).darken(bot);
