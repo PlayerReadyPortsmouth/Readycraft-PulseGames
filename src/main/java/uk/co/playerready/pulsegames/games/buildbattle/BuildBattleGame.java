@@ -194,7 +194,7 @@ public final class BuildBattleGame extends MiniGame {
 
     private void finish() {
         phase = Phase.DONE;
-        Player best = null;
+        List<Player> best = new ArrayList<>();
         double bestAvg = -1;
         for (Player p : game.alivePlayers()) {
             int plot = plotOf.getOrDefault(p.getUniqueId(), -1);
@@ -204,10 +204,13 @@ public final class BuildBattleGame extends MiniGame {
                     + String.format("%.1f", avg) + "<gray>/5");
             if (avg > bestAvg) {
                 bestAvg = avg;
-                best = p;
+                best.clear();
+                best.add(p);
+            } else if (Double.compare(avg, bestAvg) == 0) {
+                best.add(p);
             }
         }
-        game.end(best == null ? List.of() : List.of(best), "votes");
+        game.end(best, "votes");
     }
 
     private boolean inOwnPlot(Player player, Location location) {

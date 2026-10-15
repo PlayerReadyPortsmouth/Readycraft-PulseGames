@@ -114,6 +114,18 @@ public final class KitPvpGame extends MiniGame {
         return game.arena().settings().getInt("target-kills", isOitc() ? 20 : 15);
     }
 
+    private Kit selectedKit(Player player) {
+        String equipped = game.plugin().cosmetics().equippedKitId(player);
+        Kit selected = equipped == null ? null : game.plugin().kits().get(equipped);
+        return selected != null ? selected : game.plugin().kits().get(game.arena().settings().getString("kit", "warrior"));
+    }
+
+    @Override public String startProblem(List<Player> players) {
+        if (!isOitc()) for (Player player : players) if (selectedKit(player) == null)
+            return "A Kit PvP loadout is unavailable. Check the arena default kit and selected kits.";
+        return null;
+    }
+
     @Override
     public void onStart() {
         game.alivePlayers().forEach(this::equip);
@@ -127,12 +139,7 @@ public final class KitPvpGame extends MiniGame {
             player.getInventory().setItem(1, new ItemStack(Material.BOW));
             player.getInventory().setItem(9, new ItemStack(Material.ARROW, 1));
         } else {
-            // Token-shop kit unlocks override the arena default.
-            String unlocked = game.plugin().cosmetics().equippedKitId(player);
-            Kit kit = unlocked != null ? game.plugin().kits().get(unlocked) : null;
-            if (kit == null) {
-                kit = game.plugin().kits().get(game.arena().settings().getString("kit", "warrior"));
-            }
+            Kit kit = selectedKit(player);
             if (kit != null) kit.apply(player);
         }
     }

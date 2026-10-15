@@ -33,6 +33,7 @@ public final class DeathRunGame extends MiniGame {
 
     private final Set<UUID> deaths = new HashSet<>();
     private final Map<Integer, Long> trapCooldown = new HashMap<>();
+    private final Map<Integer, Map<Location, BlockData>> activeTraps = new HashMap<>();
     private List<Cuboid> traps = List.of();
     private List<Cuboid> triggers = List.of();
 
@@ -45,7 +46,24 @@ public final class DeathRunGame extends MiniGame {
     }
 
     @Override
+    public String startProblem(List<Player> players) {
+        Set<String> trapIds = new HashSet<>(), triggerIds = new HashSet<>();
+        for (String key : game.arena().regions().keySet()) {
+            if ((key.startsWith("trap") && !key.matches("trap[1-9][0-9]*"))
+                    || (key.startsWith("trigger") && !key.matches("trigger[1-9][0-9]*")))
+                return "Death Run trap and trigger regions must use matching positive numbered names.";
+            if (key.matches("trap[1-9][0-9]*")) trapIds.add(key.substring(4));
+            if (key.matches("trigger[1-9][0-9]*")) triggerIds.add(key.substring(7));
+        }
+        if (trapIds.isEmpty() || !trapIds.equals(triggerIds))
+            return "Death Run needs matching trapN and triggerN regions for every trap.";
+        return null;
+    }
+
+    @Override
     public void onStart() {
+        String problem = startProblem(game.alivePlayers());
+        if (problem != null) { game.broadcast("<red>" + problem); game.forceEnd(); return; }
         traps = game.arena().regionsByPrefix("trap");
         triggers = game.arena().regionsByPrefix("trigger");
         List<Player> players = new ArrayList<>(game.alivePlayers());
@@ -79,12 +97,13 @@ public final class DeathRunGame extends MiniGame {
 
     private void fireTrap(int index, Player death) {
         long now = System.currentTimeMillis();
-        if (trapCooldown.getOrDefault(index, 0L) > now) return;
-        trapCooldown.put(index, now + game.arena().settings().getInt("trap-cooldown", 5) * 1000L);
+        if (activeTraps.containsKey(index) || trapCooldown.getOrDefault(index, 0L) > now) return;
+        trapCooldown.put(index, now + Math.max(3, game.arena().settings().getInt("trap-cooldown", 5)) * 1000L);
         Cuboid trap = traps.get(index);
         Map<Location, BlockData> saved = new HashMap<>();
+        activeTraps.put(index, saved);
         for (Block block : trap.blocks(game.world())) {
-            if (!block.getType().isAir()) {
+            if (!block.isEmpty()) {
                 saved.put(block.getLocation(), block.getBlockData());
                 block.setType(Material.AIR);
             }
@@ -92,7 +111,19 @@ public final class DeathRunGame extends MiniGame {
         for (Player p : game.everyone()) {
             p.playSound(p.getLocation(), Sound.BLOCK_PISTON_CONTRACT, 1f, 0.8f);
         }
-        game.runLater(60L, () -> saved.forEach((loc, data) -> loc.getBlock().setBlockData(data)));
+        game.runLater(60L, () -> restoreTrap(index));
+    }
+
+    private void restoreTrap(int index) {
+        Map<Location, BlockData> saved = activeTraps.remove(index);
+        if (saved != null) saved.forEach((loc, data) -> loc.getBlock().setBlockData(data));
+    }
+
+    @Override
+    public void onCleanup() {
+        for (int index : new ArrayList<>(activeTraps.keySet())) restoreTrap(index);
+        trapCooldown.clear();
+        deaths.clear();
     }
 
     @Override

@@ -62,7 +62,7 @@ public abstract class CheckpointRaceGame extends MiniGame {
         if (p.nextCheckpoint < checkpoints.size()) {
             if (checkpoints.get(p.nextCheckpoint).contains(to)) {
                 p.nextCheckpoint++;
-                recordSafe(player, p, to);
+                recordCheckpoint(player, p, to);
                 player.sendActionBar(Text.mm("<green>Checkpoint " + p.nextCheckpoint + "/" + checkpoints.size()
                         + (laps() > 1 ? " <gray>(lap " + p.lap + "/" + laps() + ")" : "")));
                 player.playSound(player.getLocation(), "minecraft:block.note_block.bell", 1f, 1.5f);
@@ -87,9 +87,7 @@ public abstract class CheckpointRaceGame extends MiniGame {
             if (Double.isNaN(entry) || entry < previous) return;
             previous = entry;
             p.nextCheckpoint++;
-            Location reviewed = game.arena().settingLocation("checkpoint-spawn" + p.nextCheckpoint, game.world());
-            if (reviewed != null) p.lastSafe = reviewed.clone();
-            else recordSafe(player, p, to);
+            recordCheckpoint(player, p, to);
             player.sendActionBar(Text.mm("<green>Checkpoint " + p.nextCheckpoint + "/" + checkpoints.size()
                     + (laps() > 1 ? " <gray>(lap " + p.lap + "/" + laps() + ")" : "")));
             player.playSound(player.getLocation(), "minecraft:block.note_block.bell", 1f, 1.5f);
@@ -109,11 +107,24 @@ public abstract class CheckpointRaceGame extends MiniGame {
     /**
      * Records a respawn point only where the player was actually supported. A position
      * captured while free-falling past a checkpoint sends them straight back into the
-     * same fall, looping until the timer expires. Kart passengers and gliding racers are
-     * never "on ground", so their supported states count too.
+     * same fall, looping until the timer expires. Kart passengers are never "on ground", so their supported state counts too.
+     * Gliding crossings require an authored launch point rather than an arbitrary air position.
      */
+    private void recordCheckpoint(Player player, Progress p, Location at) {
+        Location reviewed = game.arena().settingLocation("checkpoint-spawn" + p.nextCheckpoint, game.world());
+        if (reviewed != null && validAuthoredReset(reviewed)) p.lastSafe = reviewed.clone();
+        else recordSafe(player, p, at);
+    }
+
+    protected boolean validAuthoredReset(Location location) {
+        return location.getWorld() == game.world() && Double.isFinite(location.getX())
+                && Double.isFinite(location.getY()) && Double.isFinite(location.getZ())
+                && Float.isFinite(location.getYaw()) && Float.isFinite(location.getPitch())
+                && uk.co.playerready.pulsegames.games.readyplayerz.ZSpawnSearch.safe(location, 1.8);
+    }
+
     private void recordSafe(Player player, Progress p, Location at) {
-        if (player.isOnGround() || player.isInsideVehicle() || player.isGliding()) {
+        if (player.isOnGround() || player.isInsideVehicle()) {
             p.lastSafe = at.clone();
         }
     }
@@ -138,10 +149,16 @@ public abstract class CheckpointRaceGame extends MiniGame {
     /** Send a player back to their last checkpoint. */
     protected void sendBack(Player player) {
         Location target = resetLocation(player);
+        player.setVelocity(new org.bukkit.util.Vector());
         player.setFallDistance(0);
-        player.teleport(target);
+        if (!player.teleport(target)) return;
+        player.setVelocity(new org.bukkit.util.Vector());
+        afterReset(player, target);
         player.sendActionBar(Text.mm("<red>Back to your last checkpoint!"));
     }
+
+    /** Mode-specific relaunch runs only after a successful reset. */
+    protected void afterReset(Player player, Location target) {}
 
     /** A defensive copy lets vehicle controllers reset without teleporting a passenger. */
     protected Location resetLocation(Player player) {

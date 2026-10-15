@@ -25,6 +25,8 @@ public final class VolcanoGame extends MiniGame implements uk.co.playerready.pul
     private Cuboid area;
     private int lavaY;
     private boolean flooding;
+    private boolean closed;
+    private long floodGeneration;
 
     public VolcanoGame(GameInstance game) {
         super(game);
@@ -38,6 +40,8 @@ public final class VolcanoGame extends MiniGame implements uk.co.playerready.pul
 
     @Override
     public void onStart() {
+        closed = false;
+        floodGeneration++;
         area = game.arena().region("arena");
         lavaY = area != null ? area.minY() : 0;
         game.broadcast("<red>The volcano is erupting - climb above the lava!");
@@ -45,10 +49,10 @@ public final class VolcanoGame extends MiniGame implements uk.co.playerready.pul
 
     @Override
     public void onSecond(int gameTime) {
-        if (area == null) return;
+        if (closed || area == null) return;
         if (!flooding && gameTime > 10 && gameTime % lavaInterval() == 0 && lavaY <= area.maxY()) {
             flooding = true;
-            floodSlice(lavaY, area.minX());
+            floodSlice(lavaY, 0, floodGeneration);
             lavaY++;
             game.broadcast("<red>The lava rises! <gray>(Y=" + lavaY + ")");
         }
@@ -63,27 +67,20 @@ public final class VolcanoGame extends MiniGame implements uk.co.playerready.pul
         }
     }
 
-    /** Writes one budgeted strip of the layer, then queues the next strip a tick later. */
-    private void floodSlice(int y, int fromX) {
-        int depth = area.maxZ() - area.minZ() + 1;
-        int columns = Math.max(1, BLOCKS_PER_TICK / depth);
-        int toX = Math.min(area.maxX(), fromX + columns - 1);
-        for (int x = fromX; x <= toX; x++) {
-            for (int z = area.minZ(); z <= area.maxZ(); z++) {
-                Block block = game.world().getBlockAt(x, y, z);
-                if (block.getType().isAir() || block.getType() == Material.WATER) {
-                    block.setType(Material.LAVA);
-                }
-            }
+    /** Budget scanned cells, not rows: even a very long thin region cannot exceed this tick's limit. */
+    private void floodSlice(int y, long cursor, long generation) {
+        if (closed || generation != floodGeneration || game.world() == null) return;
+        long depth = (long) area.maxZ() - area.minZ() + 1;
+        long cells = ((long) area.maxX() - area.minX() + 1) * depth;
+        long end = Math.min(cells, cursor + BLOCKS_PER_TICK);
+        for (long cell = cursor; cell < end; cell++) {
+            int x = (int) (area.minX() + cell / depth);
+            int z = (int) (area.minZ() + cell % depth);
+            Block block = game.world().getBlockAt(x, y, z);
+            if (block.getType().isAir() || block.getType() == Material.WATER) block.setType(Material.LAVA);
         }
-        if (toX >= area.maxX()) {
-            flooding = false;
-            return;
-        }
-        game.runLater(1L, () -> {
-            if (game.world() == null) return;
-            floodSlice(y, toX + 1);
-        });
+        if (end >= cells) { flooding = false; return; }
+        game.runLater(1L, () -> floodSlice(y, end, generation));
     }
 
     @Override
@@ -101,7 +98,7 @@ public final class VolcanoGame extends MiniGame implements uk.co.playerready.pul
                     return 100.0 / Math.max(0.25, dx * dx + dz * dz);
                 }).sum());
     }
-    @Override public void onCleanup() { memory.clear(); }
+    @Override public void onCleanup() { closed = true; floodGeneration++; flooding = false; memory.clear(); }
 
     @Override
     public void onDamage(Player victim, EntityDamageEvent event) {

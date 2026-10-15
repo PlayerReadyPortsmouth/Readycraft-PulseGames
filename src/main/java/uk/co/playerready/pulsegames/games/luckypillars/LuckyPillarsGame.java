@@ -99,9 +99,16 @@ public final class LuckyPillarsGame extends MiniGame {
         return item;
     }
 
-    private static void give(Player player, ItemStack item, String description) {
-        player.getInventory().addItem(item);
-        player.sendActionBar(Text.mm("<gold>Lucky drop: <yellow>" + description));
+    void give(Player player, ItemStack item, String description) {
+        if (!game.isActive(player) || player.getWorld() != game.world()) return;
+        var leftovers = player.getInventory().addItem(item);
+        for (ItemStack leftover : leftovers.values()) {
+            var dropped = game.world().dropItem(player.getLocation().clone(), leftover);
+            dropped.setVelocity(new org.bukkit.util.Vector());
+            dropped.setPickupDelay(10);
+        }
+        player.sendActionBar(Text.mm("<gold>Lucky drop: <yellow>" + description
+                + (leftovers.isEmpty() ? "" : " <gray>(inventory full; dropped beside you)")));
     }
 
     @Override

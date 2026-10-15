@@ -57,6 +57,17 @@ public final class DuelsGame extends MiniGame {
         };
     }
 
+    private Kit selectedKit(Player player) {
+        return game.mode().combatStyle() == uk.co.playerready.pulsegames.core.game.GameMode.CombatStyle.DEFAULT
+                ? game.plugin().kits().get(kitId()) : game.plugin().duelMenu().kitFor(player, game.mode());
+    }
+
+    @Override public String startProblem(List<Player> players) {
+        for (Player player : players) if (selectedKit(player) == null)
+            return "A selected Duels kit is unavailable. Check the mode's compatible kits before starting.";
+        return null;
+    }
+
     @Override
     public void onStart() {
         startRound();
@@ -74,8 +85,7 @@ public final class DuelsGame extends MiniGame {
             var team = game.teamOf(player);
             player.teleport(game.arena().spawn(team != null ? team.index() : i++, game.world()));
             if (game.plugin().combat() != null) game.plugin().combat().refresh(player);
-            Kit kit = game.mode().combatStyle() == uk.co.playerready.pulsegames.core.game.GameMode.CombatStyle.DEFAULT
-                    ? game.plugin().kits().get(kitId()) : game.plugin().duelMenu().kitFor(player, game.mode());
+            Kit kit = selectedKit(player);
             if (kit != null) kit.apply(player);
             Text.title(player, "<yellow><b>ROUND " + round, isSumo() ? "<gray>Knock them off!" : "<gray>Fight!");
         }

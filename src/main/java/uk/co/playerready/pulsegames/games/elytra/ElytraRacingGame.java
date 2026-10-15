@@ -19,6 +19,38 @@ public final class ElytraRacingGame extends CheckpointRaceGame {
     }
 
     @Override
+    protected boolean sweptCheckpoints() { return true; }
+
+    @Override
+    protected boolean validAuthoredReset(org.bukkit.Location location) {
+        var world = location.getWorld();
+        if (world == null || world != game.world() || !Double.isFinite(location.getX())
+                || !Double.isFinite(location.getY()) || !Double.isFinite(location.getZ())
+                || !Float.isFinite(location.getYaw()) || !Float.isFinite(location.getPitch())
+                || location.getY() <= world.getMinHeight() || location.getY() + 1.8 >= world.getMaxHeight()) return false;
+        if (world.getWorldBorder() != null && !world.getWorldBorder().isInside(location)) return false;
+        // The standing player must fit before gliding is reapplied; check every touched block.
+        for (int x=(int)Math.floor(location.getX()-.3); x<=Math.floor(location.getX()+.3); x++)
+            for (int z=(int)Math.floor(location.getZ()-.3); z<=Math.floor(location.getZ()+.3); z++) {
+                if (!world.isChunkLoaded(x>>4,z>>4)) return false;
+                for (int y=location.getBlockY(); y<=Math.floor(location.getY()+1.8); y++) {
+                    var block=world.getBlockAt(x,y,z);
+                    if (block.isLiquid() || !block.isPassable()) return false;
+                }
+            }
+        return true;
+    }
+
+    @Override
+    protected void afterReset(Player player, org.bukkit.Location target) {
+        if (!validAuthoredReset(target)) return;
+        player.setGliding(true);
+        var direction=target.getDirection();
+        direction.setY(Math.max(.15,direction.getY()));
+        player.setVelocity(direction.normalize().multiply(.8));
+    }
+
+    @Override
     protected int laps() {
         return game.mode().id().equals("grandprix") ? game.arena().settings().getInt("laps", 3) : 1;
     }
