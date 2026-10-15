@@ -73,6 +73,11 @@ public final class ArenaValidation {
             if(traps!=triggers)error(out,"Each trap needs a matching trigger with the same number.");
         }
         if(s.game.id().equals("dropper"))for(String name:s.regions.keySet())if(name.matches("checkpoint[1-9][0-9]*"))point(out,"checkpoint-spawn"+name.substring(10),Objects.toString(s.settings.get("checkpoint-spawn"+name.substring(10)),null),w,true,true,requireLoadedWorld);
+        if(s.game.id().equals("karts") && (Boolean.TRUE.equals(s.settings.get("bots-enabled")) || s.settings.keySet().stream().anyMatch(k->k.startsWith("bot-waypoint")))) {
+            try { uk.co.playerready.pulsegames.games.karts.KartBotRoute.load(s.settings,s.regions,w); }
+            catch(IllegalArgumentException ex) { error(out,ex.getMessage()); }
+            s.settings.forEach((key,value)->{if(key.startsWith("bot-waypoint"))point(out,key,Objects.toString(value,null),w,true,true,requireLoadedWorld);});
+        }
         s.settings.forEach((key, value) -> {
             if (!Set.of("bot-patrol-points", "bot-hide-points", "bot-recovery-points").contains(key) && !key.startsWith("bot-route-")) return;
             if (!(value instanceof List<?> points)) { error(out, key + " must be a location list."); return; }

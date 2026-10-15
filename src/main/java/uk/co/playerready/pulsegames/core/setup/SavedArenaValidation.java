@@ -73,6 +73,12 @@ public final class SavedArenaValidation {
                     raw instanceof List<?> points ? points.size() + " recorded waypoints; traversability is not proven."
                             : "Recorded value is not a location list; see validation errors."));
         }
+        if (type.id().equals("karts")) {
+            String routeError=uk.co.playerready.pulsegames.games.karts.KartBotRoute.validationError(arena);
+            checks.add(new Check("kart-bot-route", "Kart driving line", routeError==null?Status.RECORDED:Status.MISSING,
+                    routeError==null?"Ordered route and recovery points recorded; physical driving still needs a playtest.":routeError));
+            anyHints=true;
+        }
         if (!anyHints) checks.add(new Check("bot-hints", "Bot navigation hints", Status.OPTIONAL,
                 "No authored route, patrol, hiding or recovery points. Bots use their existing fallback behaviour."));
         checks.add(new Check("physical", "Physical clearance", Status.UNVERIFIED, loadedTemplateOrNull == null

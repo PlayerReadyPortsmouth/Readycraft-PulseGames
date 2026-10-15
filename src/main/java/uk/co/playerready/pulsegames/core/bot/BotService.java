@@ -14,7 +14,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /** Owns ephemeral contestants and bounded game-specific decisions, all on the server thread. */
 public final class BotService implements AutoCloseable {
-    private static final Set<String> SUPPORTED = Set.of("quake:classic", "duels:classic", "duels:op", "duels:sumo", "duels:crystal", "duels:mace",
+    private static final Set<String> SUPPORTED = Set.of("karts:sprint", "karts:cup", "quake:classic", "duels:classic", "duels:op", "duels:sumo", "duels:crystal", "duels:mace",
             "koth:solo", "koth:teams", "kitpvp:ffa", "kitpvp:oitc", "prophunt:classic", "prophunt:infection", "skywars:solo", "skywars:doubles", "skywars:insane", "bedwars:duos", "bedwars:quads", "dodgeball:solo", "dodgeball:teams",
             "villagerdefense:easy", "villagerdefense:hard",
             "readyplayerz:classic", "readyplayerz:frenzy", "blockparty:classic", "blockparty:hardcore",
@@ -116,6 +116,10 @@ public final class BotService implements AutoCloseable {
         if (game.type().id().equals("prophunt") && plugin.getConfig().getBoolean("content.prophunt.enabled", false)
                 && (!plugin.getConfig().getBoolean("content.prophunt.block-snapping", false)
                     || plugin.content() == null || !plugin.content().npcPropVisualsReady())) return "disguises unavailable";
+        if (game.type().id().equals("karts")) {
+            String problem = uk.co.playerready.pulsegames.games.karts.KartBotRoute.validationError(game.arena());
+            if (problem != null) return "kart route: " + problem;
+        }
         return null;
     }
 
@@ -340,6 +344,15 @@ public final class BotService implements AutoCloseable {
             slot.state = game.state() == GameState.RUNNING ? "PAUSED" : game.state().name();
             slot.objective = game.frozen() ? "Waiting for start countdown" : "Waiting / inactive contestant";
             slot.target = ""; slot.route = ""; slot.opponent = null;
+            return;
+        }
+        if (game.logic() instanceof uk.co.playerready.pulsegames.games.karts.PulseKartsGame karts) {
+            // Mounted movement belongs exclusively to the 20 Hz chassis controller.
+            slot.actor.stopNavigation();
+            slot.lastPosition = null; slot.destination = null;
+            slot.difficulty = difficultyFor(game, null);
+            slot.objective = "Driving the mapped kart route";
+            slot.state = "DRIVING"; slot.route = karts.botStatus(bot); slot.reason = "";
             return;
         }
         Location here = bot.getLocation();

@@ -7,6 +7,18 @@ Readable report: [HTML](MINIGAMES-TRACKER.html) · [PDF](MINIGAMES-TRACKER.pdf).
 After editing this source, regenerate both exports with
 `node tools/render-minigames-tracker.mjs --pdf`; see [update instructions](tools/TRACKER-README.md).
 
+## 15 October - Custom karts deployed; driving bots being prepared
+
+Current deployed release: **PulseGames 0.3.19 and PulseContent Paper 0.5.5** on MinigamesTest, with the primary proxy's kart content registration updated. This replaces boat steering with a custom kart controller/model, enables Avalanche's inward shrinking arena and fixes the ReadyPlayerZ round-start sound failure that prevented zombie spawning; active-wave darkness is included. Deployment is distinct from client acceptance.
+
+**PulseKarts bots are a pending candidate, not live or accepted.** Work covers Sprint/Cup driving through the same physics and checkpoint rules as human racers, route-aware recovery, difficulty, item use and queue eligibility. Each map needs explicit consecutive `bot-waypoint1` onward plus reviewed `checkpoint-spawnN` reset points. Validation checks an ordered circuit through every checkpoint and finish; it cannot prove physical traversability. Existing maps do not gain bot eligibility merely because the controller exists. See [kart setup and testing](docs/PULSEKARTS.md).
+
+**Prepared 0.3.20 candidate:** the 15-second opening menu offers Balanced, Light (1.25x acceleration, 1.15x steering, 1.25x incoming bump duration), Heavy (0.8x acceleration, 0.9x steering, 1.35x outgoing bump duration, 0.7x incoming duration) and Trickster (0.92x top speed; more turbo/lightning). Bots use the same style tradeoffs. Base speed is 12 blocks/second with 126-degree/second steering before speed/style scaling. Rotated terrain collision follows the actual kart footprint and strict floor contact keeps the chassis above the road surface. Karts pass side by side; qualifying rear impacts cause slowdown/spin with three simulation seconds of immunity. Cup already supports custom `laps` settings (default three); Sprint is one lap. Final candidate checks are still in progress and no new gameplay pass is claimed here.
+
+**Companion visual candidate:** PulseContent Paper 0.5.6 uses immediate chassis rotation; Geyser extension 0.3.3 adds an explicitly configured, allowlisted kart-to-ArmorStand visual link with zero offset, separate from player cosmetics. Both remain prepared. The strict-floor change addresses a probable black-model lighting cause; Bedrock movement/rotation and Java appearance must be retested after an authorised deployment.
+
+**Open player feedback:** Bedrock kart movement lags and rotation follows late; Java's kart appears black; driving feels slow or stuck. These reports remain unresolved client acceptance items. Do not mark rendering, handling, bot laps or crossplay passed from automated tests. Further deployment/restarts need fresh authorisation.
+
 ## 15 October - Natural bot behaviour and Quake loadouts: prepared
 
 Aurora reports Quake should spawn participants across the arena and bots should
@@ -420,7 +432,7 @@ needed. Do not bypass team/role requirements and call that a completed test.
 | Volcano | No accepted map/test recorded | Deployed: Classic, Eruption | Yes | Full lava/rock rounds; map-specific climbing routes |
 | Parkour | No accepted map/test recorded | None | Sprint yes; elimination needs 3 | Builder-authored routes, real jumps and checkpoints |
 | Elytra Racing | No accepted map/test recorded | None | Yes | Flight routes, checkpoint passage, rockets and recovery |
-| PulseKarts | No accepted map/test recorded | None | Yes | Ice track, boat steering, checkpoints, laps and item use |
+| PulseKarts | 0.3.19 controller/model deployed; 0.3.20 styles, bumps and handling prepared | Candidate Sprint/Cup route-driving bots; not deployed | Yes | Review routes; test style choice, rear bumps/immunity, custom Cup laps, recovery/items and companion visual fixes on both clients |
 | Skywars | No accepted map/test recorded | Candidate: loot/equip, bridges, height steps, melee/bows | Solo/insane yes; doubles needs 4 | Chest, stairs, bridge, ranged combat and team acceptance |
 | Bedwars | No accepted map/test recorded | Candidate: resources, purchases, defence and bed objectives | Duos needs 4; quads needs 8 | Resources, shops, bed defence/destruction, bridging and respawns |
 | Build Battle | No accepted map/test recorded | None | Yes | Theme-aware building in plots, phases and fair voting bots |

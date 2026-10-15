@@ -16,6 +16,7 @@ class PulseKartsControllerTest {
   game=mock(GameInstance.class,RETURNS_DEEP_STUBS);player=mock(Player.class);seat=mock(ArmorStand.class);visual=mock(AutoCloseable.class);
   when(player.getUniqueId()).thenReturn(UUID.randomUUID());when(player.getInventory()).thenReturn(mock(PlayerInventory.class));
   when(player.getVehicle()).thenReturn(seat);when(seat.isValid()).thenReturn(true);when(game.isActive(player)).thenReturn(true);
+  when(game.everyone()).thenReturn(List.of());
   when(game.state()).thenReturn(GameState.RUNNING);when(game.world()).thenReturn(mock(World.class));
   when(seat.teleport(any(Location.class),eq(TeleportFlag.EntityState.RETAIN_PASSENGERS))).thenReturn(true);
   logic=new PulseKartsGame(game);kart=new PulseKartsGame.Kart(player,seat,visual,new KartPhysics.State(0,64,0,0,0,0,true));
@@ -42,5 +43,105 @@ class PulseKartsControllerTest {
   var item=mock(ItemStack.class);when(item.getType()).thenReturn(Material.SUGAR);when(event.getItem()).thenReturn(item);logic.onInteract(event);assertNull(kart.item);assertEquals(40,kart.boostUntil);
   assertEquals(1.55,PulseKartsGame.speedMultiplier(39,kart.boostUntil,0));assertEquals(1,PulseKartsGame.speedMultiplier(40,kart.boostUntil,0));
   assertEquals(.4,PulseKartsGame.speedMultiplier(10,0,20));
+ }
+ void bot() throws Exception {
+  kart.bot=new KartBotDriver(player.getUniqueId());
+  when(game.plugin().bots().player(player.getUniqueId())).thenReturn(player);
+  when(game.plugin().bots().player(player.getUniqueId())).thenReturn(player);
+  var f=PulseKartsGame.class.getDeclaredField("botPoints");f.setAccessible(true);
+  f.set(logic,List.of(new Location(game.world(),0,64,30),new Location(game.world(),0,64,60),new Location(game.world(),30,64,60)));
+  when(game.plugin().bots().difficultyFor(game,null)).thenReturn(uk.co.playerready.pulsegames.core.bot.BotDifficulty.NORMAL);
+ }
+ @Test void frozenBotCannotSteerAdvanceOrSpendPowerups() throws Exception {
+  bot();when(game.frozen()).thenReturn(true);kart.item=PulseKartsGame.Item.TURBO;
+  drive();assertEquals(0,kart.waypoint);assertEquals(0,kart.motion.speed());assertEquals(PulseKartsGame.Item.TURBO,kart.item);
+  verify(seat,never()).teleport(any(Location.class),eq(TeleportFlag.EntityState.RETAIN_PASSENGERS));
+ }
+ @Test void botMovesThroughExactlyTheOrdinaryChassisIntegrator() throws Exception {
+  bot();var initial=kart.motion;drive();
+  assertEquals(KartPhysics.tick(initial,kart.input,1,(x,y,z,w,h)->y>=64),kart.motion);
+  assertTrue(kart.motion.z()>0);verify(player,never()).teleport(any(Location.class));
+ }
+ @Test void externalInputCannotOverrideBotAndRouteAdvancesOnlyInOrder() throws Exception {
+  bot();var input=mock(Input.class);when(input.isBackward()).thenReturn(true);logic.onInput(player,input);
+  assertEquals(0,kart.input.throttle());
+  kart.motion=new KartPhysics.State(0,64,30,0,0,0,true);drive();assertEquals(1,kart.waypoint);
+  kart.motion=new KartPhysics.State(30,64,60,0,0,0,true);drive();assertEquals(1,kart.waypoint);
+ }
+ @Test void botUsesCollectedTurboOnlyOnClearStraightAndCleansUpOnce() throws Exception {
+  bot();kart.motion=new KartPhysics.State(0,64,0,0,6,0,true);kart.item=PulseKartsGame.Item.TURBO;
+  drive();assertNull(kart.item);assertEquals(41,kart.boostUntil);
+  logic.onEliminated(player);logic.onCleanup();verify(visual,times(1)).close();verify(seat,times(1)).remove();
+ }
+ @Test void obstructedCheckpointFallbackRestartsBotRouteAtGrid() throws Exception {
+  bot();kart.waypoint=2;var grid=new Location(game.world(),0,64,0);when(game.spawnFor(player)).thenReturn(grid);
+  var pc=Class.forName("uk.co.playerready.pulsegames.games.common.CheckpointRaceGame$Progress");
+  var constructor=pc.getDeclaredConstructor();constructor.setAccessible(true);var progress=constructor.newInstance();
+  var safe=pc.getDeclaredField("lastSafe");safe.setAccessible(true);safe.set(progress,new Location(game.world(),100,64,0));
+  var next=pc.getDeclaredField("nextCheckpoint");next.setAccessible(true);next.setInt(progress,1);
+  var field=uk.co.playerready.pulsegames.games.common.CheckpointRaceGame.class.getDeclaredField("progress");field.setAccessible(true);
+  ((Map)field.get(logic)).put(player.getUniqueId(),progress);
+  field=PulseKartsGame.class.getDeclaredField("space");field.setAccessible(true);
+  field.set(logic,(KartPhysics.CollisionSpace)(x,y,z,w,h)->y>=64 && x<50);
+  logic.onDeath(player,null);assertEquals(0,kart.waypoint);assertEquals(0,kart.motion.x());
+  assertEquals(0,kart.motion.speed());assertEquals(0,kart.input.throttle());
+ }
+ void field(Class<?> owner,String name,Object value) throws Exception {
+  var f=owner.getDeclaredField(name);f.setAccessible(true);f.set(logic,value);
+ }
+ Object routeProgress(int nextCheckpoint) throws Exception {
+  bot();var settings=new HashMap<String,Object>();
+  settings.put("bot-waypoint1","0,64,0");settings.put("bot-waypoint2","0,64,20");
+  settings.put("bot-waypoint3","20,64,20");settings.put("bot-waypoint4","20,64,0");
+  settings.put("checkpoint-spawn1","0,64,12");settings.put("checkpoint-spawn2","12,64,20");
+  var cp1=new uk.co.playerready.pulsegames.core.util.Cuboid(-1,63,10,1,66,11);
+  var cp2=new uk.co.playerready.pulsegames.core.util.Cuboid(10,63,19,11,66,21);
+  var finish=new uk.co.playerready.pulsegames.core.util.Cuboid(9,63,-1,10,66,1);
+  var route=KartBotRoute.load(settings,Map.of("checkpoint1",cp1,"checkpoint2",cp2,"finish",finish),game.world());
+  field(PulseKartsGame.class,"botRoute",route);field(PulseKartsGame.class,"botPoints",route.points());
+  var base=uk.co.playerready.pulsegames.games.common.CheckpointRaceGame.class;
+  field(base,"checkpoints",List.of(cp1,cp2));field(base,"finish",finish);
+  var pc=Class.forName(base.getName()+"$Progress");var constructor=pc.getDeclaredConstructor();constructor.setAccessible(true);
+  var progress=constructor.newInstance();var next=pc.getDeclaredField("nextCheckpoint");next.setAccessible(true);next.setInt(progress,nextCheckpoint);
+  var safe=pc.getDeclaredField("lastSafe");safe.setAccessible(true);safe.set(progress,new Location(game.world(),0,64,0));
+  var f=base.getDeclaredField("progress");f.setAccessible(true);((Map)f.get(logic)).put(player.getUniqueId(),progress);
+  Location gridSpawn=new Location(game.world(),0,64,0);when(game.spawnFor(player)).thenReturn(gridSpawn);
+  when(game.mode().id()).thenReturn("cup");when(game.arena().settings().getInt("laps",3)).thenReturn(3);
+  when(game.plugin().content().kartActive(seat)).thenReturn(true);
+  return progress;
+ }
+ @Test void missedActualCheckpointResetsInsteadOfAdvancingDrivingLine() throws Exception {
+  routeProgress(0);kart.waypoint=1;kart.motion=new KartPhysics.State(0,64,20,0,0,0,true);
+  drive();assertEquals(0,kart.waypoint);assertEquals(0,kart.motion.z());assertEquals(0,kart.motion.speed());
+  verify(game,never()).end(anyList(),anyString());
+ }
+ @Test void stylesCanOnlyBeChosenByActiveHumanDuringGridCountdown() {
+  when(game.frozen()).thenReturn(true);
+  assertTrue(logic.chooseStyle(player,KartStyle.LIGHT));assertEquals(KartStyle.LIGHT,kart.style);
+  when(game.frozen()).thenReturn(false);
+  assertFalse(logic.chooseStyle(player,KartStyle.HEAVY));assertEquals(KartStyle.LIGHT,kart.style);
+  when(game.frozen()).thenReturn(true);when(game.isActive(player)).thenReturn(false);
+  assertFalse(logic.chooseStyle(player,KartStyle.TRICKSTER));
+  when(game.isActive(player)).thenReturn(true);kart.bot=new KartBotDriver(player.getUniqueId());
+  assertFalse(logic.chooseStyle(player,KartStyle.HEAVY));
+ }
+ @Test void citizensSkinReplacementKeepsOwnedSeatAndRefreshesVisual() throws Exception {
+  routeProgress(0);
+  UUID racerId=player.getUniqueId();Player replacement=mock(Player.class);when(replacement.getUniqueId()).thenReturn(racerId);
+  when(replacement.getVehicle()).thenReturn(seat);when(game.isActive(replacement)).thenReturn(true);
+  Location grid=new Location(game.world(),0,64,0);when(game.spawnFor(replacement)).thenReturn(grid);
+  when(game.plugin().bots().player(player.getUniqueId())).thenReturn(replacement);
+  var nextVisual=mock(AutoCloseable.class);
+  when(game.plugin().content().attachKart(eq(PulseKartsGame.MODEL),eq(seat),eq(replacement),any())).thenReturn(nextVisual);
+  drive();assertSame(replacement,kart.driver);verify(visual).close();verify(seat,never()).remove();
+  logic.onQuit(replacement);verify(nextVisual).close();verify(seat).remove();
+ }
+ @Test void actualFinishCrossingAdvancesCupLapAndContinuesRoute() throws Exception {
+  Object progress=routeProgress(2);kart.waypoint=0;kart.motion=new KartPhysics.State(11,64,0,90,5,0,true);
+  for(int tick=0;tick<100 && kart.waypoint==0;tick++)drive();
+  var lap=progress.getClass().getDeclaredField("lap");lap.setAccessible(true);
+  var next=progress.getClass().getDeclaredField("nextCheckpoint");next.setAccessible(true);
+  assertEquals(2,lap.getInt(progress));assertEquals(0,next.getInt(progress));assertEquals(1,kart.waypoint);
+  verify(game,never()).end(anyList(),anyString());
  }
 }
