@@ -173,10 +173,10 @@ class PulseKartsControllerTest {
   var box=mock(uk.co.playerready.pulsegames.core.content.PulseContentBridge.WorldVisual.class);
   doThrow(new IllegalStateException("temporary close failure")).doNothing().when(box).close();
   var f=PulseKartsGame.class.getDeclaredField("boxVisuals");f.setAccessible(true);
-  ((List<uk.co.playerready.pulsegames.core.content.PulseContentBridge.WorldVisual>)f.get(logic)).add(box);
+  ((Map<uk.co.playerready.pulsegames.core.util.Cuboid,uk.co.playerready.pulsegames.core.content.PulseContentBridge.WorldVisual>)f.get(logic)).put(new uk.co.playerready.pulsegames.core.util.Cuboid(0,64,0,0,64,0),box);
   assertThrows(IllegalStateException.class,logic::onCleanup);verify(seat).remove();
-  assertEquals(1,((List<?>)f.get(logic)).size());
-  logic.onCleanup();assertTrue(((List<?>)f.get(logic)).isEmpty());verify(box,times(2)).close();
+  assertEquals(1,((Map<?,?>)f.get(logic)).size());
+  logic.onCleanup();assertTrue(((Map<?,?>)f.get(logic)).isEmpty());verify(box,times(2)).close();
  }
  @Test void pickupWaitsForLoadedChunkAndReadySpectator() throws Exception {
   var matchWorld=game.world();when(player.isOnline()).thenReturn(true);when(player.getWorld()).thenReturn(matchWorld);when(game.everyone()).thenReturn(List.of(player));
@@ -216,5 +216,17 @@ class PulseKartsControllerTest {
   other.bumpImmuneUntil=100;assertNull(target.invoke(logic,kart));
   kart.item=PulseKartsGame.Item.LIGHTNING;var use=PulseKartsGame.class.getDeclaredMethod("useItem",PulseKartsGame.Kart.class);use.setAccessible(true);use.invoke(logic,kart);
   assertEquals(PulseKartsGame.Item.LIGHTNING,kart.item);
+ }
+ @Test void loadingAnotherPickupChunkDoesNotRespawnExistingBoxes() throws Exception {
+  var w=game.world();when(player.isOnline()).thenReturn(true);when(player.getWorld()).thenReturn(w);when(game.everyone()).thenReturn(List.of(player));
+  when(game.plugin().content().worldVisualViewerReady(player)).thenReturn(true);when(w.isChunkLoaded(0,0)).thenReturn(true);
+  var first=mock(uk.co.playerready.pulsegames.core.content.PulseContentBridge.WorldVisual.class);when(first.active()).thenReturn(true);
+  var second=mock(uk.co.playerready.pulsegames.core.content.PulseContentBridge.WorldVisual.class);when(second.active()).thenReturn(true);
+  when(game.plugin().content().createWorldVisual(anyString(),any(Location.class),anyCollection())).thenReturn(first,second);
+  var f=PulseKartsGame.class.getDeclaredField("itemBoxes");f.setAccessible(true);f.set(logic,List.of(new uk.co.playerready.pulsegames.core.util.Cuboid(0,64,0,1,65,1),new uk.co.playerready.pulsegames.core.util.Cuboid(32,64,0,33,65,1)));
+  var refresh=PulseKartsGame.class.getDeclaredMethod("refreshBoxVisuals");refresh.setAccessible(true);refresh.invoke(logic);
+  when(w.isChunkLoaded(2,0)).thenReturn(true);refresh.invoke(logic);
+  verify(first,never()).close();verify(game.plugin().content(),times(2)).createWorldVisual(anyString(),any(Location.class),anyCollection());
+  when(w.isChunkLoaded(2,0)).thenReturn(false);refresh.invoke(logic);verify(second).close();verify(first,never()).close();
  }
 }

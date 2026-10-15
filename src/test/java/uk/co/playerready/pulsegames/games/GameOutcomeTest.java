@@ -22,6 +22,7 @@ class GameOutcomeTest {
                 ReadyPlayerZGame::new, VillagerDefenseGame::new, DuelsGame::new);
         for (var factory : factories) {
             GameInstance instance = mock(GameInstance.class, RETURNS_DEEP_STUBS);
+            when(instance.state()).thenReturn(uk.co.playerready.pulsegames.core.game.GameState.RUNNING);
             when(instance.alivePlayers()).thenReturn(List.of(mock(Player.class), mock(Player.class)));
             factory.apply(instance).onTimeUp();
             verify(instance).end(eq(List.of()), startsWith("time"));

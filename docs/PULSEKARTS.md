@@ -54,7 +54,7 @@ Companion **PulseContent Paper 0.5.6 and Geyser extension 0.3.3** are prepared, 
 6. Collect each power-up, remain in a box, leave/re-enter, fire at the chassis and behind a wall, then check boosts/slows expire. Check inventory restrictions and the reset compass.
 7. Leave with one racer while another continues: remaining visuals must persist/rebuild. End/abort the game and confirm no seats/models remain; unrelated decorative entities must survive.
 
-Not yet implemented: wheel animation, finish grace/podium and improved between-gate standings. Cup defaults to three laps on one circuit; the existing `laps` arena setting supports a custom positive lap count. Sprint remains one lap. Current first-finisher race semantics are preserved. Do not mark Bedrock controls, rendered pack alignment or racing feel accepted from automated tests alone.
+Prepared in 0.3.26, not deployed: the first finisher starts a remaining-racer grace period; finished racers spectate, and the round closes when everyone finishes/leaves or grace expires. Set `finish-grace-seconds` to 5–60 (default 30). Same-tick crossing fractions determine order and exact first-place ties share victory. A departed winner keeps their recorded placing without transferring victory rewards. Live 0.3.25 still uses immediate first-finisher completion. Wheel animation and a podium presentation remain future work. Cup defaults to three laps on one circuit; the existing `laps` arena setting supports a custom positive lap count. Sprint remains one lap. Do not mark Bedrock controls, rendered pack alignment or racing feel accepted from automated tests alone.
 
 
 ## Bot driving line setup

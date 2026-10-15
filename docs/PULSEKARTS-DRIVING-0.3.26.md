@@ -18,9 +18,17 @@ Mario Kart Wii-inspired arcade handling, forgiving turns and drift boosts. Drivi
 - Shell/lightning slows grant shared hit protection until the slow ends plus two seconds. Rear bumps also respect protection. Lightning requires an unprotected racer at a later checkpoint; if none qualifies, the item is retained. Comeback item weighting does not grant extra inventory slots or bypass the personal pickup cooldown.
 - Java kart display interpolation explicitly uses one tick. Existing immediate kart yaw remains. Live proxy configuration already permits the exact kart model attachment; this does not prove individual Bedrock link acceptance or eliminate network latency.
 
+## Race completion follow-up
+
+The first finisher starts a 30-second finish grace period instead of ending all racers immediately. Maps can set `finish-grace-seconds` (5–60). Finishers lose their kart and become spectators while retaining participant reward eligibility. The round closes when every remaining racer finishes/leaves, the grace expires, or the overall time limit expires. Empty-human cleanup remains unchanged.
+
+Finish order uses the simulation tick plus swept finish-line entry fraction, so iteration order does not decide same-tick arrivals. Exact first-place ties share victory; lower finishers are not winners. Recorded positions survive departures. Existing reward rules still require the winner to remain a participant: a first finisher leaving forfeits end rewards, without promoting someone else. Positions are match-local, not a new persistent leaderboard.
+
+Pickup refresh now preserves unaffected boxes when another track chunk loads/unloads. Audience changes still recreate visuals to apply the provider's viewer contract.
+
 ## Limitations
 
-This is not client-side prediction. Java and Bedrock responsiveness needs comparison testing. The candidate adds deliberate bot corner drifting using the same physics and 12/25-tick charge thresholds as players; 85 focused kart checks pass, including earned-boost and complete-lap simulations; actual complete-map bot laps are still pending. Cosmetic progression and additional item types are future work. Items remain shells, turbo and lightning; comeback weighting uses completed checkpoint progress, so racers within the same segment are not geometrically ranked. Source model preview is not in-game acceptance.
+This is not client-side prediction. Java and Bedrock responsiveness needs comparison testing. The candidate adds deliberate bot corner drifting using the same physics and 12/25-tick charge thresholds as players; 117 focused checks pass, including earned-boost and complete-lap simulations; actual complete-map bot laps are still pending. Cosmetic progression and additional item types are future work. Items remain shells, turbo and lightning; comeback weighting uses completed checkpoint progress, so racers within the same segment are not geometrically ranked. Source model preview is not in-game acceptance. For exact finish ties, the finish announcement shares the placing correctly; the sidebar list may still show consecutive row numbers (1, 2).
 
 ## Test runbook
 
@@ -35,5 +43,10 @@ This is not client-side prediction. Java and Bedrock responsiveness needs compar
 8. Keep Forward held while falling and through the checkpoint reset: accelerate again without releasing Forward. Hold Jump too: no drift charge until Jump is released and pressed again.
 9. In a disposable test map, overlap first checkpoint and finish: start must refuse with the track-validation message. Move them to adjacent non-overlapping cells: that specific refusal clears.
 10. Hit one racer repeatedly with shells/lightning and a rear bump: protection prevents chained slows/spins. Wait for the slow and two-second grace to expire before a new item hit can apply. Use lightning with no unprotected racer at a later checkpoint: retain the item. Verify same-segment racers do not qualify merely by being visually ahead.
+
+
+11. With two racers, finish first and confirm the other gets the remaining grace countdown. Finished racers should spectate without steering, collecting or colliding. Finish the second racer and confirm immediate round completion.
+12. Repeat with an unfinished racer until grace expiry; then repeat with the first finisher leaving. Preserve finish order and never award the departed winner's place to a slower racer. Exact first-place ties may share victory.
+13. Watch an existing box while driving into range of another chunk: the first should remain stable. Test spectator audience changes separately.
 
 No restart, pack rollout or live map changes are included in this prepared batch.

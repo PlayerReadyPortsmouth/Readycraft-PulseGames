@@ -54,16 +54,21 @@ public final class PulseKartsGame extends CheckpointRaceGame {
     }
     private final Map<UUID,Kart> karts = new HashMap<>();
     private List<Cuboid> itemBoxes=List.of();
-    private final List<uk.co.playerready.pulsegames.core.content.PulseContentBridge.WorldVisual> boxVisuals = new ArrayList<>();
+    private final Map<Cuboid,uk.co.playerready.pulsegames.core.content.PulseContentBridge.WorldVisual> boxVisuals = new LinkedHashMap<>();
     private Set<UUID> boxViewers = Set.of();
-    private List<Cuboid> visibleBoxes = List.of();
     private KartPhysics.CollisionSpace space;
     private KartBotRoute botRoute;
     private List<Location> botPoints = List.of();
+    private KartRaceResults raceResults;
+    private final Map<UUID,String> racerNames = new HashMap<>();
+    private final Set<UUID> announcedFinishers = new HashSet<>();
+    private double finishFraction;
+    private boolean resultsPublished;
     private long tick;
     private boolean closed;
 
     public PulseKartsGame(GameInstance game) { super(game); }
+    @Override public boolean managesCompletion() { return true; }
     @Override protected boolean sweptCheckpoints() { return true; }
     @Override protected int laps() { return game.mode().id().equals("cup") ? Math.max(1,game.arena().settings().getInt("laps",3)) : 1; }
     @Override public String startProblem(List<Player> players) {
@@ -81,7 +86,9 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         return boxes == 0 ? null : game.plugin().content().worldVisualStartProblem(PICKUP_MODEL,players);
     }
     @Override public void onStart() {
-        super.onStart();space=KartPhysics.world(game.world());itemBoxes=game.arena().regionsByPrefix("itembox");
+        super.onStart();
+        initialiseResults(game.alivePlayers());
+        space=KartPhysics.world(game.world());itemBoxes=game.arena().regionsByPrefix("itembox");
         if (game.alivePlayers().stream().anyMatch(game::isBot)) {
             botRoute = KartBotRoute.load(game.arena(), game.world());
             botPoints = botRoute.points();
@@ -95,7 +102,14 @@ public final class PulseKartsGame extends CheckpointRaceGame {
             try { drive(); }
             catch(RuntimeException | LinkageError failure) {
                 game.plugin().getLogger().log(java.util.logging.Level.SEVERE,"Kart controller failed",failure);
-                onCleanup();game.end(List.of(),"kart-controller-error");
+                try { onCleanup(); }
+                catch (RuntimeException | LinkageError cleanupFailure) {
+                    failure.addSuppressed(cleanupFailure);
+                    game.plugin().getLogger().log(java.util.logging.Level.WARNING,"Kart controller cleanup failed",cleanupFailure);
+                } finally {
+                    // closed stops simulation; it must never prevent the terminal game transition.
+                    game.end(List.of(),"kart-controller-error");
+                }
             }
         });
     }
@@ -107,14 +121,14 @@ public final class PulseKartsGame extends CheckpointRaceGame {
     }
     private void closeBoxVisuals() {
         RuntimeException error = null;
-        for (var visual : List.copyOf(boxVisuals)) {
-            try { visual.close(); boxVisuals.remove(visual); }
+        for (var entry : List.copyOf(boxVisuals.entrySet())) {
+            try { entry.getValue().close(); boxVisuals.remove(entry.getKey()); }
             catch (Exception | LinkageError failure) {
                 if (error == null) error = new IllegalStateException("Kart pickup cleanup failed", failure);
                 else error.addSuppressed(failure);
             }
         }
-        boxViewers = Set.of(); visibleBoxes = List.of();
+        boxViewers = Set.of();
         // Keep failed handles for retry; never create replacements over orphan visuals.
         if (error != null) throw error;
     }
@@ -126,15 +140,21 @@ public final class PulseKartsGame extends CheckpointRaceGame {
             Location at = box.center(game.world());
             return game.world().isChunkLoaded(at.getBlockX() >> 4, at.getBlockZ() >> 4);
         }).toList();
-        if (audience.equals(boxViewers) && loaded.equals(visibleBoxes) && boxVisuals.size()==loaded.size()
-                && boxVisuals.stream().allMatch(v -> v.active())) return;
-        closeBoxVisuals();
+        if (!audience.equals(boxViewers)) closeBoxVisuals();
         if (audience.isEmpty()) return;
         try {
-            for (Cuboid box : loaded) boxVisuals.add(game.plugin().content().createWorldVisual(
-                    PICKUP_MODEL,box.center(game.world()).add(0,.75,0),audience));
-            boxViewers = Set.copyOf(audience); visibleBoxes = loaded;
-        } catch (RuntimeException | LinkageError failure) {
+            for (var entry : List.copyOf(boxVisuals.entrySet())) {
+                if (!loaded.contains(entry.getKey()) || !entry.getValue().active()) {
+                    entry.getValue().close(); boxVisuals.remove(entry.getKey());
+                }
+            }
+            for (Cuboid box : loaded) if (!boxVisuals.containsKey(box)) boxVisuals.put(box,
+                    game.plugin().content().createWorldVisual(PICKUP_MODEL,box.center(game.world()).add(0,.75,0),audience));
+            boxViewers = Set.copyOf(audience);
+        } catch (Exception failure) {
+            try { closeBoxVisuals(); } catch (RuntimeException cleanup) { failure.addSuppressed(cleanup); }
+            throw new IllegalStateException("Kart pickup refresh failed", failure);
+        } catch (LinkageError failure) {
             try { closeBoxVisuals(); } catch (RuntimeException cleanup) { failure.addSuppressed(cleanup); }
             throw new IllegalStateException("Kart pickup refresh failed", failure);
         }
@@ -173,6 +193,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
     }
     private void drive() {
         if(closed || game.state()!=GameState.RUNNING)return;tick++;
+        if (raceResults != null && raceResults.shouldEnd(tick)) { finishRace("race-grace-ended"); return; }
         if (tick % 20 == 0 && !itemBoxes.isEmpty()) refreshBoxVisuals();
         Map<UUID,KartPhysics.State> previous = new HashMap<>();
         karts.forEach((id,kart) -> previous.put(id,kart.motion));
@@ -236,12 +257,46 @@ public final class PulseKartsGame extends CheckpointRaceGame {
             if(to.getY()<voidY()) { reset(kart);continue; }
             if(!kart.seat.teleport(to,TeleportFlag.EntityState.RETAIN_PASSENGERS)) {reset(kart);continue;}
             kart.motion=next;
+            finishFraction = finish == null ? 0 : RaceGateCrossing.entry(finish,from,to);
             super.onMove(player,from,to);
             if(closed || game.state()!=GameState.RUNNING)return;
-            collect(kart,from,to);
+            if (karts.containsKey(player.getUniqueId())) collect(kart,from,to);
         }
         if (!game.frozen()) applyBumps(previous);
+        completeRaceTick();
     }
+    private void initialiseResults(List<Player> racers) {
+        raceResults = new KartRaceResults(racers.stream().map(Player::getUniqueId).toList(),
+                game.arena().settings().getInt("finish-grace-seconds",30));
+        racers.forEach(p -> racerNames.put(p.getUniqueId(),p.getName()));
+    }
+    @Override protected void onFinish(Player player) {
+        if (raceResults == null) initialiseResults(karts.values().stream().map(k -> k.driver).toList());
+        if (!raceResults.finish(player.getUniqueId(),tick,Double.isFinite(finishFraction) ? finishFraction : 0)) return;
+        removeKart(player);
+        game.finishParticipant(player);
+        player.sendMessage(Text.mm("<green>Course complete! <gray>You can watch the remaining racers."));
+    }
+    private void completeRaceTick() {
+        if (raceResults == null || resultsPublished || closed) return;
+        for (var result : raceResults.results()) if (announcedFinishers.add(result.player()))
+            game.broadcast("<gold>#" + result.place() + (result.tied() ? " (tie) " : " ")
+                    + racerNames.getOrDefault(result.player(),"Racer") + " <green>finished!");
+        if (raceResults.shouldEnd(tick) || karts.isEmpty()) finishRace("race-complete");
+    }
+    private void finishRace(String reason) {
+        if (resultsPublished || closed || game.state()!=GameState.RUNNING) return;
+        resultsPublished = true;
+        List<UUID> winnerIds = raceResults == null ? List.of() : raceResults.winners();
+        List<Player> winners = game.players().stream().filter(p -> winnerIds.contains(p.getUniqueId())).toList();
+        if (!winnerIds.isEmpty() && winners.isEmpty())
+            game.broadcast("<gray>The first-place finisher left; their placing stands, but no victory rewards are reassigned.");
+        if (raceResults != null && raceResults.remainingRacers()>0)
+            game.broadcast("<gray>Race closed with " + raceResults.remainingRacers() + " unfinished racer(s).");
+        game.end(winners,reason);
+    }
+    @Override public void onTimeUp() { finishRace("time-race"); }
+
     private void applyBumps(Map<UUID,KartPhysics.State> previous) {
         for (Kart victim : karts.values()) {
             if (tick < victim.bumpImmuneUntil || victim.resetTick == tick || !game.isActive(victim.driver)) continue;
@@ -380,6 +435,16 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         if (kart==null || kart.bot!=null || !choosingStyle() || !game.isActive(player)) return false;
         kart.style=Objects.requireNonNull(style);return true;
     }
+    @Override protected List<Player> standings() {
+        List<Player> ordered = new ArrayList<>(super.standings());
+        if (raceResults == null) return ordered;
+        Map<UUID,Integer> places = new HashMap<>();
+        raceResults.results().forEach(r -> places.put(r.player(),r.place()));
+        game.players().stream().filter(p -> places.containsKey(p.getUniqueId()) && !ordered.contains(p)).forEach(ordered::add);
+        ordered.sort(Comparator.comparingInt((Player p) -> places.getOrDefault(p.getUniqueId(),Integer.MAX_VALUE))
+                .thenComparing(Comparator.comparingInt((Player p) -> progressValue(p.getUniqueId())).reversed()));
+        return ordered;
+    }
     @Override public List<String> sidebar(Player player) {
         List<String> lines=new ArrayList<>(super.sidebar(player));
         Kart kart=karts.get(player.getUniqueId());
@@ -476,13 +541,13 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         try{kart.visual.close();}catch(Exception failure){game.plugin().getLogger().warning("Kart visual cleanup: "+failure.getMessage());}
         finally {kart.seat.eject();kart.seat.remove();}
     }
-    @Override public void onQuit(Player player){removeKart(player);super.onQuit(player);}
-    @Override public void onEliminated(Player player){removeKart(player);}
+    @Override public void onQuit(Player player){removeKart(player);super.onQuit(player);if(raceResults!=null){raceResults.depart(player.getUniqueId());completeRaceTick();}}
+    @Override public void onEliminated(Player player){removeKart(player);if(raceResults!=null){raceResults.depart(player.getUniqueId());completeRaceTick();}}
     @Override public void onEnd(List<Player> winners){onCleanup();}
     @Override public void onCleanup(){closed=true;try {closeBoxVisuals();} finally {for(Kart kart:List.copyOf(karts.values()))removeKart(kart.driver);}}
     @Override public int startFreezeSeconds(){return 15;}
     @Override public int timeLimitSeconds(){return game.arena().settings().getInt("time-limit",600);}
     @Override
-    public String phaseCountdown() { int seconds = game.startCountdownSeconds(); return seconds > 0 ? "Choose kart: " + seconds + "s" : null; }
+    public String phaseCountdown() { if(raceResults!=null && raceResults.hasFinishers() && !resultsPublished) return "Finish race: " + raceResults.remainingSeconds(tick) + "s"; int seconds = game.startCountdownSeconds(); return seconds > 0 ? "Choose kart: " + seconds + "s" : null; }
 
 }
