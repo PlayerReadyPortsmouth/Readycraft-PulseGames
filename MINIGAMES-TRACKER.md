@@ -1,30 +1,63 @@
 # Minigames development and play-test tracker
 
-Last updated: 14 October 2026. Owner: Aurora. Agents should update this file as
+Last updated: 15 October 2026. Owner: Aurora. Agents should update this file as
 work and player feedback arrive; keep it in the PulseGames repository.
 
 Readable report: [HTML](MINIGAMES-TRACKER.html) · [PDF](MINIGAMES-TRACKER.pdf).
 After editing this source, regenerate both exports with
 `node tools/render-minigames-tracker.mjs --pdf`; see [update instructions](tools/TRACKER-README.md).
 
-## 14 October - Map disguise palettes: prepared, not deployed
+## 15 October - Natural bot behaviour and Quake loadouts: prepared
 
-Prop Hunt now supports a reviewed per-arena disguise list shared by players, bots
-and decoys. The Setup Book and `/pulse setup palette` commands can scan a selected
-playable region, toggle choices, or retain global defaults. Scans are bounded and
-require loaded chunks; failed/cancelled scans preserve the previous list. Existing
-arenas remain unchanged until explicitly configured.
+Aurora reports Quake should spawn participants across the arena and bots should
+try to escape instead of constantly approaching. Build 0.3.15 implements safe
+random opening/respawn placement for both humans and bots, including teams, plus
+weapon-range strafing and close-range/low-health retreat. A new optional
+`spawn-area` region supports multilevel playable volumes; existing maps fall back
+to the envelope of their anchors and retain those anchors as emergency fallback.
+Loaded chunks only, bounded floor probes, headroom/hazard checks and player
+separation are covered by targeted tests. Client movement and map suitability
+remain unverified. This update is prepared, not deployed; no restart performed.
 
-The paired PulseContent source tools expand support from 10 to 27 disguises,
-selected from the five approved maps' saved template palettes. Additions include
-barrels, wood variants, stone bricks, looms, jukeboxes, note blocks, smokers and
-smithing tables. The old default list remains until the matching content release
-is installed. Real client assets generated all 27 model inputs and the model
-validator accepted them; this is not proof of client rendering.
+The same prepared build now adds playful NPC-labelled names for all supported
+bots, steadier visible-target choices and varied generic combat reactions/path
+updates. Urgent hazard/bridge controllers keep their timing. Block Party varies
+equally suitable tile choices and Spleef varies action timing. Quake has a
+15-second opening selection for one of three weapons and two of four abilities:
+Railgun/Scattergun/Pulse Blaster; Dash/Jump/Shield/Sprint. Bots select varied
+loadouts and use the same cooldowns. Temporary effects restore on leaving/death.
+These are implemented changes awaiting client tests, not a claim of human-level
+play across every game. See [bot coverage](docs/QUEUE-BOTS.md).
 
-Next acceptance: prepare/install the paired packs, review each map's local list,
-then test selections, bot/decoy appearances, movement and locking on Java/Bedrock.
-No live map settings, packs or servers changed in this pass. See
+Since the previous deployment, Sunken Archive and Brassworks have been configured
+with bots enabled. The missing `games.preview` entry for Quake was corrected on
+15 October; configuration reload was requested in-game. See [Quake guide](docs/QUAKE.md).
+
+## 15 October - Quake and map disguise palettes deployed
+
+PulseGames 0.3.14 is live on MinigamesTest. The primary proxy restarted with fresh
+Geyser registrations; both services are healthy. All 129 combined targeted tests
+passed before deployment. Existing content was preserved, and the five palette
+settings are the only arena-definition changes made by this release. The server
+loaded 59 arenas and 24 games; the live bot service reports `quake:classic` ready.
+
+The 27 supported props are available in the expanded content catalogue. Reviewed
+map palettes now offer Backstage Mayhem 20, Crooked Library 11, Harvest Festival 16,
+Market Day 19 and Smuggler's Wharf 13 choices. Players, bots and decoys use the same
+map list. The Setup Book and `/pulse setup palette` commands support bounded scans
+of loaded, selected regions, manual review and global fallback. No world templates
+were changed. Java and Bedrock content revision and registry fingerprints match.
+
+Quake bots are deployed for solo/team variants, with weapon choice, visible-target
+combat, abilities and adaptive aim/reaction. No Quake maps are configured yet.
+Build at least four spawns, solid cover, connected walkable routes and protected
+spawn sightlines; see [Quake setup](docs/QUAKE.md). Actual navigation and weapon
+balance need testing on built maps.
+
+Next acceptance: reconnect Bedrock for the updated pack, then test each map's
+selector, new prop appearances, bot/decoy disguises, movement and locking on both
+clients. Backend verification is not visual client approval. Backup contains only
+changed plugin/content/settings data (about 6 MB), not worlds. See
 [Prop Hunt setup and rollout](docs/PROP-HUNT.md).
 
 ## Working agreement
@@ -379,7 +412,7 @@ needed. Do not bypass team/role requirements and call that a completed test.
 | KOTH | Trial arena available; full acceptance not recorded | Solo and teams | Solo yes; teams currently needs 8 total | Fix test arena capacity for teams; hill contesting and team balance |
 | Dodgeball | Court test arena; Aurora reports cooldown too slow and hits unclear | Solo and teams | Yes | Test deployed cooldown/feedback; dodge and lead targets; difficulty |
 | Dropper | Two-drops test arena | None | Race yes; practice is solo | Test landing/checkpoint/reset behaviour; controlled-fall bots |
-| Prop Hunt | Five commissioned maps approved and registered. Aurora reports Bedrock works nicely (13 October); map/mode/player count not recorded. Compact movement, self-preview and role powers deployed on MinigamesTest (PR9 + PR29, 13 October). | None | Classic and Infection minimum 2 | Test one-block gaps, stable lock beside walls, independent decoys and powers on both clients; fair seeker/hider bots remain future work. |
+| Prop Hunt | Five approved maps; per-map palettes and 27 supported props deployed in 0.3.14. New props need client visual acceptance. | Classic/Infection role bots deployed; shared map palette | Both modes minimum 2 | Verify disguises, lock/movement, decoys and complete rounds on Java/Bedrock. |
 | Spleef | No accepted map/test recorded | Deployed: Classic, Decay, Splegg | Yes | Maps; full rounds, floor loss, projectile impacts and balance |
 | TNT Run | No accepted map/test recorded | Deployed: Classic | Yes | Full rounds, corners and layers; Double Jump remains human-only |
 | Block Party | No accepted map/player test recorded | Deployed Classic/Hardcore | Yes | Build maps; full rounds, elimination, difficulty and two-client tests |
@@ -397,6 +430,7 @@ needed. Do not bypass team/role requirements and call that a completed test.
 | Lucky Pillars | No accepted map/test recorded | None | Yes | Item decisions, bridging and safe combat |
 | Supermarket Sweep | No accepted map/test recorded | None | Yes | Shopping-list decisions, real chest/inventory actions and checkout |
 | Party Games | No accepted map/test recorded | None | Yes | Controller switching between colour matching, sumo and sprint |
+| Quake | Deployed 0.3.14; no arena configured yet | Weapon choice, visible-target combat, abilities, adaptive difficulty; live service ready | Solo and team variants; needs built maps | Build four or more spawns, cover and walkable routes; test navigation, hit feedback and balance on Java/Bedrock. |
 
 ## Verified server arena names
 

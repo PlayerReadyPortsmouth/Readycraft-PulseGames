@@ -265,6 +265,7 @@ class BotServiceTest {
         when(((BotObjectives) logic).botEnemies()).thenAnswer(c -> zombie == null ? List.of() : List.of(zombie));
         when(((BotObjectives) logic).botGuardPoint()).thenReturn(guard);
         if (zombie != null) {
+            when(zombie.getUniqueId()).thenReturn(UUID.randomUUID());
             when(zombie.isValid()).thenReturn(true);
             when(zombie.getWorld()).thenReturn(world);
             when(zombie.getLocation()).thenReturn(new Location(world, 2, 70, 0));
@@ -281,6 +282,8 @@ class BotServiceTest {
         var zombie = mock(org.bukkit.entity.Zombie.class);
         BotActor actor = activeCoop(zombie, null);
         bots.think();
+        verify(actor.player(), never()).attack(any());
+        for (int i = 0; i < 4; i++) bots.think();
         verify(actor.player()).attack(zombie);
         verify(actor.player(), never()).attack(human);
     }
@@ -323,7 +326,7 @@ class BotServiceTest {
         verify(actor.player(), times(1)).attack(zombie);
         when(game.arena().settings().getString(eq("bot-difficulty"), anyString())).thenReturn("hard");
         for (int i = 0; i < 5; i++) bots.think();
-        verify(actor.player(), times(4)).attack(zombie);
+        verify(actor.player(), times(2)).attack(zombie);
     }
 
     @Test void defenderEquipsEarnedUpgradeFromHotbar() {

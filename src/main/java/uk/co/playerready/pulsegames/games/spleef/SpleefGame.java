@@ -153,7 +153,7 @@ public final class SpleefGame extends MiniGame implements uk.co.playerready.puls
         org.bukkit.Location aim = target.getLocation().add(0.5, 0.5, 0.5);
         var delta = aim.toVector().subtract(bot.getEyeLocation().toVector());
         double distance = delta.length(); if (distance < 0.01) return;
-        nextAction.put(bot.getUniqueId(), tick + (isSplegg() ? difficulty.projectileDelayTicks() : difficulty.meleeDelayTicks()));
+        nextAction.put(bot.getUniqueId(), tick + (isSplegg() ? difficulty.projectileDelayTicks() : difficulty.meleeDelayTicks()) + random.applyAsInt(9));
         if (random.applyAsInt(100) >= difficulty.accuracyPercent()) return;
         if (isSplegg()) {
             if (distance <= 12) {

@@ -23,10 +23,10 @@ class CitizensBotProviderTest {
         assertTrue(CitizensBotProvider.connect(owner(citizens)).isEmpty());
     }
     @Test void namesCannotImpersonateHumansOrInjectFormatting() {
-        assertEquals("Bot_Alex", CitizensBotProvider.botName("Alex"));
-        assertEquals("Bot_abcdefghijkl", CitizensBotProvider.botName("abcdefghijklmnopqrst"));
-        assertEquals("Bot_Alex", CitizensBotProvider.botName("Bot_Alex"));
-        assertEquals("Bot_Player", CitizensBotProvider.botName("§!<>"));
+        assertEquals("Alex_NPC", CitizensBotProvider.botName("Alex"));
+        assertEquals("abcdefghijkl_NPC", CitizensBotProvider.botName("abcdefghijklmnopqrst"));
+        assertEquals("Alex_NPC", CitizensBotProvider.botName("Bot_Alex"));
+        assertEquals("Waffle_NPC", CitizensBotProvider.botName("§!<>"));
     }
     private Plugin owner(Plugin citizens) {
         Plugin owner = mock(Plugin.class);

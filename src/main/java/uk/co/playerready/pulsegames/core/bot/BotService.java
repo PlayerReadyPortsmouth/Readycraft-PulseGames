@@ -25,7 +25,8 @@ public final class BotService implements AutoCloseable {
         Location lastPosition, destination, progressPosition;
         long progressTick, lastStallReportTick;
         Player entity;
-        long nextAttack, nextPath;
+        long nextAttack, nextPath, reactAt;
+        UUID opponent;
         int routeIndex;
         Location recovery;
         long recoverUntil;
@@ -252,7 +253,7 @@ public final class BotService implements AutoCloseable {
         while (count(game) > desired) removeOne(game);
         for (int i = count(game); i < desired; i++) {
             try {
-                BotActor actor = provider.create("Ready" + (++sequence), game.arena().lobby(game.world()));
+                BotActor actor = provider.create(BotNames.at(sequence++), game.arena().lobby(game.world()));
                 UUID id = actor.player().getUniqueId();
                 slots.put(id, new Slot(game, actor));
                 if (!game.add(actor.player())) { destroy(id); break; }
@@ -338,7 +339,7 @@ public final class BotService implements AutoCloseable {
             slot.lastPosition = null;
             slot.state = game.state() == GameState.RUNNING ? "PAUSED" : game.state().name();
             slot.objective = game.frozen() ? "Waiting for start countdown" : "Waiting / inactive contestant";
-            slot.target = ""; slot.route = "";
+            slot.target = ""; slot.route = ""; slot.opponent = null;
             return;
         }
         Location here = bot.getLocation();
@@ -389,16 +390,22 @@ public final class BotService implements AutoCloseable {
                 ? objectives.botEnemies().stream()
                     .filter(e -> e.isValid() && !e.isDead() && e.getWorld().equals(here.getWorld()))
                     .filter(e -> here.distanceSquared(e.getLocation()) <= 24 * 24 && bot.hasLineOfSight(e))
-                    .min(Comparator.comparingDouble(e -> here.distanceSquared(e.getLocation()))).orElse(null)
+                    .min(Comparator.comparingDouble(e -> BotPersonality.targetScore(here.distanceSquared(e.getLocation()), e.getUniqueId().equals(slot.opponent)))).orElse(null)
                 : game.alivePlayers().stream()
                 .filter(p -> !p.equals(bot) && game.isActive(p) && p.getWorld().equals(here.getWorld()))
                 .filter(p -> game.teamOf(bot) == null || !game.teamOf(bot).contains(p))
                 .filter(p -> bot.canSee(p) && !p.isInvisible() && here.distanceSquared(p.getLocation()) <= 24 * 24 && bot.hasLineOfSight(p))
-                .min(Comparator.comparingDouble(p -> here.distanceSquared(p.getLocation()))).orElse(null);
+                .min(Comparator.comparingDouble(p -> BotPersonality.targetScore(here.distanceSquared(p.getLocation()), p.getUniqueId().equals(slot.opponent)))).orElse(null);
         Location goal = null;
+        if (enemy == null) slot.opponent = null;
         if (enemy != null) {
             difficulty = difficultyFor(game, enemy instanceof Player target ? target : null);
             slot.difficulty = difficulty; slot.target = enemy.getName();
+            if (!enemy.getUniqueId().equals(slot.opponent)) {
+                slot.opponent = enemy.getUniqueId();
+                slot.reactAt = tick + BotPersonality.reactionTicks(difficulty, random.applyAsInt(6));
+                slot.nextAttack = Math.max(slot.nextAttack, slot.reactAt);
+            }
             slot.objective = "Engaging a visible opponent"; slot.route = "";
             double distance = here.distanceSquared(enemy.getLocation());
             slot.actor.face(enemy.getEyeLocation());
@@ -411,7 +418,8 @@ public final class BotService implements AutoCloseable {
                 if (distance > 9 * 9) goal = enemy.getLocation();
                 else if (distance > 0.01 && distance < 4 * 4) goal = here.clone().add(here.toVector().subtract(enemy.getLocation().toVector()).normalize().multiply(3));
             } else {
-                boolean handled = game.logic() instanceof uk.co.playerready.pulsegames.games.kitpvp.KitPvpGame kit
+                boolean handled = tick < slot.reactAt;
+                if (!handled) handled = game.logic() instanceof uk.co.playerready.pulsegames.games.kitpvp.KitPvpGame kit
                         && kit.botCombat(bot, enemy, tick, difficulty);
                 if (!handled && game.logic() instanceof uk.co.playerready.pulsegames.games.duels.DuelsGame duels)
                     handled = duels.botCombat(bot, enemy, tick, difficulty);
@@ -503,7 +511,7 @@ public final class BotService implements AutoCloseable {
             else slot.actor.navigate(goal);
             slot.destination = goal.clone();
             slot.nextPath = tick + (slot.game.logic() instanceof BotMovement movement
-                    ? Math.max(5, movement.navigationIntervalTicks(difficulty)) : difficulty.pathTicks);
+                    ? Math.max(5, movement.navigationIntervalTicks(difficulty)) : difficulty.pathTicks + random.applyAsInt(6));
         }
     }
 

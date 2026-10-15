@@ -136,7 +136,9 @@ public final class BlockPartyGame extends MiniGame implements uk.co.playerready.
                         || !game.world().getBlockAt(x, y + 1, z).isPassable()
                         || !game.world().getBlockAt(x, y + 2, z).isPassable()) continue;
                 var point = new org.bukkit.Location(game.world(), x + 0.5, y + 1, z + 0.5);
-                double candidate = here.distanceSquared(point);
+                // Stable per-bot preference breaks equally good choices without changing the public colour cue.
+                double candidate = here.distanceSquared(point)
+                        + uk.co.playerready.pulsegames.core.util.BotChoiceVariation.preference(bot.getUniqueId(), x, z, round);
                 if (candidate < distance) { best = point; distance = candidate; }
             }
         }

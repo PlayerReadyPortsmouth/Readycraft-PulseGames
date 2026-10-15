@@ -86,8 +86,9 @@ public final class CitizensBotProvider implements BotProvider {
     static String botName(String name) {
         String clean = Objects.requireNonNull(name).replaceAll("[^A-Za-z0-9_]", "");
         if (clean.startsWith("Bot_")) clean = clean.substring(4);
-        if (clean.isEmpty()) clean = "Player";
-        return "Bot_" + clean.substring(0, Math.min(12, clean.length()));
+        if (clean.endsWith("_NPC")) clean = clean.substring(0, clean.length() - 4);
+        if (clean.isEmpty()) clean = "Waffle";
+        return clean.substring(0, Math.min(12, clean.length())) + "_NPC";
     }
 
     private void metadata(Object data, String key, Object value) { call(api.set, data, api.metadataKeys.get(key), value); }
