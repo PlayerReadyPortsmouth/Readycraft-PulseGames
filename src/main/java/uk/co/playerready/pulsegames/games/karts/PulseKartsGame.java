@@ -23,6 +23,7 @@ import java.util.concurrent.ThreadLocalRandom;
 /** Server-controlled karts. Armor stands are only seats/model anchors, never movement physics. */
 public final class PulseKartsGame extends CheckpointRaceGame {
     static final String MODEL = "readycraft:racing_kart";
+    static final String PICKUP_MODEL = "readycraft:kart_pickup_box";
     enum Item { SHELL, TURBO, LIGHTNING }
     static final class Kart {
         Player driver; final ArmorStand seat; AutoCloseable visual;
@@ -30,6 +31,8 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         KartPhysics.State motion;
         KartPhysics.Input input = new KartPhysics.Input(0,0);
         long boostUntil, slowUntil, boxReady, resetReady;
+        final KartDrift drift = new KartDrift();
+        boolean driftPressed;
         Item item;
         boolean insideBox;
         boolean selectionClosed = true;
@@ -51,6 +54,9 @@ public final class PulseKartsGame extends CheckpointRaceGame {
     }
     private final Map<UUID,Kart> karts = new HashMap<>();
     private List<Cuboid> itemBoxes=List.of();
+    private final List<uk.co.playerready.pulsegames.core.content.PulseContentBridge.WorldVisual> boxVisuals = new ArrayList<>();
+    private Set<UUID> boxViewers = Set.of();
+    private List<Cuboid> visibleBoxes = List.of();
     private KartPhysics.CollisionSpace space;
     private KartBotRoute botRoute;
     private List<Location> botPoints = List.of();
@@ -66,7 +72,11 @@ public final class PulseKartsGame extends CheckpointRaceGame {
             if (routeProblem != null) return "Kart bot route: " + routeProblem;
         }
         if(game.plugin().content()==null)return "PulseContent is required for kart models.";
-        return game.plugin().content().kartStartProblem(MODEL,players);
+        String kartProblem = game.plugin().content().kartStartProblem(MODEL,players);
+        if (kartProblem != null) return kartProblem;
+        int boxes = game.arena().regionsByPrefix("itembox").size();
+        if (boxes > 32) return "PulseKarts supports at most 32 item-box regions per map.";
+        return boxes == 0 ? null : game.plugin().content().worldVisualStartProblem(PICKUP_MODEL,players);
     }
     @Override public void onStart() {
         super.onStart();space=KartPhysics.world(game.world());itemBoxes=game.arena().regionsByPrefix("itembox");
@@ -74,10 +84,11 @@ public final class PulseKartsGame extends CheckpointRaceGame {
             botRoute = KartBotRoute.load(game.arena(), game.world());
             botPoints = botRoute.points();
         }
+        refreshBoxVisuals();
         game.alivePlayers().forEach(this::giveKart);
         game.alivePlayers().stream().filter(p -> !game.isBot(p)).forEach(this::openStyleMenu);
         game.broadcast("<aqua>Choose your kart style during the 15-second grid countdown. Balanced is selected by default.");
-        game.broadcast("<yellow>Accelerate forwards, brake/reverse backwards, steer left/right. Right-click to use your item; compass resets your kart.");
+        game.broadcast("<yellow>Accelerate forwards, brake/reverse backwards, steer left/right. Hold jump while steering to drift; release for a charged boost. Right-click uses your item; compass resets your kart.");
         game.runRepeating(1,1,()->{
             try { drive(); }
             catch(RuntimeException | LinkageError failure) {
@@ -91,6 +102,40 @@ public final class PulseKartsGame extends CheckpointRaceGame {
     private Set<UUID> viewers() {
         return game.everyone().stream().filter(p->!game.isBot(p) && p.isOnline() && p.getWorld().equals(game.world()))
                 .map(Player::getUniqueId).collect(java.util.stream.Collectors.toSet());
+    }
+    private void closeBoxVisuals() {
+        RuntimeException error = null;
+        for (var visual : List.copyOf(boxVisuals)) {
+            try { visual.close(); boxVisuals.remove(visual); }
+            catch (Exception | LinkageError failure) {
+                if (error == null) error = new IllegalStateException("Kart pickup cleanup failed", failure);
+                else error.addSuppressed(failure);
+            }
+        }
+        boxViewers = Set.of(); visibleBoxes = List.of();
+        // Keep failed handles for retry; never create replacements over orphan visuals.
+        if (error != null) throw error;
+    }
+    private void refreshBoxVisuals() {
+        Set<UUID> audience = game.everyone().stream().filter(p -> !game.isBot(p) && p.isOnline()
+                && p.getWorld().equals(game.world()) && game.plugin().content().worldVisualViewerReady(p))
+                .map(Player::getUniqueId).collect(java.util.stream.Collectors.toSet());
+        List<Cuboid> loaded = itemBoxes.stream().filter(box -> {
+            Location at = box.center(game.world());
+            return game.world().isChunkLoaded(at.getBlockX() >> 4, at.getBlockZ() >> 4);
+        }).toList();
+        if (audience.equals(boxViewers) && loaded.equals(visibleBoxes) && boxVisuals.size()==loaded.size()
+                && boxVisuals.stream().allMatch(v -> v.active())) return;
+        closeBoxVisuals();
+        if (audience.isEmpty()) return;
+        try {
+            for (Cuboid box : loaded) boxVisuals.add(game.plugin().content().createWorldVisual(
+                    PICKUP_MODEL,box.center(game.world()).add(0,.75,0),audience));
+            boxViewers = Set.copyOf(audience); visibleBoxes = loaded;
+        } catch (RuntimeException | LinkageError failure) {
+            try { closeBoxVisuals(); } catch (RuntimeException cleanup) { failure.addSuppressed(cleanup); }
+            throw new IllegalStateException("Kart pickup refresh failed", failure);
+        }
     }
     private void giveKart(Player player) {
         ArmorStand seat=game.world().spawn(player.getLocation(),ArmorStand.class,e->{
@@ -119,11 +164,13 @@ public final class PulseKartsGame extends CheckpointRaceGame {
     }
     @Override public void onInput(Player player,Input input) {
         Kart kart=karts.get(player.getUniqueId());if(kart==null || kart.bot!=null)return;
+        kart.driftPressed=input.isJump();
         kart.input=new KartPhysics.Input((input.isForward()?1:0)-(input.isBackward()?1:0),
                 (input.isRight()?1:0)-(input.isLeft()?1:0));
     }
     private void drive() {
         if(closed || game.state()!=GameState.RUNNING)return;tick++;
+        if (tick % 20 == 0 && !itemBoxes.isEmpty()) refreshBoxVisuals();
         Map<UUID,KartPhysics.State> previous = new HashMap<>();
         karts.forEach((id,kart) -> previous.put(id,kart.motion));
         for(Kart kart:List.copyOf(karts.values())) {
@@ -150,7 +197,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
             }
             if(player.getVehicle()!=kart.seat) { reset(kart);continue; }
             player.setFallDistance(0);
-            if(game.frozen())continue;
+            if(game.frozen()) { kart.drift.reset(); continue; }
             if (!kart.selectionClosed && kart.bot == null) {
                 kart.selectionClosed = true;
                 closeStyleMenu(player);
@@ -171,7 +218,17 @@ public final class PulseKartsGame extends CheckpointRaceGame {
                         kart.motion.speed(),kart.motion.verticalSpeed(),kart.motion.grounded());
                 input = new KartPhysics.Input(0,0);
             }
-            KartPhysics.State next=KartPhysics.tick(kart.motion,input,multiplier,space,kart.style);
+            int previousDriftTier = kart.drift.tier();
+            var drift = kart.drift.update(kart.driftPressed, input, kart.motion, tick < kart.spinUntil || tick < kart.slowUntil);
+            if (kart.drift.tier() > previousDriftTier && kart.bot == null)
+                player.playSound(player.getLocation(), "minecraft:block.note_block.pling", .6f, kart.drift.tier() == 2 ? 1.7f : 1.2f);
+            if (drift.boostTicks() > 0) {
+                if (kart.bot == null) player.playSound(player.getLocation(), "minecraft:entity.firework_rocket.launch", .6f, 1.2f);
+                kart.boostUntil = Math.max(kart.boostUntil, tick + drift.boostTicks());
+                multiplier = speedMultiplier(tick, kart.boostUntil, kart.slowUntil);
+            }
+            KartPhysics.State next=KartPhysics.tick(kart.motion,drift.input(),multiplier,space,kart.style,drift.slipDegrees());
+            if (next.speed() < 4 || Math.hypot(next.x()-kart.motion.x(),next.z()-kart.motion.z()) < .08) kart.drift.cancelCharge();
             Location to=location(next);
             if(to.getY()<voidY()) { reset(kart);continue; }
             if(!kart.seat.teleport(to,TeleportFlag.EntityState.RETAIN_PASSENGERS)) {reset(kart);continue;}
@@ -365,6 +422,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
                 && !space.clearAt(at.getX(),at.getY()-.1,at.getZ(),at.getYaw());
     }
     private void reset(Kart kart) {
+        kart.drift.reset();kart.driftPressed=false;
         kart.resetTick=tick;kart.spinUntil=0;kart.bumpImmuneUntil=Math.max(kart.bumpImmuneUntil,tick+40);
         Location target=resetLocation(kart.driver);kart.input=new KartPhysics.Input(0,0);kart.boostUntil=0;kart.slowUntil=0;
         boolean gridFallback = !safeReset(target);
@@ -395,7 +453,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
     @Override public void onQuit(Player player){removeKart(player);super.onQuit(player);}
     @Override public void onEliminated(Player player){removeKart(player);}
     @Override public void onEnd(List<Player> winners){onCleanup();}
-    @Override public void onCleanup(){closed=true;for(Kart kart:List.copyOf(karts.values()))removeKart(kart.driver);}
+    @Override public void onCleanup(){closed=true;try {closeBoxVisuals();} finally {for(Kart kart:List.copyOf(karts.values()))removeKart(kart.driver);}}
     @Override public int startFreezeSeconds(){return 15;}
     @Override public int timeLimitSeconds(){return game.arena().settings().getInt("time-limit",600);}
     @Override

@@ -167,6 +167,56 @@ public final class PulseContentBridge implements AutoCloseable {
         } catch (ReflectiveOperationException failure) { throw new IllegalStateException("Could not attach kart", failure); }
     }
 
+    public String worldVisualStartProblem(String id, List<Player> viewers) {
+        try {
+            Plugin provider = worldVisualProvider();
+            if (!Boolean.TRUE.equals(provider.getClass().getMethod("hasVisual", String.class).invoke(provider,id)))
+                return "PulseKarts pickup-box model is missing or not allowed in PulseContent.";
+            for (Player viewer : viewers) {
+                if (viewer.hasMetadata("NPC")) continue;
+                if (!Boolean.TRUE.equals(provider.getClass().getMethod("isContentReady",Player.class).invoke(provider,viewer)))
+                    return "Every racer must finish loading the pickup-box resource pack.";
+            }
+            return null;
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
+            return "PulseKarts item boxes require the updated PulseContent world-visual API.";
+        }
+    }
+    public boolean worldVisualViewerReady(Player player) {
+        try {
+            Plugin provider = worldVisualProvider();
+            return Boolean.TRUE.equals(provider.getClass().getMethod("isContentReady",Player.class).invoke(provider,player));
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) { return false; }
+    }
+    private Plugin worldVisualProvider() throws ReflectiveOperationException {
+        Plugin provider = plugin.getServer().getPluginManager().getPlugin("PulseContent");
+        if (provider == null || !provider.isEnabled() || !Integer.valueOf(1).equals(
+                provider.getClass().getMethod("worldVisualsApiVersion").invoke(provider)))
+            throw new IllegalStateException("World visual API unavailable");
+        return provider;
+    }
+    public WorldVisual createWorldVisual(String id, org.bukkit.Location at, Collection<UUID> viewers) {
+        try {
+            Plugin provider = worldVisualProvider();
+            Object result = provider.getClass().getMethod("createWorldVisual",Plugin.class,String.class,
+                    org.bukkit.Location.class,Collection.class,float.class).invoke(provider,plugin,id,at,List.copyOf(viewers),1f);
+            if (!(result instanceof AutoCloseable visual)) throw new IllegalStateException("Missing world visual handle");
+            OwnedVisual owned = new OwnedVisual(visual); handles.add(owned);
+            return new WorldVisual(provider,owned);
+        } catch (ReflectiveOperationException | LinkageError failure) { throw new IllegalStateException("Could not create pickup visual",failure); }
+    }
+    public final class WorldVisual implements AutoCloseable {
+        private final Plugin provider;
+        private final OwnedVisual owned;
+        private WorldVisual(Plugin provider, OwnedVisual owned) { this.provider=provider; this.owned=owned; }
+        public boolean active() {
+            try { return !owned.closed && worldVisualProvider()==provider && Boolean.TRUE.equals(provider.getClass()
+                    .getMethod("isWorldVisualActive",Plugin.class,AutoCloseable.class).invoke(provider,plugin,owned.visual)); }
+            catch (ReflectiveOperationException | RuntimeException | LinkageError failure) { return false; }
+        }
+        @Override public void close() throws Exception { owned.close(); }
+    }
+
     public boolean kartActive(org.bukkit.entity.Entity anchor) {
         try {
             Plugin provider=kartProvider();

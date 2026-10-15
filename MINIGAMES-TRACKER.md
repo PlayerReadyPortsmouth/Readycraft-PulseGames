@@ -7,7 +7,17 @@ Readable report: [HTML](MINIGAMES-TRACKER.html) · [PDF](MINIGAMES-TRACKER.pdf).
 After editing this source, regenerate both exports with
 `node tools/render-minigames-tracker.mjs --pdf`; see [update instructions](tools/TRACKER-README.md).
 
-## 15 October - Custom karts deployed; driving bots being prepared
+## 15 October - PulseKarts handling and pickup visuals: 0.3.26 candidate
+
+**Live checkpoint:** PulseGames **0.3.25** is deployed on MinigamesTest today. It includes the kart bots inherited from 0.3.20; they are not a newly undeployed controller. This is deployment status, not proof that individual maps, bot laps or Java/Bedrock handling have passed player testing. Earlier release notes below remain historical checkpoints.
+
+**Prepared, not deployed:** PulseGames **0.3.26** with PulseContent Paper **0.5.8** adds forgiving glancing wall contacts (slide with speed loss; frontal impacts and blocked corners still stop), hold-jump drifting through corners with a charged boost on release, the approved custom item-box visuals and kart-only visual interpolation changes. Existing collision, slab and rotated-body safeguards remain. No new client acceptance is recorded.
+
+**Bot status:** Sprint/Cup bots drive the authored route, recover, select styles and use items through the same kart physics. They **do not actively drift yet**. Each map still needs consecutive `bot-waypoint1` onward and reviewed `checkpoint-spawnN` reset points. Configuration validation cannot prove a route is physically traversable; map-specific bot laps remain a testing task. See [kart setup and testing](docs/PULSEKARTS.md).
+
+**Next player checks:** Java and Bedrock movement/rotation, wall scraping versus head-on stops, hold/release drift charge, pickup-box visibility and collection, reset/rejoin cleanup, and complete Sprint/Cup bot laps on each authored map. Keep earlier black-model and delayed-rotation reports open until retested. This candidate has not been deployed or accepted by players.
+
+## Historical checkpoint - 15 October - Custom karts deployed; driving bots being prepared
 
 Current deployed release: **PulseGames 0.3.19 and PulseContent Paper 0.5.5** on MinigamesTest, with the primary proxy's kart content registration updated. This replaces boat steering with a custom kart controller/model, enables Avalanche's inward shrinking arena and fixes the ReadyPlayerZ round-start sound failure that prevented zombie spawning; active-wave darkness is included. Deployment is distinct from client acceptance.
 
@@ -432,7 +442,7 @@ needed. Do not bypass team/role requirements and call that a completed test.
 | Volcano | No accepted map/test recorded | Deployed: Classic, Eruption | Yes | Full lava/rock rounds; map-specific climbing routes |
 | Parkour | No accepted map/test recorded | None | Sprint yes; elimination needs 3 | Builder-authored routes, real jumps and checkpoints |
 | Elytra Racing | No accepted map/test recorded | None | Yes | Flight routes, checkpoint passage, rockets and recovery |
-| PulseKarts | 0.3.19 controller/model deployed; 0.3.20 styles, bumps and handling prepared | Candidate Sprint/Cup route-driving bots; not deployed | Yes | Review routes; test style choice, rear bumps/immunity, custom Cup laps, recovery/items and companion visual fixes on both clients |
+| PulseKarts | 0.3.25 live; 0.3.26 + Content Paper 0.5.8 handling, drift and visual candidate not deployed | Sprint/Cup bots inherited from 0.3.20 are deployed; map acceptance pending; no active drifting | Yes | Test authored routes and full bot laps; verify glancing wall slide, drift/release boosts, custom pickup boxes, kart interpolation, reset cleanup and Java/Bedrock appearance |
 | Skywars | No accepted map/test recorded | Candidate: loot/equip, bridges, height steps, melee/bows | Solo/insane yes; doubles needs 4 | Chest, stairs, bridge, ranged combat and team acceptance |
 | Bedwars | No accepted map/test recorded | Candidate: resources, purchases, defence and bed objectives | Duos needs 4; quads needs 8 | Resources, shops, bed defence/destruction, bridging and respawns |
 | Build Battle | No accepted map/test recorded | None | Yes | Theme-aware building in plots, phases and fair voting bots |

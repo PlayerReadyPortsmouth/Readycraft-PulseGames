@@ -144,4 +144,50 @@ class PulseKartsControllerTest {
   assertEquals(2,lap.getInt(progress));assertEquals(0,next.getInt(progress));assertEquals(1,kart.waypoint);
   verify(game,never()).end(anyList(),anyString());
  }
+ @Test void jumpInputChargesAndReleaseBoostsActualKart() throws Exception {
+  kart.motion=new KartPhysics.State(0,64,0,0,8,0,true);
+  var input=mock(Input.class);when(input.isForward()).thenReturn(true);when(input.isRight()).thenReturn(true);when(input.isJump()).thenReturn(true);
+  logic.onInput(player,input);for(int i=0;i<30;i++)drive();
+  assertEquals(0,kart.boostUntil);
+  when(input.isJump()).thenReturn(false);logic.onInput(player,input);drive();
+  assertTrue(kart.boostUntil>31);
+ }
+ @Test void itemBoxesSurviveStableAudienceAndCloseExactlyOnce() throws Exception {
+  when(game.plugin().content().worldVisualViewerReady(player)).thenReturn(true);var matchWorld=game.world();when(matchWorld.isChunkLoaded(anyInt(),anyInt())).thenReturn(true);when(player.isOnline()).thenReturn(true);when(player.getWorld()).thenReturn(matchWorld);when(game.everyone()).thenReturn(List.of(player));
+  var box=mock(uk.co.playerready.pulsegames.core.content.PulseContentBridge.WorldVisual.class);when(box.active()).thenReturn(true);
+  when(game.plugin().content().createWorldVisual(eq(PulseKartsGame.PICKUP_MODEL),any(Location.class),anyCollection())).thenReturn(box);
+  var f=PulseKartsGame.class.getDeclaredField("itemBoxes");f.setAccessible(true);f.set(logic,List.of(new uk.co.playerready.pulsegames.core.util.Cuboid(0,64,0,1,65,1)));
+  var m=PulseKartsGame.class.getDeclaredMethod("refreshBoxVisuals");m.setAccessible(true);m.invoke(logic);m.invoke(logic);
+  verify(game.plugin().content(),times(1)).createWorldVisual(anyString(),any(Location.class),anyCollection());
+  logic.onCleanup();logic.onCleanup();verify(box,times(1)).close();
+ }
+ @Test void pickupRefreshFailureClosesEarlierCreatedBoxes() throws Exception {
+  when(game.plugin().content().worldVisualViewerReady(player)).thenReturn(true);var matchWorld=game.world();when(matchWorld.isChunkLoaded(anyInt(),anyInt())).thenReturn(true);when(player.isOnline()).thenReturn(true);when(player.getWorld()).thenReturn(matchWorld);when(game.everyone()).thenReturn(List.of(player));
+  var box=mock(uk.co.playerready.pulsegames.core.content.PulseContentBridge.WorldVisual.class);
+  when(game.plugin().content().createWorldVisual(anyString(),any(Location.class),anyCollection())).thenReturn(box).thenThrow(new IllegalStateException("capacity"));
+  var f=PulseKartsGame.class.getDeclaredField("itemBoxes");f.setAccessible(true);f.set(logic,List.of(new uk.co.playerready.pulsegames.core.util.Cuboid(0,64,0,1,65,1),new uk.co.playerready.pulsegames.core.util.Cuboid(4,64,0,5,65,1)));
+  var m=PulseKartsGame.class.getDeclaredMethod("refreshBoxVisuals");m.setAccessible(true);assertThrows(java.lang.reflect.InvocationTargetException.class,()->m.invoke(logic));
+  verify(box).close();
+ }
+ @Test void failedPickupCloseIsRetainedAndCannotBlockSeatCleanup() throws Exception {
+  var box=mock(uk.co.playerready.pulsegames.core.content.PulseContentBridge.WorldVisual.class);
+  doThrow(new IllegalStateException("temporary close failure")).doNothing().when(box).close();
+  var f=PulseKartsGame.class.getDeclaredField("boxVisuals");f.setAccessible(true);
+  ((List<uk.co.playerready.pulsegames.core.content.PulseContentBridge.WorldVisual>)f.get(logic)).add(box);
+  assertThrows(IllegalStateException.class,logic::onCleanup);verify(seat).remove();
+  assertEquals(1,((List<?>)f.get(logic)).size());
+  logic.onCleanup();assertTrue(((List<?>)f.get(logic)).isEmpty());verify(box,times(2)).close();
+ }
+ @Test void pickupWaitsForLoadedChunkAndReadySpectator() throws Exception {
+  var matchWorld=game.world();when(player.isOnline()).thenReturn(true);when(player.getWorld()).thenReturn(matchWorld);when(game.everyone()).thenReturn(List.of(player));
+  var box=mock(uk.co.playerready.pulsegames.core.content.PulseContentBridge.WorldVisual.class);when(box.active()).thenReturn(true);
+  when(game.plugin().content().createWorldVisual(anyString(),any(Location.class),anyCollection())).thenReturn(box);
+  var f=PulseKartsGame.class.getDeclaredField("itemBoxes");f.setAccessible(true);f.set(logic,List.of(new uk.co.playerready.pulsegames.core.util.Cuboid(0,64,0,1,65,1)));
+  var m=PulseKartsGame.class.getDeclaredMethod("refreshBoxVisuals");m.setAccessible(true);
+  m.invoke(logic);verify(game.plugin().content(),never()).createWorldVisual(anyString(),any(Location.class),anyCollection());
+  when(game.plugin().content().worldVisualViewerReady(player)).thenReturn(true);
+  m.invoke(logic);verify(game.plugin().content(),never()).createWorldVisual(anyString(),any(Location.class),anyCollection());
+  when(matchWorld.isChunkLoaded(anyInt(),anyInt())).thenReturn(true);m.invoke(logic);
+  verify(game.plugin().content(),times(1)).createWorldVisual(anyString(),any(Location.class),anyCollection());
+ }
 }
