@@ -97,7 +97,7 @@ public final class PlayService {
                     + mode.teamSize() + ". Choose a larger team size or a solo mode."));
             return;
         }
-        if (type.wip() && group.stream().anyMatch(member -> !plugin.canUseNewFeatures(member))) {
+        if (type.wip() && !plugin.gamePublic(type) && group.stream().anyMatch(member -> !plugin.canUseNewFeatures(member))) {
             player.sendMessage(Text.msg("<red>This preview is limited to the configured test players."));
             return;
         }
