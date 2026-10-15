@@ -245,7 +245,8 @@ public final class GameCatalog {
                         GameMode.ffa("frenzy", "Frenzy", 1, 8)),
                 ReadyPlayerZGame::new,
                 List.of(spawns(1, "the squad spawn room"),
-                        regions("mobspawn", 1, "zombie entry points (windows, doors...)")),
+                        regions("mobspawn", 1, "zombie entry points (windows, doors...)"),
+                        optional(setting("darkness", "reduced visibility during waves; true by default"))),
                 false));
 
         registry.register(new GameType("luckypillars", "Lucky Pillars",
