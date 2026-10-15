@@ -166,6 +166,8 @@ public abstract class MiniGame {
     /** Block-change moves only (not head rotation). */
     public void onMove(Player player, Location from, Location to) {}
 
+    public void onInput(Player player, org.bukkit.Input input) {}
+
     public void onInteract(PlayerInteractEvent event) {}
 
     public void onSwing(Player player) {}

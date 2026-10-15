@@ -99,6 +99,46 @@ public final class PulseContentBridge implements AutoCloseable {
         } catch (ReflectiveOperationException e) { throw new IllegalStateException("PulseContent could not attach the prop", e); }
     }
 
+    public String kartStartProblem(String id, List<Player> drivers) {
+        try {
+            Plugin provider = kartProvider();
+            Method ready = provider.getClass().getMethod("isKartReady", String.class, Player.class);
+            for (Player driver : drivers) {
+                if (!Boolean.TRUE.equals(ready.invoke(provider, id, driver)))
+                    return "Every racer needs the active PulseContent kart model and resource pack loaded.";
+            }
+            return null;
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
+            return "PulseKarts needs the compatible PulseContent kart API and racing_kart model.";
+        }
+    }
+
+    public AutoCloseable attachKart(String id, org.bukkit.entity.Entity anchor, Player driver, Collection<UUID> viewers) {
+        try {
+            Plugin provider = kartProvider();
+            Object result = provider.getClass().getMethod("attachKartVisual", Plugin.class, String.class,
+                    org.bukkit.entity.Entity.class, Player.class, Collection.class)
+                    .invoke(provider, plugin, id, anchor, driver, List.copyOf(viewers));
+            if (!(result instanceof AutoCloseable visual)) throw new IllegalStateException("Missing kart visual handle");
+            OwnedVisual owned = new OwnedVisual(visual); handles.add(owned); return owned;
+        } catch (ReflectiveOperationException failure) { throw new IllegalStateException("Could not attach kart", failure); }
+    }
+
+    public boolean kartActive(org.bukkit.entity.Entity anchor) {
+        try {
+            Plugin provider=kartProvider();
+            return Boolean.TRUE.equals(provider.getClass().getMethod("isKartVisualActive",org.bukkit.entity.Entity.class).invoke(provider,anchor));
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) { return false; }
+    }
+
+    private Plugin kartProvider() throws ReflectiveOperationException {
+        Plugin provider = plugin.getServer().getPluginManager().getPlugin("PulseContent");
+        if (provider == null || !provider.isEnabled()
+                || !Integer.valueOf(1).equals(provider.getClass().getMethod("kartApiVersion").invoke(provider)))
+            throw new IllegalStateException("Kart API unavailable");
+        return provider;
+    }
+
     public boolean isActive(Player subject) {
         try { Api current = api(); return (boolean) current.active.invoke(current.provider, subject); }
         catch (ReflectiveOperationException | IllegalStateException e) { return false; }

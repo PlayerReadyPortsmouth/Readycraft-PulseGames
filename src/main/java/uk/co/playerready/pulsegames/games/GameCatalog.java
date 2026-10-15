@@ -177,14 +177,15 @@ public final class GameCatalog {
                 false));
 
         registry.register(new GameType("karts", "PulseKarts",
-                "Kart racing with shells, turbo and lightning!", Material.OAK_BOAT,
+                "Custom kart racing with shells, turbo and lightning!", Material.MINECART,
                 List.of(GameMode.ffa("sprint", "Sprint", 2, 12),
                         GameMode.ffa("cup", "Cup (3 laps)", 2, 12)),
                 PulseKartsGame::new,
-                List.of(spawns(2, "on the starting grid"),
+                List.of(spawns(2, "clear kart grid slots, at least two blocks apart, facing along the track"),
                         regions("checkpoint", 1, "track checkpoints, in order"),
                         region("finish", "the finish line (drive through it each lap)"),
                         regions("itembox", 1, "item box pickup zones on the track"),
+                        optional(location("checkpoint-spawn1", "safe kart reset with heading; repeat for each checkpoint")),
                         setting("void-y", "off-track fall level")),
                 false));
 
