@@ -302,4 +302,11 @@ class PlayServiceTest {
         when(plugin.canUseNewFeatures(leader)).thenReturn(false);
         service.joinNetworkQueue(leader, "queue_one"); verify(target, never()).add(any());
     }
+    @Test void publicPreviewAdmitsNonCanaryPartyThroughNetworkQueue() {
+        Player member = party(); GameInstance target = networkTarget();
+        when(type.wip()).thenReturn(true);
+        when(plugin.gamePublic(type)).thenReturn(true);
+        service.joinNetworkQueue(leader, "queue_one");
+        verify(target).add(leader); verify(target).add(member);
+    }
 }

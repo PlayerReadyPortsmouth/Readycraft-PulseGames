@@ -54,6 +54,8 @@ economy:
 # Experimental games become queueable only when named here; add maps before enabling.
 games:
   preview: []
+  # Explicit public game access, independent of other trial features.
+  public: []
 
 # Owner: Aurora / ReadyCraft. Review: 2026-10-25.
 # Keep as an operational switch; enable only on tested arenas and compatible Citizens.

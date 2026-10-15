@@ -150,7 +150,11 @@ public final class PulseGamesPlugin extends JavaPlugin {
     }
 
     public boolean gameAvailable(uk.co.playerready.pulsegames.core.game.GameType type) {
-        return !type.wip() || getConfig().getStringList("games.preview").contains(type.id());
+        return !type.wip() || gamePublic(type) || getConfig().getStringList("games.preview").contains(type.id());
+    }
+
+    public boolean gamePublic(uk.co.playerready.pulsegames.core.game.GameType type) {
+        return getConfig().getStringList("games.public").contains(type.id());
     }
 
     public uk.co.playerready.pulsegames.core.content.PulseContentBridge content() { return content; }
