@@ -190,4 +190,31 @@ class PulseKartsControllerTest {
   when(matchWorld.isChunkLoaded(anyInt(),anyInt())).thenReturn(true);m.invoke(logic);
   verify(game.plugin().content(),times(1)).createWorldVisual(anyString(),any(Location.class),anyCollection());
  }
+ @Test void itemHitsCannotChainStunAndShareResetBumpProtection() throws Exception {
+  var slow=PulseKartsGame.class.getDeclaredMethod("slow",PulseKartsGame.Kart.class,int.class);slow.setAccessible(true);
+  var time=PulseKartsGame.class.getDeclaredField("tick");time.setAccessible(true);time.set(logic,100L);
+  assertEquals(true,slow.invoke(logic,kart,50));assertEquals(150,kart.slowUntil);assertEquals(190,kart.bumpImmuneUntil);
+  time.set(logic,149L);assertEquals(false,slow.invoke(logic,kart,60));assertEquals(150,kart.slowUntil);
+  time.set(logic,189L);assertEquals(false,slow.invoke(logic,kart,60));
+  time.set(logic,190L);assertEquals(true,slow.invoke(logic,kart,60));assertEquals(250,kart.slowUntil);
+  kart.slowUntil=0;kart.bumpImmuneUntil=300;time.set(logic,260L);
+  assertEquals(false,slow.invoke(logic,kart,50));assertEquals(0,kart.slowUntil);
+ }
+ @Test void lightningOnlyTargetsStrictlyAheadUnprotectedRacers() throws Exception {
+  var otherPlayer=mock(Player.class);when(otherPlayer.getUniqueId()).thenReturn(UUID.randomUUID());when(game.isActive(otherPlayer)).thenReturn(true);
+  when(game.alivePlayers()).thenReturn(List.of(player,otherPlayer));
+  var other=new PulseKartsGame.Kart(otherPlayer,mock(ArmorStand.class),()->{},new KartPhysics.State(0,64,10,0,8,0,true));
+  var k=PulseKartsGame.class.getDeclaredField("karts");k.setAccessible(true);((Map<UUID,PulseKartsGame.Kart>)k.get(logic)).put(otherPlayer.getUniqueId(),other);
+  var behind=PulseKartsGame.class.getDeclaredMethod("clearlyBehind",PulseKartsGame.Kart.class);behind.setAccessible(true);
+  var target=PulseKartsGame.class.getDeclaredMethod("lightningTarget",PulseKartsGame.Kart.class);target.setAccessible(true);
+  assertEquals(false,behind.invoke(logic,kart));assertNull(target.invoke(logic,kart));
+  var base=uk.co.playerready.pulsegames.games.common.CheckpointRaceGame.class;
+  var pc=Class.forName(base.getName()+"$Progress");var ctor=pc.getDeclaredConstructor();ctor.setAccessible(true);var progress=ctor.newInstance();
+  var lap=pc.getDeclaredField("lap");lap.setAccessible(true);lap.setInt(progress,2);
+  var field=base.getDeclaredField("progress");field.setAccessible(true);((Map<UUID,Object>)field.get(logic)).put(otherPlayer.getUniqueId(),progress);
+  assertEquals(true,behind.invoke(logic,kart));assertSame(other,target.invoke(logic,kart));
+  other.bumpImmuneUntil=100;assertNull(target.invoke(logic,kart));
+  kart.item=PulseKartsGame.Item.LIGHTNING;var use=PulseKartsGame.class.getDeclaredMethod("useItem",PulseKartsGame.Kart.class);use.setAccessible(true);use.invoke(logic,kart);
+  assertEquals(PulseKartsGame.Item.LIGHTNING,kart.item);
+ }
 }

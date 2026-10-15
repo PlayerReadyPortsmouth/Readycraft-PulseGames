@@ -13,7 +13,7 @@ class KartDriftTest {
  @Test void briefTapGivesNoBoostButMediumCornerDoes() {
   var drift=new KartDrift();drift.update(true,turn,moving,false);
   assertEquals(0,drift.update(false,turn,moving,false).boostTicks());
-  for(int i=0;i<25;i++)drift.update(true,turn,moving,false);
+  for(int i=0;i<12;i++)drift.update(true,turn,moving,false);
   assertEquals(16,drift.update(false,turn,moving,false).boostTicks());
  }
  @Test void brakingSpinAndDirectionChangeCancelCharge() {

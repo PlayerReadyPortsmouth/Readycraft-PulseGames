@@ -9,7 +9,7 @@ final class KartDrift {
     Control update(boolean pressed, KartPhysics.Input input, KartPhysics.State motion, boolean disabled) {
         boolean eligible = !disabled && motion.grounded() && motion.speed() >= 4 && input.throttle() > 0;
         if (!pressed) {
-            int boost = eligible && held ? charge >= 50 ? 30 : charge >= 25 ? 16 : 0 : 0;
+            int boost = eligible && held ? charge >= 25 ? 30 : charge >= 12 ? 16 : 0 : 0;
             reset();
             return new Control(input, 0, boost);
         }
@@ -23,7 +23,7 @@ final class KartDrift {
         double steer = direction * Math.clamp(.55 + input.steering() * direction * .45, .2, 1);
         return new Control(new KartPhysics.Input(input.throttle(), steer), direction * 16, 0);
     }
-    int tier() { return charge >= 50 ? 2 : charge >= 25 ? 1 : 0; }
+    int tier() { return charge >= 25 ? 2 : charge >= 12 ? 1 : 0; }
     void cancelCharge() { charge = 0; direction = 0; }
     void reset() { charge = direction = 0; held = false; }
 }

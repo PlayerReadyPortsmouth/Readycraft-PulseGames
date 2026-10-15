@@ -8,21 +8,36 @@ import uk.co.playerready.pulsegames.core.bot.BotDifficulty;
 public final class KartBotDriver {
     public static final double ARRIVAL_RADIUS = 1.5;
     public record Point(double x, double y, double z) {}
-    public record Decision(KartPhysics.Input input, boolean reset, boolean useTurboSafe) {}
+    public record Decision(KartPhysics.Input input, boolean reset, boolean useTurboSafe, boolean drift) {
+        public Decision(KartPhysics.Input input, boolean reset, boolean useTurboSafe) {
+            this(input, reset, useTurboSafe, false);
+        }
+    }
     private final double preference;
     private int stuck, reverseTicks, recoveryCount, ticks;
+    private boolean drifting;
+    private int driftTicks, driftCooldown, driftPreviewUntil, driftDirection;
+    private double previewSteering;
+    private Point driftTarget;
     private double lastX = Double.NaN, lastZ, heldSteering;
     public KartBotDriver(UUID identity) {
         preference = (Math.floorMod(identity.hashCode(), 1001) / 1000.0 - .5) * .12;
     }
-    public void reset() { stuck = reverseTicks = recoveryCount = ticks = 0; lastX = Double.NaN; heldSteering = 0; }
+    public void reset() { stuck = reverseTicks = recoveryCount = ticks = 0; lastX = Double.NaN; heldSteering = 0; drifting = false; driftTicks = driftCooldown = driftPreviewUntil = driftDirection = 0; driftTarget = null; }
     public int stuckTicks() { return stuck; }
     public boolean recovering() { return reverseTicks > 0; }
 
     public Decision update(KartPhysics.State state, Point target, Point following,
                            BotDifficulty difficulty, KartPhysics.CollisionSpace terrain,
                            List<KartPhysics.State> opponents) {
+        return update(state,target,following,difficulty,terrain,opponents,KartStyle.BALANCED);
+    }
+
+    public Decision update(KartPhysics.State state, Point target, Point following,
+                           BotDifficulty difficulty, KartPhysics.CollisionSpace terrain,
+                           List<KartPhysics.State> opponents, KartStyle style) {
         ticks++;
+        if (driftCooldown > 0) driftCooldown--;
         if (Double.isFinite(lastX) && Math.hypot(state.x()-lastX,state.z()-lastZ) < .025) stuck++;
         else { stuck = Math.max(0, stuck-3); if (state.speed() > 3) recoveryCount = 0; }
         lastX = state.x(); lastZ = state.z();
@@ -34,6 +49,7 @@ public final class KartBotDriver {
             reverseTicks = 28;
         }
         if (reverseTicks > 0) {
+            cancelDrift();
             reverseTicks--;
             double backYaw = state.yaw()+180;
             boolean clear = safe(state,backYaw,1.5,terrain,opponents);
@@ -70,9 +86,60 @@ public final class KartBotDriver {
         if (!immediate) targetSpeed = 0;
         double throttle = state.speed() > targetSpeed+.3 ? (state.speed()>1 ? -1 : 0)
                 : state.speed() < targetSpeed-.2 ? 1 : 0;
+        boolean targetChanged = drifting && !target.equals(driftTarget);
+        double maxBend = difficulty == BotDifficulty.HARD ? 80 : 65;
+        boolean wantsDrift = difficulty != BotDifficulty.EASY && following != null && state.grounded()
+                && state.speed() >= 4 && state.speed() <= KartPhysics.MAX_SPEED + .01
+                && directSafe && immediate && distance > 6
+                && Math.abs(error) >= (drifting ? 12 : 25) && Math.abs(error) <= maxBend
+                && Math.abs(heldSteering) >= .25 && !targetChanged
+                && (!drifting || Math.signum(heldSteering) == driftDirection)
+                && (drifting || driftCooldown == 0)
+                && driftTicks < (difficulty == BotDifficulty.HARD ? 50 : 28);
+        KartPhysics.Input driftInput = new KartPhysics.Input(1,heldSteering);
+        // Reuse the longer preview for at most two ticks. Fresh short probes still reject
+        // changing terrain/traffic on every tick, including the direction of the rear slip.
+        boolean driftSafe = wantsDrift && safe(state,state.yaw()-Math.signum(heldSteering)*16,
+                Math.max(1.5,state.speed()*.25),terrain,opponents);
+        if (driftSafe && (!drifting || ticks >= driftPreviewUntil || Math.abs(heldSteering-previewSteering)>.1)) {
+            driftSafe = safeDrift(state,driftInput,terrain,opponents,style);
+            if (driftSafe) { driftPreviewUntil = ticks + 2; previewSteering = heldSteering; }
+        }
+        if (driftSafe) {
+            drifting = true; driftTarget = target; driftDirection = (int)Math.signum(heldSteering); driftTicks++;
+            return new Decision(driftInput,false,false,true);
+        }
+        if (drifting) {
+            // Releasing on an unsafe approach must cancel charge, not trigger a boost.
+            boolean releaseSafe = directSafe && immediate && Math.abs(error)<15 && (distance>10 || corner<25)
+                    && safe(state,state.yaw(),Math.max(8,state.speed()),terrain,opponents);
+            if (!releaseSafe) throttle = Math.min(0,throttle);
+            else throttle = 1; // A safe release must remain eligible for the shared earned boost.
+            cancelDrift();
+        }
         return new Decision(new KartPhysics.Input(throttle,heldSteering),false,
-                directSafe && immediate && Math.abs(error)<10 && corner<20 && distance>10 && state.speed()>5);
+                directSafe && immediate && Math.abs(error)<10 && corner<20 && distance>10 && state.speed()>5,false);
     }
+    private void cancelDrift() {
+        if (drifting) driftCooldown = 40;
+        drifting = false; driftTicks = 0; driftPreviewUntil = driftDirection = 0; driftTarget = null;
+    }
+
+    /** Preview ordinary shared drift physics; every future chassis needs terrain support and traffic clearance. */
+    private static boolean safeDrift(KartPhysics.State state, KartPhysics.Input input,
+                                     KartPhysics.CollisionSpace terrain, List<KartPhysics.State> opponents, KartStyle style) {
+        KartDrift preview = new KartDrift();
+        var future = state;
+        for (int step=0; step<12; step++) {
+            var control = preview.update(true,input,future,false);
+            var next = KartPhysics.tick(future,control.input(),1,terrain,style,control.slipDegrees());
+            if (!next.grounded() || next.speed() < future.speed()-.1
+                    || !safe(next,next.yaw(),.5,terrain,opponents)) return false;
+            future = next;
+        }
+        return true;
+    }
+
     private static boolean safe(KartPhysics.State state, double yaw, double distance,
                                 KartPhysics.CollisionSpace terrain, List<KartPhysics.State> opponents) {
         double sin = -Math.sin(Math.toRadians(yaw)), cos = Math.cos(Math.toRadians(yaw));
