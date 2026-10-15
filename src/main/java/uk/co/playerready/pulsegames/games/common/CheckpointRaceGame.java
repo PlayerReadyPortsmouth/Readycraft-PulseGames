@@ -1,7 +1,6 @@
 package uk.co.playerready.pulsegames.games.common;
 
 import org.bukkit.Location;
-import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import uk.co.playerready.pulsegames.core.game.GameInstance;
 import uk.co.playerready.pulsegames.core.game.MiniGame;
@@ -38,6 +37,9 @@ public abstract class CheckpointRaceGame extends MiniGame {
     /** Number of laps for this mode. */
     protected abstract int laps();
 
+    /** Fast vehicle races may opt into ordered swept gate detection. */
+    protected boolean sweptCheckpoints() { return false; }
+
     @Override
     public void onStart() {
         checkpoints = game.arena().regionsByPrefix("checkpoint");
@@ -53,13 +55,17 @@ public abstract class CheckpointRaceGame extends MiniGame {
     public void onMove(Player player, Location from, Location to) {
         Progress p = progress.get(player.getUniqueId());
         if (p == null) return;
+        if (sweptCheckpoints()) {
+            moveSwept(player, p, from, to);
+            return;
+        }
         if (p.nextCheckpoint < checkpoints.size()) {
             if (checkpoints.get(p.nextCheckpoint).contains(to)) {
                 p.nextCheckpoint++;
                 recordSafe(player, p, to);
                 player.sendActionBar(Text.mm("<green>Checkpoint " + p.nextCheckpoint + "/" + checkpoints.size()
                         + (laps() > 1 ? " <gray>(lap " + p.lap + "/" + laps() + ")" : "")));
-                player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1f, 1.5f);
+                player.playSound(player.getLocation(), "minecraft:block.note_block.bell", 1f, 1.5f);
             }
         } else if (finish != null && finish.contains(to)) {
             if (p.lap < laps()) {
@@ -71,6 +77,33 @@ public abstract class CheckpointRaceGame extends MiniGame {
                 onFinish(player);
             }
         }
+    }
+
+    private void moveSwept(Player player, Progress p, Location from, Location to) {
+        if (from.getWorld() != game.world() || to.getWorld() != game.world()) return;
+        double previous = 0;
+        while (p.nextCheckpoint < checkpoints.size()) {
+            double entry = RaceGateCrossing.entry(checkpoints.get(p.nextCheckpoint), from, to);
+            if (Double.isNaN(entry) || entry < previous) return;
+            previous = entry;
+            p.nextCheckpoint++;
+            Location reviewed = game.arena().settingLocation("checkpoint-spawn" + p.nextCheckpoint, game.world());
+            if (reviewed != null) p.lastSafe = reviewed.clone();
+            else recordSafe(player, p, to);
+            player.sendActionBar(Text.mm("<green>Checkpoint " + p.nextCheckpoint + "/" + checkpoints.size()
+                    + (laps() > 1 ? " <gray>(lap " + p.lap + "/" + laps() + ")" : "")));
+            player.playSound(player.getLocation(), "minecraft:block.note_block.bell", 1f, 1.5f);
+        }
+        if (finish == null) return;
+        double entry = RaceGateCrossing.entry(finish, from, to);
+        if (Double.isNaN(entry) || entry < previous) return;
+        if (p.lap < laps()) {
+            p.lap++;
+            p.nextCheckpoint = 0;
+            // A reviewed grid spawn is safer than a moving kart's finish-line position.
+            p.lastSafe = game.spawnFor(player).clone();
+            game.broadcast("<yellow>" + player.getName() + "</yellow> started lap <yellow>" + p.lap + "/" + laps());
+        } else onFinish(player);
     }
 
     /**
@@ -104,11 +137,16 @@ public abstract class CheckpointRaceGame extends MiniGame {
 
     /** Send a player back to their last checkpoint. */
     protected void sendBack(Player player) {
-        Progress p = progress.get(player.getUniqueId());
-        Location target = (p != null && p.lastSafe != null) ? p.lastSafe : game.spawnFor(player);
+        Location target = resetLocation(player);
         player.setFallDistance(0);
         player.teleport(target);
         player.sendActionBar(Text.mm("<red>Back to your last checkpoint!"));
+    }
+
+    /** A defensive copy lets vehicle controllers reset without teleporting a passenger. */
+    protected Location resetLocation(Player player) {
+        Progress p = progress.get(player.getUniqueId());
+        return ((p != null && p.lastSafe != null) ? p.lastSafe : game.spawnFor(player)).clone();
     }
 
     /** Falling into the void sends you back instead of killing you. */

@@ -104,7 +104,12 @@ public final class GameCatalog {
                 List.of(GameMode.ffa("classic", "Classic", 2, 16)),
                 AvalancheGame::new,
                 List.of(spawns(1, "on the survival platform"),
-                        region("arena", "the platform area; blocks fall from its top Y")),
+                        region("arena", "platform footprint, player feet to falling-block ceiling"),
+                        optional(setting("void-y", "collapse support columns down to this level")),
+                        optional(setting("shrinking", "collapse arena edges inward; default true")),
+                        optional(setting("shrink-start", "first collapse after seconds; default 30")),
+                        optional(setting("shrink-interval", "seconds between collapses; default 15")),
+                        optional(setting("minimum-size", "smallest remaining width/depth; default 7"))),
                 false));
 
         registry.register(new GameType("volcano", "Volcano",
@@ -177,14 +182,15 @@ public final class GameCatalog {
                 false));
 
         registry.register(new GameType("karts", "PulseKarts",
-                "Kart racing with shells, turbo and lightning!", Material.OAK_BOAT,
+                "Custom kart racing with shells, turbo and lightning!", Material.MINECART,
                 List.of(GameMode.ffa("sprint", "Sprint", 2, 12),
                         GameMode.ffa("cup", "Cup (3 laps)", 2, 12)),
                 PulseKartsGame::new,
-                List.of(spawns(2, "on the starting grid"),
+                List.of(spawns(2, "clear kart grid slots, at least two blocks apart, facing along the track"),
                         regions("checkpoint", 1, "track checkpoints, in order"),
                         region("finish", "the finish line (drive through it each lap)"),
                         regions("itembox", 1, "item box pickup zones on the track"),
+                        optional(location("checkpoint-spawn1", "safe kart reset with heading; repeat for each checkpoint")),
                         setting("void-y", "off-track fall level")),
                 false));
 
@@ -245,7 +251,8 @@ public final class GameCatalog {
                         GameMode.ffa("frenzy", "Frenzy", 1, 8)),
                 ReadyPlayerZGame::new,
                 List.of(spawns(1, "the squad spawn room"),
-                        regions("mobspawn", 1, "zombie entry points (windows, doors...)")),
+                        regions("mobspawn", 1, "zombie entry points (windows, doors...)"),
+                        optional(setting("darkness", "reduced visibility during waves; true by default"))),
                 false));
 
         registry.register(new GameType("luckypillars", "Lucky Pillars",

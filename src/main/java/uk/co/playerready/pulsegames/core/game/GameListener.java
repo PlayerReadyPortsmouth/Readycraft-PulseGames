@@ -67,6 +67,13 @@ public final class GameListener implements Listener {
         plugin.parties().handleQuit(event.getPlayer());
     }
 
+    @EventHandler
+    public void onInput(org.bukkit.event.player.PlayerInputEvent event) {
+        GameInstance instance = instanceOf(event.getPlayer());
+        if (instance != null && instance.state() == GameState.RUNNING && instance.isActive(event.getPlayer()))
+            instance.logic().onInput(event.getPlayer(), event.getInput());
+    }
+
     // ---- movement -----------------------------------------------------------
 
     @EventHandler(ignoreCancelled = true)
