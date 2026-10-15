@@ -36,6 +36,12 @@ public final class SavedArenaValidation {
         session.settings.putAll(arena.settings().getValues(true));
         var validation = ArenaValidation.checkConfiguration(session);
         List<Check> checks = new ArrayList<>();
+        if(type.id().equals("readyplayerz") && (arena.settings().getKeys(false).stream().anyMatch(k->k.startsWith("z-door")||k.startsWith("z-wall")||k.matches("mobspawn.*-door")) || arena.regions().keySet().stream().anyMatch(k->k.startsWith("z-door")))) {
+            String issue=uk.co.playerready.pulsegames.games.readyplayerz.ZMapProgression.validationError(arena);
+            checks.add(new Check("z-map-progression", "Team doors and wall buys", issue==null?Status.RECORDED:Status.MISSING,
+                    issue==null?"Configuration recorded; door materials, purchase reach and gated spawn access need a live playtest.":issue));
+        }
+
         checks.add(new Check("lobby", "Waiting lobby", present(arena.rawLobby()) ? Status.RECORDED : Status.MISSING,
                 "A recorded coordinate still requires physical clearance checks."));
         checks.add(new Check("spectator", "Spectator location", present(arena.rawSpectator()) ? Status.RECORDED : Status.MISSING,

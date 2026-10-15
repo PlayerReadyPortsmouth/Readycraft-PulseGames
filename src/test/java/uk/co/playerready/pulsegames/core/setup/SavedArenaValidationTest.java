@@ -84,4 +84,26 @@ class SavedArenaValidationTest {
         assertThrows(IllegalArgumentException.class, () -> SavedArenaValidation.check(type("other",List.of(),
                 GameMode.ffa("solo","Solo",2,4)),arena("test",new MemoryConfiguration(),Map.of()),null));
     }
+    @Test void readyPlayerZInvalidWallBuyBlocksSavedAndSetupValidation() {
+        var settings = new MemoryConfiguration();
+        settings.set("z-wall1-anchor", "1,80,1"); settings.set("z-wall1-cost", -5); settings.set("z-wall1-type", "arrows");
+        var report = SavedArenaValidation.check(type("readyplayerz", List.of(), GameMode.ffa("solo","Solo",2,4)),
+                arena("readyplayerz", settings, Map.of("bounds",new Cuboid(0,70,0,20,100,20),
+                        "mobspawn1",new Cuboid(5,80,5,5,80,5))), null);
+        assertFalse(report.configurationValid());
+        assertTrue(report.validation().issues().stream().anyMatch(issue -> issue.error() && issue.message().contains("z-wall1-cost")));
+        assertEquals(SavedArenaValidation.Status.MISSING, report.checklist().stream()
+                .filter(check -> check.key().equals("z-map-progression")).findFirst().orElseThrow().status());
+    }
+
+    @Test void orphanZombieSpawnGateIsReportedWithoutDoorOrWallKeys() {
+        var settings = new MemoryConfiguration(); settings.set("mobspawn2-door",1);
+        var report = SavedArenaValidation.check(type("readyplayerz", List.of(), GameMode.ffa("solo","Solo",2,4)),
+                arena("readyplayerz",settings,Map.of("bounds",new Cuboid(0,70,0,20,100,20),
+                        "mobspawn1",new Cuboid(5,80,5,5,80,5),"mobspawn2",new Cuboid(6,80,6,6,80,6))),null);
+        assertFalse(report.configurationValid());
+        assertEquals(SavedArenaValidation.Status.MISSING,report.checklist().stream()
+                .filter(check->check.key().equals("z-map-progression")).findFirst().orElseThrow().status());
+    }
+
 }

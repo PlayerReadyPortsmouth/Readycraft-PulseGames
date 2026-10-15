@@ -78,6 +78,14 @@ public final class ArenaValidation {
             catch(IllegalArgumentException ex) { error(out,ex.getMessage()); }
             s.settings.forEach((key,value)->{if(key.startsWith("bot-waypoint"))point(out,key,Objects.toString(value,null),w,true,true,requireLoadedWorld);});
         }
+        if(s.game.id().equals("readyplayerz")) {
+            try { uk.co.playerready.pulsegames.games.readyplayerz.ZMapProgression.validate(s.settings,s.regions); }
+            catch(IllegalArgumentException ex) { error(out,ex.getMessage()); }
+            s.settings.forEach((key,value)->{
+                if(key.matches("z-(door|wall)[1-9][0-9]*-anchor"))
+                    point(out,key,Objects.toString(value,null),w,true,false,requireLoadedWorld);
+            });
+        }
         s.settings.forEach((key, value) -> {
             if (!Set.of("bot-patrol-points", "bot-hide-points", "bot-recovery-points").contains(key) && !key.startsWith("bot-route-")) return;
             if (!(value instanceof List<?> points)) { error(out, key + " must be a location list."); return; }
