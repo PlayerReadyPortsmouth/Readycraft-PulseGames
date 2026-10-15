@@ -487,11 +487,11 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
     @Override public void onPlayerMove(org.bukkit.event.player.PlayerMoveEvent event) {
         Locked anchor = locked.get(event.getPlayer().getUniqueId());
         if (event.getTo() == null) return;
-        if (anchor == null) {
-            PropPalette.Option option = choices.get(event.getPlayer().getUniqueId());
-            if (blockProps && option != null && !PropSpace.clear(event.getTo(), option.height())) event.setCancelled(true);
-            return;
-        }
+        // Native movement already resolves the scaled player's body against terrain.
+        // A moving disguise is decorative: its larger cube must not cancel valid body
+        // movement along walls/steps, camera turns, or attempts to leave an overlap.
+        // Full prop clearance still applies when selecting, locking and placing decoys.
+        if (anchor == null) return;
         Location to = anchor.standing().clone();
         to.setYaw(event.getTo().getYaw()); to.setPitch(event.getTo().getPitch());
         event.setTo(to);
