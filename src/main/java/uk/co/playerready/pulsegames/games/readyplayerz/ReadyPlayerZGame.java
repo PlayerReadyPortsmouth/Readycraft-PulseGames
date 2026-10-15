@@ -3,7 +3,6 @@ package uk.co.playerready.pulsegames.games.readyplayerz;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.Sound;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -94,6 +93,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
     @Override
     public void onSecond(int gameTime) {
         if (roundActive) {
+            refreshDarkness();
             for (LivingEntity enemy : botEnemies()) if (enemy instanceof Zombie zombie) {
                 Player nearest = game.alivePlayers().stream().filter(game::isActive)
                         .filter(p -> p.getWorld().equals(zombie.getWorld()) && zombie.hasLineOfSight(p))
@@ -109,6 +109,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
             // the rest of the wave is still queued - both would read as "round survived".
             if (zombies.isEmpty() && pendingSpawns <= 0) {
                 roundActive = false;
+                game.everyone().forEach(this::clearDarkness);
                 breakTimer = isFrenzy() ? 5 : 10;
                 game.broadcast("<green><b>Round " + round + " survived!</b></green>");
                 reviveDowned();
@@ -127,8 +128,9 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
         int count = (int) ((6 + round * 4) * (isFrenzy() ? 1.5 : 1.0));
         game.broadcast("<red><b>ROUND " + round + "</b></red> <gray>- " + count + " zombies!");
         for (Player p : game.everyone()) {
-            p.playSound(p.getLocation(), Sound.ENTITY_WOLF_HOWL, 1f, 0.7f);
+            p.playSound(p.getLocation(), "minecraft:entity.zombie.ambient", 1f, 0.7f);
         }
+        refreshDarkness();
         var random = ThreadLocalRandom.current();
         pendingSpawns = 0;
         for (int i = 0; i < count; i++) {
@@ -203,7 +205,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
     private void activatePowerup(Player collector, String type) {
         for (Player p : game.everyone()) {
             Text.title(p, "<gold><b>" + type.toUpperCase().replace('-', ' '), "<gray>grabbed by " + collector.getName());
-            p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 0.7f);
+            p.playSound(p.getLocation(), "minecraft:entity.player.levelup", 1f, 0.7f);
         }
         switch (type) {
             case "insta-kill" -> game.alivePlayers().forEach(p -> p.addPotionEffect(new PotionEffect(
@@ -236,6 +238,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
     /** Going down doesn't end your game - teammates clearing the round revives you. */
     @Override
     public void onDeath(Player victim, Player killer) {
+        clearDarkness(victim);
         downed.add(victim.getUniqueId());
         victim.setGameMode(org.bukkit.GameMode.SPECTATOR);
         victim.teleport(game.arena().spectator(game.world()));
@@ -246,8 +249,30 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
     /** Someone leaving must not leave a downed squad counted as still fighting. */
     @Override
     public void onQuit(Player player) {
+        clearDarkness(player);
         downed.remove(player.getUniqueId());
         if (game.state() == GameState.RUNNING) checkOverrun();
+    }
+
+    // Short refreshes expire even if a match is interrupted; state restoration also clears effects.
+    void refreshDarkness() {
+        if (!roundActive || !game.arena().settings().getBoolean("darkness", true)) return;
+        for (Player player : game.alivePlayers()) {
+            if (!game.isBot(player) && !downed.contains(player.getUniqueId())) darken(player);
+        }
+    }
+
+    void darken(Player player) {
+        player.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 60, 0, true, false, true));
+    }
+
+    void clearDarkness(Player player) { player.removePotionEffect(PotionEffectType.DARKNESS); }
+
+    @Override public void onEliminated(Player player) { clearDarkness(player); }
+    @Override public void onEnd(List<Player> winners) { onCleanup(); }
+    @Override public void onCleanup() {
+        roundActive = false;
+        game.everyone().forEach(this::clearDarkness);
     }
 
     private void checkOverrun() {
