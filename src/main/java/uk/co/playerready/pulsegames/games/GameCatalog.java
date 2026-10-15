@@ -191,6 +191,7 @@ public final class GameCatalog {
                         region("finish", "the finish line (drive through it each lap)"),
                         regions("itembox", 1, "item box pickup zones on the track"),
                         optional(location("checkpoint-spawn1", "safe kart reset with heading; repeat for each checkpoint")),
+                        optional(location("bot-waypoint1", "ordered kart driving line; repeat consecutively for bot support")),
                         setting("void-y", "off-track fall level")),
                 false));
 

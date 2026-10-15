@@ -1,6 +1,8 @@
 package uk.co.playerready.pulsegames.games.karts;
 
 import org.bukkit.World;
+import org.bukkit.block.Block;
+import org.bukkit.util.BoundingBox;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -19,7 +21,7 @@ class KartPhysicsTest {
         var normal=run(start(0),new KartPhysics.Input(1,0),1,100);
         var boost=run(start(0),new KartPhysics.Input(1,0),1.5,100);
         var reverse=run(start(0),new KartPhysics.Input(-1,0),1,100);
-        assertEquals(10,normal.speed());assertEquals(15,boost.speed());assertEquals(-3.5,reverse.speed());
+        assertEquals(12,normal.speed());assertEquals(18,boost.speed());assertEquals(-3.5,reverse.speed());
         assertTrue(boost.z()>normal.z());assertTrue(reverse.z()<0);
     }
     @Test void brakesBeforeReversingAndCoastsToRest() {
@@ -64,8 +66,75 @@ class KartPhysicsTest {
         verify(world,never()).getBlockAt(anyInt(),anyInt(),anyInt());
     }
     @Test void slowMultiplierCapsExistingSpeedAndInputsStayFinite() {
-        assertEquals(3,KartPhysics.tick(start(10),new KartPhysics.Input(1,0),.3,floor).speed(),1e-9);
+        assertEquals(3.6,KartPhysics.tick(start(10),new KartPhysics.Input(1,0),.3,floor).speed(),1e-9);
         var state=KartPhysics.tick(start(0),new KartPhysics.Input(Double.NaN,Double.POSITIVE_INFINITY),Double.NaN,floor);
         assertEquals(0,state.speed());assertEquals(0,state.yaw());
+    }
+    private World corridorWorld() {
+        World world=mock(World.class);when(world.getMinHeight()).thenReturn(-64);when(world.getMaxHeight()).thenReturn(320);
+        when(world.isChunkLoaded(anyInt(),anyInt())).thenReturn(true);
+        when(world.getBlockAt(anyInt(),anyInt(),anyInt())).thenAnswer(invocation->{
+            int x=invocation.getArgument(0),y=invocation.getArgument(1),z=invocation.getArgument(2);
+            Block block=mock(Block.class);boolean solid=y<0 || x<=-2 || x>=1;
+            when(block.isPassable()).thenReturn(!solid);
+            when(block.getBoundingBox()).thenReturn(new BoundingBox(x,y,z,x+1,y+1,z+1));return block;
+        });return world;
+    }
+    @Test void realWorldOrientedBodyFitsTwoBlockCorridorButDiagonalDoesNot() {
+        var space=KartPhysics.world(corridorWorld());
+        assertTrue(space.clearAt(0,0,0,0));assertTrue(space.clearAt(0,0,0,90));
+        assertFalse(space.clearAt(0,0,0,45));assertFalse(space.clear(0,0,0,KartPhysics.WIDTH,KartPhysics.HEIGHT));
+        var state=start(8);
+        for(int i=0;i<20;i++)state=KartPhysics.tick(state,new KartPhysics.Input(1,0),1,space);
+        assertTrue(state.z()>9);assertEquals(12,state.speed());
+    }
+    @Test void turningCannotRotateBodyThroughWall() {
+        var space=KartPhysics.world(corridorWorld());var state=start(3);
+        for(int i=0;i<20;i++) {
+            state=KartPhysics.tick(state,new KartPhysics.Input(1,1),1,space);
+            assertTrue(space.clearAt(state.x(),state.y(),state.z(),state.yaw()));
+        }
+        assertTrue(state.yaw()<45);
+    }
+    @Test void kartOverlapUsesActualRotationAndVerticalSeparation() {
+        var a=start(0);
+        assertFalse(KartPhysics.overlaps(a,new KartPhysics.State(1.6,0,0,0,0,0,true)));
+        assertTrue(KartPhysics.overlaps(a,new KartPhysics.State(1.6,0,0,45,0,0,true)));
+        assertFalse(KartPhysics.overlaps(a,new KartPhysics.State(0,2,0,0,0,0,true)));
+        assertFalse(KartPhysics.overlaps(a,new KartPhysics.State(1.5,0,0,0,0,0,true)));
+    }
+    @Test void botCanFollowNarrowStraightUsingRotatedBodyProbes() {
+        var space=KartPhysics.world(corridorWorld());var state=start(0);
+        var bot=new KartBotDriver(new java.util.UUID(1,2));
+        for(int i=0;i<80;i++) {
+            var d=bot.update(state,new KartBotDriver.Point(0,0,50),null,
+                    uk.co.playerready.pulsegames.core.bot.BotDifficulty.NORMAL,space,java.util.List.of());
+            assertFalse(d.reset());state=KartPhysics.tick(state,d.input(),1,space);
+        }
+        assertTrue(state.z()>20);assertEquals(0,state.x(),.01);
+    }
+    @Test void settledFloorOriginNeverSinksIntoSolidOrSlabLightSample() {
+        for(double surface:new double[]{64,64.5}) {
+            World world=mock(World.class);when(world.getMinHeight()).thenReturn(-64);when(world.getMaxHeight()).thenReturn(320);
+            when(world.isChunkLoaded(anyInt(),anyInt())).thenReturn(true);
+            Block air=mock(Block.class);when(air.isPassable()).thenReturn(true);
+            java.util.Map<String,Block> cached=new java.util.HashMap<>();
+            when(world.getBlockAt(anyInt(),anyInt(),anyInt())).thenAnswer(invocation->{
+                int x=invocation.getArgument(0),y=invocation.getArgument(1),z=invocation.getArgument(2);
+                if(y>=surface)return air;
+                return cached.computeIfAbsent(x+":"+y+":"+z,key->{
+                    Block solid=mock(Block.class);
+                    when(solid.getBoundingBox()).thenReturn(new BoundingBox(x,y,z,x+1,Math.min(y+1,surface),z+1));return solid;
+                });
+            });
+            var space=KartPhysics.world(world);
+            assertFalse(space.clearAt(0,surface-0.000001,0,0));
+            var state=new KartPhysics.State(0,surface,0,0,0,0,true);
+            for(int tick=0;tick<400;tick++) {
+                state=KartPhysics.tick(state,new KartPhysics.Input(0,0),1,space);
+                assertTrue(state.y()>=surface,"Chassis must not sink into surface at tick "+tick);
+                assertEquals(surface,state.y(),0,"No artificial levitation");
+            }
+        }
     }
 }

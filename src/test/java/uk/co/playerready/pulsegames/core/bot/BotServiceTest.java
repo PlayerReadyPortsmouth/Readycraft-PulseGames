@@ -107,6 +107,31 @@ class BotServiceTest {
         bots.reconcile(game);bots.reconcile(game);
         assertEquals(1,bots.count(game));verify(game).add(any());
     }
+    void kartRoute() {
+        when(game.type().id()).thenReturn("karts"); when(game.mode().id()).thenReturn("sprint");
+        var settings = new YamlConfiguration(); settings.set("bots-enabled",true);
+        settings.set("bot-waypoint1","0,64,0"); settings.set("bot-waypoint2","0,64,20");
+        settings.set("bot-waypoint3","20,64,20"); settings.set("bot-waypoint4","20,64,0");
+        settings.set("checkpoint-spawn1","0,64,12");
+        var regions = Map.of("checkpoint1",new uk.co.playerready.pulsegames.core.util.Cuboid(-1,63,10,1,66,11),
+                "finish",new uk.co.playerready.pulsegames.core.util.Cuboid(9,63,-1,10,66,1));
+        when(game.arena().settings()).thenReturn(settings); when(game.arena().regions()).thenReturn(regions);
+    }
+    @Test void kartQueuesRequireMappedRouteAndKeepSmallLobbyException() {
+        kartRoute(); assertTrue(bots.supports("karts","sprint")); assertTrue(bots.supports("karts","cup"));
+        when(game.maxPlayers()).thenReturn(4);
+        bots.reconcile(game); bots.reconcile(game); assertEquals(3,bots.count(game));
+        bots.makeRoom(game,1); assertEquals(2,bots.count(game));
+    }
+    @Test void kartLargeQueueStillCapsBotsAtHalfCapacity() {
+        kartRoute(); when(game.maxPlayers()).thenReturn(12);
+        bots.reconcile(game); bots.reconcile(game); assertEquals(6,bots.count(game));
+    }
+    @Test void missingKartRouteReportsActionableReasonWithoutCreatingBots() {
+        kartRoute(); game.arena().settings().set("bot-waypoint2",null);
+        assertTrue(bots.queueStatus(game).contains("kart route:"));
+        bots.reconcile(game); bots.reconcile(game); verify(provider,never()).create(any(),any());
+    }
     @Test void waitsThenAddsActualContestantToNormalInstance() {
         bots.reconcile(game); verify(provider, never()).create(any(),any());
         bots.reconcile(game);
@@ -276,6 +301,18 @@ class BotServiceTest {
         when(game.isActive(bot)).thenReturn(true);
         when(game.alivePlayers()).thenReturn(List.of(bot, human));
         return actor;
+    }
+
+    @Test void mountedKartBotsNeverUseWalkingNavigationOrMelee() {
+        BotActor actor = activeCoop(null,null);
+        var logic = mock(uk.co.playerready.pulsegames.games.karts.PulseKartsGame.class);
+        when(logic.acceptsDeath(actor.player())).thenReturn(true);
+        when(logic.botStatus(actor.player())).thenReturn("Waypoint 2/8");
+        when(game.logic()).thenReturn(logic);
+        bots.think();
+        verify(actor).stopNavigation(); verify(actor,never()).navigate(any());
+        verify(actor.player(),never()).attack(any());
+        assertEquals("DRIVING",bots.diagnostics().getFirst().state());
     }
 
     @Test void coopAttacksWaveEnemyThroughNormalPlayerCombatNotAllies() {
