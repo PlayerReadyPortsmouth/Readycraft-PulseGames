@@ -83,4 +83,82 @@ class QuakeGameTest {
         assertNotNull(quake.mode("classic"));assertEquals(2,quake.mode("classic-doubles").teamSize());
         assertEquals(3,quake.mode("classic-triples").teamSize());assertEquals(4,quake.mode("classic-squads").teamSize());
     }
+    void movementFloor() {
+        when(world.getMinHeight()).thenReturn(-64);when(world.getMaxHeight()).thenReturn(320);
+        when(world.isChunkLoaded(anyInt(),anyInt())).thenReturn(true);
+        var stone=mock(org.bukkit.block.Block.class,RETURNS_DEEP_STUBS);var air=mock(org.bukkit.block.Block.class,RETURNS_DEEP_STUBS);
+        when(stone.getType()).thenReturn(Material.STONE);when(stone.getBlockData().isOccluding()).thenReturn(true);when(air.getType()).thenReturn(Material.AIR);when(air.isEmpty()).thenReturn(true);
+        when(world.getBlockAt(anyInt(),anyInt(),anyInt())).thenAnswer(call -> (int)call.getArgument(1)==63?stone:air);
+        when(game.arena().region("spawn-area")).thenReturn(new uk.co.playerready.pulsegames.core.util.Cuboid(-30,64,-30,30,65,30));
+    }
+    @Test void closeBotsRetreatAndStrafeRatherThanCharge() {
+        movementFloor();when(victim.getLocation()).thenReturn(new Location(world,0,64,4));
+        Location goal=logic.combatDestination(shooter,victim,20);
+        assertTrue(goal.getZ()<0);assertTrue(Math.abs(goal.getX())>0);
+    }
+    @Test void woundedBotsRetreatEvenFromDistantTarget() {
+        movementFloor();when(victim.getLocation()).thenReturn(new Location(world,0,64,20));
+        logic.hit(victim,shooter,60);
+        assertTrue(logic.combatDestination(shooter,victim,20).getZ()<0);
+    }
+    @Test void healthyBotsStrafeAtWeaponRangeAndAdvanceFromTooFarAway() {
+        movementFloor();when(victim.getLocation()).thenReturn(new Location(world,0,64,14));
+        Location goal=logic.combatDestination(shooter,victim,20);assertEquals(0,goal.getZ());assertTrue(Math.abs(goal.getX())>0);
+        when(victim.getLocation()).thenReturn(new Location(world,0,64,22));assertTrue(logic.combatDestination(shooter,victim,20).getZ()>0);
+    }
+    @Test void retreatDoesNotRequestMovementAcrossVoid() {
+        movementFloor();var air=mock(org.bukkit.block.Block.class,RETURNS_DEEP_STUBS);when(air.getType()).thenReturn(Material.AIR);when(air.isEmpty()).thenReturn(true);
+        when(world.getBlockAt(anyInt(),eq(63),anyInt())).thenReturn(air);
+        when(victim.getLocation()).thenReturn(new Location(world,0,64,4));
+        assertEquals(shooter.getLocation(),logic.combatDestination(shooter,victim,20));
+    }
+    @Test void teamRespawnsAlsoUseArenaInteriorAndFallbackWhenNoSafeFloor() {
+        movementFloor();when(game.mode().isTeams()).thenReturn(true);
+        when(game.arena().region("spawn-area")).thenReturn(new uk.co.playerready.pulsegames.core.util.Cuboid(10,64,10,10,65,10));
+        Location point=logic.respawnLocation(shooter);assertEquals(10.5,point.getX());assertEquals(10.5,point.getZ());
+        when(world.isChunkLoaded(anyInt(),anyInt())).thenReturn(false);
+        Location fallback=new Location(world,0,64,0);when(game.arena().spawnCount()).thenReturn(1);when(game.arena().spawn(0,world)).thenReturn(fallback);
+        assertEquals(fallback,logic.respawnLocation(shooter));
+    }
+
+    @Test void selectionRequiresTwoDistinctAbilitiesAndDoesNotGrantUnselectedActions(){
+        assertFalse(logic.selectAbilities(shooter,QuakeGame.Ability.SHIELD,QuakeGame.Ability.SHIELD));
+        assertEquals(List.of(QuakeGame.Ability.DASH,QuakeGame.Ability.JUMP),logic.abilities(shooter));
+        assertTrue(logic.selectAbilities(shooter,QuakeGame.Ability.SHIELD,QuakeGame.Ability.SPRINT));
+        assertFalse(logic.ability(shooter,QuakeGame.Ability.DASH));
+        assertTrue(logic.ability(shooter,QuakeGame.Ability.SHIELD));
+        assertFalse(logic.ability(shooter,QuakeGame.Ability.SHIELD));
+        logic.selectAbilities(shooter,QuakeGame.Ability.DASH,QuakeGame.Ability.JUMP);
+        logic.selectAbilities(shooter,QuakeGame.Ability.SHIELD,QuakeGame.Ability.SPRINT);
+        assertFalse(logic.ability(shooter,QuakeGame.Ability.SHIELD));
+    }
+    @Test void shieldHalvesDamageThenExpiresWithoutGrantingInvulnerability() throws Exception {
+        var field=QuakeGame.class.getDeclaredField("protectedUntil");field.setAccessible(true);
+        @SuppressWarnings("unchecked") var protectedTimes=(Map<UUID,Long>)field.get(logic);
+        protectedTimes.put(victim.getUniqueId(),clock.get()+2_000_000_000L);
+        logic.selectAbilities(victim,QuakeGame.Ability.SHIELD,QuakeGame.Ability.JUMP);
+        assertTrue(logic.ability(victim,QuakeGame.Ability.SHIELD));
+        logic.hit(shooter,victim,100);verify(game,never()).handleDeath(any(),any());
+        clock.addAndGet(2_000_000_000L);logic.hit(shooter,victim,50);verify(game).handleDeath(victim,shooter);
+    }
+    @Test void sprintRestoresOriginalSpeedOnExpiryAndLeaving(){
+        when(shooter.getWalkSpeed()).thenReturn(.18f);when(game.everyone()).thenReturn(List.of(shooter));
+        logic.selectAbilities(shooter,QuakeGame.Ability.SPRINT,QuakeGame.Ability.SHIELD);
+        assertTrue(logic.ability(shooter,QuakeGame.Ability.SPRINT));verify(shooter).setWalkSpeed(.27f);
+        clock.addAndGet(3_000_000_000L);logic.onSecond(3);verify(shooter).setWalkSpeed(.18f);
+        clock.addAndGet(8_000_000_000L);assertTrue(logic.ability(shooter,QuakeGame.Ability.SPRINT));
+        logic.onQuit(shooter);verify(shooter,times(2)).setWalkSpeed(.18f);
+        assertEquals(List.of(QuakeGame.Ability.SPRINT,QuakeGame.Ability.SHIELD),logic.abilities(shooter));
+    }
+    @Test void pulseBlasterNeedsThreeHitsAndUsesItsOwnReloadWithoutMultipleRays() throws Exception {
+        var field=QuakeGame.class.getDeclaredField("weapons");field.setAccessible(true);
+        @SuppressWarnings("unchecked") var weapons=(Map<UUID,QuakeGame.Weapon>)field.get(logic);
+        weapons.put(shooter.getUniqueId(),QuakeGame.Weapon.BLASTER);
+        assertTrue(logic.fire(shooter));assertFalse(logic.fire(shooter));
+        verify(world,times(1)).rayTraceEntities(any(),any(),eq(24.0),eq(.08),any());
+        clock.addAndGet(350_000_000L);assertTrue(logic.fire(shooter));
+        logic.hit(shooter,victim,34);logic.hit(shooter,victim,34);verify(game,never()).handleDeath(any(),any());
+        logic.hit(shooter,victim,34);verify(game).handleDeath(victim,shooter);
+    }
+
 }

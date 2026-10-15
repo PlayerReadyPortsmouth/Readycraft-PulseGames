@@ -2,11 +2,40 @@
 
 Bots join normal waiting games after a configurable delay. They count towards the
 minimum, receive teams and kits, and participate in the same damage, death, score
-and round lifecycle as human contestants. They are visibly named `Bot_ReadyN`.
+and round lifecycle as human contestants. The deployed 0.3.14 build names them `Bot_ReadyN`; prepared 0.3.15 uses playful names such as `WaffleFox_NPC` and `MangoDuck_NPC`.
 They are ephemeral Citizens player NPCs, not extra network connections or recorded
 online users. A human joining before the round starts takes a bot's seat. Running
 rounds do not accept late replacements. Leaving the last human ends the instance
 and destroys its bots; bots never create unattended matches.
+
+## Prepared 0.3.15: names and less mechanical decisions
+
+Every supported controller receives a playful, profile-safe name with an `_NPC`
+marker. The first 256 combinations have no sequence number; later names use a
+short unique suffix. Queue counts, human replacement and competitive eligibility
+continue to use owned bot UUIDs, never the display name. Existing running bots
+are not renamed mid-match.
+
+Generic combat bots retain a visible opponent unless another is substantially
+closer. New-target reactions vary by difficulty (5–20 ticks), without clearing
+existing attack cooldowns or identifying hidden players. Generic route updates
+have a small extra 0–5 tick variation. This covers ordinary melee, ranged and
+co-op controllers; specialised movement games retain their time-critical logic.
+Block Party uses stable per-bot preferences between similarly close correct-colour
+tiles; Spleef actions add small nonnegative timing variation. Quake adds its own
+target commitment, weapon-range strafing, close/wounded retreat and varied loadouts.
+Prop Hunt retains its visible-clue memory rather than gaining role knowledge.
+
+This is a shared improvement pass, not a claim that every controller now emulates
+all human decisions. Hazard/bridge movement is deliberately not delayed by generic
+hesitation. No fake chat, extra damage, increased reach or hidden-information
+access is added. Individual maps still need navigation/play testing; unsupported
+games do not become bot-supported through naming changes.
+
+Acceptance: mixed human/bot queues, replacement, names/diagnostics and cleanup;
+Duels/Kit PvP/King of the Hill/Dodgeball target switching; co-op target acquisition;
+Skywars/Bedwars bridge safety; Prop Hunt clues; hazard games' urgent movement;
+Spleef action cadence; Quake selection, retreat and safe spawn areas on both clients.
 
 ## Supported modes
 
@@ -14,6 +43,7 @@ and destroys its bots; bots never create unattended matches.
 |---|---|---|
 | Duels | classic, op, sumo | visible opponents, navigation, ordinary melee |
 | Kit PvP | ffa, oitc | visible opponents, melee/respawn; OITC real arrows, bow draw, finite ammunition and sword fallback |
+| Quake | classic and team-size variants | visible-target shooter bots, abilities; 0.3.15 adds selected loadouts, evasive movement and random safe spawning |
 | Prop Hunt | classic, infection | supported-cell hiding and normal grid locking; seekers use visible motion, short memory, audible clues and ordinary reach inspections |
 | Skywars | solo, doubles, insane and team-size variants | nearby chest looting, finite gear, checked height steps/bridges, melee and bows |
 | Bedwars | duos, quads and team-size variants | real resource pickup, finite purchases, bounded bed defence/bridges, public bed objectives and combat |

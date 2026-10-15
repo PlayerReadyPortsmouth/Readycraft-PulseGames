@@ -46,7 +46,8 @@ public final class GameCatalog {
                 "Fast arena shooting: choose a railgun or scattergun, dash and leap!", Material.IRON_HOE,
                 List.of(GameMode.ffa("classic", "Classic", 2, 16)),
                 uk.co.playerready.pulsegames.games.quake.QuakeGame::new,
-                List.of(spawns(4, "covered arena spawn points; one per team for team modes"),
+                List.of(spawns(4, "safe fallback spawn points; spread across the arena"),
+                        optional(region("spawn-area", "playable random-spawn volume; feet and head space, excluding roof/lobby")),
                         setting("void-y", "fall-off respawn level"),
                         optional(setting("target-kills", "winning side score, default 20")),
                         optional(setting("time-limit", "round length in seconds, default 300"))), true));
