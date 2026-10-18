@@ -23,6 +23,7 @@ import java.util.concurrent.ThreadLocalRandom;
 /** Server-controlled karts. Armor stands are only seats/model anchors, never movement physics. */
 public final class PulseKartsGame extends CheckpointRaceGame {
     static final String MODEL = "readycraft:racing_kart";
+    static final String PICKUP_MODEL = "readycraft:kart_pickup_box";
     enum Item { SHELL, TURBO, LIGHTNING }
     static final class Kart {
         Player driver; final ArmorStand seat; AutoCloseable visual;
@@ -30,6 +31,8 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         KartPhysics.State motion;
         KartPhysics.Input input = new KartPhysics.Input(0,0);
         long boostUntil, slowUntil, boxReady, resetReady;
+        final KartDrift drift = new KartDrift();
+        boolean driftPressed, driftNeedsRelease;
         Item item;
         boolean insideBox;
         boolean selectionClosed = true;
@@ -51,38 +54,62 @@ public final class PulseKartsGame extends CheckpointRaceGame {
     }
     private final Map<UUID,Kart> karts = new HashMap<>();
     private List<Cuboid> itemBoxes=List.of();
+    private final Map<Cuboid,uk.co.playerready.pulsegames.core.content.PulseContentBridge.WorldVisual> boxVisuals = new LinkedHashMap<>();
+    private Set<UUID> boxViewers = Set.of();
     private KartPhysics.CollisionSpace space;
     private KartBotRoute botRoute;
     private List<Location> botPoints = List.of();
+    private KartRaceResults raceResults;
+    private final Map<UUID,String> racerNames = new HashMap<>();
+    private final Set<UUID> announcedFinishers = new HashSet<>();
+    private double finishFraction;
+    private boolean resultsPublished;
     private long tick;
     private boolean closed;
 
     public PulseKartsGame(GameInstance game) { super(game); }
+    @Override public boolean managesCompletion() { return true; }
     @Override protected boolean sweptCheckpoints() { return true; }
     @Override protected int laps() { return game.mode().id().equals("cup") ? Math.max(1,game.arena().settings().getInt("laps",3)) : 1; }
     @Override public String startProblem(List<Player> players) {
+        String trackProblem = KartTrackSafety.validationError(game.arena());
+        if (trackProblem != null) return trackProblem;
         if (players.stream().anyMatch(game::isBot)) {
             String routeProblem = KartBotRoute.validationError(game.arena());
             if (routeProblem != null) return "Kart bot route: " + routeProblem;
         }
         if(game.plugin().content()==null)return "PulseContent is required for kart models.";
-        return game.plugin().content().kartStartProblem(MODEL,players);
+        String kartProblem = game.plugin().content().kartStartProblem(MODEL,players);
+        if (kartProblem != null) return kartProblem;
+        int boxes = game.arena().regionsByPrefix("itembox").size();
+        if (boxes > 32) return "PulseKarts supports at most 32 item-box regions per map.";
+        return boxes == 0 ? null : game.plugin().content().worldVisualStartProblem(PICKUP_MODEL,players);
     }
     @Override public void onStart() {
-        super.onStart();space=KartPhysics.world(game.world());itemBoxes=game.arena().regionsByPrefix("itembox");
+        super.onStart();
+        initialiseResults(game.alivePlayers());
+        space=KartPhysics.world(game.world());itemBoxes=game.arena().regionsByPrefix("itembox");
         if (game.alivePlayers().stream().anyMatch(game::isBot)) {
             botRoute = KartBotRoute.load(game.arena(), game.world());
             botPoints = botRoute.points();
         }
+        refreshBoxVisuals();
         game.alivePlayers().forEach(this::giveKart);
         game.alivePlayers().stream().filter(p -> !game.isBot(p)).forEach(this::openStyleMenu);
         game.broadcast("<aqua>Choose your kart style during the 15-second grid countdown. Balanced is selected by default.");
-        game.broadcast("<yellow>Accelerate forwards, brake/reverse backwards, steer left/right. Right-click to use your item; compass resets your kart.");
+        game.broadcast("<yellow>Accelerate forwards, brake/reverse backwards, steer left/right. Hold jump while steering to drift; release for a charged boost. Right-click uses your item; compass resets your kart.");
         game.runRepeating(1,1,()->{
             try { drive(); }
             catch(RuntimeException | LinkageError failure) {
                 game.plugin().getLogger().log(java.util.logging.Level.SEVERE,"Kart controller failed",failure);
-                onCleanup();game.end(List.of(),"kart-controller-error");
+                try { onCleanup(); }
+                catch (RuntimeException | LinkageError cleanupFailure) {
+                    failure.addSuppressed(cleanupFailure);
+                    game.plugin().getLogger().log(java.util.logging.Level.WARNING,"Kart controller cleanup failed",cleanupFailure);
+                } finally {
+                    // closed stops simulation; it must never prevent the terminal game transition.
+                    game.end(List.of(),"kart-controller-error");
+                }
             }
         });
     }
@@ -91,6 +118,46 @@ public final class PulseKartsGame extends CheckpointRaceGame {
     private Set<UUID> viewers() {
         return game.everyone().stream().filter(p->!game.isBot(p) && p.isOnline() && p.getWorld().equals(game.world()))
                 .map(Player::getUniqueId).collect(java.util.stream.Collectors.toSet());
+    }
+    private void closeBoxVisuals() {
+        RuntimeException error = null;
+        for (var entry : List.copyOf(boxVisuals.entrySet())) {
+            try { entry.getValue().close(); boxVisuals.remove(entry.getKey()); }
+            catch (Exception | LinkageError failure) {
+                if (error == null) error = new IllegalStateException("Kart pickup cleanup failed", failure);
+                else error.addSuppressed(failure);
+            }
+        }
+        boxViewers = Set.of();
+        // Keep failed handles for retry; never create replacements over orphan visuals.
+        if (error != null) throw error;
+    }
+    private void refreshBoxVisuals() {
+        Set<UUID> audience = game.everyone().stream().filter(p -> !game.isBot(p) && p.isOnline()
+                && p.getWorld().equals(game.world()) && game.plugin().content().worldVisualViewerReady(p))
+                .map(Player::getUniqueId).collect(java.util.stream.Collectors.toSet());
+        List<Cuboid> loaded = itemBoxes.stream().filter(box -> {
+            Location at = box.center(game.world());
+            return game.world().isChunkLoaded(at.getBlockX() >> 4, at.getBlockZ() >> 4);
+        }).toList();
+        if (!audience.equals(boxViewers)) closeBoxVisuals();
+        if (audience.isEmpty()) return;
+        try {
+            for (var entry : List.copyOf(boxVisuals.entrySet())) {
+                if (!loaded.contains(entry.getKey()) || !entry.getValue().active()) {
+                    entry.getValue().close(); boxVisuals.remove(entry.getKey());
+                }
+            }
+            for (Cuboid box : loaded) if (!boxVisuals.containsKey(box)) boxVisuals.put(box,
+                    game.plugin().content().createWorldVisual(PICKUP_MODEL,box.center(game.world()).add(0,.75,0),audience));
+            boxViewers = Set.copyOf(audience);
+        } catch (Exception failure) {
+            try { closeBoxVisuals(); } catch (RuntimeException cleanup) { failure.addSuppressed(cleanup); }
+            throw new IllegalStateException("Kart pickup refresh failed", failure);
+        } catch (LinkageError failure) {
+            try { closeBoxVisuals(); } catch (RuntimeException cleanup) { failure.addSuppressed(cleanup); }
+            throw new IllegalStateException("Kart pickup refresh failed", failure);
+        }
     }
     private void giveKart(Player player) {
         ArmorStand seat=game.world().spawn(player.getLocation(),ArmorStand.class,e->{
@@ -119,11 +186,15 @@ public final class PulseKartsGame extends CheckpointRaceGame {
     }
     @Override public void onInput(Player player,Input input) {
         Kart kart=karts.get(player.getUniqueId());if(kart==null || kart.bot!=null)return;
+        if (!input.isJump()) kart.driftNeedsRelease=false;
+        kart.driftPressed=input.isJump() && !kart.driftNeedsRelease;
         kart.input=new KartPhysics.Input((input.isForward()?1:0)-(input.isBackward()?1:0),
                 (input.isRight()?1:0)-(input.isLeft()?1:0));
     }
     private void drive() {
         if(closed || game.state()!=GameState.RUNNING)return;tick++;
+        if (raceResults != null && raceResults.shouldEnd(tick)) { finishRace("race-grace-ended"); return; }
+        if (tick % 20 == 0 && !itemBoxes.isEmpty()) refreshBoxVisuals();
         Map<UUID,KartPhysics.State> previous = new HashMap<>();
         karts.forEach((id,kart) -> previous.put(id,kart.motion));
         for(Kart kart:List.copyOf(karts.values())) {
@@ -150,7 +221,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
             }
             if(player.getVehicle()!=kart.seat) { reset(kart);continue; }
             player.setFallDistance(0);
-            if(game.frozen())continue;
+            if(game.frozen()) { kart.drift.reset(); continue; }
             if (!kart.selectionClosed && kart.bot == null) {
                 kart.selectionClosed = true;
                 closeStyleMenu(player);
@@ -171,17 +242,61 @@ public final class PulseKartsGame extends CheckpointRaceGame {
                         kart.motion.speed(),kart.motion.verticalSpeed(),kart.motion.grounded());
                 input = new KartPhysics.Input(0,0);
             }
-            KartPhysics.State next=KartPhysics.tick(kart.motion,input,multiplier,space,kart.style);
+            int previousDriftTier = kart.drift.tier();
+            var drift = kart.drift.update(kart.driftPressed, input, kart.motion, tick < kart.spinUntil || tick < kart.slowUntil);
+            if (kart.drift.tier() > previousDriftTier && kart.bot == null)
+                player.playSound(player.getLocation(), "minecraft:block.note_block.pling", .6f, kart.drift.tier() == 2 ? 1.7f : 1.2f);
+            if (drift.boostTicks() > 0) {
+                if (kart.bot == null) player.playSound(player.getLocation(), "minecraft:entity.firework_rocket.launch", .6f, 1.2f);
+                kart.boostUntil = Math.max(kart.boostUntil, tick + drift.boostTicks());
+                multiplier = speedMultiplier(tick, kart.boostUntil, kart.slowUntil);
+            }
+            KartPhysics.State next=KartPhysics.tick(kart.motion,drift.input(),multiplier,space,kart.style,drift.slipDegrees());
+            if (next.speed() < 4 || Math.hypot(next.x()-kart.motion.x(),next.z()-kart.motion.z()) < .08) kart.drift.cancelCharge();
             Location to=location(next);
             if(to.getY()<voidY()) { reset(kart);continue; }
             if(!kart.seat.teleport(to,TeleportFlag.EntityState.RETAIN_PASSENGERS)) {reset(kart);continue;}
             kart.motion=next;
+            finishFraction = finish == null ? 0 : RaceGateCrossing.entry(finish,from,to);
             super.onMove(player,from,to);
             if(closed || game.state()!=GameState.RUNNING)return;
-            collect(kart,from,to);
+            if (karts.containsKey(player.getUniqueId())) collect(kart,from,to);
         }
         if (!game.frozen()) applyBumps(previous);
+        completeRaceTick();
     }
+    private void initialiseResults(List<Player> racers) {
+        raceResults = new KartRaceResults(racers.stream().map(Player::getUniqueId).toList(),
+                game.arena().settings().getInt("finish-grace-seconds",30));
+        racers.forEach(p -> racerNames.put(p.getUniqueId(),p.getName()));
+    }
+    @Override protected void onFinish(Player player) {
+        if (raceResults == null) initialiseResults(karts.values().stream().map(k -> k.driver).toList());
+        if (!raceResults.finish(player.getUniqueId(),tick,Double.isFinite(finishFraction) ? finishFraction : 0)) return;
+        removeKart(player);
+        game.finishParticipant(player);
+        player.sendMessage(Text.mm("<green>Course complete! <gray>You can watch the remaining racers."));
+    }
+    private void completeRaceTick() {
+        if (raceResults == null || resultsPublished || closed) return;
+        for (var result : raceResults.results()) if (announcedFinishers.add(result.player()))
+            game.broadcast("<gold>#" + result.place() + (result.tied() ? " (tie) " : " ")
+                    + racerNames.getOrDefault(result.player(),"Racer") + " <green>finished!");
+        if (raceResults.shouldEnd(tick) || karts.isEmpty()) finishRace("race-complete");
+    }
+    private void finishRace(String reason) {
+        if (resultsPublished || closed || game.state()!=GameState.RUNNING) return;
+        resultsPublished = true;
+        List<UUID> winnerIds = raceResults == null ? List.of() : raceResults.winners();
+        List<Player> winners = game.players().stream().filter(p -> winnerIds.contains(p.getUniqueId())).toList();
+        if (!winnerIds.isEmpty() && winners.isEmpty())
+            game.broadcast("<gray>The first-place finisher left; their placing stands, but no victory rewards are reassigned.");
+        if (raceResults != null && raceResults.remainingRacers()>0)
+            game.broadcast("<gray>Race closed with " + raceResults.remainingRacers() + " unfinished racer(s).");
+        game.end(winners,reason);
+    }
+    @Override public void onTimeUp() { finishRace("time-race"); }
+
     private void applyBumps(Map<UUID,KartPhysics.State> previous) {
         for (Kart victim : karts.values()) {
             if (tick < victim.bumpImmuneUntil || victim.resetTick == tick || !game.isActive(victim.driver)) continue;
@@ -197,7 +312,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
                     victim.bumpImmuneUntil = tick+60;
                     var m=victim.motion;
                     victim.motion = new KartPhysics.State(m.x(),m.y(),m.z(),m.yaw(),m.speed()*.45,m.verticalSpeed(),m.grounded());
-                    victim.driver.sendActionBar(Text.mm("<red>Bumped! <gold>3 seconds of bump protection"));
+                    victim.driver.sendActionBar(Text.mm("<red>Bumped! <gold>3 seconds of hit protection"));
                     victim.driver.playSound(location(m),"minecraft:entity.player.hurt",1,.8f);
                     attacker.driver.sendActionBar(Text.mm("<green>Bumper hit!"));
                     break;
@@ -223,14 +338,15 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         Location following = botPoints.get((kart.waypoint + 1) % botPoints.size());
         BotDifficulty difficulty = game.plugin().bots().difficultyFor(game, null);
         var decision = kart.bot.update(kart.motion, point(target), point(following), difficulty, space,
-                karts.values().stream().filter(other -> other != kart).map(other -> other.motion).toList());
+                karts.values().stream().filter(other -> other != kart).map(other -> other.motion).toList(), kart.style);
         if (decision.reset()) { reset(kart); return true; }
         kart.input = decision.input();
+        kart.driftPressed = decision.drift();
         if (kart.item != null && tick >= kart.nextItemTick) {
             boolean use = switch (kart.item) {
                 case TURBO -> decision.useTurboSafe();
                 case SHELL -> shellTargetAhead(kart);
-                case LIGHTNING -> karts.values().stream().anyMatch(other -> other != kart && game.isActive(other.driver));
+                case LIGHTNING -> lightningTarget(kart) != null;
             };
             if (use) useItem(kart);
             kart.nextItemTick = tick + switch (difficulty) { case EASY -> 40; case NORMAL -> 20; case HARD -> 10; };
@@ -243,7 +359,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         Vector direction = origin.getDirection().setY(0).normalize();
         var wall = game.world().rayTraceBlocks(origin,direction,24,FluidCollisionMode.ALWAYS,true);
         double range = wall == null ? 24 : wall.getHitPosition().distance(origin.toVector());
-        return karts.values().stream().filter(other -> other != kart && game.isActive(other.driver)).anyMatch(other -> {
+        return karts.values().stream().filter(other -> other != kart && game.isActive(other.driver) && tick >= other.bumpImmuneUntil).anyMatch(other -> {
             Vector relative = location(other.motion).add(0,.45,0).toVector().subtract(origin.toVector());
             double along = relative.dot(direction);
             return along > 0 && along < range && relative.subtract(direction.clone().multiply(along)).lengthSquared() <= 1;
@@ -261,15 +377,23 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         boolean inside=itemBoxes.stream().anyMatch(b->b.contains(to));
         boolean crossed=itemBoxes.stream().anyMatch(b->!Double.isNaN(RaceGateCrossing.entry(b,from,to)));
         if(!kart.insideBox && crossed && tick>=kart.boxReady && kart.item==null) {
-            kart.boxReady=tick+100;kart.item=pickItem(kart.style,ThreadLocalRandom.current().nextInt(100));
+            kart.boxReady=tick+100;kart.item=KartItemBalance.choose(kart.style,ThreadLocalRandom.current().nextInt(100),clearlyBehind(kart));
             showItem(kart);kart.driver.playSound(to,"minecraft:entity.item.pickup",1,.8f);
         }
         kart.insideBox=inside;
     }
-    static Item pickItem(KartStyle style,int roll) {
-        int value=Math.floorMod(roll,100);
-        if (style == KartStyle.TRICKSTER) return value < 15 ? Item.SHELL : value < 60 ? Item.TURBO : Item.LIGHTNING;
-        return value < 34 ? Item.SHELL : value < 67 ? Item.TURBO : Item.LIGHTNING;
+    static Item pickItem(KartStyle style,int roll) { return KartItemBalance.choose(style,roll,true); }
+    private boolean clearlyBehind(Kart kart) {
+        int own = progressValue(kart.driver.getUniqueId());
+        return karts.values().stream().anyMatch(other -> other != kart && game.isActive(other.driver)
+                && progressValue(other.driver.getUniqueId()) > own);
+    }
+    private Kart lightningTarget(Kart kart) {
+        int own = progressValue(kart.driver.getUniqueId());
+        return standings().stream().map(p -> karts.get(p.getUniqueId())).filter(Objects::nonNull)
+                .filter(other -> other != kart && game.isActive(other.driver) && tick >= other.bumpImmuneUntil
+                        && other.resetTick != tick && progressValue(other.driver.getUniqueId()) > own)
+                .findFirst().orElse(null);
     }
     private void showItem(Kart kart) {
         if(kart.item==null){kart.driver.getInventory().setItem(0,null);return;}
@@ -311,6 +435,16 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         if (kart==null || kart.bot!=null || !choosingStyle() || !game.isActive(player)) return false;
         kart.style=Objects.requireNonNull(style);return true;
     }
+    @Override protected List<Player> standings() {
+        List<Player> ordered = new ArrayList<>(super.standings());
+        if (raceResults == null) return ordered;
+        Map<UUID,Integer> places = new HashMap<>();
+        raceResults.results().forEach(r -> places.put(r.player(),r.place()));
+        game.players().stream().filter(p -> places.containsKey(p.getUniqueId()) && !ordered.contains(p)).forEach(ordered::add);
+        ordered.sort(Comparator.comparingInt((Player p) -> places.getOrDefault(p.getUniqueId(),Integer.MAX_VALUE))
+                .thenComparing(Comparator.comparingInt((Player p) -> progressValue(p.getUniqueId())).reversed()));
+        return ordered;
+    }
     @Override public List<String> sidebar(Player player) {
         List<String> lines=new ArrayList<>(super.sidebar(player));
         Kart kart=karts.get(player.getUniqueId());
@@ -331,20 +465,29 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         useItem(kart);
     }
     private void useItem(Kart kart) {
-        Item used=kart.item;if(used==null)return;kart.item=null;showItem(kart);
+        Item used=kart.item;if(used==null)return;
+        Kart lightning = used == Item.LIGHTNING ? lightningTarget(kart) : null;
+        if (used == Item.LIGHTNING && lightning == null) {
+            if (kart.bot == null) kart.driver.sendActionBar(Text.mm("<gray>No unprotected racer ahead yet. Lightning retained."));
+            return;
+        }
+        kart.item=null;showItem(kart);
         switch(used) {
-            case TURBO -> {kart.boostUntil=tick+40;kart.driver.playSound(location(kart.motion),"minecraft:entity.firework_rocket.launch",1,1.2f);}
+            case TURBO -> {kart.boostUntil=Math.max(kart.boostUntil,tick+40);kart.driver.playSound(location(kart.motion),"minecraft:entity.firework_rocket.launch",1,1.2f);}
             case SHELL -> shell(kart);
             case LIGHTNING -> {
-                Player target=standings().stream().filter(p->p!=kart.driver && karts.containsKey(p.getUniqueId())).findFirst().orElse(null);
-                if(target!=null){Kart other=karts.get(target.getUniqueId());slow(other,60);game.world().strikeLightningEffect(location(other.motion));}
+                if(slow(lightning,60))game.world().strikeLightningEffect(location(lightning.motion));
             }
         }
     }
-    private void slow(Kart kart,int duration) {
+    private boolean slow(Kart kart,int duration) {
+        if (tick < kart.bumpImmuneUntil || kart.resetTick == tick) return false;
         kart.slowUntil=Math.max(kart.slowUntil,tick+duration);
+        kart.bumpImmuneUntil = kart.slowUntil + 40;
+        kart.drift.cancelCharge();
         kart.driver.playSound(location(kart.motion),"minecraft:entity.player.hurt",1,1);
-        kart.driver.sendActionBar(Text.mm("<red>Your kart was hit!"));
+        kart.driver.sendActionBar(Text.mm("<red>Your kart was hit! <gold>Brief hit protection active"));
+        return true;
     }
     /** Chassis hit detection, including marker seats whose vanilla hitboxes are intentionally absent. */
     private void shell(Kart shooter) {
@@ -358,15 +501,21 @@ public final class PulseKartsGame extends CheckpointRaceGame {
             if(along>0 && along<nearest && relative.clone().subtract(direction.clone().multiply(along)).lengthSquared()<=1) {target=other;nearest=along;}
         }
         for(double d=.5;d<nearest;d+=.75)game.world().spawnParticle(Particle.SNOWFLAKE,origin.clone().add(direction.clone().multiply(d)),1,0,0,0,0);
-        if(target!=null){slow(target,50);shooter.driver.sendActionBar(Text.mm("<green>Shell hit!"));}
+        if(target!=null){boolean hit=slow(target,50);shooter.driver.sendActionBar(Text.mm(hit ? "<green>Shell hit!" : "<gray>That kart is recovering from a hit."));}
     }
     private boolean safeReset(Location at) {
         return space.clearAt(at.getX(),at.getY(),at.getZ(),at.getYaw())
                 && !space.clearAt(at.getX(),at.getY()-.1,at.getZ(),at.getYaw());
     }
     private void reset(Kart kart) {
+        kart.drift.reset();kart.driftPressed=false;
         kart.resetTick=tick;kart.spinUntil=0;kart.bumpImmuneUntil=Math.max(kart.bumpImmuneUntil,tick+40);
         Location target=resetLocation(kart.driver);kart.input=new KartPhysics.Input(0,0);kart.boostUntil=0;kart.slowUntil=0;
+        Input held = kart.bot == null ? kart.driver.getCurrentInput() : null;
+        kart.driftNeedsRelease = held != null && held.isJump();
+        if (held != null) kart.input = new KartPhysics.Input(
+                (held.isForward()?1:0)-(held.isBackward()?1:0),
+                (held.isRight()?1:0)-(held.isLeft()?1:0));
         boolean gridFallback = !safeReset(target);
         if(gridFallback)target=game.spawnFor(kart.driver);
         if(!safeReset(target))throw new IllegalStateException("Kart reset/grid point obstructed");
@@ -392,13 +541,13 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         try{kart.visual.close();}catch(Exception failure){game.plugin().getLogger().warning("Kart visual cleanup: "+failure.getMessage());}
         finally {kart.seat.eject();kart.seat.remove();}
     }
-    @Override public void onQuit(Player player){removeKart(player);super.onQuit(player);}
-    @Override public void onEliminated(Player player){removeKart(player);}
+    @Override public void onQuit(Player player){removeKart(player);super.onQuit(player);if(raceResults!=null){raceResults.depart(player.getUniqueId());completeRaceTick();}}
+    @Override public void onEliminated(Player player){removeKart(player);if(raceResults!=null){raceResults.depart(player.getUniqueId());completeRaceTick();}}
     @Override public void onEnd(List<Player> winners){onCleanup();}
-    @Override public void onCleanup(){closed=true;for(Kart kart:List.copyOf(karts.values()))removeKart(kart.driver);}
+    @Override public void onCleanup(){closed=true;try {closeBoxVisuals();} finally {for(Kart kart:List.copyOf(karts.values()))removeKart(kart.driver);}}
     @Override public int startFreezeSeconds(){return 15;}
     @Override public int timeLimitSeconds(){return game.arena().settings().getInt("time-limit",600);}
     @Override
-    public String phaseCountdown() { int seconds = game.startCountdownSeconds(); return seconds > 0 ? "Choose kart: " + seconds + "s" : null; }
+    public String phaseCountdown() { if(raceResults!=null && raceResults.hasFinishers() && !resultsPublished) return "Finish race: " + raceResults.remainingSeconds(tick) + "s"; int seconds = game.startCountdownSeconds(); return seconds > 0 ? "Choose kart: " + seconds + "s" : null; }
 
 }

@@ -94,6 +94,8 @@ class KartArcadeTest {
         move.invoke(logic,racer.driver,progress,new Location(world,0,64,4),new Location(world,0,64,7));
         verify(game,never()).end(anyList(),eq("finish"));
         move.invoke(logic,racer.driver,progress,new Location(world,0,64,0),new Location(world,0,64,7));
-        verify(game).end(List.of(racer.driver),"finish");
+        when(game.players()).thenReturn(List.of(racer.driver));
+        var complete=PulseKartsGame.class.getDeclaredMethod("completeRaceTick");complete.setAccessible(true);complete.invoke(logic);
+        verify(game).end(List.of(racer.driver),"race-complete");
     }
 }

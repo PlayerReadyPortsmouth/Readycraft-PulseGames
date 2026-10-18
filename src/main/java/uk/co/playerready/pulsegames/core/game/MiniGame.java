@@ -105,6 +105,9 @@ public abstract class MiniGame {
      */
     public boolean cooperative() { return false; }
 
+    /** Game owns finish/withdrawal decisions, including an empty active roster. */
+    public boolean managesCompletion() { return false; }
+
     /**
      * Hard cap on teams this arena can host, where the map needs one dedicated
      * feature per team (Bedwars: one bed region). Default: no game-specific limit.

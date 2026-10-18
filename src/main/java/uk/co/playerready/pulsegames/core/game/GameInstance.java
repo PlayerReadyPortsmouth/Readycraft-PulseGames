@@ -608,6 +608,21 @@ public final class GameInstance {
         }
     }
 
+    /** Finish without forfeiting participant credit or invoking last-standing completion.
+     * Called on the server thread after the game has removed its owned vehicle/items. */
+    public void finishParticipant(Player player) {
+        if (state != GameState.RUNNING || !logic.managesCompletion() || !isParticipant(player)
+                || !alive.remove(player.getUniqueId())) return;
+        respawning.remove(player.getUniqueId());
+        lastDamager.remove(player.getUniqueId());
+        lastDamagerAt.remove(player.getUniqueId());
+        spectators.add(player.getUniqueId());
+        if (plugin.combat() != null) plugin.combat().leave(player);
+        plugin.playerState().reset(player);
+        player.setGameMode(org.bukkit.GameMode.SPECTATOR);
+        player.teleport(arena.spectator(world));
+    }
+
     public void eliminate(Player player) {
         if (!alive.remove(player.getUniqueId())) return;
         spectators.add(player.getUniqueId());
@@ -645,7 +660,7 @@ public final class GameInstance {
     }
 
     public void checkEnd() {
-        if (state != GameState.RUNNING) return;
+        if (state != GameState.RUNNING || logic.managesCompletion()) return;
         if (mode.isTeams()) {
             List<GameTeam> remaining = aliveTeams();
             if (remaining.size() <= 1) {

@@ -32,6 +32,11 @@ public final class KartPhysics {
     }
 
     public static State tick(State state, Input input, double speedMultiplier, CollisionSpace space, KartStyle style) {
+        return tick(state, input, speedMultiplier, space, style, 0);
+    }
+
+    public static State tick(State state, Input input, double speedMultiplier, CollisionSpace space, KartStyle style,
+                             double slipDegrees) {
         double multiplier = finiteClamp(speedMultiplier, 0, 2);
         double speed = state.speed();
         if (input.throttle() == 0) speed = approach(speed, 0, 5 * DT);
@@ -47,8 +52,9 @@ public final class KartPhysics {
             if(!space.clearAt(x,y,z,(float)(state.yaw()+turn*i/turnSteps))) { yaw=state.yaw(); break; }
         }
         boolean grounded = !space.clearAt(x, y - .03, z, yaw);
-        double dx = -Math.sin(Math.toRadians(yaw)) * speed * DT;
-        double dz = Math.cos(Math.toRadians(yaw)) * speed * DT;
+        double heading = yaw - finiteClamp(slipDegrees, -20, 20);
+        double dx = -Math.sin(Math.toRadians(heading)) * speed * DT;
+        double dz = Math.cos(Math.toRadians(heading)) * speed * DT;
         int steps = Math.max(1, (int) Math.ceil(Math.hypot(dx, dz) / SUBSTEP));
         for (int i = 0; i < steps; i++) {
             double nx = x + dx / steps, nz = z + dz / steps;
@@ -63,7 +69,30 @@ public final class KartPhysics {
                     }
                 }
             }
-            if (!stepped) { speed = 0; break; }
+            if (!stepped) {
+                // Keep the safe tangent of a shallow scrape, never the blocked component.
+                // Require exactly one free axis: inside corners and head-on impacts stop.
+                boolean xClear = space.clearAt(nx, y, z, yaw);
+                boolean zClear = space.clearAt(x, y, nz, yaw);
+                double length = Math.hypot(dx, dz);
+                if (xClear != zClear && length > EPSILON) {
+                    double tangent = xClear ? Math.abs(dx) : Math.abs(dz);
+                    double normal = xClear ? Math.abs(dz) : Math.abs(dx);
+                    if (tangent > normal * 1.5) {
+                        double slideX = xClear ? dx * .85 : 0;
+                        double slideZ = zClear ? dz * .85 : 0;
+                        double sx = x + slideX / steps, sz = z + slideZ / steps;
+                        if (space.clearAt(sx, y, sz, yaw)) {
+                            speed *= tangent / length * .85;
+                            dx = slideX; dz = slideZ;
+                            x = sx; z = sz;
+                            continue;
+                        }
+                    }
+                }
+                speed = 0;
+                break;
+            }
         }
         double vertical = grounded ? 0 : Math.max(-12, state.verticalSpeed() - 24 * DT);
         // Always probe down, including after climbing a slab or leaving an edge.
