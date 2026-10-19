@@ -1,39 +1,43 @@
 package uk.co.playerready.pulsegames.games.luckypillars;
 
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Sound;
+import org.bukkit.World;
 import org.bukkit.block.Block;
-import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.TNTPrimed;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionEffectType;
 import uk.co.playerready.pulsegames.core.game.GameInstance;
 import uk.co.playerready.pulsegames.core.game.MiniGame;
 import uk.co.playerready.pulsegames.core.util.Text;
 
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.Consumer;
 
 /**
  * Lucky Pillars: stranded on pillars, random lucky drops every few seconds.
  * Bridge, fight and knock everyone else into the void!
- * Modes: classic, chaos (faster drops + wild events).
+ * Modes: classic, chaos (adds timed chaos events, see {@link LuckyChaos}).
+ * Drops come from {@link LuckyDrops}: weak early, stronger later, with catch-up for the unarmed.
  */
 public final class LuckyPillarsGame extends MiniGame {
 
-    private final List<Consumer<Player>> drops = List.of(
-            p -> give(p, named(enchant(new ItemStack(Material.STICK), Enchantment.KNOCKBACK, 2), "<gold>Yeet Stick"), "a Yeet Stick"),
-            p -> give(p, new ItemStack(Material.SNOWBALL, 8), "8 snowballs"),
-            p -> give(p, new ItemStack(Material.ENDER_PEARL), "an ender pearl"),
-            p -> give(p, new ItemStack(Material.COBWEB, 2), "cobwebs"),
-            p -> give(p, new ItemStack(Material.OAK_PLANKS, 12), "building blocks"),
-            p -> give(p, new ItemStack(Material.STONE_AXE), "a stone axe"),
-            p -> give(p, new ItemStack(Material.SHIELD), "a shield"),
-            p -> give(p, new ItemStack(Material.FISHING_ROD), "a fishing rod"),
-            p -> give(p, new ItemStack(Material.GOLDEN_APPLE), "a golden apple"),
-            p -> give(p, new ItemStack(Material.SLIME_BLOCK, 3), "slime blocks"));
+    public static final int DEFAULT_DROP_INTERVAL = 5;
+    public static final int MIN_DROP_INTERVAL = 3;
+    static final int MAX_GROUND_OVERFLOW = 30;
+
+    private final Map<UUID, Map<String, Integer>> received = new HashMap<>();
+    private LuckyChaos.Director chaos;
+    private int overflowOnGround;
 
     public LuckyPillarsGame(GameInstance game) {
         super(game);
@@ -41,68 +45,103 @@ public final class LuckyPillarsGame extends MiniGame {
 
     private boolean isChaos() { return game.mode().rulesId().equals("chaos"); }
 
+    /** Arena {@code drop-interval} override, never faster than {@link #MIN_DROP_INTERVAL}. */
+    static int dropInterval(int configured) {
+        return Math.max(MIN_DROP_INTERVAL, configured);
+    }
+
     private int dropInterval() {
-        return Math.max(1, game.arena().settings().getInt("drop-interval", isChaos() ? 6 : 10));
+        return dropInterval(game.arena().settings().getInt("drop-interval", DEFAULT_DROP_INTERVAL));
     }
 
     @Override
     public void onStart() {
         game.broadcast("Lucky drops every <yellow>" + dropInterval() + "s</yellow>! Knock the others off!");
+        if (isChaos()) {
+            chaos = new LuckyChaos.Director(game, ThreadLocalRandom.current(), () -> roll(null), this::giveDrop);
+            chaos.start();
+        }
     }
 
     @Override
     public void onSecond(int gameTime) {
         if (gameTime == 0 || gameTime % dropInterval() != 0) return;
-        var random = ThreadLocalRandom.current();
         for (Player player : game.alivePlayers()) {
-            drops.get(random.nextInt(drops.size())).accept(player);
+            LuckyDrops.Drop drop = roll(player);
+            if (drop == null) continue;
+            giveDrop(player, drop);
             player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1f, 1.5f);
         }
-        if (isChaos() && random.nextInt(4) == 0) {
-            chaosEvent();
+    }
+
+    /** Time-scaled weighted roll; with a player, applies their caps and weapon catch-up. */
+    private LuckyDrops.Drop roll(Player player) {
+        double progress = LuckyDrops.progress(game.gameTime());
+        Set<String> capped = new HashSet<>();
+        boolean unarmed = false;
+        if (player != null) {
+            var counts = received.getOrDefault(player.getUniqueId(), Map.of());
+            for (LuckyDrops.Drop d : LuckyDrops.ALL) {
+                if (d.cap() > 0 && counts.getOrDefault(d.id(), 0) >= d.cap()) capped.add(d.id());
+            }
+            unarmed = !armed(player);
+        } else {
+            for (LuckyDrops.Drop d : LuckyDrops.ALL) if (d.cap() > 0) capped.add(d.id());
         }
+        return LuckyDrops.pick(LuckyDrops.ALL, progress, unarmed, capped, ThreadLocalRandom.current());
     }
 
-    private void chaosEvent() {
-        var random = ThreadLocalRandom.current();
-        switch (random.nextInt(3)) {
-            case 0 -> {
-                game.broadcast("<light_purple><b>CHAOS:</b> Everybody up!");
-                game.alivePlayers().forEach(p ->
-                        p.addPotionEffect(new PotionEffect(PotionEffectType.LEVITATION, 40, 1)));
-            }
-            case 1 -> {
-                game.broadcast("<light_purple><b>CHAOS:</b> Moon jumps!");
-                game.alivePlayers().forEach(p ->
-                        p.addPotionEffect(new PotionEffect(PotionEffectType.JUMP_BOOST, 200, 3)));
-            }
-            case 2 -> {
-                List<Player> alive = game.alivePlayers();
-                if (alive.size() < 2) return;
-                game.broadcast("<light_purple><b>CHAOS:</b> Swap!");
-                Player a = alive.get(random.nextInt(alive.size()));
-                Player b = alive.get(random.nextInt(alive.size()));
-                var locA = a.getLocation().clone();
-                a.teleport(b.getLocation());
-                b.teleport(locA);
-            }
+    static boolean armed(Player player) {
+        for (ItemStack item : player.getInventory().getContents()) {
+            if (item != null && LuckyDrops.WEAPONS.contains(item.getType())) return true;
         }
+        return false;
     }
 
-    private static ItemStack enchant(ItemStack item, Enchantment enchantment, int level) {
-        item.addUnsafeEnchantment(enchantment, level);
-        return item;
+    private void giveDrop(Player player, LuckyDrops.Drop drop) {
+        if (drop.cap() > 0) received.computeIfAbsent(player.getUniqueId(), k -> new HashMap<>()).merge(drop.id(), 1, Integer::sum);
+        give(player, drop.item().get(), drop.label());
     }
 
-    private static ItemStack named(ItemStack item, String name) {
-        item.editMeta(meta -> meta.displayName(Text.mm(name)));
-        return item;
+    /** Placed TNT lights itself, so the drop is usable without flint and steel. */
+    @Override
+    public void onBlockPlaced(BlockPlaceEvent event) {
+        Block block = event.getBlockPlaced();
+        if (block.getType() != Material.TNT) return;
+        block.setType(Material.AIR, false);
+        Location at = block.getLocation().add(0.5, 0, 0.5);
+        at.getWorld().spawn(at, TNTPrimed.class, tnt -> {
+            tnt.setFuseTicks(50);
+            tnt.setSource(event.getPlayer());
+        });
+    }
+
+    @Override
+    public void onEnd(List<Player> winners) {
+        shutdownExtras();
+    }
+
+    @Override
+    public void onCleanup() {
+        shutdownExtras();
+    }
+
+    /** Restore chaos changes and drop egg-spawned mobs; safe to call from both end and cleanup. */
+    private void shutdownExtras() {
+        if (chaos != null) chaos.shutdown();
+        World world = game.world();
+        if (world == null) return;
+        for (Entity e : world.getEntities()) {
+            if (e instanceof Mob || e instanceof TNTPrimed) e.remove();
+        }
     }
 
     void give(Player player, ItemStack item, String description) {
         if (!game.isActive(player) || player.getWorld() != game.world()) return;
         var leftovers = player.getInventory().addItem(item);
         for (ItemStack leftover : leftovers.values()) {
+            if (overflowOnGround >= MAX_GROUND_OVERFLOW) continue;
+            overflowOnGround++;
             var dropped = game.world().dropItem(player.getLocation().clone(), leftover);
             dropped.setVelocity(new org.bukkit.util.Vector());
             dropped.setPickupDelay(10);
@@ -127,6 +166,9 @@ public final class LuckyPillarsGame extends MiniGame {
 
     @Override
     public boolean canPlace(Player player, Block block) { return true; }
+
+    @Override
+    public boolean canExplode(Block block) { return true; }
 
     @Override
     public boolean canBreak(Player player, Block block) { return true; }
