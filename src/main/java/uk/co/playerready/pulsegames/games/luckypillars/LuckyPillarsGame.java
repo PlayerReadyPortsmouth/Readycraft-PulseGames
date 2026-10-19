@@ -38,6 +38,8 @@ public final class LuckyPillarsGame extends MiniGame {
     private final Map<UUID, Map<String, Integer>> received = new HashMap<>();
     private LuckyChaos.Director chaos;
     private int overflowOnGround;
+    /** Overflow drops from {@link #give}; only these may be picked up. */
+    private final java.util.Set<java.util.UUID> overflowItems = new java.util.HashSet<>();
 
     public LuckyPillarsGame(GameInstance game) {
         super(game);
@@ -145,6 +147,7 @@ public final class LuckyPillarsGame extends MiniGame {
             var dropped = game.world().dropItem(player.getLocation().clone(), leftover);
             dropped.setVelocity(new org.bukkit.util.Vector());
             dropped.setPickupDelay(10);
+            overflowItems.add(dropped.getUniqueId());
         }
         player.sendActionBar(Text.mm("<gold>Lucky drop: <yellow>" + description
                 + (leftovers.isEmpty() ? "" : " <gray>(inventory full; dropped beside you)")));
@@ -159,6 +162,11 @@ public final class LuckyPillarsGame extends MiniGame {
             game.broadcast("<red>" + victim.getName() + "</red> fell!");
         }
         game.eliminate(victim);
+    }
+
+    @Override
+    public boolean itemPickup(Player player, org.bukkit.entity.Item item) {
+        return overflowItems.remove(item.getUniqueId());
     }
 
     @Override
