@@ -21,7 +21,8 @@ import uk.co.playerready.pulsegames.core.util.Text;
 
 /** Map-authored, team-wide doors and fixed-price wall purchases. Never touches a template world. */
 public final class ZMapProgression implements org.bukkit.event.Listener {
-    public record Door(int id, Location anchor, Cuboid blocks, int cost, int round) {}
+    /** {@code anchor} is optional: without one the door is bought by sneaking next to its region. */
+    public record Door(int id, Location anchor, Cuboid blocks, int cost, int round, String name) {}
     public record Wall(int id, Location anchor, Offering type, int cost, int round) {}
     public record Definition(List<Door> doors, List<Wall> walls, Map<Integer,Integer> gates) {
         public Definition { doors=List.copyOf(doors); walls=List.copyOf(walls); gates=Map.copyOf(gates); }
@@ -37,6 +38,8 @@ public final class ZMapProgression implements org.bukkit.event.Listener {
     private final Definition definition;
     private final Set<Integer> opened=new HashSet<>();
     private final Map<Block,BlockData> originals=new LinkedHashMap<>();
+    static final double PROMPT_RANGE=3;
+    private final Map<Integer,org.bukkit.entity.TextDisplay> holograms=new HashMap<>();
     private int round;
     private boolean registered;
     public ZMapProgression(GameInstance game) {
@@ -54,7 +57,7 @@ public final class ZMapProgression implements org.bukkit.event.Listener {
         Set<Integer> doorIds=new TreeSet<>(), wallIds=new TreeSet<>();
         for(String key:settings.keySet()) {
             if(key.startsWith("z-door")||key.startsWith("z-wall")) {
-                var m=java.util.regex.Pattern.compile("z-(door|wall)([1-9][0-9]*)-(anchor|cost|round|type)").matcher(key);
+                var m=java.util.regex.Pattern.compile("z-(door|wall)([1-9][0-9]*)-(anchor|cost|round|type|name)").matcher(key);
                 if(!m.matches())throw invalid("Unknown progression setting: "+key);
                 int id=number(m.group(2),key,1,32);
                 if(m.group(1).equals("door")) {
@@ -77,8 +80,8 @@ public final class ZMapProgression implements org.bukkit.event.Listener {
             String key="z-door"+id; Cuboid box=regions.get(key);
             if(box==null||box.volume()>512||!inside(bounds,box))throw invalid(key+" must be a region of at most 512 blocks inside bounds.");
             for(Door other:doors)if(overlap(box,other.blocks()))throw invalid("Door regions overlap.");
-            doors.add(new Door(id,anchor(settings,key,bounds,anchors),box,
-                    number(settings.get(key+"-cost"),key+"-cost",1,100000),number(settings.getOrDefault(key+"-round",1),key+"-round",1,50)));
+            doors.add(new Door(id,settings.containsKey(key+"-anchor")?anchor(settings,key,bounds,anchors):null,box,
+                    number(settings.get(key+"-cost"),key+"-cost",1,100000),number(settings.getOrDefault(key+"-round",1),key+"-round",1,50),doorName(settings,key,id)));
         }
         for(int id:wallIds) {
             String key="z-wall"+id; Offering type;
@@ -88,7 +91,7 @@ public final class ZMapProgression implements org.bukkit.event.Listener {
                     number(settings.get(key+"-cost"),key+"-cost",1,100000),number(settings.getOrDefault(key+"-round",1),key+"-round",1,50)));
         }
         for(Door door:doors)for(Wall wall:walls)if(door.blocks().contains(wall.anchor()))throw invalid("Wall-buy anchors cannot be inside removable doors.");
-        for(Door door:doors)for(Door other:doors)if(door.id()!=other.id()&&door.blocks().contains(other.anchor()))throw invalid("Door anchor would be removed by another door.");
+        for(Door door:doors)for(Door other:doors)if(door.id()!=other.id()&&other.anchor()!=null&&door.blocks().contains(other.anchor()))throw invalid("Door anchor would be removed by another door.");
         Map<Integer,Integer> gates=new HashMap<>();
         for(String key:settings.keySet())if(key.matches("mobspawn.*-door")) {
             if(!key.matches("mobspawn[1-9][0-9]*-door"))throw invalid("Invalid spawn gate: "+key);
@@ -101,6 +104,11 @@ public final class ZMapProgression implements org.bukkit.event.Listener {
         long spawns=regions.keySet().stream().filter(k->k.matches("mobspawn[1-9][0-9]*")).count();
         if(spawns==0||gates.size()>=spawns)throw invalid("At least one mobspawn region must be available before any doors open.");
         return new Definition(doors,walls,gates);
+    }
+    private static String doorName(Map<String,Object> settings,String key,int id) {
+        String name=Objects.toString(settings.get(key+"-name"),"").replaceAll("[<>\\p{Cntrl}]","").trim();
+        if(name.length()>24)throw invalid(key+"-name must be at most 24 characters.");
+        return name.isEmpty()?"Door "+id:name;
     }
     private static Location anchor(Map<String,Object> settings,String key,Cuboid bounds,Set<String> used) {
         Location loc;
@@ -138,16 +146,121 @@ public final class ZMapProgression implements org.bukkit.event.Listener {
                 ||player.getGameMode()==org.bukkit.GameMode.SPECTATOR||player.getWorld()!=game.world()||clicked.getWorld()!=game.world()
                 ||player.getLocation().distanceSquared(clicked.getLocation().add(.5,.5,.5))>16)return true;
         if(!ownedWorld()) { message(player,"This purchase is unavailable outside the match instance.");return true; }
-        int cost=door!=null?door.cost():wall.cost(), required=door!=null?door.round():wall.round();
-        if(door!=null&&opened.contains(door.id())){message(player,"That team door is already open.");return true;}
-        if(round<required){message(player,"Unlocks in round "+required+".");return true;}
-        if(game.score(player)<cost){message(player,"Requires "+cost+" points.");return true;}
-        boolean applied=door!=null?openDoor(door):apply(player,wall.type());
-        if(!applied){message(player,"Purchase unavailable: check space, health, effects or door blocks.");return true;}
-        game.addScore(player,-cost);
-        if(door!=null)game.broadcast("<green>Team door "+door.id()+" opened!</green>");
-        else message(player,"Bought "+wall.type().name().toLowerCase(Locale.ROOT).replace('_',' ')+" for "+cost+" points.");
+        if(door!=null){purchaseDoor(player,door);return true;}
+        if(round<wall.round()){message(player,"Unlocks in round "+wall.round()+".");return true;}
+        if(game.score(player)<wall.cost()){message(player,"Requires "+wall.cost()+" points.");return true;}
+        if(!apply(player,wall.type())){message(player,"Purchase unavailable: check space, health, effects or door blocks.");return true;}
+        game.addScore(player,-wall.cost());
+        message(player,"Bought "+wall.type().name().toLowerCase(Locale.ROOT).replace('_',' ')+" for "+wall.cost()+" points.");
         return true;
+    }
+    /** Shared door purchase: round, points and open-state checks; the team door opens at most once. */
+    private boolean purchaseDoor(Player player,Door door) {
+        if(!ownedWorld()){message(player,"This purchase is unavailable outside the match instance.");return false;}
+        if(opened.contains(door.id())){message(player,"That team door is already open.");return false;}
+        if(round<door.round()){message(player,"Unlocks in round "+door.round()+".");return false;}
+        if(game.score(player)<door.cost()){message(player,"Requires "+door.cost()+" points.");return false;}
+        if(!openDoor(door)){message(player,"Purchase unavailable: check door blocks.");return false;}
+        game.addScore(player,-door.cost());
+        removeHologram(door.id());
+        game.broadcast("<green>"+door.name()+" opened!</green>");
+        return true;
+    }
+    private boolean canAct(Player player) {
+        return game.state()==GameState.RUNNING&&game.isActive(player)&&player.getGameMode()!=org.bukkit.GameMode.SPECTATOR
+                &&player.getWorld()==game.world()&&game.world()!=null;
+    }
+    /** Distance from the player's feet to the nearest point of the door region. */
+    static double distance(Location at,Cuboid box) {
+        double dx=Math.max(Math.max(box.minX()-at.getX(),0),at.getX()-(box.maxX()+1));
+        double dy=Math.max(Math.max(box.minY()-at.getY(),0),at.getY()-(box.maxY()+1));
+        double dz=Math.max(Math.max(box.minZ()-at.getZ(),0),at.getZ()-(box.maxZ()+1));
+        return Math.sqrt(dx*dx+dy*dy+dz*dz);
+    }
+    /** Closest still-closed door within {@code range} blocks, or null. */
+    public Door nearestClosedDoor(Player player,double range) {
+        Door best=null; double bestDistance=range;
+        for(Door door:definition.doors()) {
+            if(opened.contains(door.id()))continue;
+            double d=distance(player.getLocation(),door.blocks());
+            if(d<=bestDistance){best=door;bestDistance=d;}
+        }
+        return best;
+    }
+    public boolean nearDoorPrompt(Player player) { return !definition.doors().isEmpty()&&nearestClosedDoor(player,PROMPT_RANGE+1)!=null; }
+    public int doorCount() { return definition.doors().size(); }
+    public int doorsOpened() { return opened.size(); }
+    /** Cheapest closed door whose unlock round has been reached, or null. */
+    public Door cheapestAvailable() {
+        return definition.doors().stream().filter(d->!opened.contains(d.id())&&round>=d.round()).min(Comparator.comparingInt(Door::cost)).orElse(null);
+    }
+    /** Cheapest closed door overall, for the sidebar. */
+    public Door nextDoor() {
+        return definition.doors().stream().filter(d->!opened.contains(d.id())).min(Comparator.comparingInt(Door::cost)).orElse(null);
+    }
+    /** Where a bot should walk to reach the door: its anchor, else the middle of its region. */
+    public Location approach(Door door) {
+        if(anchor(door)!=null)return anchor(door).add(.5,0,.5);
+        Cuboid b=door.blocks(); return new Location(game.world(),(b.minX()+b.maxX()+1)/2.0,b.minY(),(b.minZ()+b.maxZ()+1)/2.0);
+    }
+    private Location anchor(Door door) { return door.anchor()==null?null:new Location(game.world(),door.anchor().getX(),door.anchor().getY(),door.anchor().getZ()); }
+    /** Sneak-to-buy and bot entry point; the player must be within {@link #PROMPT_RANGE} of the door. */
+    public boolean buyDoor(Player player,Door door) {
+        if(!canAct(player)||opened.contains(door.id())||distance(player.getLocation(),door.blocks())>PROMPT_RANGE)return false;
+        return purchaseDoor(player,door);
+    }
+    @org.bukkit.event.EventHandler(ignoreCancelled=true)
+    public void onSneak(org.bukkit.event.player.PlayerToggleSneakEvent event) {
+        Player player=event.getPlayer();
+        if(!event.isSneaking()||!canAct(player))return;
+        Door door=nearestClosedDoor(player,PROMPT_RANGE);
+        if(door!=null)purchaseDoor(player,door);
+    }
+
+    // ---- holograms and prompts -------------------------------------------------
+    /** Floating price tags, one per closed door. */
+    public void spawnHolograms() {
+        if(!ownedWorld())return;
+        for(Door door:definition.doors()) {
+            if(opened.contains(door.id())||holograms.containsKey(door.id()))continue;
+            Cuboid b=door.blocks();
+            Location at=new Location(game.world(),(b.minX()+b.maxX()+1)/2.0,Math.min(b.maxY()+1.0,b.minY()+2.5),(b.minZ()+b.maxZ()+1)/2.0);
+            org.bukkit.entity.TextDisplay display=game.world().spawn(at,org.bukkit.entity.TextDisplay.class,d->{
+                d.setBillboard(org.bukkit.entity.Display.Billboard.CENTER);
+                d.setAlignment(org.bukkit.entity.TextDisplay.TextAlignment.CENTER);
+                d.setBrightness(new org.bukkit.entity.Display.Brightness(15,15));
+                d.setPersistent(false);
+                d.text(hologramText(door,0));
+            });
+            if(display!=null)holograms.put(door.id(),display);
+        }
+    }
+    private net.kyori.adventure.text.Component hologramText(Door door,int bestScore) {
+        String colour=round<door.round()?"red":bestScore>=door.cost()?"green":"gold";
+        String status=round<door.round()?"<red>Locked until round "+door.round():"<gray>Unlocked";
+        return Text.mm("<white><b>"+door.name()+"</b><newline><"+colour+">"+door.cost()+" pts<newline>"+status);
+    }
+    private void removeHologram(int id) {
+        var display=holograms.remove(id);
+        if(display!=null)display.remove();
+    }
+    /** Once a second: refresh tag colours (green when anyone on the team can afford it) and action-bar prompts. */
+    public void tick() {
+        if(definition.doors().isEmpty())return;
+        List<Player> squad=game.alivePlayers().stream().filter(game::isActive).toList();
+        int best=squad.stream().mapToInt(game::score).max().orElse(0);
+        for(Door door:definition.doors()) {
+            var display=holograms.get(door.id());
+            if(display!=null)display.text(hologramText(door,best));
+        }
+        for(Player player:squad) {
+            if(game.isBot(player))continue;
+            Door door=nearestClosedDoor(player,PROMPT_RANGE);
+            if(door==null)continue;
+            player.sendActionBar(Text.mm(round<door.round()?"<red>"+door.name()+": locked until round "+door.round()
+                    :game.score(player)<door.cost()?"<yellow>"+door.name()+": need "+door.cost()+" pts"
+                    :"<green>Sneak to open – "+door.cost()+" pts"));
+        }
     }
     private boolean ownedWorld(){return game.world()!=null&&game.world().getName().equals(game.plugin().getConfig().getString("instances.world-prefix","pulse_")+game.id());}
     private static boolean sameCell(Location loc,Block block){return loc.getBlockX()==block.getX()&&loc.getBlockY()==block.getY()&&loc.getBlockZ()==block.getZ();}
@@ -227,6 +340,7 @@ public final class ZMapProgression implements org.bukkit.event.Listener {
         return player.addPotionEffect(new PotionEffect(effect,20*120,0,true,false,true));
     }
     public void cleanup() {
+        new ArrayList<>(holograms.keySet()).forEach(this::removeHologram);
         if(registered){org.bukkit.event.HandlerList.unregisterAll(this);registered=false;}
         if(ownedWorld())for(var entry:originals.entrySet()) {
             Block block=entry.getKey();

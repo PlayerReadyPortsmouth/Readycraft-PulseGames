@@ -58,7 +58,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
             new Upgrade("Speed Perk", Material.SUGAR, 250,
                 p -> p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 20 * 600, 0))));
 
-    private final ZMapProgression progression;
+    ZMapProgression progression;
     private final java.util.Map<UUID, ZCombatBalance.Variant> variants = new java.util.HashMap<>();
     private long elapsedTicks, nextDropTick;
     private int lastNukeRound = -100;
@@ -75,6 +75,11 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
     private final java.util.Map<UUID, String> powerupItems = new java.util.HashMap<>();
     private long doublePointsUntil;
     private List<Cuboid> mobSpawns = List.of();
+    /** Per-player elapsedTicks of the next darkness pulse; absent until the player's first scheduling. */
+    private final java.util.Map<UUID, Long> nextPulse = new java.util.HashMap<>();
+    java.util.function.DoubleSupplier pulseRoll = () -> ThreadLocalRandom.current().nextDouble();
+    /** Points a bot keeps back after buying a door so it can still afford a heal. */
+    static final int BOT_DOOR_RESERVE = 75;
 
     public ReadyPlayerZGame(GameInstance game) {
         super(game);
@@ -108,6 +113,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
         mobSpawns = game.arena().regionsByPrefix("mobspawn");
         String failure = startProblem(game.everyone());
         if(failure==null)failure=progression.startProblem();
+        if(failure==null)progression.spawnHolograms();
         if (failure != null) {
             game.note("z-model-unavailable", failure);
             game.broadcast("<red>Arena progression or configured zombie models are unavailable; this match cannot start.");
@@ -139,8 +145,9 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
     @Override
     public void onSecond(int gameTime) {
         elapsedTicks += 20;
+        progression.tick();
         if (roundActive) {
-            refreshDarkness();
+            pulseDarkness();
             double range = bounded("aggro-range", 48, 16, 96);
             for (LivingEntity enemy : botEnemies())
                 if (enemy instanceof org.bukkit.entity.Mob mob) {
@@ -162,6 +169,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
             if (zombies.isEmpty() && pendingSpawns <= 0) {
                 roundActive = false;
                 game.everyone().forEach(this::clearDarkness);
+                nextPulse.clear();
                 breakTimer = isFrenzy() ? 5 : 10;
                 game.broadcast("<green><b>Round " + round + " survived!</b></green>");
                 reviveDowned();
@@ -182,7 +190,6 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
         for (Player p : game.everyone()) {
             p.playSound(p.getLocation(), "minecraft:entity.zombie.ambient", 1f, 0.7f);
         }
-        refreshDarkness();
         progression.setRound(round);
         pendingSpawns = count;
         for (int i = 0; i < count; i++) {
@@ -449,18 +456,36 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
             checkOverrun();
     }
 
-    // Short refreshes expire even if a match is interrupted; state restoration also clears effects.
-    void refreshDarkness() {
+    /** Seconds between pulses, settings-driven; the next gap is randomised between 1x and 1.5x this. */
+    private long pulseGapTicks() {
+        double interval = bounded("darkness-interval", 30, 10, 120) * (isFrenzy() ? 0.75 : 1.0);
+        return Math.round(interval * (1 + 0.5 * pulseRoll.getAsDouble()) * 20);
+    }
+
+    /** Short darkness pulses at randomised times per player; never while a player is at a door prompt. */
+    void pulseDarkness() {
         if (!roundActive || !game.arena().settings().getBoolean("darkness", true))
             return;
+        int ticks = (int) Math.round(Math.max(1, Math.min(6, game.arena().settings().getDouble("darkness-duration", 2.5))) * 20);
         for (Player player : game.alivePlayers()) {
-            if (!game.isBot(player) && !downed.contains(player.getUniqueId()))
-                darken(player);
+            if (game.isBot(player) || downed.contains(player.getUniqueId()))
+                continue;
+            if (progression.nearDoorPrompt(player)) {
+                clearDarkness(player);
+                continue;
+            }
+            Long due = nextPulse.get(player.getUniqueId());
+            if (due == null)
+                nextPulse.put(player.getUniqueId(), elapsedTicks + pulseGapTicks());
+            else if (elapsedTicks >= due) {
+                darken(player, ticks);
+                nextPulse.put(player.getUniqueId(), elapsedTicks + pulseGapTicks());
+            }
         }
     }
 
-    void darken(Player player) {
-        player.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 60, 0, true, false, true));
+    void darken(Player player, int ticks) {
+        player.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, ticks, 0, true, false, true));
     }
 
     void clearDarkness(Player player) {
@@ -493,6 +518,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
         }
         powerupItems.clear();
         pendingSpawns = 0;
+        nextPulse.clear();
         progression.cleanup();
         if (nightApplied && game.world() != null) {
             game.world().setTime(previousTime);
@@ -525,6 +551,10 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
 
     @Override
     public Location botGuardPoint() {
+        ZMapProgression.Door door = progression.cheapestAvailable();
+        if (door != null && game.world() != null && game.alivePlayers().stream()
+                .anyMatch(p -> game.isBot(p) && game.score(p) >= door.cost() + BOT_DOOR_RESERVE))
+            return progression.approach(door);
         return game.arena().spawn(0, game.world());
     }
 
@@ -533,6 +563,10 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
         if (!game.isBot(bot) || !game.isActive(bot))
             return;
         if (bot.getHealth() <= 10 && purchase(bot, 6))
+            return;
+        // Cheapest unlocked door first, but only with a reserve left over; buyDoor itself needs the bot at the door.
+        ZMapProgression.Door door = progression.cheapestAvailable();
+        if (door != null && game.score(bot) >= door.cost() + BOT_DOOR_RESERVE && progression.buyDoor(bot, door))
             return;
         var inventory = bot.getInventory();
         if (!inventory.contains(Material.DIAMOND_SWORD) && game.score(bot) >= 500)
@@ -625,9 +659,15 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
 
     @Override
     public List<String> sidebar(Player player) {
-        return List.of("<gray>Round: <red>" + round + "/" + totalRounds(), "<gray>Zombies left: <red>" + zombies.size(),
-            "<gold>Points: <white>" + game.score(player),
-            "<gray>Team: <white>" + (game.alivePlayers().size() - downed.size()) + " up");
+        List<String> lines = new java.util.ArrayList<>(List.of("<gray>Round: <red>" + round + "/" + totalRounds(),
+            "<gray>Zombies left: <red>" + zombies.size(), "<gold>Points: <white>" + game.score(player),
+            "<gray>Team: <white>" + (game.alivePlayers().size() - downed.size()) + " up"));
+        if (progression.doorCount() > 0) {
+            var next = progression.nextDoor();
+            lines.add("<gray>Doors: <white>" + progression.doorsOpened() + "/" + progression.doorCount()
+                + (next == null ? "" : " <gray>next <gold>" + next.cost()));
+        }
+        return lines;
     }
 
     @Override

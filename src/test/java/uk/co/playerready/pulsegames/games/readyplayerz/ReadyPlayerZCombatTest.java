@@ -16,7 +16,7 @@ class ReadyPlayerZCombatTest {
         when(game.arena()).thenReturn(ReadyPlayerZBotTest.arena());when(game.world()).thenReturn(world);when(game.state()).thenReturn(GameState.RUNNING);
         when(game.everyone()).thenReturn(List.of());when(game.alivePlayers()).thenReturn(List.of(player));when(game.isActive(player)).thenReturn(true);
         when(player.getUniqueId()).thenReturn(UUID.randomUUID());when(player.getWorld()).thenReturn(world);when(player.getLocation()).thenReturn(new Location(world,20,64,0));
-        logic=spy(new ReadyPlayerZGame(game));doNothing().when(logic).darken(any());doNothing().when(logic).clearDarkness(any());
+        logic=spy(new ReadyPlayerZGame(game));doNothing().when(logic).darken(any(),anyInt());doNothing().when(logic).clearDarkness(any());
     }
     Object field(String name)throws Exception{var f=ReadyPlayerZGame.class.getDeclaredField(name);f.setAccessible(true);return f.get(logic);}
     void field(String name,Object value)throws Exception{var f=ReadyPlayerZGame.class.getDeclaredField(name);f.setAccessible(true);f.set(logic,value);}

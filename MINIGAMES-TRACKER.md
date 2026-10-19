@@ -452,7 +452,7 @@ needed. Do not bypass team/role requirements and call that a completed test.
 | Build Battle | No accepted map/test recorded | None | Yes | Theme-aware building in plots, phases and fair voting bots |
 | Death Run | No accepted map/test recorded | None | Classic needs 3; double trouble 4 | Runner routes, Death roles and trap timing |
 | Villager Defense | No accepted map/player test recorded | Deployed Easy/Hard | Yes | Full multi-wave survival, Mayor defence, co-op and two-client tests |
-| ReadyPlayerZ | No accepted map/player test recorded | Deployed Classic/Frenzy | Yes | Full matches, kiting/balance, power-ups and two-client tests |
+| ReadyPlayerZ | No accepted map/player test recorded | Deployed Classic/Frenzy | Yes; PR draft (not deployed): sneak-to-buy barrier doors with price holograms, gentle darkness pulses, bots buy doors (local mocks only) | Full matches, kiting/balance, power-ups and two-client tests |
 | Lucky Pillars | No accepted map/test recorded | None | Yes | Item decisions, bridging and safe combat |
 | Supermarket Sweep | No accepted map/test recorded | None | Yes | Shopping-list decisions, real chest/inventory actions and checkout |
 | Party Games | No accepted map/test recorded | None | Yes | Controller switching between colour matching, sumo and sprint |
