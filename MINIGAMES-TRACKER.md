@@ -1,11 +1,15 @@
 # Minigames development and play-test tracker
 
-Last updated: 15 October 2026. Owner: Aurora. Agents should update this file as
+Last updated: 19 October 2026. Owner: Aurora. Agents should update this file as
 work and player feedback arrive; keep it in the PulseGames repository.
 
 Readable report: [HTML](MINIGAMES-TRACKER.html) · [PDF](MINIGAMES-TRACKER.pdf).
 After editing this source, regenerate both exports with
 `node tools/render-minigames-tracker.mjs --pdf`; see [update instructions](tools/TRACKER-README.md).
+
+## 19 October - Bundle #29 deployed on MinigamesTest
+
+**Live checkpoint:** PulseGames **0.3.26** built from main `28b0662` (bundle #29: ReadyPlayerZ barrier doors and darkness pulses #26, Lucky Pillars variety with overflow pickup #27, Prop Hunt real-blocks mode #28) is deployed on MinigamesTest as of 19 October 2026, 16:12 UTC. The jar sha256 is `f17cd1ba…387cd`. The version string matches the 0.3.26 jar it replaced, so identify it by hash. All 662 automated tests passed and the server started cleanly with 24 games. Deployment is not player acceptance: none of the three changes has had a live round yet. Prop Hunt real blocks stay off until an arena sets `real-blocks: true`. Prod Minigames was not changed.
 
 ## 15 October - PulseKarts handling and pickup visuals: 0.3.26 candidate
 
@@ -452,8 +456,8 @@ needed. Do not bypass team/role requirements and call that a completed test.
 | Build Battle | No accepted map/test recorded | None | Yes | Theme-aware building in plots, phases and fair voting bots |
 | Death Run | No accepted map/test recorded | None | Classic needs 3; double trouble 4 | Runner routes, Death roles and trap timing |
 | Villager Defense | No accepted map/player test recorded | Deployed Easy/Hard | Yes | Full multi-wave survival, Mayor defence, co-op and two-client tests |
-| ReadyPlayerZ | No accepted map/player test recorded | Deployed Classic/Frenzy | Yes; PR draft (not deployed): sneak-to-buy barrier doors with price holograms, gentle darkness pulses, bots buy doors (local mocks only) | Full matches, kiting/balance, power-ups and two-client tests |
-| Lucky Pillars | No accepted map/test recorded | None | Yes | Prepared, not deployed: draft PR with ~60 weighted time-scaled drops (5s in both modes), explosives allowed, 16 chaos events (chaos mode only). Needs a live round: drop balance, TNT/lava damage to pillars, chaos restore (border, ice, scale, lava), mob cleanup |
+| ReadyPlayerZ | No accepted map/player test recorded | Deployed Classic/Frenzy | Yes; deployed on MinigamesTest 19 Oct (bundle #29), untested live: sneak-to-buy barrier doors with price holograms, gentle darkness pulses, bots buy doors (local mocks only) | Full matches, kiting/balance, power-ups and two-client tests |
+| Lucky Pillars | No accepted map/test recorded | None | Yes | Deployed on MinigamesTest 19 Oct (bundle #29), untested live: ~60 weighted time-scaled drops (5s in both modes), explosives allowed, 16 chaos events (chaos mode only). Needs a live round: drop balance, TNT/lava damage to pillars, chaos restore (border, ice, scale, lava), mob cleanup |
 | Supermarket Sweep | No accepted map/test recorded | None | Yes | Shopping-list decisions, real chest/inventory actions and checkout |
 | Party Games | No accepted map/test recorded | None | Yes | Controller switching between colour matching, sumo and sprint |
 | Quake | Deployed 0.3.14; no arena configured yet | Weapon choice, visible-target combat, abilities, adaptive difficulty; live service ready | Solo and team variants; needs built maps | Build four or more spawns, cover and walkable routes; test navigation, hit feedback and balance on Java/Bedrock. |
@@ -894,10 +898,10 @@ Aurora reports Bedrock functional checks pass, then identifies visible attachmen
 
 49 focused tests passed (34 Paper,15 Geyser); jars and trial instructions are at `output/pulsegames/2026-10-13/cosmetic-follow` in the Ready workspace. Disabled by default, draft only, not deployed. Java yaw remains server-driven; Bedrock alignment/rotation and lifecycle need actual client acceptance. Aurora chose **keep it prepared for later**: do not merge, deploy or restart for this trial without a new go-ahead. PR opening notification failed HTTP404.
 
-## 19 October - Prop Hunt real-blocks mode (draft, not deployed)
+## 19 October - Prop Hunt real-blocks mode (deployed on MinigamesTest in bundle #29, default off)
 
-Prepared on `feat/prophunt-real-blocks` as a draft PR; not merged, not deployed, no
-live checks run. New arena setting `real-blocks` (default off, so existing arenas are
+Merged in bundle #29 and deployed on MinigamesTest on 19 October; no
+live checks run yet. New arena setting `real-blocks` (default off, so existing arenas are
 unchanged): hiders can lock mid-air as a real full-cube block, hitting it reveals and
 damages the hider in one hit, and decoys are real blocks that can stack. Heads and
 non-full-cube props stay entity-only. Unit tests only; see `docs/PROP-HUNT.md` for the
