@@ -129,6 +129,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
         nightApplied = true;
         for (Player player : game.alivePlayers()) {
             equipBase(player);
+            applyLegacyCombat(player);
         }
         game.broadcast("Survive <yellow>" + totalRounds() + "</yellow> rounds of zombies! Kills earn points "
             + "- spend them in the <green>Mystery Shop</green> (emerald).");
@@ -169,6 +170,8 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
             if (zombies.isEmpty() && pendingSpawns <= 0) {
                 roundActive = false;
                 game.everyone().forEach(this::clearDarkness);
+        game.everyone().forEach(this::restoreCombat);
+        originalAttackSpeed.clear();
                 nextPulse.clear();
                 breakTimer = isFrenzy() ? 5 : 10;
                 game.broadcast("<green><b>Round " + round + " survived!</b></green>");
@@ -285,7 +288,14 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
         }
     }
     void configureEnemy(LivingEntity enemy,ZCombatBalance.Variant variant){
-            var stats = ZCombatBalance.stats(round, variant);
+            var stats = ZCombatBalance.stats(round, variant, tuning());
+            // Vanilla spawns can roll random armour/weapons, which silently inflates time-to-kill.
+            if (enemy.getEquipment() != null) {
+                enemy.getEquipment().clear();
+            }
+            setAttribute(enemy, org.bukkit.attribute.Attribute.ARMOR, 0);
+            setAttribute(enemy, org.bukkit.attribute.Attribute.ARMOR_TOUGHNESS, 0);
+            setAttribute(enemy, org.bukkit.attribute.Attribute.SPAWN_REINFORCEMENTS, 0);
             setAttribute(enemy, org.bukkit.attribute.Attribute.MAX_HEALTH, stats.health());
             enemy.setHealth(stats.health());
             setAttribute(enemy, org.bukkit.attribute.Attribute.MOVEMENT_SPEED, stats.speed());
@@ -295,12 +305,58 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
             enemy.customName(Text.mm("<red>"
                 + (variant == ZCombatBalance.Variant.BOSS ? "Foreman"
                                                           : variant.name().toLowerCase(java.util.Locale.ROOT))));
-            if (variant == ZCombatBalance.Variant.BRUTE)
-                enemy.addPotionEffect(
-                    new PotionEffect(PotionEffectType.RESISTANCE, Integer.MAX_VALUE, 0, false, false));
             if (variant == ZCombatBalance.Variant.VENOM)
                 enemy.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, Integer.MAX_VALUE, 0, false, false));
     }
+    /** Zombie health curve from arena settings (zombie-health-base/-per-round/-max, boss-health-multiplier). */
+    ZCombatBalance.Tuning tuning() {
+        var settings = game.arena().settings();
+        var d = ZCombatBalance.Tuning.DEFAULT;
+        return ZCombatBalance.Tuning.of(settings.getDouble("zombie-health-base", d.base()),
+            settings.getDouble("zombie-health-per-round", d.perRound()),
+            settings.getDouble("zombie-health-max", d.max()),
+            settings.getDouble("boss-health-multiplier", d.bossMultiplier()));
+    }
+
+    // ---- legacy (1.8-style) combat: instance-scoped, restored on every exit path ----
+
+    /** Original ATTACK_SPEED base per human, present only while legacy combat is applied to them. */
+    private final java.util.Map<UUID, Double> originalAttackSpeed = new java.util.HashMap<>();
+    static final double LEGACY_ATTACK_SPEED = 1024;
+
+    boolean legacyCombat() {
+        return game.arena().settings().getBoolean("legacy-combat", true);
+    }
+
+    org.bukkit.attribute.AttributeInstance attackSpeed(Player player) {
+        return player.getAttribute(org.bukkit.attribute.Attribute.ATTACK_SPEED);
+    }
+
+    void applyLegacyCombat(Player player) {
+        if (!legacyCombat() || game.isBot(player) || originalAttackSpeed.containsKey(player.getUniqueId()))
+            return;
+        var attribute = attackSpeed(player);
+        if (attribute == null)
+            return;
+        originalAttackSpeed.put(player.getUniqueId(), attribute.getBaseValue());
+        attribute.setBaseValue(LEGACY_ATTACK_SPEED);
+    }
+
+    void restoreCombat(Player player) {
+        Double original = originalAttackSpeed.remove(player.getUniqueId());
+        var attribute = original == null ? null : attackSpeed(player);
+        if (attribute != null)
+            attribute.setBaseValue(original);
+    }
+
+    /** Sweep attacks hit every zombie beside the target; 1.8 had none. */
+    @Override
+    public void onEntityDamage(org.bukkit.event.entity.EntityDamageEvent event) {
+        if (event.getCause() == org.bukkit.event.entity.EntityDamageEvent.DamageCause.ENTITY_SWEEP_ATTACK
+            && legacyCombat())
+            event.setCancelled(true);
+    }
+
     private void setAttribute(LivingEntity entity, org.bukkit.attribute.Attribute attribute, double value) {
         var instance = entity.getAttribute(attribute);
         if (instance != null)
@@ -316,6 +372,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
                 player.teleport(game.spawnFor(player));
                 game.plugin().playerState().reset(player);
                 equipBase(player);
+                applyLegacyCombat(player);
                 game.broadcast("<green>" + player.getName() + "</green> is back in the fight!");
             }
         }
@@ -440,6 +497,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
     @Override
     public void onDeath(Player victim, Player killer) {
         clearDarkness(victim);
+        restoreCombat(victim);
         downed.add(victim.getUniqueId());
         victim.setGameMode(org.bukkit.GameMode.SPECTATOR);
         victim.teleport(game.arena().spectator(game.world()));
@@ -451,6 +509,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
     @Override
     public void onQuit(Player player) {
         clearDarkness(player);
+        restoreCombat(player);
         downed.remove(player.getUniqueId());
         if (game.state() == GameState.RUNNING)
             checkOverrun();
@@ -495,6 +554,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
     @Override
     public void onEliminated(Player player) {
         clearDarkness(player);
+        restoreCombat(player);
     }
     @Override
     public void onEnd(List<Player> winners) {
@@ -504,6 +564,8 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
     public void onCleanup() {
         roundActive = false;
         game.everyone().forEach(this::clearDarkness);
+        game.everyone().forEach(this::restoreCombat);
+        originalAttackSpeed.clear();
         for (UUID id : new HashSet<>(zombies)) {
             var entity = game.world() == null ? null : game.world().getEntity(id);
             if (entity != null)

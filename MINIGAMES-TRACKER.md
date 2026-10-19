@@ -1,11 +1,15 @@
 # Minigames development and play-test tracker
 
-Last updated: 15 October 2026. Owner: Aurora. Agents should update this file as
+Last updated: 19 October 2026. Owner: Aurora. Agents should update this file as
 work and player feedback arrive; keep it in the PulseGames repository.
 
 Readable report: [HTML](MINIGAMES-TRACKER.html) · [PDF](MINIGAMES-TRACKER.pdf).
 After editing this source, regenerate both exports with
 `node tools/render-minigames-tracker.mjs --pdf`; see [update instructions](tools/TRACKER-README.md).
+
+## 19 October - ReadyPlayerZ faster kills and 1.8-style combat: 0.3.27 candidate
+
+**Prepared, not deployed:** PulseGames **0.3.27** (draft PR) cuts zombie health (round 1 walker 20 to 10, round 15 48 to 27.5; boss 3.5x a walker instead of 4x), removes the Brute resistance effect, strips random vanilla zombie armour and reinforcements, and adds per-arena `legacy-combat` (default on): human players get no attack cooldown (ATTACK_SPEED base 1024) and sweep attacks are cancelled, restored on death, quit, elimination, end and cleanup. Tunables `zombie-health-base`, `zombie-health-per-round`, `zombie-health-max`, `boss-health-multiplier` and `legacy-combat` are documented in [docs/READYPLAYERZ-BALANCE.md](docs/READYPLAYERZ-BALANCE.md). Local mock tests only; no played acceptance recorded.
 
 ## 15 October - PulseKarts handling and pickup visuals: 0.3.26 candidate
 
@@ -452,7 +456,7 @@ needed. Do not bypass team/role requirements and call that a completed test.
 | Build Battle | No accepted map/test recorded | None | Yes | Theme-aware building in plots, phases and fair voting bots |
 | Death Run | No accepted map/test recorded | None | Classic needs 3; double trouble 4 | Runner routes, Death roles and trap timing |
 | Villager Defense | No accepted map/player test recorded | Deployed Easy/Hard | Yes | Full multi-wave survival, Mayor defence, co-op and two-client tests |
-| ReadyPlayerZ | No accepted map/player test recorded | Deployed Classic/Frenzy | Yes; PR draft (not deployed): sneak-to-buy barrier doors with price holograms, gentle darkness pulses, bots buy doors (local mocks only) | Full matches, kiting/balance, power-ups and two-client tests |
+| ReadyPlayerZ | No accepted map/player test recorded | Deployed Classic/Frenzy | Yes; PR draft (not deployed): sneak-to-buy barrier doors with price holograms, gentle darkness pulses, bots buy doors (local mocks only) | Full matches, kiting/balance (0.3.27 candidate lowers zombie health and adds legacy combat; not deployed), power-ups and two-client tests |
 | Lucky Pillars | No accepted map/test recorded | None | Yes | Prepared, not deployed: draft PR with ~60 weighted time-scaled drops (5s in both modes), explosives allowed, 16 chaos events (chaos mode only). Needs a live round: drop balance, TNT/lava damage to pillars, chaos restore (border, ice, scale, lava), mob cleanup |
 | Supermarket Sweep | No accepted map/test recorded | None | Yes | Shopping-list decisions, real chest/inventory actions and checkout |
 | Party Games | No accepted map/test recorded | None | Yes | Controller switching between colour matching, sumo and sprint |
