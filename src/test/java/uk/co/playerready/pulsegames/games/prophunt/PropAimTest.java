@@ -20,6 +20,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+@SuppressWarnings("unchecked")
 class PropAimTest {
     private static final PropPalette.Option BLOCK = new PropPalette.Option("Stone", Material.STONE, "ready:stone");
     private static final PropPalette.Option HEAD = new PropPalette.Option("Head", Material.PLAYER_HEAD, "ready:head");
@@ -100,6 +101,44 @@ class PropAimTest {
         verify(victim).damage(6.0, f.seeker);
     }
 
+    @Test void blockLockedHiderIsResolvedThroughTheCellMapEvenOnAnExactTie() throws Exception {
+        RealBlockFixture f = new RealBlockFixture();
+        Player seeker = f.player(); when(seeker.getEyeLocation()).thenReturn(new Location(f.world, .5, 64.5, -1.5, 0, 0));
+        Player hider = f.hider(.5, 64, .5, false);
+        f.logic.toggleLock(hider);
+        var cell = f.block(0, 64, 0);
+        // The ray meets the real block's face at z=0, exactly where the prop's own box starts: a strict tie.
+        when(seeker.rayTraceBlocks(3.0, FluidCollisionMode.NEVER)).thenReturn(new RayTraceResult(
+                new Vector(.5, 64.5, 0), cell, org.bukkit.block.BlockFace.NORTH));
+        assertEquals(hider.getUniqueId(), f.logic.aimedProp(seeker));
+        // A different block in front is just a wall.
+        var wall = f.block(0, 64, -1);
+        when(seeker.rayTraceBlocks(3.0, FluidCollisionMode.NEVER)).thenReturn(new RayTraceResult(
+                new Vector(.5, 64.5, -.5), wall, org.bukkit.block.BlockFace.NORTH));
+        assertNull(f.logic.aimedProp(seeker));
+    }
+    @Test void hittingABlockHiderDamagesRevealsRestoresAndLocksOutRelock() throws Exception {
+        RealBlockFixture f = new RealBlockFixture();
+        Player seeker = f.player(); when(seeker.getEyeLocation()).thenReturn(new Location(f.world, .5, 64.5, -1.5, 0, 0));
+        Player hider = f.hider(.5, 64, .5, false);
+        f.logic.toggleLock(hider);
+        assertSame(f.cube, f.at(0, 64, 0));
+        var cell = f.block(0, 64, 0);
+        ((Set<UUID>) field(f.logic, "seekers")).add(seeker.getUniqueId());
+        PlayerInventory inventory = mock(PlayerInventory.class); ItemStack sword = mock(ItemStack.class);
+        when(sword.getType()).thenReturn(Material.IRON_SWORD); when(inventory.getItemInMainHand()).thenReturn(sword);
+        when(seeker.getInventory()).thenReturn(inventory);
+        when(seeker.rayTraceBlocks(3.0, FluidCollisionMode.NEVER)).thenReturn(new RayTraceResult(
+                new Vector(.5, 64.5, 0), cell, org.bukkit.block.BlockFace.NORTH));
+        f.logic.onSwing(seeker);
+        verify(hider).damage(6.0, seeker);
+        assertSame(f.air, f.at(0, 64, 0));
+        Map<UUID, Object> locks = field(f.logic, "locked"); assertFalse(locks.containsKey(hider.getUniqueId()));
+        assertTrue(((Map<UUID, AutoCloseable>) field(f.logic, "visuals")).containsKey(hider.getUniqueId())); // model shown again
+        f.logic.toggleLock(hider); // within the lockout
+        assertSame(f.air, f.at(0, 64, 0));
+        verify(hider, times(1)).teleport(any(Location.class));
+    }
     private static final class Fixture {
         final GameInstance game = mock(GameInstance.class, RETURNS_DEEP_STUBS);
         final PropHuntGame logic = new PropHuntGame(game);

@@ -75,6 +75,7 @@ approved map merely to change settings; preserve its bounds, spawns and template
 | `sprint-cooldown` | 25 | 5-120 seconds |
 | `pulse-cooldown` | 25 | 5-120 seconds |
 | `pulse-radius` | 12 | 4-24 blocks |
+| `real-blocks` | false | true/false; see Real-blocks mode below |
 
 These are permanent per-map game rules, owned by Aurora, not temporary rollout
 flags. Review balance after the first two-player test; `prop-powers: false` disables
@@ -151,3 +152,39 @@ binary is required. Never activate config ahead of its content release.
 New props are static, full-sized cubes: closed barrel, unlit smoker, vertical logs.
 They share existing snapping/body/decoy behaviour; orientation and block state are
 not inferred. Leaves, chests and irregular shapes need separate model work.
+
+## Real-blocks mode (prepared update, arena setting `real-blocks`)
+
+Off by default, so every existing arena behaves exactly as above. Set
+`real-blocks: true` in the arena settings (`/pulse setup set real-blocks true`, or the arena
+YAML) to try it. It needs the same content setup as the compact path; it adds no content.
+
+- **Lock anywhere.** The lock no longer needs the floor: a hider can lock mid-air. The
+  position snaps to the whole cell (X/Z centre, whole-block feet Y). The cell must be free
+  (only passable blocks such as air or grass are overwritten; signs, chests, doors, beds,
+  tall plants and fluids are not) and clear of players and decoys. If it is not free, a
+  grounded hider gets the old entity-only lock and a mid-air hider is refused with a message.
+- **A real block.** While locked the hider's cell holds the actual block, so seekers collide
+  with it. The model is hidden meanwhile and returns on unlock. The owner is sent air for
+  their own cell so they can see out. The hider has no gravity and no velocity while locked
+  (flight is allowed only to avoid the "flying is not allowed" kick, and is restored).
+  Logs stand upright, barrels face up, other directional blocks face the hider.
+- **Which props.** Only disguises whose collision shape is exactly one full cube become
+  blocks (read from the block data, not a list). Heads, and any slab or flower added later,
+  stay entity-only. Right-clicking a disguise block does nothing (no barrel/loom/smoker GUIs).
+- **Reveal.** Hitting the block is a hit on the hider: it deals the normal damage and, in the
+  same hit, unlocks the hider, restores the original block and shows the model. The hider
+  cannot re-lock for 2.5 seconds. The shared seeker hit cooldown still applies.
+- **Decoys.** A decoy is a real block placed in the cell next to the aimed face (any face),
+  so decoys can stack and climb. There is no support or height check; the existing limit
+  of three per hider stands. A hit, expiry, clearing, or the owner leaving restores the cell.
+- **Restore.** Every block is recorded with the block it replaced and restored through a
+  single path: unlock, drift, death, quit, elimination, decoy removal, round end and cleanup
+  (only where the chunk is still loaded; round worlds are discarded anyway).
+- **Bots.** Hider bots still lock only from the ground. Seeker bots treat a block-locked
+  hider's own cell as visible rather than as a wall.
+
+Live checks needed (not covered by unit tests): mid-air lock holds without a kick on Java and
+Bedrock; suffocation and fall damage stay off while inside the block; the owner sees out and
+no flicker; the block reveals and restores on a hit; interaction on tracked cells is blocked;
+decoys stack and restore; blocks restore after quit, death and round end on a real map.

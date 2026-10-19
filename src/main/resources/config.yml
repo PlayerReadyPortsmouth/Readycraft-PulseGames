@@ -86,6 +86,7 @@ content:
     # Selectable compact props and grid locks; requires PulseContent Paper 0.3.3 prop visuals.
     # Models must match cube/head hit dimensions and be centred at the feet.
     # Per-arena prop-powers, decoy and sprint/pulse settings are documented in docs/PROP-HUNT.md.
+    # Per-arena `real-blocks: true` (arena settings, default off) makes locked hiders and decoys real blocks.
     block-snapping: false
     block-palette:
       hay:
