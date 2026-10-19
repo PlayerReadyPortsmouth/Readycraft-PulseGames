@@ -19,7 +19,7 @@ final class HiderBody implements AutoCloseable {
     private final Set<Player> hidden = new HashSet<>();
     private final boolean collidable;
     private final PotionEffect previousInvisibility;
-    private boolean closed;
+    private boolean closed, held, gravity, allowFlight;
     HiderBody(Plugin plugin, Player player) {
         this.plugin = plugin; this.player = player;
         scaleKey = new NamespacedKey(plugin, "prophunt_body");
@@ -44,8 +44,21 @@ final class HiderBody implements AutoCloseable {
         attribute.addTransientModifier(new AttributeModifier(scaleKey, propHeight * .5 / current - 1,
                 AttributeModifier.Operation.MULTIPLY_SCALAR_1));
     }
+    /** Real-block lock: no gravity, no drift, and flight allowed so a mid-air hover is not kicked. */
+    void hold() {
+        if (held || closed) return;
+        held = true; gravity = player.hasGravity(); allowFlight = player.getAllowFlight();
+        player.setGravity(false); player.setAllowFlight(true); settle();
+    }
+    void settle() { player.setVelocity(new org.bukkit.util.Vector()); player.setFallDistance(0); }
+    void release() {
+        if (!held) return;
+        held = false;
+        player.setGravity(gravity); player.setAllowFlight(allowFlight); player.setFlying(false); player.setFallDistance(0);
+    }
     @Override public void close() {
         if (closed) return;
+        release();
         var attribute = player.getAttribute(Attribute.SCALE);
         if (attribute != null) attribute.removeModifier(scaleKey);
         player.setCollidable(collidable);

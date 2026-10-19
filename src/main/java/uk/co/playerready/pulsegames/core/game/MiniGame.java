@@ -176,6 +176,9 @@ public abstract class MiniGame {
 
     public void onInteract(PlayerInteractEvent event) {}
 
+    /** A player started breaking a block (before any break). Cancel here to stop dig progress. */
+    public void onBlockDamage(org.bukkit.event.block.BlockDamageEvent event) {}
+
     public void onSwing(Player player) {}
 
     public void onInteractEntity(Player player, Entity clicked) {}

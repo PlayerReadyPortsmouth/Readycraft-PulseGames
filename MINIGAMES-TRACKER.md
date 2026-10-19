@@ -452,8 +452,8 @@ needed. Do not bypass team/role requirements and call that a completed test.
 | Build Battle | No accepted map/test recorded | None | Yes | Theme-aware building in plots, phases and fair voting bots |
 | Death Run | No accepted map/test recorded | None | Classic needs 3; double trouble 4 | Runner routes, Death roles and trap timing |
 | Villager Defense | No accepted map/player test recorded | Deployed Easy/Hard | Yes | Full multi-wave survival, Mayor defence, co-op and two-client tests |
-| ReadyPlayerZ | No accepted map/player test recorded | Deployed Classic/Frenzy | Yes | Full matches, kiting/balance, power-ups and two-client tests |
-| Lucky Pillars | No accepted map/test recorded | None | Yes | Item decisions, bridging and safe combat |
+| ReadyPlayerZ | No accepted map/player test recorded | Deployed Classic/Frenzy | Yes; PR draft (not deployed): sneak-to-buy barrier doors with price holograms, gentle darkness pulses, bots buy doors (local mocks only) | Full matches, kiting/balance, power-ups and two-client tests |
+| Lucky Pillars | No accepted map/test recorded | None | Yes | Prepared, not deployed: draft PR with ~60 weighted time-scaled drops (5s in both modes), explosives allowed, 16 chaos events (chaos mode only). Needs a live round: drop balance, TNT/lava damage to pillars, chaos restore (border, ice, scale, lava), mob cleanup |
 | Supermarket Sweep | No accepted map/test recorded | None | Yes | Shopping-list decisions, real chest/inventory actions and checkout |
 | Party Games | No accepted map/test recorded | None | Yes | Controller switching between colour matching, sumo and sprint |
 | Quake | Deployed 0.3.14; no arena configured yet | Weapon choice, visible-target combat, abilities, adaptive difficulty; live service ready | Solo and team variants; needs built maps | Build four or more spawns, cover and walkable routes; test navigation, hit feedback and balance on Java/Bedrock. |
@@ -893,3 +893,13 @@ Aurora reports Bedrock functional checks pass, then identifies visible attachmen
 [PulseAddon draft PR34](https://github.com/PlayerReadyPortsmouth/ReadyCraft-PulseAddon/pull/34), commit `9715701`, prepares Paper0.5.3 and Geyser0.3.2. Java displays now have an opt-in direct player parent; a separate Geyser adapter links Bedrock model carriers as non-controlling passengers. Armour, actual passengers, wardrobe ownership, local rules and existing prop/preview paths are preserved.
 
 49 focused tests passed (34 Paper,15 Geyser); jars and trial instructions are at `output/pulsegames/2026-10-13/cosmetic-follow` in the Ready workspace. Disabled by default, draft only, not deployed. Java yaw remains server-driven; Bedrock alignment/rotation and lifecycle need actual client acceptance. Aurora chose **keep it prepared for later**: do not merge, deploy or restart for this trial without a new go-ahead. PR opening notification failed HTTP404.
+
+## 19 October - Prop Hunt real-blocks mode (draft, not deployed)
+
+Prepared on `feat/prophunt-real-blocks` as a draft PR; not merged, not deployed, no
+live checks run. New arena setting `real-blocks` (default off, so existing arenas are
+unchanged): hiders can lock mid-air as a real full-cube block, hitting it reveals and
+damages the hider in one hit, and decoys are real blocks that can stack. Heads and
+non-full-cube props stay entity-only. Unit tests only; see `docs/PROP-HUNT.md` for the
+design and the live checks needed (kick/suffocation while hovering, owner see-through,
+restore on every exit path, Java and Bedrock).

@@ -314,6 +314,13 @@ public final class GameListener implements Listener {
         }
     }
 
+    @EventHandler
+    public void onBlockDamage(org.bukkit.event.block.BlockDamageEvent event) {
+        GameInstance instance = instanceOf(event.getPlayer());
+        if (instance != null && instance.state() == GameState.RUNNING && instance.isAlive(event.getPlayer()))
+            instance.logic().onBlockDamage(event);
+    }
+
     @EventHandler(ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent event) {
         Player player = event.getPlayer();

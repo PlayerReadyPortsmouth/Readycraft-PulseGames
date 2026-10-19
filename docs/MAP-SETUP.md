@@ -138,7 +138,13 @@ The checklist shows all of this in-game; this is the reference with map-building
 
 ### Lucky Pillars (`luckypillars` - classic, chaos)
 - **Spawns:** one per pillar top. **Settings:** `void-y`.
-- Optional: `drop-interval`. Chaos mode adds levitation/swap/moon-jump events.
+- Optional: `drop-interval` (seconds; default 5 in both modes, floor 3).
+- Drops are a weighted pool of ~60 items that gets stronger as the round goes on; players
+  with no weapon get boosted weapon odds. TNT, creepers and lava are enabled, so the pillars
+  can be blown up: build with that in mind.
+- Chaos mode adds ~16 timed events (low gravity, TNT rain, rising lava, shrinking border,
+  ice floor, swap, mob swarm...). The border event sets its own border and restores the
+  original afterwards; keep players' pillars within ~60 blocks of each other.
 
 ### Prop Hunt (`prophunt` - classic, infection)
 - **Spawns:** spawn 1 is the seeker release point; add more for hider scatter points.

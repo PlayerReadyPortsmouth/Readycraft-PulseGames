@@ -2,6 +2,7 @@ package uk.co.playerready.pulsegames.games.prophunt;
 
 import org.bukkit.*;
 import org.bukkit.entity.Player;
+import java.lang.reflect.Method;
 import org.bukkit.util.*;
 import org.junit.jupiter.api.Test;
 import uk.co.playerready.pulsegames.core.game.*;
@@ -10,6 +11,7 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+@SuppressWarnings("unchecked")
 class PropDecoyTest {
     private static final PropPalette.Option STONE=new PropPalette.Option("Stone",Material.STONE,"ready:stone");
     private static final PropPalette.Option HEAD=new PropPalette.Option("Head",Material.PLAYER_HEAD,"ready:head");
@@ -49,6 +51,36 @@ class PropDecoyTest {
         set(logic,"hidePhase",0);assertTrue((boolean)can.invoke(logic,player,false));
         when(game.frozen()).thenReturn(true);assertFalse((boolean)can.invoke(logic,player,false));
         when(game.frozen()).thenReturn(false);when(game.isActive(player)).thenReturn(false);assertFalse((boolean)can.invoke(logic,player,false));
+    }
+    @Test void realBlockDecoysPlaceAgainstAnyFaceStackWithoutSupportAndRestoreOnExpiryAndHit() throws Exception {
+        RealBlockFixture f = new RealBlockFixture();
+        Player owner = f.hider(2.5, 64, 2.5, true);
+        var floor = f.block(0, 63, 0); var lower = f.block(0, 64, 0); var upper = f.block(0, 65, 0);
+        when(owner.rayTraceBlocks(4, FluidCollisionMode.NEVER)).thenReturn(new RayTraceResult(new org.bukkit.util.Vector(.5, 64, .5), floor, org.bukkit.block.BlockFace.UP));
+        Method place = PropHuntGame.class.getDeclaredMethod("placeDecoy", Player.class, PropPalette.Option.class); place.setAccessible(true);
+        place.invoke(f.logic, owner, RealBlockFixture.STONE);
+        assertSame(f.cube, f.at(0, 64, 0));
+        // Aim at the side of that decoy: the new one goes in the neighbouring cell, in mid-air, with no support underneath.
+        ((Map<String, Integer>) f.field("cooldowns")).clear();
+        var sideCell = f.block(1, 64, 0);
+        when(owner.rayTraceBlocks(4, FluidCollisionMode.NEVER)).thenReturn(new RayTraceResult(new org.bukkit.util.Vector(1, 64.5, .5), lower, org.bukkit.block.BlockFace.EAST));
+        place.invoke(f.logic, owner, RealBlockFixture.STONE);
+        ((Map<String, Integer>) f.field("cooldowns")).clear();
+        when(owner.rayTraceBlocks(4, FluidCollisionMode.NEVER)).thenReturn(new RayTraceResult(new org.bukkit.util.Vector(.5, 65, .5), lower, org.bukkit.block.BlockFace.UP));
+        place.invoke(f.logic, owner, RealBlockFixture.STONE);
+        assertSame(f.cube, f.at(1, 64, 0)); assertSame(f.cube, f.at(0, 65, 0));
+        Map<UUID, Object> decoys = f.field("decoys"); assertEquals(3, decoys.size());
+        // Hitting the lower decoy restores only its own cell; the stacked one stays until it expires.
+        Player seeker = f.player(); when(seeker.getEyeLocation()).thenReturn(new Location(f.world, .5, 64.5, -1.5, 0, 0));
+        ((Set<UUID>) f.field("seekers")).add(seeker.getUniqueId());
+        var inventory = mock(org.bukkit.inventory.PlayerInventory.class); var sword = mock(org.bukkit.inventory.ItemStack.class);
+        when(sword.getType()).thenReturn(Material.IRON_SWORD); when(inventory.getItemInMainHand()).thenReturn(sword); when(seeker.getInventory()).thenReturn(inventory);
+        when(seeker.rayTraceBlocks(3.0, FluidCollisionMode.NEVER)).thenReturn(new RayTraceResult(new org.bukkit.util.Vector(.5, 64.5, 0), lower, org.bukkit.block.BlockFace.NORTH));
+        f.logic.onSwing(seeker);
+        assertSame(f.air, f.at(0, 64, 0)); assertSame(f.cube, f.at(0, 65, 0)); assertEquals(2, decoys.size());
+        verify(owner, never()).damage(anyDouble(), any(org.bukkit.entity.Entity.class));
+        f.logic.onSecond(61); // lifetime 60 seconds from game time 0
+        assertTrue(decoys.isEmpty()); assertSame(f.air, f.at(1, 64, 0)); assertSame(f.air, f.at(0, 65, 0));
     }
     @SuppressWarnings("unchecked") private static <T>T field(Object object,String name)throws Exception {Field f=object.getClass().getDeclaredField(name);f.setAccessible(true);return(T)f.get(object);}
     private static void set(Object object,String name,Object value)throws Exception {Field f=object.getClass().getDeclaredField(name);f.setAccessible(true);f.set(object,value);}
