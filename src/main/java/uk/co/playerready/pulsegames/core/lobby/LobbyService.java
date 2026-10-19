@@ -65,6 +65,9 @@ public final class LobbyService {
         player.teleport(lobbyLocation());
         player.setGameMode(org.bukkit.GameMode.ADVENTURE);
         player.setAllowFlight(true); // lobby double jump
+        // Undo ReadyPlayerZ legacy combat left behind by a crash (also runs on join via sendToLobby).
+        if (!(plugin instanceof uk.co.playerready.pulsegames.PulseGamesPlugin pulse) || pulse.instances() == null || pulse.instances().byPlayer(player) == null)
+            uk.co.playerready.pulsegames.games.readyplayerz.LegacyAttackSpeed.heal(player);
         if (plugin.getConfig().getBoolean("lobby.give-menu-item", true)) {
             giveMenuItem(player);
         }

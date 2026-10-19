@@ -322,7 +322,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
 
     /** Original ATTACK_SPEED base per human, present only while legacy combat is applied to them. */
     private final java.util.Map<UUID, Double> originalAttackSpeed = new java.util.HashMap<>();
-    static final double LEGACY_ATTACK_SPEED = 1024;
+    static final double LEGACY_ATTACK_SPEED = LegacyAttackSpeed.LEGACY;
 
     boolean legacyCombat() {
         return game.arena().settings().getBoolean("legacy-combat", true);
@@ -339,6 +339,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
         if (attribute == null)
             return;
         originalAttackSpeed.put(player.getUniqueId(), attribute.getBaseValue());
+        LegacyAttackSpeed.mark(player, attribute.getBaseValue());
         attribute.setBaseValue(LEGACY_ATTACK_SPEED);
     }
 
@@ -347,6 +348,8 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
         var attribute = original == null ? null : attackSpeed(player);
         if (attribute != null)
             attribute.setBaseValue(original);
+        if (original != null)
+            LegacyAttackSpeed.clear(player);
     }
 
     /** Sweep attacks hit every zombie beside the target; 1.8 had none. */
