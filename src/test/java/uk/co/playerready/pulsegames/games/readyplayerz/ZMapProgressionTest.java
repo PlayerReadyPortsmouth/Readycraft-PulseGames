@@ -45,7 +45,7 @@ class ZMapProgressionTest {
         final Player player=mock(Player.class); final World world=mock(World.class);
         final PlayerInventory inventory=mock(PlayerInventory.class); final Block anchor=mock(Block.class), door=mock(Block.class);
         final BlockData original=mock(BlockData.class); final PlayerInteractEvent event=mock(PlayerInteractEvent.class);
-        final ZMapProgression helper;
+        final ZMapProgression helper; org.bukkit.entity.TextDisplay display;
         Fixture(Map<String,Object> settings,Map<String,Cuboid> regions) {
             MemoryConfiguration config=new MemoryConfiguration();settings.forEach(config::set);
             Arena arena=new Arena("map","readyplayerz","Map","template",List.of(),1,4,"1,64,1","1,64,1",List.of("1,64,1"),regions,config);
@@ -112,4 +112,40 @@ class ZMapProgressionTest {
         f.helper.onPistonExtend(event);verify(event).setCancelled(true);
     }
 
+    private Map<String,Object> settingsNoAnchor(){var s=settings();s.remove("z-door1-anchor");return s;}
+    private Fixture sneakFixture() {
+        var s=settings();s.remove("z-door1-anchor");s.put("z-door1-name","Cellar");
+        var f=new Fixture(s,regions());
+        f.display=mock(org.bukkit.entity.TextDisplay.class);
+        when(f.world.spawn(any(Location.class),eq(org.bukkit.entity.TextDisplay.class),any(java.util.function.Consumer.class))).thenReturn(f.display);
+        when(f.game.alivePlayers()).thenReturn(List.of(f.player));
+        return f;
+    }
+    private org.bukkit.event.player.PlayerToggleSneakEvent sneak(Fixture f,boolean down) {
+        var e=mock(org.bukkit.event.player.PlayerToggleSneakEvent.class);when(e.getPlayer()).thenReturn(f.player);when(e.isSneaking()).thenReturn(down);return e;
+    }
+    @Test void anchorIsOptionalAndSneakingNearTheDoorBuysItOnce() {
+        var f=sneakFixture();assertNull(ZMapProgression.parse(settingsNoAnchor(),regions()).doors().getFirst().anchor());
+        f.helper.onSneak(sneak(f,false));verify(f.game,never()).addScore(any(),anyInt());   // standing up does nothing
+        f.helper.onSneak(sneak(f,true));verify(f.game).addScore(f.player,-100);verify(f.door).setType(Material.AIR,false);
+        f.helper.onSneak(sneak(f,true));verify(f.game,times(1)).addScore(any(),anyInt());   // already open
+    }
+    @Test void sneakFarAwayLockedOrPoorNeverCharges() {
+        var f=sneakFixture();
+        when(f.player.getLocation()).thenReturn(new Location(f.world,15,64,15));f.helper.onSneak(sneak(f,true));
+        when(f.player.getLocation()).thenReturn(new Location(f.world,1,64,1));
+        f.helper.setRound(0);f.helper.onSneak(sneak(f,true));f.helper.setRound(1);
+        when(f.game.score(f.player)).thenReturn(99);f.helper.onSneak(sneak(f,true));
+        verify(f.game,never()).addScore(any(),anyInt());assertFalse(f.helper.spawnUnlocked(2));
+        assertTrue(f.helper.nearDoorPrompt(f.player));
+        assertFalse(f.helper.buyDoor(f.player,f.helper.cheapestAvailable()));
+    }
+    @Test void hologramShowsPriceThenIsRemovedOnOpenAndOnCleanup() {
+        var f=sneakFixture();f.helper.spawnHolograms();
+        verify(f.world).spawn(any(Location.class),eq(org.bukkit.entity.TextDisplay.class),any(java.util.function.Consumer.class));
+        f.helper.tick();verify(f.display,atLeastOnce()).text(any(net.kyori.adventure.text.Component.class));
+        verify(f.player).sendActionBar(any(net.kyori.adventure.text.Component.class));
+        f.helper.onSneak(sneak(f,true));verify(f.display).remove();
+        var g=sneakFixture();g.helper.spawnHolograms();g.helper.cleanup();verify(g.display).remove();
+    }
 }
