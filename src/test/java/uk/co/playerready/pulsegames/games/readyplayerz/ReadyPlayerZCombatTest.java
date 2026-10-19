@@ -16,7 +16,7 @@ class ReadyPlayerZCombatTest {
         when(game.arena()).thenReturn(ReadyPlayerZBotTest.arena());when(game.world()).thenReturn(world);when(game.state()).thenReturn(GameState.RUNNING);
         when(game.everyone()).thenReturn(List.of());when(game.alivePlayers()).thenReturn(List.of(player));when(game.isActive(player)).thenReturn(true);
         when(player.getUniqueId()).thenReturn(UUID.randomUUID());when(player.getWorld()).thenReturn(world);when(player.getLocation()).thenReturn(new Location(world,20,64,0));
-        logic=spy(new ReadyPlayerZGame(game));doNothing().when(logic).darken(any(),anyInt());doNothing().when(logic).clearDarkness(any());
+        logic=spy(new ReadyPlayerZGame(game));doNothing().when(logic).darken(any(),anyInt());doNothing().when(logic).clearDarkness(any());doReturn(null).when(logic).attackSpeed(any());
     }
     Object field(String name)throws Exception{var f=ReadyPlayerZGame.class.getDeclaredField(name);f.setAccessible(true);return f.get(logic);}
     void field(String name,Object value)throws Exception{var f=ReadyPlayerZGame.class.getDeclaredField(name);f.setAccessible(true);f.set(logic,value);}
@@ -69,4 +69,56 @@ class ReadyPlayerZCombatTest {
         logic.onInteract(event);verify(event).setCancelled(true);verify(player,never()).openInventory(any(org.bukkit.inventory.Inventory.class));
     }
 
+    java.util.Map<Player,org.bukkit.attribute.AttributeInstance> speeds=new java.util.HashMap<>();
+    void attackSpeed(Player p,double base){
+        var attribute=mock(org.bukkit.attribute.AttributeInstance.class);var value=new double[]{base};
+        when(attribute.getBaseValue()).thenAnswer(i->value[0]);
+        doAnswer(i->{value[0]=i.getArgument(0);return null;}).when(attribute).setBaseValue(anyDouble());
+        doReturn(attribute).when(logic).attackSpeed(p);speeds.put(p,attribute);
+    }
+    double speed(Player p){return speeds.get(p).getBaseValue();}
+    @Test void legacyCombatSetsHighAttackSpeedOnStartAndRestoresOnEveryExitPath()throws Exception{
+        doNothing().when(logic).equipBase(any());
+        for(String path:List.of("death","quit","eliminated","cleanup","end")){
+            Player p=mock(Player.class);when(p.getUniqueId()).thenReturn(UUID.randomUUID());attackSpeed(p,4.0);
+            when(game.alivePlayers()).thenReturn(List.of(p));when(game.everyone()).thenReturn(List.of(p));
+            logic.onStart();
+            assertEquals(1024,speed(p),path);
+            switch(path){
+                case "death"->logic.onDeath(p,null);
+                case "quit"->logic.onQuit(p);
+                case "eliminated"->logic.onEliminated(p);
+                case "cleanup"->logic.onCleanup();
+                default->logic.onEnd(List.of());
+            }
+            assertEquals(4.0,speed(p),path);
+            logic.onCleanup();
+            assertEquals(4.0,speed(p),path);
+        }
+    }
+    @Test void legacyCombatIsReappliedOnRevivePreservesOriginalAndSkipsBotsAndDisabledArenas()throws Exception{
+        attackSpeed(player,3.5);logic.applyLegacyCombat(player);logic.applyLegacyCombat(player);
+        assertEquals(1024,speed(player));logic.restoreCombat(player);assertEquals(3.5,speed(player));
+        logic.restoreCombat(player);assertEquals(3.5,speed(player));
+        when(game.isBot(player)).thenReturn(true);logic.applyLegacyCombat(player);assertEquals(3.5,speed(player));
+        when(game.isBot(player)).thenReturn(false);game.arena().settings().set("legacy-combat",false);
+        logic.applyLegacyCombat(player);assertEquals(3.5,speed(player));
+    }
+    @Test void sweepAttacksAreCancelledOnlyWhenLegacyCombatIsOn(){
+        var sweep=mock(org.bukkit.event.entity.EntityDamageByEntityEvent.class);
+        when(sweep.getCause()).thenReturn(org.bukkit.event.entity.EntityDamageEvent.DamageCause.ENTITY_SWEEP_ATTACK);
+        var normal=mock(org.bukkit.event.entity.EntityDamageByEntityEvent.class);
+        when(normal.getCause()).thenReturn(org.bukkit.event.entity.EntityDamageEvent.DamageCause.ENTITY_ATTACK);
+        logic.onEntityDamage(sweep);logic.onEntityDamage(normal);
+        verify(sweep).setCancelled(true);verify(normal,never()).setCancelled(true);
+        game.arena().settings().set("legacy-combat",false);
+        var off=mock(org.bukkit.event.entity.EntityDamageByEntityEvent.class);
+        when(off.getCause()).thenReturn(org.bukkit.event.entity.EntityDamageEvent.DamageCause.ENTITY_SWEEP_ATTACK);
+        logic.onEntityDamage(off);verify(off,never()).setCancelled(true);
+    }
+    @Test void arenaSettingsOverrideHealthCurve(){
+        var s=game.arena().settings();
+        s.set("zombie-health-base",30);s.set("zombie-health-per-round",0);s.set("boss-health-multiplier",2);
+        assertEquals(new ZCombatBalance.Tuning(30,0,60,2),logic.tuning());
+    }
 }

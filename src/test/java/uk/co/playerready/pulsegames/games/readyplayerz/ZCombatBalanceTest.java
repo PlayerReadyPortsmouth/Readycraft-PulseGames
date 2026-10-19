@@ -50,4 +50,30 @@ class ZCombatBalanceTest {
         assertEquals(ZCombatBalance.Variant.BOSS, ZCombatBalance.variant(5, true, random));
         verifyNoInteractions(random);
     }
+    static int hits(double health, double damage) { return (int) Math.ceil(health / damage); }
+    @Test
+    void defaultHealthCurveGivesFewEarlyHitsAndBossAroundThreeToFourTimesWalker() {
+        var w = ZCombatBalance.Variant.WALKER;
+        assertEquals(10, ZCombatBalance.stats(1, w).health());
+        assertEquals(3, hits(ZCombatBalance.stats(1, w).health(), 4)); // wooden sword
+        assertEquals(2, hits(ZCombatBalance.stats(1, w).health(), 5)); // stone sword
+        assertEquals(15, ZCombatBalance.stats(5, w).health());
+        assertEquals(21.25, ZCombatBalance.stats(10, w).health());
+        assertEquals(27.5, ZCombatBalance.stats(15, w).health());
+        for (int round : new int[] {5, 10, 15}) {
+            double ratio = ZCombatBalance.stats(round, ZCombatBalance.Variant.BOSS).health()
+                / ZCombatBalance.stats(round, w).health();
+            assertTrue(ratio >= 3 && ratio <= 4, "boss ratio " + ratio);
+        }
+    }
+    @Test
+    void healthTuningOverridesApplyAndAreClamped() {
+        var t = ZCombatBalance.Tuning.of(20, 2, 30, 2);
+        assertEquals(20, ZCombatBalance.stats(1, ZCombatBalance.Variant.WALKER, t).health());
+        assertEquals(30, ZCombatBalance.stats(40, ZCombatBalance.Variant.WALKER, t).health());
+        assertEquals(40, ZCombatBalance.stats(1, ZCombatBalance.Variant.BOSS, t).health());
+        assertEquals(ZCombatBalance.Tuning.DEFAULT, ZCombatBalance.Tuning.of(Double.NaN, Double.NaN, Double.NaN, Double.NaN));
+        assertEquals(100, ZCombatBalance.Tuning.of(1e9, 0, 1e9, 1e9).base());
+        assertEquals(300, ZCombatBalance.Tuning.of(1e9, 0, 1e9, 1e9).max());
+    }
 }
