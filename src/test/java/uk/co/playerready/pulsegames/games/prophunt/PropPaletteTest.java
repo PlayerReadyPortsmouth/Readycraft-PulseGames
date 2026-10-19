@@ -85,6 +85,34 @@ class PropPaletteTest {
         assertEquals(PropPalette.ALLOWED, options.stream().map(PropPalette.Option::material).collect(java.util.stream.Collectors.toSet()));
         assertEquals(27, options.size());
     }
+    @Test void onlyASingleFullCubeCollisionShapeQualifiesAsARealBlock() {
+        var location = new org.bukkit.Location(null, 0, 0, 0);
+        assertTrue(PropBlocks.fullCube(shaped(new org.bukkit.util.BoundingBox(0, 0, 0, 1, 1, 1)), location));
+        assertFalse(PropBlocks.fullCube(shaped(new org.bukkit.util.BoundingBox(0, 0, 0, 1, .5, 1)), location)); // slab
+        assertFalse(PropBlocks.fullCube(shaped(new org.bukkit.util.BoundingBox(.25, 0, .25, .75, .5, .75)), location)); // head
+        assertFalse(PropBlocks.fullCube(shaped(), location)); // no collision (flower)
+        assertFalse(PropBlocks.fullCube(shaped(new org.bukkit.util.BoundingBox(0, 0, 0, .5, 1, 1), new org.bukkit.util.BoundingBox(.5, 0, 0, 1, 1, 1)), location));
+    }
+    @Test void logsStandUprightAndBarrelsCloseUpward() {
+        var log = org.mockito.Mockito.mock(org.bukkit.block.data.Orientable.class);
+        PropBlocks.orient(log, Material.OAK_LOG, org.bukkit.block.BlockFace.NORTH);
+        org.mockito.Mockito.verify(log).setAxis(org.bukkit.Axis.Y);
+        var barrel = org.mockito.Mockito.mock(org.bukkit.block.data.Directional.class);
+        org.mockito.Mockito.when(barrel.getFaces()).thenReturn(java.util.Set.of(org.bukkit.block.BlockFace.UP, org.bukkit.block.BlockFace.NORTH));
+        PropBlocks.orient(barrel, Material.BARREL, org.bukkit.block.BlockFace.NORTH);
+        org.mockito.Mockito.verify(barrel).setFacing(org.bukkit.block.BlockFace.UP);
+        var smoker = org.mockito.Mockito.mock(org.bukkit.block.data.Directional.class);
+        org.mockito.Mockito.when(smoker.getFaces()).thenReturn(java.util.Set.of(org.bukkit.block.BlockFace.NORTH));
+        PropBlocks.orient(smoker, Material.SMOKER, org.bukkit.block.BlockFace.NORTH);
+        org.mockito.Mockito.verify(smoker).setFacing(org.bukkit.block.BlockFace.NORTH);
+    }
+    private static org.bukkit.block.data.BlockData shaped(org.bukkit.util.BoundingBox... boxes) {
+        var shape = org.mockito.Mockito.mock(org.bukkit.util.VoxelShape.class);
+        org.mockito.Mockito.when(shape.getBoundingBoxes()).thenReturn(java.util.List.of(boxes));
+        var data = org.mockito.Mockito.mock(org.bukkit.block.data.BlockData.class);
+        org.mockito.Mockito.when(data.getCollisionShape(org.mockito.ArgumentMatchers.any(org.bukkit.Location.class))).thenReturn(shape);
+        return data;
+    }
     private void entry(MemoryConfiguration config, String key, String material, String model) {
         config.set("content.prophunt.block-palette." + key + ".material", material);
         config.set("content.prophunt.block-palette." + key + ".model", model);

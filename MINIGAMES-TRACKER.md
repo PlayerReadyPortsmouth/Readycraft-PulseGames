@@ -893,3 +893,13 @@ Aurora reports Bedrock functional checks pass, then identifies visible attachmen
 [PulseAddon draft PR34](https://github.com/PlayerReadyPortsmouth/ReadyCraft-PulseAddon/pull/34), commit `9715701`, prepares Paper0.5.3 and Geyser0.3.2. Java displays now have an opt-in direct player parent; a separate Geyser adapter links Bedrock model carriers as non-controlling passengers. Armour, actual passengers, wardrobe ownership, local rules and existing prop/preview paths are preserved.
 
 49 focused tests passed (34 Paper,15 Geyser); jars and trial instructions are at `output/pulsegames/2026-10-13/cosmetic-follow` in the Ready workspace. Disabled by default, draft only, not deployed. Java yaw remains server-driven; Bedrock alignment/rotation and lifecycle need actual client acceptance. Aurora chose **keep it prepared for later**: do not merge, deploy or restart for this trial without a new go-ahead. PR opening notification failed HTTP404.
+
+## 19 October - Prop Hunt real-blocks mode (draft, not deployed)
+
+Prepared on `feat/prophunt-real-blocks` as a draft PR; not merged, not deployed, no
+live checks run. New arena setting `real-blocks` (default off, so existing arenas are
+unchanged): hiders can lock mid-air as a real full-cube block, hitting it reveals and
+damages the hider in one hit, and decoys are real blocks that can stack. Heads and
+non-full-cube props stay entity-only. Unit tests only; see `docs/PROP-HUNT.md` for the
+design and the live checks needed (kick/suffocation while hovering, owner see-through,
+restore on every exit path, Java and Bedrock).

@@ -276,7 +276,8 @@ public final class GameCatalog {
                         optional(setting("decoy-cooldown", "decoy cooldown: 2-60 seconds (default 12)")),
                         optional(setting("sprint-cooldown", "role sprint cooldown: 5-120 seconds (default 25)")),
                         optional(setting("pulse-cooldown", "seeker pulse cooldown: 5-120 seconds (default 25)")),
-                        optional(setting("pulse-radius", "seeker pulse radius: 4-24 blocks (default 12)"))),
+                        optional(setting("pulse-radius", "seeker pulse radius: 4-24 blocks (default 12)")),
+                        optional(setting("real-blocks", "true = locked hiders and decoys are real blocks, lockable mid-air (default false)"))),
                 false));
 
         registry.register(new GameType("supermarket", "Supermarket Sweep",

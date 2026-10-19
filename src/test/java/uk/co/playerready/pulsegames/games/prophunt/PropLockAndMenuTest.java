@@ -2,6 +2,7 @@ package uk.co.playerready.pulsegames.games.prophunt;
 
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
@@ -193,6 +194,90 @@ class PropLockAndMenuTest {
         logic.toggleLock(player);
         verify(player,never()).teleport(any(Location.class)); verify(visual,never()).close();
         Map<UUID,Object> locks=field(logic,"locked"); assertTrue(locks.isEmpty());
+    }
+    @Test void realBlocksMidAirLockSnapsToCellWritesBlockAndOwnerSeesOut() throws Exception {
+        RealBlockFixture f = new RealBlockFixture();
+        Player p = f.hider(.3, 64.6, .8, false);
+        HiderBody body = mock(HiderBody.class); Map<UUID, HiderBody> bodies = f.field("bodies"); bodies.put(p.getUniqueId(), body);
+        AutoCloseable rig = mock(AutoCloseable.class); Map<UUID, AutoCloseable> visuals = f.field("visuals"); visuals.put(p.getUniqueId(), rig);
+        f.logic.toggleLock(p);
+        ArgumentCaptor<Location> to = ArgumentCaptor.forClass(Location.class); verify(p).teleport(to.capture());
+        assertEquals(.5, to.getValue().getX()); assertEquals(64, to.getValue().getY()); assertEquals(.5, to.getValue().getZ());
+        assertSame(f.cube, f.at(0, 64, 0));
+        verify(p).sendBlockChange(any(Location.class), eq(f.air));
+        verify(body).hold(); verify(rig).close(); assertFalse(visuals.containsKey(p.getUniqueId()));
+        Map<UUID, Object> locks = f.field("locked"); assertTrue(locks.containsKey(p.getUniqueId()));
+    }
+    @Test void realBlocksMidAirRefusedWhenCellNotFreeAndGroundedFallsBackToEntityLock() throws Exception {
+        RealBlockFixture f = new RealBlockFixture();
+        f.solid.add(java.util.List.of(0, 64, 0));
+        Player air = f.hider(.5, 64, .5, false);
+        f.logic.toggleLock(air);
+        verify(air, never()).teleport(any(Location.class)); assertSame(f.air, f.at(0, 64, 0));
+        // A tracked (decoy) cell is passable but taken: a grounded hider keeps the old entity-only lock.
+        f.solid.clear(); for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) f.solid.add(java.util.List.of(x, 63, z));
+        PropBlocks blocks = f.field("blocks"); blocks.place(f.block(2, 64, 2), UUID.randomUUID(), PropBlocks.Kind.DECOY, org.bukkit.Material.STONE, null);
+        Player ground = f.hider(2.5, 64, 2.5, true);
+        f.logic.toggleLock(ground);
+        Map<UUID, Object> locks = f.field("locked");
+        assertTrue(locks.containsKey(ground.getUniqueId())); assertFalse(blocks.hasHider(ground.getUniqueId()));
+        // A head is never a block, mid-air or not.
+        Player head = f.hider(-1.5, 64.5, -1.5, false);
+        Map<UUID, PropPalette.Option> choices = f.field("choices"); choices.put(head.getUniqueId(), RealBlockFixture.HEAD);
+        f.logic.toggleLock(head);
+        verify(head, never()).teleport(any(Location.class)); assertSame(f.air, f.at(-2, 64, -2));
+    }
+    @Test void everyCleanupPathRestoresTheOriginalBlock() throws Exception {
+        java.util.List<java.util.function.BiConsumer<RealBlockFixture, Player>> paths = java.util.List.of(
+                (f, p) -> { try { f.unlockDebounce(); } catch (Exception e) { throw new RuntimeException(e); } f.logic.toggleLock(p); },
+                (f, p) -> { when(p.getLocation()).thenReturn(new Location(f.world, 3.5, 64, .5)); f.logic.reconcileLock(p); },
+                (f, p) -> f.logic.onEliminated(p),
+                (f, p) -> f.logic.onQuit(p),
+                (f, p) -> f.logic.onDeath(p, null),
+                (f, p) -> f.logic.onCleanup());
+        for (var path : paths) {
+            RealBlockFixture f = new RealBlockFixture();
+            BlockData grass = RealBlockFixture.data(); f.state.put(java.util.List.of(0, 64, 0), grass);
+            Player p = f.hider(.5, 64.2, .5, false);
+            f.logic.toggleLock(p); assertSame(f.cube, f.at(0, 64, 0));
+            when(p.getLocation()).thenReturn(new Location(f.world, .5, 64, .5));
+            path.accept(f, p);
+            assertSame(grass, f.at(0, 64, 0));
+            PropBlocks blocks = f.field("blocks"); assertFalse(blocks.tracked(f.block(0, 64, 0)));
+        }
+    }
+    @Test void oneRecordPerCellKeepsTheFirstOriginal() throws Exception {
+        RealBlockFixture f = new RealBlockFixture();
+        BlockData grass = RealBlockFixture.data(); f.state.put(java.util.List.of(1, 64, 1), grass);
+        PropBlocks blocks = f.field("blocks"); var cell = f.block(1, 64, 1);
+        assertTrue(blocks.place(cell, UUID.randomUUID(), PropBlocks.Kind.DECOY, org.bukkit.Material.STONE, null));
+        assertFalse(blocks.place(cell, UUID.randomUUID(), PropBlocks.Kind.HIDER, org.bukkit.Material.STONE, null));
+        blocks.release(cell); assertSame(grass, f.at(1, 64, 1));
+    }
+    @Test void signsAndOtherStatefulCellsAreNeverOverwritten() throws Exception {
+        RealBlockFixture f = new RealBlockFixture();
+        var cell = f.block(1, 64, 1); when(cell.getState(false)).thenReturn(mock(org.bukkit.block.TileState.class));
+        assertFalse(PropBlocks.replaceable(cell));
+        assertTrue(PropBlocks.replaceable(f.block(1, 65, 1)));
+    }
+    @Test void interactionOnATrackedCellIsDenied() throws Exception {
+        RealBlockFixture f = new RealBlockFixture();
+        PropBlocks blocks = f.field("blocks"); var cell = f.block(1, 64, 1);
+        blocks.place(cell, UUID.randomUUID(), PropBlocks.Kind.DECOY, org.bukkit.Material.BARREL, null);
+        var event = mock(org.bukkit.event.player.PlayerInteractEvent.class);
+        when(event.getAction()).thenReturn(org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK); when(event.getClickedBlock()).thenReturn(cell);
+        f.logic.onInteract(event);
+        verify(event).setUseInteractedBlock(org.bukkit.event.Event.Result.DENY);
+        var untracked = f.block(2, 64, 2);
+        var other = mock(org.bukkit.event.player.PlayerInteractEvent.class);
+        when(other.getAction()).thenReturn(org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK); when(other.getClickedBlock()).thenReturn(untracked);
+        f.logic.onInteract(other); verify(other, never()).setUseInteractedBlock(any());
+    }
+    @Test void lockedHiderCannotStartFlying() throws Exception {
+        RealBlockFixture f = new RealBlockFixture(); Player p = f.hider(.5, 64, .5, true);
+        Map<UUID, Object> locks = f.field("locked"); locks.put(p.getUniqueId(), new Object());
+        var event = mock(org.bukkit.event.player.PlayerToggleFlightEvent.class);
+        f.logic.onToggleFlight(p, event); verify(event).setCancelled(true); verify(p).setFlying(false);
     }
     private Player player() {
         Player player = mock(Player.class);
