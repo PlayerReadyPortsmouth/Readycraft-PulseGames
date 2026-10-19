@@ -18,4 +18,14 @@ class LuckyOverflowTest {
         var game=mock(GameInstance.class);var p=mock(Player.class);World instance=mock(World.class),other=mock(World.class);when(game.world()).thenReturn(instance);when(game.isActive(p)).thenReturn(true);when(p.getWorld()).thenReturn(other);
         new LuckyPillarsGame(game).give(p,mock(ItemStack.class),"blocks");verify(p,never()).getInventory();verifyNoInteractions(instance,other);
     }
+    @Test void onlyOverflowDropsCanBePickedUp() {
+        var game=mock(GameInstance.class);var p=mock(Player.class);World world=mock(World.class);PlayerInventory bag=mock(PlayerInventory.class);ItemStack granted=mock(ItemStack.class),leftover=mock(ItemStack.class);Item dropped=mock(Item.class),stray=mock(Item.class);
+        when(game.world()).thenReturn(world);when(game.isActive(p)).thenReturn(true);when(p.getWorld()).thenReturn(world);when(p.getLocation()).thenReturn(new Location(world,0,70,0));when(p.getInventory()).thenReturn(bag);
+        when(bag.addItem(granted)).thenReturn(new HashMap<>(Map.of(0,leftover)));when(world.dropItem(any(Location.class),eq(leftover))).thenReturn(dropped);
+        when(dropped.getUniqueId()).thenReturn(UUID.randomUUID());when(stray.getUniqueId()).thenReturn(UUID.randomUUID());
+        var lucky=new LuckyPillarsGame(game);lucky.give(p,granted,"blocks");
+        org.junit.jupiter.api.Assertions.assertFalse(lucky.itemPickup(p,stray));
+        org.junit.jupiter.api.Assertions.assertTrue(lucky.itemPickup(p,dropped));
+        org.junit.jupiter.api.Assertions.assertFalse(lucky.itemPickup(p,dropped));
+    }
 }

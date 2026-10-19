@@ -453,7 +453,7 @@ needed. Do not bypass team/role requirements and call that a completed test.
 | Death Run | No accepted map/test recorded | None | Classic needs 3; double trouble 4 | Runner routes, Death roles and trap timing |
 | Villager Defense | No accepted map/player test recorded | Deployed Easy/Hard | Yes | Full multi-wave survival, Mayor defence, co-op and two-client tests |
 | ReadyPlayerZ | No accepted map/player test recorded | Deployed Classic/Frenzy | Yes; PR draft (not deployed): sneak-to-buy barrier doors with price holograms, gentle darkness pulses, bots buy doors (local mocks only) | Full matches, kiting/balance, power-ups and two-client tests |
-| Lucky Pillars | No accepted map/test recorded | None | Yes | Item decisions, bridging and safe combat |
+| Lucky Pillars | No accepted map/test recorded | None | Yes | Prepared, not deployed: draft PR with ~60 weighted time-scaled drops (5s in both modes), explosives allowed, 16 chaos events (chaos mode only). Needs a live round: drop balance, TNT/lava damage to pillars, chaos restore (border, ice, scale, lava), mob cleanup |
 | Supermarket Sweep | No accepted map/test recorded | None | Yes | Shopping-list decisions, real chest/inventory actions and checkout |
 | Party Games | No accepted map/test recorded | None | Yes | Controller switching between colour matching, sumo and sprint |
 | Quake | Deployed 0.3.14; no arena configured yet | Weapon choice, visible-target combat, abilities, adaptive difficulty; live service ready | Solo and team variants; needs built maps | Build four or more spawns, cover and walkable routes; test navigation, hit feedback and balance on Java/Bedrock. |

@@ -269,7 +269,7 @@ public final class GameCatalog {
                 false));
 
         registry.register(new GameType("luckypillars", "Lucky Pillars",
-                "Random lucky drops - bridge and brawl!", Material.SPONGE,
+                "Lucky drops every 5s that get wilder over time - bridge, blast and brawl!", Material.SPONGE,
                 List.of(GameMode.ffa("classic", "Classic", 2, 12),
                         GameMode.ffa("chaos", "Chaos", 2, 12)),
                 LuckyPillarsGame::new,
