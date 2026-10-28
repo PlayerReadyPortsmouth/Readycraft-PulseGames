@@ -33,7 +33,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         final KartBoost boost = new KartBoost();
         long slowUntil, boxReady, resetReady;
         final KartDrift drift = new KartDrift();
-        boolean driftPressed, driftNeedsRelease, jumpDown, trickRequested;
+        boolean driftPressed, driftNeedsRelease, jumpDown, trickRequested, inAntiGravity;
         final KartAir air = new KartAir();
         Item item;
         boolean insideBox;
@@ -60,6 +60,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
     private Set<UUID> boxViewers = Set.of();
     private KartArcadeConfig arcade = KartArcadeConfig.NONE;
     private final KartPads pads = new KartPads();
+    private List<List<KartArcadeConfig.Pt>> ribbons = List.of();
     private KartPhysics.CollisionSpace space;
     private KartBotRoute botRoute;
     private List<Location> botPoints = List.of();
@@ -99,6 +100,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         initialiseResults(game.alivePlayers());
         space=KartPhysics.world(game.world());itemBoxes=game.arena().regionsByPrefix("itembox");
         arcade=KartArcadeConfig.load(game.arena().settings().getValues(false),game.arena().regions());
+        ribbons=arcade.antiGravityRails().stream().map(rail->KartAntiGravity.ribbon(rail,1.5)).toList();
         if (game.alivePlayers().stream().anyMatch(game::isBot)) {
             botRoute = KartBotRoute.load(game.arena(), game.world());
             botPoints = botRoute.points();
@@ -281,10 +283,11 @@ public final class PulseKartsGame extends CheckpointRaceGame {
             finishFraction = finish == null ? 0 : RaceGateCrossing.entry(finish,from,to);
             super.onMove(player,from,to);
             if(closed || game.state()!=GameState.RUNNING)return;
-            if (karts.containsKey(player.getUniqueId())) { collect(kart,from,to); touchPads(kart,before,next); }
+            if (karts.containsKey(player.getUniqueId())) { collect(kart,from,to); touchPads(kart,before,next); antiGravity(kart,next); }
             if (kart.boost.active(tick)) boostTrail(kart);
         }
-        if (!game.frozen()) applyBumps(previous);
+        if (!game.frozen()) { applyBumps(previous); antiGravityContacts(); }
+        if (tick % 5 == 0 && !ribbons.isEmpty()) antiGravityRibbon();
         completeRaceTick();
     }
     private void initialiseResults(List<Player> racers) {
@@ -416,6 +419,46 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         if (!arcade.boostBlocks().isEmpty() && after.grounded()) {
             var under = game.world().getBlockAt((int) Math.floor(after.x()), (int) Math.floor(after.y() - .1), (int) Math.floor(after.z()));
             if (under != null && arcade.boostBlocks().contains(under.getType())) boostPad(kart, "block");
+        }
+    }
+    /** Inside a section: +10% speed (a non-stacking boost source) and a soft glow around the kart. */
+    private void antiGravity(Kart kart, KartPhysics.State at) {
+        boolean inside = arcade.inAntiGravity(at.x(), at.y(), at.z());
+        if (inside) {
+            kart.boost.apply(KartBoost.Source.ANTIGRAV, KartAntiGravity.SPEED_FACTOR, tick, 2);
+            if (tick % 4 == 0) game.world().spawnParticle(Particle.GLOW, location(at).add(0, .8, 0), 2, .5, .3, .5, .02);
+            if (!kart.inAntiGravity && kart.bot == null) {
+                kart.driver.sendActionBar(Text.mm("<light_purple>Anti-gravity!"));
+                kart.driver.playSound(location(at), "minecraft:block.beacon.power_select", .6f, 1.6f);
+            }
+        }
+        kart.inAntiGravity = inside;
+    }
+    /** MK8-style: two karts touching inside a section each get a short boost. */
+    private void antiGravityContacts() {
+        List<Kart> inside = karts.values().stream().filter(k -> k.inAntiGravity && game.isActive(k.driver)).toList();
+        for (int i = 0; i < inside.size(); i++) for (int j = i + 1; j < inside.size(); j++) {
+            Kart a = inside.get(i), b = inside.get(j);
+            if (!KartPhysics.overlaps(a.motion, b.motion)
+                    || !pads.triggerBoth(a.driver.getUniqueId(), b.driver.getUniqueId(), "antigrav-bump", tick, KartAntiGravity.BUMP_COOLDOWN)) continue;
+            for (Kart kart : List.of(a, b)) {
+                kart.boost.apply(KartBoost.Source.BUMP, KartAntiGravity.BUMP_FACTOR, tick, KartAntiGravity.BUMP_TICKS);
+                if (kart.bot == null) kart.driver.playSound(location(kart.motion), "minecraft:block.amethyst_cluster.hit", .9f, 1.5f);
+            }
+            game.world().spawnParticle(Particle.END_ROD, location(a.motion).add(location(b.motion)).multiply(.5).add(0, 1, 0), 10, .4, .3, .4, .05);
+        }
+    }
+    /** Glowing ribbon along each rail, only near human karts and capped per emission. */
+    private void antiGravityRibbon() {
+        List<Location> humans = karts.values().stream().filter(k -> k.bot == null).map(k -> location(k.motion)).toList();
+        if (humans.isEmpty()) return;
+        var dust = new Particle.DustOptions(Color.fromRGB(0x22d3ee), 1.2f);
+        int budget = 60;
+        for (var ribbon : ribbons) for (var p : ribbon) {
+            if (budget <= 0) return;
+            if (humans.stream().noneMatch(h -> Math.abs(h.getX() - p.x()) < 24 && Math.abs(h.getZ() - p.z()) < 24)) continue;
+            game.world().spawnParticle(Particle.DUST, p.x(), p.y() + .4, p.z(), 1, 0, 0, 0, 0, dust);
+            budget--;
         }
     }
     private void flightEffects(Kart kart, KartAir.Step flight) {

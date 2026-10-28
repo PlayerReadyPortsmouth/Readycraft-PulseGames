@@ -17,6 +17,13 @@ final class KartPads {
         readyAt.put(key, tick + cooldown);
         return true;
     }
+    /** Contact between two karts: both must be off cooldown, and then both are armed. */
+    boolean triggerBoth(UUID a, UUID b, String pad, long tick, int cooldown) {
+        String ka = a + "/" + pad, kb = b + "/" + pad;
+        if (tick < readyAt.getOrDefault(ka, 0L) || tick < readyAt.getOrDefault(kb, 0L)) return false;
+        readyAt.put(ka, tick + cooldown); readyAt.put(kb, tick + cooldown);
+        return true;
+    }
     void forget(UUID kart) { readyAt.keySet().removeIf(key -> key.startsWith(kart.toString())); }
 
     /** Block-coordinate containment, matching {@link Cuboid#contains} without needing a Location. */

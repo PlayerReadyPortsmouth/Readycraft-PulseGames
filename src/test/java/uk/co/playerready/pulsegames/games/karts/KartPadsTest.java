@@ -37,4 +37,23 @@ class KartPadsTest {
   assertNull(KartArcadeConfig.validationError(Map.of("boost-block",42),Map.of()),"non-text values are ignored");
   assertNull(KartArcadeConfig.validationError(Map.of(),Map.of()));
  }
+ @Test void railPointsJoinTheSectionThatContainsThemAndBadRailsAreRefused() {
+  var sections=Map.of("antigrav1",new Cuboid(0,0,0,10,10,10),"antigrav2",new Cuboid(20,0,0,30,10,10));
+  var settings=Map.<String,Object>of("antigrav-path1","1,2,3","antigrav-path2","5.5,2,3.5,90,0","antigrav-path3","25,2,5");
+  var config=KartArcadeConfig.load(settings,sections);
+  assertEquals(2,config.antiGravity().size());
+  assertEquals(2,config.antiGravityRails().get(0).size());assertEquals(1,config.antiGravityRails().get(1).size());
+  assertTrue(config.inAntiGravity(5,3,5));assertFalse(config.inAntiGravity(15,3,5));
+  assertNotNull(KartArcadeConfig.validationError(Map.of("antigrav-path1","99,2,99"),sections),"outside every section");
+  assertNotNull(KartArcadeConfig.validationError(Map.of("antigrav-path2","1,2,3"),sections),"must start at 1");
+  assertNotNull(KartArcadeConfig.validationError(Map.of("antigrav-path1","one,two"),sections));
+  assertNotNull(KartArcadeConfig.validationError(Map.of("antigrav-pathX","1,2,3"),sections));
+  assertNotNull(KartArcadeConfig.validationError(Map.of(),Map.of("antigrav2",new Cuboid(0,0,0,1,1,1))));
+ }
+ @Test void contactCooldownNeedsBothKartsReadyAndArmsBoth() {
+  var pads=new KartPads();
+  assertTrue(pads.triggerBoth(a,b,"bump",100,40));assertFalse(pads.triggerBoth(a,b,"bump",139,40));
+  var c=new UUID(0,3);assertFalse(pads.triggerBoth(c,a,"bump",120,40),"a is still cooling down");
+  assertTrue(pads.triggerBoth(a,b,"bump",140,40));
+ }
 }

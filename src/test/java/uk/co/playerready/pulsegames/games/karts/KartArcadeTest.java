@@ -147,4 +147,16 @@ class KartArcadeTest {
   assertNotNull(KartArcadeConfig.validationError(Map.of("jump-power","fast"),regions));
   assertNotNull(KartArcadeConfig.validationError(Map.of(),Map.of("jump2",new uk.co.playerready.pulsegames.core.util.Cuboid(0,0,0,1,1,1))));
  }
+ @Test void antiGravityGivesTenPercentAndOnlyTouchingKartsInsideItBumpBoost()throws Exception {
+  var f=PulseKartsGame.class.getDeclaredField("arcade");f.setAccessible(true);
+  f.set(logic,KartArcadeConfig.load(Map.of(),Map.of("antigrav1",new uk.co.playerready.pulsegames.core.util.Cuboid(-5,64,-5,5,66,30))));
+  var a=kart(0,2,6);var b=kart(1,2,6);var solo=kart(0,20,6);var far=kart(0,200,6);
+  a.input=b.input=solo.input=far.input=new KartPhysics.Input(1,0);
+  drive();
+  assertEquals(KartAntiGravity.SPEED_FACTOR,solo.boost.multiplier(1),1e-9,"+10% inside, alone");
+  assertTrue(a.boost.active(KartBoost.Source.BUMP,1));assertTrue(b.boost.active(KartBoost.Source.BUMP,1));
+  assertEquals(KartAntiGravity.BUMP_FACTOR,a.boost.multiplier(1),1e-9,"the bump boost is the larger factor, not stacked");
+  assertFalse(solo.boost.active(KartBoost.Source.BUMP,1),"not touching anyone");
+  assertEquals(1,far.boost.multiplier(1),"outside the section: nothing");
+ }
 }
