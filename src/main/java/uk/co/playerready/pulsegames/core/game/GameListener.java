@@ -54,9 +54,20 @@ public final class GameListener implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         if (event.getPlayer().hasMetadata("NPC")) return;
-        if (!plugin.instances().rejoin(event.getPlayer())) plugin.lobby().sendToLobby(event.getPlayer());
+        if (!plugin.instances().rejoin(event.getPlayer())) {
+            uk.co.playerready.pulsegames.core.player.PlayerSanitiser.sanitise(event.getPlayer(), true);
+            plugin.lobby().sendToLobby(event.getPlayer());
+        }
         plugin.economy().handleDailyBonus(event.getPlayer());
         if (plugin.engagement() != null) plugin.engagement().onJoin(event.getPlayer());
+    }
+
+    /** Anything left on a player who has landed outside every live instance is cleared (the inventory is kept). */
+    @EventHandler
+    public void onWorldChange(org.bukkit.event.player.PlayerChangedWorldEvent event) {
+        Player player = event.getPlayer();
+        if (player.hasMetadata("NPC") || player.hasPermission("pulsegames.admin") || instanceOf(player) != null || plugin.instances().byWorld(player.getWorld()) != null) return;
+        uk.co.playerready.pulsegames.core.player.PlayerSanitiser.sanitise(player, false);
     }
 
     @EventHandler
