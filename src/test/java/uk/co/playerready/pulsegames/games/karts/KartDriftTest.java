@@ -13,8 +13,8 @@ class KartDriftTest {
  @Test void briefTapGivesNoBoostButMediumCornerDoes() {
   var drift=new KartDrift();drift.update(true,turn,moving,false);
   assertEquals(0,drift.update(false,turn,moving,false).boostTicks());
-  for(int i=0;i<12;i++)drift.update(true,turn,moving,false);
-  assertEquals(16,drift.update(false,turn,moving,false).boostTicks());
+  for(int i=0;i<20;i++)drift.update(true,turn,moving,false);
+  assertEquals(20,drift.update(false,turn,moving,false).boostTicks());
  }
  @Test void brakingSpinAndDirectionChangeCancelCharge() {
   for(int mode=0;mode<3;mode++) {
@@ -33,5 +33,18 @@ class KartDriftTest {
    var drift=new KartDrift();for(int i=0;i<80;i++)drift.update(true,turn,motion,false);
    assertEquals(0,drift.update(false,turn,moving,false).boostTicks());
   }
+ }
+ @Test void tiersArriveAtOneTwoPointFiveAndFourSecondsWithIncreasingBoost() {
+  int[][] expect={{19,0,1},{20,20,1},{49,20,1},{50,30,2},{79,30,2},{80,40,3},{300,40,3}};
+  double lastFactor=1;
+  for(int[] row:expect) {
+   var drift=new KartDrift();for(int i=0;i<row[0];i++)drift.update(true,turn,moving,false);
+   assertEquals(row[2]==1&&row[1]==0?0:row[2],drift.tier(),"tier after "+row[0]);
+   var release=drift.update(false,turn,moving,false);
+   assertEquals(row[1],release.boostTicks(),"boost after "+row[0]);
+   if(row[1]>0){assertTrue(release.boostFactor()>=lastFactor);lastFactor=release.boostFactor();}
+   else assertEquals(1,release.boostFactor());
+  }
+  assertEquals(1.40,KartDrift.TIER_BOOST_FACTOR[0]);assertEquals(1.70,KartDrift.TIER_BOOST_FACTOR[2]);
  }
 }

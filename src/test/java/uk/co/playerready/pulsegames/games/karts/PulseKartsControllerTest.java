@@ -40,9 +40,9 @@ class PulseKartsControllerTest {
  @Test void turboIsSingleUseAndExpiredEffectsReturnNormalSpeed() {
   kart.item=PulseKartsGame.Item.TURBO;var event=mock(PlayerInteractEvent.class);
   when(event.getPlayer()).thenReturn(player);when(event.getHand()).thenReturn(EquipmentSlot.HAND);when(event.getAction()).thenReturn(Action.RIGHT_CLICK_AIR);
-  var item=mock(ItemStack.class);when(item.getType()).thenReturn(Material.SUGAR);when(event.getItem()).thenReturn(item);logic.onInteract(event);assertNull(kart.item);assertEquals(40,kart.boostUntil);
-  assertEquals(1.55,PulseKartsGame.speedMultiplier(39,kart.boostUntil,0));assertEquals(1,PulseKartsGame.speedMultiplier(40,kart.boostUntil,0));
-  assertEquals(.4,PulseKartsGame.speedMultiplier(10,0,20));
+  var item=mock(ItemStack.class);when(item.getType()).thenReturn(Material.SUGAR);when(event.getItem()).thenReturn(item);logic.onInteract(event);assertNull(kart.item);assertEquals(40,kart.boost.until());
+  assertEquals(1.55,PulseKartsGame.speedMultiplier(kart.boost,39,0));assertEquals(1,PulseKartsGame.speedMultiplier(kart.boost,40,0));
+  assertEquals(.4,PulseKartsGame.speedMultiplier(new KartBoost(),10,20));
  }
  void bot() throws Exception {
   kart.bot=new KartBotDriver(player.getUniqueId());
@@ -70,7 +70,7 @@ class PulseKartsControllerTest {
  }
  @Test void botUsesCollectedTurboOnlyOnClearStraightAndCleansUpOnce() throws Exception {
   bot();kart.motion=new KartPhysics.State(0,64,0,0,6,0,true);kart.item=PulseKartsGame.Item.TURBO;
-  drive();assertNull(kart.item);assertEquals(41,kart.boostUntil);
+  drive();assertNull(kart.item);assertEquals(41,kart.boost.until());
   logic.onEliminated(player);logic.onCleanup();verify(visual,times(1)).close();verify(seat,times(1)).remove();
  }
  @Test void obstructedCheckpointFallbackRestartsBotRouteAtGrid() throws Exception {
@@ -148,9 +148,9 @@ class PulseKartsControllerTest {
   kart.motion=new KartPhysics.State(0,64,0,0,8,0,true);
   var input=mock(Input.class);when(input.isForward()).thenReturn(true);when(input.isRight()).thenReturn(true);when(input.isJump()).thenReturn(true);
   logic.onInput(player,input);for(int i=0;i<30;i++)drive();
-  assertEquals(0,kart.boostUntil);
+  assertEquals(0,kart.boost.until());
   when(input.isJump()).thenReturn(false);logic.onInput(player,input);drive();
-  assertTrue(kart.boostUntil>31);
+  assertTrue(kart.boost.until()>31);
  }
  @Test void itemBoxesSurviveStableAudienceAndCloseExactlyOnce() throws Exception {
   when(game.plugin().content().worldVisualViewerReady(player)).thenReturn(true);var matchWorld=game.world();when(matchWorld.isChunkLoaded(anyInt(),anyInt())).thenReturn(true);when(player.isOnline()).thenReturn(true);when(player.getWorld()).thenReturn(matchWorld);when(game.everyone()).thenReturn(List.of(player));
@@ -205,14 +205,13 @@ class PulseKartsControllerTest {
   when(game.alivePlayers()).thenReturn(List.of(player,otherPlayer));
   var other=new PulseKartsGame.Kart(otherPlayer,mock(ArmorStand.class),()->{},new KartPhysics.State(0,64,10,0,8,0,true));
   var k=PulseKartsGame.class.getDeclaredField("karts");k.setAccessible(true);((Map<UUID,PulseKartsGame.Kart>)k.get(logic)).put(otherPlayer.getUniqueId(),other);
-  var behind=PulseKartsGame.class.getDeclaredMethod("clearlyBehind",PulseKartsGame.Kart.class);behind.setAccessible(true);
   var target=PulseKartsGame.class.getDeclaredMethod("lightningTarget",PulseKartsGame.Kart.class);target.setAccessible(true);
-  assertEquals(false,behind.invoke(logic,kart));assertNull(target.invoke(logic,kart));
+  assertNull(target.invoke(logic,kart));
   var base=uk.co.playerready.pulsegames.games.common.CheckpointRaceGame.class;
   var pc=Class.forName(base.getName()+"$Progress");var ctor=pc.getDeclaredConstructor();ctor.setAccessible(true);var progress=ctor.newInstance();
   var lap=pc.getDeclaredField("lap");lap.setAccessible(true);lap.setInt(progress,2);
   var field=base.getDeclaredField("progress");field.setAccessible(true);((Map<UUID,Object>)field.get(logic)).put(otherPlayer.getUniqueId(),progress);
-  assertEquals(true,behind.invoke(logic,kart));assertSame(other,target.invoke(logic,kart));
+  assertSame(other,target.invoke(logic,kart));
   other.bumpImmuneUntil=100;assertNull(target.invoke(logic,kart));
   kart.item=PulseKartsGame.Item.LIGHTNING;var use=PulseKartsGame.class.getDeclaredMethod("useItem",PulseKartsGame.Kart.class);use.setAccessible(true);use.invoke(logic,kart);
   assertEquals(PulseKartsGame.Item.LIGHTNING,kart.item);

@@ -210,9 +210,16 @@ public final class GameCatalog {
                 List.of(spawns(2, "clear kart grid slots, at least two blocks apart, facing along the track"),
                         regions("checkpoint", 1, "track checkpoints, in order"),
                         region("finish", "the finish line (drive through it each lap)"),
-                        regions("itembox", 1, "item box pickup zones on the track"),
+                        optional(regions("itembox", 1, "legacy item box pickup zones; prefer the itembox1.. locations below")),
+                        optional(location("itembox1", "collectable item box on the racing line; repeat consecutively (itembox2...)")),
                         optional(location("checkpoint-spawn1", "safe kart reset with heading; repeat for each checkpoint")),
                         optional(location("bot-waypoint1", "ordered kart driving line; repeat consecutively for bot support")),
+                        optional(regions("boost", 1, "boost panels: 1.5 s speed burst, 1 s cooldown per panel per kart")),
+                        optional(setting("boost-block", "block material(s) that act as a boost panel, e.g. BLUE_GLAZED_TERRACOTTA")),
+                        optional(regions("jump", 1, "jump pads at the ramp lip: launch scaled by speed; press jump in the air for a trick")),
+                        optional(regions("antigrav", 1, "anti-gravity sections: +10% speed, glow, and a boost when karts touch")),
+                        optional(location("antigrav-path1", "ordered ribbon points through the sections; repeat consecutively (antigrav-path2...)")),
+                        optional(setting("jump-power", "vertical scale for every jump, 0.5-1.5 (default 1)")),
                         setting("void-y", "off-track fall level")),
                 false));
 
