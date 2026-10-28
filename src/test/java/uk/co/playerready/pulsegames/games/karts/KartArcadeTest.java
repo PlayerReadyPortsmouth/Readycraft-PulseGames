@@ -213,4 +213,26 @@ class KartArcadeTest {
   assertEquals(300,kart.starUntil);assertTrue(kart.boost.active(KartBoost.Source.STAR,150));assertNull(kart.item);
   kart.item=PulseKartsGame.Item.SHIELD;use(kart);assertEquals(400,kart.shieldUntil);assertNull(kart.item);
  }
+ @Test void hudShowsEveryTenTicksButNeverOverFreshNoticesAndOnlyOneLightningFlashPerFiveSeconds()throws Exception {
+  when(game.everyone()).thenReturn(List.of());
+  var kart=kart(0,0,0);tick(9);drive();
+  verify(kart.driver).sendActionBar(any(net.kyori.adventure.text.Component.class));
+  tick(19);kart.noticeUntil=40;drive();verify(kart.driver,times(1)).sendActionBar(any(net.kyori.adventure.text.Component.class));
+  tick(39);kart.noticeUntil=0;drive();verify(kart.driver,times(2)).sendActionBar(any(net.kyori.adventure.text.Component.class));
+  var strike=PulseKartsGame.class.getDeclaredMethod("lightningEffect",Location.class);strike.setAccessible(true);
+  tick(1000);strike.invoke(logic,new Location(game.world(),0,64,0));strike.invoke(logic,new Location(game.world(),0,64,0));
+  tick(1100);strike.invoke(logic,new Location(game.world(),0,64,0));
+  verify(game.world(),times(2)).strikeLightningEffect(any(Location.class));
+ }
+ @Test void enteringTheLastLapShowsAShortTitleOnce()throws Exception {
+  when(game.mode().id()).thenReturn("cup");when(game.arena().settings().getInt("laps",3)).thenReturn(3);
+  when(game.everyone()).thenReturn(List.of());
+  var kart=kart(0,0,0);kart.lastLap=2;
+  var base=uk.co.playerready.pulsegames.games.common.CheckpointRaceGame.class;
+  var pc=Class.forName(base.getName()+"$Progress");var ctor=pc.getDeclaredConstructor();ctor.setAccessible(true);var progress=ctor.newInstance();
+  var lap=pc.getDeclaredField("lap");lap.setAccessible(true);lap.setInt(progress,3);
+  var field=base.getDeclaredField("progress");field.setAccessible(true);((Map<UUID,Object>)field.get(logic)).put(kart.driver.getUniqueId(),progress);
+  tick(9);drive();verify(kart.driver,times(1)).showTitle(any(net.kyori.adventure.title.Title.class));
+  tick(19);drive();verify(kart.driver,times(1)).showTitle(any(net.kyori.adventure.title.Title.class));
+ }
 }
