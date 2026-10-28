@@ -69,6 +69,23 @@ Still to check on a server: Bedrock handling of the new hotbar items and GUIs, w
 the ready item sits well with each game's `onJoin`, in-match trail load, and the tag
 wording. Hazard, race and results work in parallel branches may touch the same files.
 
+## 28 October - Engagement programme E: race pack (candidate)
+
+**Candidate, not deployed, not server-tested.** Draft PR "Engagement E: race places, splits, personal bests for Parkour, Elytra, Dropper" (branch `feat/race-pack`, no version bump). Covered only by unit tests (24 new, full suite 697 passing); nothing has been run on a server, so Bedrock/Geyser title and sound behaviour is unchecked.
+
+Built:
+- **Shared:** new `games/common/RaceFinish` (finish ledger: places, times, grace window, splits against the leader, time/ordinal formatting) and `RaceAwards` (finish title and personal best). `CheckpointRaceGame` has an opt-in `racePack()`; Parkour and Elytra opt in, PulseKarts does not and is untouched.
+- **Places:** the first finisher no longer ends the race. They start a grace window (arena setting `finish-grace`, default 30 s); everyone finishing inside it gets a place and time, the rest are placed by checkpoint/stage, then the race ends (or on timeout).
+- **HUD:** "You are 3rd/6" with the gap to the leader on the action bar; split vs leader at every checkpoint/ring/stage; finish time on the title; sidebar lists everyone's place (up to 8 plus your own row), with times for finishers; "Race closes in Ns" in the last 10 s of grace.
+- **Personal bests:** `StatsService.bestTime/submitBestTime`, stored additively as `<uuid>.<game>.best-ms.<map>` (old stats.yml loads unchanged; bots/NPCs never save). "New personal best!" title and sound. Dropper practice is now a time trial against the same PB.
+- **Parkour elimination (id kept):** 10 s warning (title, then countdown on the action bar, tick sounds) before each cut; the last runner becomes a ghost runner in spectator flight who keeps scoring 1 point per checkpoint instead of being eliminated. Cuts pause once someone finishes; one runner left wins ("last-runner"); ties still cut nobody. Setting `elim-interval` unchanged.
+- **Elytra:** ring-pass particle burst and chime, km/h speed readout beside the place, optional `boost1..N` regions that refill rockets (3 s cooldown per ring).
+- **Dropper:** "Stage 2/5" title with stage time and total, level-up sound, splash particles; per-stage and total timer and a friendly miss counter on the action bar; finish places with grace, so the first finisher no longer makes everyone else lose.
+
+Notes for the bundle:
+- Stream A is adding engine placements (`recordFinish`-style API in GameInstance/MatchResults). These places are self-contained in the race games and the helper; **once both merge, wire the race pack's places (`RaceFinish.results()`, `placings()`) into the engine podium.** Until then the engine still marks only the first-place finisher as the winner and everyone else as "Defeat".
+- Not done: Elytra slipstream, Parkour alternate routes, varied Dropper themes, switching PulseKarts to `RaceFinish` (left on `KartRaceResults` on purpose). Ghost-runner behaviour (spectator mode keeps move events and the finish guard) needs a real two-player test.
+
 ## 19 October - ReadyPlayerZ faster kills and 1.8-style combat: 0.3.27 candidate
 
 **Prepared, not deployed:** PulseGames **0.3.27** (draft PR) cuts zombie health (round 1 walker 20 to 10, round 15 48 to 27.5; boss 3.5x a walker instead of 4x), removes the Brute resistance effect, strips random vanilla zombie armour and reinforcements, and adds per-arena `legacy-combat` (default on): human players get no attack cooldown (ATTACK_SPEED base 1024) and sweep attacks are cancelled, restored on death, quit, elimination, end and cleanup. Tunables `zombie-health-base`, `zombie-health-per-round`, `zombie-health-max`, `boss-health-multiplier` and `legacy-combat` are documented in [docs/READYPLAYERZ-BALANCE.md](docs/READYPLAYERZ-BALANCE.md). Local mock tests only; no played acceptance recorded.

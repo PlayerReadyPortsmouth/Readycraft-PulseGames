@@ -73,6 +73,8 @@ class NewGamesTest {
         World world = mock(World.class);
         Player player = mock(Player.class);
         when(player.getUniqueId()).thenReturn(UUID.randomUUID());
+        when(player.getLocation()).thenReturn(new Location(world, 0, 60, 0));
+        when(game.player(player.getUniqueId())).thenReturn(player);
         when(game.world()).thenReturn(world);
         when(game.isActive(player)).thenReturn(true);
         when(game.alivePlayers()).thenReturn(List.of(player));

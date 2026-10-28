@@ -30,6 +30,14 @@ public abstract class CheckpointRaceGame extends MiniGame {
     protected Cuboid finish;
     protected final Map<UUID, Progress> progress = new HashMap<>();
 
+    // ---- race pack (opt-in via racePack(); PulseKarts keeps its own results) ----
+    protected RaceFinish finishes;
+    private long startMs = -1;
+    private boolean raceClosed;
+    private final Map<UUID, String> names = new HashMap<>();
+    private final Map<UUID, Long> lastGap = new HashMap<>();
+    private final Map<UUID, Long> lastGateAt = new HashMap<>();
+
     protected CheckpointRaceGame(GameInstance game) {
         super(game);
     }
@@ -40,6 +48,26 @@ public abstract class CheckpointRaceGame extends MiniGame {
     /** Fast vehicle races may opt into ordered swept gate detection. */
     protected boolean sweptCheckpoints() { return false; }
 
+    /** Opt in to finish places with a grace window, splits, HUD place and personal bests. */
+    protected boolean racePack() { return false; }
+
+    /** False for ghost runners and anyone else whose passes must not set splits or places. */
+    protected boolean countsForRace(Player player) { return true; }
+
+    protected boolean raceClosed() { return raceClosed; }
+
+    /** Race clock source; overridable so timing can be tested. */
+    protected long nowMs() { return System.currentTimeMillis(); }
+
+    /** Extra text appended to the "You are 3rd" action bar (Elytra adds speed). */
+    protected String hudExtra(Player player) { return ""; }
+
+    /** Hook after a checkpoint/ring is passed (race-pack effects). */
+    protected void onGatePassed(Player player, Progress p, Cuboid gate) {}
+
+    @Override
+    public boolean managesCompletion() { return racePack(); }
+
     @Override
     public void onStart() {
         checkpoints = game.arena().regionsByPrefix("checkpoint");
@@ -48,7 +76,101 @@ public abstract class CheckpointRaceGame extends MiniGame {
             Progress p = new Progress();
             p.lastSafe = player.getLocation().clone();
             progress.put(player.getUniqueId(), p);
+            names.put(player.getUniqueId(), player.getName());
         }
+        if (racePack()) {
+            finishes = new RaceFinish(game.alivePlayers().stream().map(Player::getUniqueId).toList(),
+                    game.arena().settings().getInt("finish-grace", RaceFinish.DEFAULT_GRACE_SECONDS));
+            startMs = nowMs() + startFreezeSeconds() * 1000L;
+        }
+    }
+
+    protected long elapsedMs() { return startMs < 0 ? 0 : Math.max(0, nowMs() - startMs); }
+
+    private void announceGate(Player player, Progress p) {
+        String line = "<green>Checkpoint " + p.nextCheckpoint + "/" + checkpoints.size()
+                + (laps() > 1 ? " <gray>(lap " + p.lap + "/" + laps() + ")" : "");
+        if (racePack() && finishes != null && countsForRace(player)) {
+            UUID id = player.getUniqueId();
+            long gap = finishes.split(progressValue(id), id, elapsedMs());
+            lastGap.put(id, gap);
+            lastGateAt.put(id, nowMs());
+            line += " <gray>| " + placeLine(id) + " <gray>| " + (gap == 0 ? "<gold>leader" : "<red>" + RaceFinish.gap(gap));
+        }
+        player.sendActionBar(Text.mm(line));
+        player.playSound(player.getLocation(), "minecraft:block.note_block.bell", 1f, 1.5f);
+        if (racePack() && finishes != null && p.nextCheckpoint >= 1 && p.nextCheckpoint <= checkpoints.size())
+            onGatePassed(player, p, checkpoints.get(p.nextCheckpoint - 1));
+    }
+
+    /** Everyone in race order: finishers by time, then the rest by checkpoint progress. */
+    protected List<UUID> placings() {
+        return finishes.fullOrder(standings().stream().map(Player::getUniqueId).toList());
+    }
+
+    protected String placeLine(UUID id) {
+        List<UUID> order = placings();
+        int idx = order.indexOf(id);
+        return idx < 0 ? "<gray>Ghost runner" : "<yellow>You are " + RaceFinish.ordinal(idx + 1) + "<gray>/" + order.size();
+    }
+
+    /** Action bar with place, gap to the leader at the last gate, and any game extra. */
+    protected void sendPlaceBar(Player player) {
+        if (finishes == null || raceClosed) return;
+        UUID id = player.getUniqueId();
+        long gap = lastGap.getOrDefault(id, 0L);
+        String extra = hudExtra(player);
+        player.sendActionBar(Text.mm(placeLine(id) + " <gray>| " + (gap == 0 ? "<gold>leader" : "<red>" + RaceFinish.gap(gap))
+                + (extra.isEmpty() ? "" : " <gray>| " + extra)));
+    }
+
+    @Override
+    public void onSecond(int gameTime) {
+        if (finishes == null || raceClosed) return;
+        long now = elapsedMs();
+        if (finishes.shouldEnd(now) || game.alivePlayers().isEmpty()) {
+            closeRace("race-complete");
+            return;
+        }
+        boolean closing = finishes.hasFinishers();
+        for (Player player : game.alivePlayers()) {
+            if (nowMs() - lastGateAt.getOrDefault(player.getUniqueId(), 0L) < 2500) continue;
+            if (closing && finishes.graceRemainingSeconds(now) <= 10) {
+                player.sendActionBar(Text.mm("<red>Race closes in " + finishes.graceRemainingSeconds(now) + "s <gray>| "
+                        + placeLine(player.getUniqueId())));
+            } else sendPlaceBar(player);
+        }
+    }
+
+    private void recordFinish(Player player) {
+        UUID id = player.getUniqueId();
+        long ms = elapsedMs();
+        if (raceClosed || !finishes.finish(id, ms)) return;
+        int place = finishes.placeOf(id);
+        String time = RaceFinish.time(ms);
+        RaceAwards.announceFinish(game, player, place, ms);
+        game.broadcast("<gold>#" + place + " <yellow>" + player.getName() + " <gray>finished in <white>" + time);
+        game.finishParticipant(player);
+        player.sendMessage(Text.mm("<green>Course complete! <gray>You can watch the remaining racers."));
+        onSecond(game.gameTime());
+    }
+
+    protected void closeRace(String reason) { closeRace(reason, null); }
+
+    /** Ends the race; {@code winnersOverride} (e.g. last runner standing) replaces the first-place finisher. */
+    protected void closeRace(String reason, List<Player> winnersOverride) {
+        if (raceClosed) return;
+        raceClosed = true;
+        List<UUID> order = placings();
+        for (int i = 0; i < Math.min(order.size(), 5); i++) {
+            UUID id = order.get(i);
+            long t = finishes.timeOf(id);
+            game.broadcast("<gray>" + (i + 1) + ". <white>" + names.getOrDefault(id, "Racer")
+                    + " <gray>" + (t >= 0 ? RaceFinish.time(t) : "did not finish"));
+        }
+        List<Player> winners = finishes.results().stream().filter(r -> r.place() == 1)
+                .map(r -> game.player(r.player())).filter(java.util.Objects::nonNull).toList();
+        game.end(winnersOverride != null ? winnersOverride : winners, reason);
     }
 
     @Override
@@ -63,9 +185,7 @@ public abstract class CheckpointRaceGame extends MiniGame {
             if (checkpoints.get(p.nextCheckpoint).contains(to)) {
                 p.nextCheckpoint++;
                 recordCheckpoint(player, p, to);
-                player.sendActionBar(Text.mm("<green>Checkpoint " + p.nextCheckpoint + "/" + checkpoints.size()
-                        + (laps() > 1 ? " <gray>(lap " + p.lap + "/" + laps() + ")" : "")));
-                player.playSound(player.getLocation(), "minecraft:block.note_block.bell", 1f, 1.5f);
+                announceGate(player, p);
             }
         } else if (finish != null && finish.contains(to)) {
             if (p.lap < laps()) {
@@ -88,9 +208,7 @@ public abstract class CheckpointRaceGame extends MiniGame {
             previous = entry;
             p.nextCheckpoint++;
             recordCheckpoint(player, p, to);
-            player.sendActionBar(Text.mm("<green>Checkpoint " + p.nextCheckpoint + "/" + checkpoints.size()
-                    + (laps() > 1 ? " <gray>(lap " + p.lap + "/" + laps() + ")" : "")));
-            player.playSound(player.getLocation(), "minecraft:block.note_block.bell", 1f, 1.5f);
+            announceGate(player, p);
         }
         if (finish == null) return;
         double entry = RaceGateCrossing.entry(finish, from, to);
@@ -133,15 +251,27 @@ public abstract class CheckpointRaceGame extends MiniGame {
     @Override
     public void onQuit(Player player) {
         progress.remove(player.getUniqueId());
+        if (finishes != null && !raceClosed) {
+            finishes.depart(player.getUniqueId());
+            onSecond(game.gameTime());
+        }
     }
 
     /** A player completed all laps. Default: they win. */
     protected void onFinish(Player player) {
+        if (racePack() && finishes != null) {
+            recordFinish(player);
+            return;
+        }
         game.end(List.of(player), "finish");
     }
 
     @Override
     public void onTimeUp() {
+        if (finishes != null && finishes.hasFinishers()) {
+            closeRace("time-race");
+            return;
+        }
         game.broadcast("<yellow>Time is up. Nobody completed the course.");
         game.end(List.of(), "time-unfinished");
     }
@@ -192,10 +322,27 @@ public abstract class CheckpointRaceGame extends MiniGame {
             lines.add("<gray>Checkpoint: <white>" + p.nextCheckpoint + "/" + checkpoints.size());
             if (laps() > 1) lines.add("<gray>Lap: <white>" + p.lap + "/" + laps());
         }
+        if (racePack() && finishes != null) {
+            List<UUID> order = placings();
+            UUID me = player.getUniqueId();
+            int shown = 0;
+            for (int i = 0; i < order.size(); i++) {
+                boolean mine = order.get(i).equals(me);
+                if (i >= 8 && !mine) continue;
+                if (i >= 8 && shown >= 9) continue;
+                long t = finishes.timeOf(order.get(i));
+                lines.add((mine ? "<yellow>#" : "<gray>#") + (i + 1) + " <white>" + shorten(names.getOrDefault(order.get(i), "Racer"))
+                        + (t >= 0 ? " <gray>" + RaceFinish.time(t) : ""));
+                shown++;
+            }
+            return lines;
+        }
         List<Player> standings = standings();
         for (int i = 0; i < Math.min(3, standings.size()); i++) {
             lines.add("<gray>#" + (i + 1) + " <white>" + standings.get(i).getName());
         }
         return lines;
     }
+
+    private static String shorten(String name) { return name.length() > 12 ? name.substring(0, 12) : name; }
 }

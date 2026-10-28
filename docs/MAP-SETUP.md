@@ -90,11 +90,16 @@ The checklist shows all of this in-game; this is the reference with map-building
 ### Parkour Race (`parkour` - sprint, elimination)
 - **Regions:** `checkpoint1..N` in course order, `finish` at the end.
 - **Settings:** `void-y` - falling teleports you back to your last checkpoint (no death).
-- Optional: `elim-interval` for elimination mode.
+- Optional: `elim-interval` for elimination mode (seconds between cuts, default 45; each cut has a 10 s warning
+  and the cut runner becomes a ghost runner who keeps scoring per checkpoint). `finish-grace` - seconds after the
+  first finisher during which others can still finish and get a place (default 30, clamped 5-120).
+- Personal best times are kept per arena id, so renaming an arena resets its bests.
 
 ### Elytra Racing (`elytra` - sprint, grandprix)
 - **Spawns:** high launch platform. **Regions:** `checkpoint1..N` (big air rings),
-  `finish`. **Settings:** `void-y`. Optional: `laps`, `rockets`.
+  `finish`. **Settings:** `void-y`. Optional: `laps`, `rockets`, `finish-grace` (see Parkour).
+  Optional **boost rings** `boost1..N` (same cuboid style as checkpoints, not part of the route): flying through
+  one refills rockets to `rockets`, once per 3 s per ring.
 
 ### PulseKarts (`karts` - sprint, cup)
 - **Spawns:** 2+ on the starting grid. **Regions:** `checkpoint1..N`, `finish`
@@ -225,7 +230,9 @@ lowest landing. Optional `checkpoint1..N` regions cover intermediate water pools
 in numeric order. **Each** requires a `checkpoint-spawnN` location setting for
 the next stage's safe launch platform. Reaching a pool advances and teleports to
 that launch; damage or falling below `void-y` retries the current stage. The first
-player to complete all pools and the finish wins. Timeouts award no winner.
+player to complete all pools and the finish wins, but the race stays open for `finish-grace` seconds
+(default 30) so others still get a place and time; unfinished players are placed by stage reached. Timeouts
+with no finisher award no winner. Practice mode is a time trial against your per-map personal best.
 Pools must be reachable with ordinary falling and steering; provide solid rims
 and floors to contain water. Do not overlap launch points and landing regions.
 `blueprints/dropper-two-drops.json` supplies two 60-block drops with obstacle gates

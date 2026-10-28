@@ -53,7 +53,8 @@ class OutcomeFairnessTest {
     @Test void parkourRanksWithinSegmentInsteadOfJoinOrder() {
         var game=mock(GameInstance.class,RETURNS_DEEP_STUBS);var world=mock(World.class);
         var behind=player(world,1);var ahead=player(world,10);var logic=race(game,world,List.of(behind,ahead));
-        logic.onSecond(45);verify(game).eliminate(behind);logic.onTimeUp();verify(game).end(List.of(ahead),"time");
+        logic.onSecond(45);verify(game,never()).eliminate(any());verify(behind).setGameMode(org.bukkit.GameMode.SPECTATOR);
+        verify(game).end(List.of(ahead),"last-runner");
     }
     @Test void parkourNearTiesNeitherEliminateArbitrarilyNorAwardArbitraryWin() {
         var game=mock(GameInstance.class,RETURNS_DEEP_STUBS);var world=mock(World.class);
