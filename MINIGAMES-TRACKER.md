@@ -907,3 +907,30 @@ damages the hider in one hit, and decoys are real blocks that can stack. Heads a
 non-full-cube props stay entity-only. Unit tests only; see `docs/PROP-HUNT.md` for the
 design and the live checks needed (kick/suffocation while hovering, owner see-through,
 restore on every exit path, Java and Bedrock).
+
+## 28 October - Engagement programme D: Party Games variety, Kit PvP and KOTH fairness (candidate)
+
+Prepared on `feat/party-games-combat-fairness` as a draft PR against `main`. **Nothing is
+merged, deployed or server-tested**; unit tests only. No plugin version bump.
+
+- **Party Games:** eight micro-games in a shuffle bag (no repeats until all have played):
+  Color Rush, Sumo Brawl, Sprint, Mini Spleef, TNT Run, Hot Potato, Memory Tiles, Simon
+  Says. They use only the existing `floor`, `sumo` and `finish` regions; a game whose
+  region is missing is left out, and Simon Says works anywhere. Placement points 5/3/1
+  plus 1 for taking part; a title card with a one-line instruction and a 3 s countdown
+  before each game; an optional chaos round (double points, `chaos-chance`, default 15%);
+  knocked-out players watch from the hub with a live "still in" action bar; the match ends
+  with a podium reveal (3rd, 2nd, 1st, fireworks) before the engine's results.
+  Egg Shoot and Dodgeball variants were not built (they need spawned targets/projectile
+  handling and overlap the hazard-games work).
+- **Kit PvP and KOTH:** safe respawn (farthest from enemies, random among the farthest
+  third of spawns) with 2 s spawn protection; KOTH contested hill pauses scoring with a
+  CONTESTED title and bossbar, kill (5) and assist (2) points, team-coloured capture
+  bossbar, optional `hill1..N` rotation; Kit PvP streak rewards (3 golden apple, 5 speed,
+  ffa only), a glowing bounty on the strict leader paid in tokens (capped at 3 claims per
+  player), and a kill feed on the killer's action bar. OITC keeps its rules.
+- **Tests:** 21 new (shuffle bag, placement points, contested hill, safe spawn, protection,
+  assists, streaks, bounty); full suite 694 passed, 0 failed.
+- **Needs a real server before release:** Spleef/TNT Run/Memory floor restore on every
+  exit path, freeze effect during the countdown on Bedrock, Simon Says sneak/look checks on
+  Bedrock and touch clients, bossbar colours, and map spawn spread for safe respawns.
