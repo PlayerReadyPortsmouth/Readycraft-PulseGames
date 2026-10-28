@@ -458,7 +458,7 @@ public final class BotService implements AutoCloseable {
         }
         if (goal == null && enemy == null) {
             slot.objective = objectives != null ? "Guarding the objective" : "Patrolling";
-            goal = objectives != null ? objectives.botGuardPoint() : patrolDestination(game, bot);
+            goal = objectives != null ? objectives.botGuardPoint(bot) : patrolDestination(game, bot);
             if (goal == null) goal = game.arena().spawn((int) ((tick / 100 + bot.getEntityId()) % Math.max(1, game.arena().spawnCount())), game.world());
         }
         if (game.logic() instanceof uk.co.playerready.pulsegames.games.skywars.SkywarsGame skywars) {

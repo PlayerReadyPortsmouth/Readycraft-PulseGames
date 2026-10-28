@@ -249,8 +249,8 @@ new Bedwars controller and expanded Skywars movement/ranged actions.
 ## ReadyPlayerZ squadmates (28 October candidate)
 
 Bots fight zombies they can see, buy swords and armour with earned points and open doors as before. They now also
-follow the first standing human and walk to a downed human, crouching beside them so the normal 8-second revive
-applies. Limits of the shared `BotObjectives` hook: `botGuardPoint()` has no bot argument, so every bot follows the
-same human rather than "nearest human" per bot; the framework's 24-block target search is used instead of a
-6-block attack rule; bots do not use the Mystery Box or Pack-a-Punch. Per-bot follow targets would need a
-`botGuardPoint(Player bot)` overload in `BotObjectives`.
+follow the nearest standing human, each bot choosing for itself, and walk to a downed human, crouching beside them
+so the normal 8-second revive applies. `BotObjectives` has a per-bot `botGuardPoint(Player bot)` hook that defaults
+to the shared no-argument `botGuardPoint()`, so Villager Defense (which guards the Mayor) is unchanged; ReadyPlayerZ
+overrides it. A bot only walks to a door it can itself afford. The framework's 24-block target search is used instead
+of a 6-block attack rule; bots do not use the Mystery Box or Pack-a-Punch.

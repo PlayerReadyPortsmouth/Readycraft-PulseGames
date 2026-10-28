@@ -8,5 +8,7 @@ import java.util.Collection;
 public interface BotObjectives {
     Collection<? extends LivingEntity> botEnemies();
     Location botGuardPoint();
+    /** Where this particular bot should stand; games that want per-bot behaviour override it. */
+    default Location botGuardPoint(org.bukkit.entity.Player bot) { return botGuardPoint(); }
     default void botTick(org.bukkit.entity.Player bot) {}
 }

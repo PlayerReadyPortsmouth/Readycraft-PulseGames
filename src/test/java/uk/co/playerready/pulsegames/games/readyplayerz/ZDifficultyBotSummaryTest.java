@@ -48,6 +48,30 @@ class ZDifficultyBotSummaryTest {
         verify(bot).setSneaking(true);
         assertSame(down, logic.botGuardPoint());
     }
+    @Test void eachBotFollowsTheStandingHumanNearestToIt() {
+        var game = mock(GameInstance.class, RETURNS_DEEP_STUBS);
+        when(game.arena()).thenReturn(ReadyPlayerZBotTest.arena());
+        World world = game.world();
+        Player botA = mock(Player.class), botB = mock(Player.class), west = mock(Player.class), east = mock(Player.class);
+        for (Player p : List.of(botA, botB, west, east)) {
+            when(p.getUniqueId()).thenReturn(UUID.randomUUID());
+            when(p.getWorld()).thenReturn(world);
+            when(game.isActive(p)).thenReturn(true);
+        }
+        Location westAt = new Location(world, -50, 64, 0), eastAt = new Location(world, 50, 64, 0);
+        when(west.getLocation()).thenReturn(westAt);
+        when(east.getLocation()).thenReturn(eastAt);
+        when(botA.getLocation()).thenReturn(new Location(world, -45, 64, 0));
+        when(botB.getLocation()).thenReturn(new Location(world, 45, 64, 0));
+        when(game.isBot(botA)).thenReturn(true);
+        when(game.isBot(botB)).thenReturn(true);
+        when(game.alivePlayers()).thenReturn(List.of(botA, botB, west, east));
+        var logic = new ReadyPlayerZGame(game);
+        logic.progression = mock(ZMapProgression.class);
+        assertSame(westAt, logic.botGuardPoint(botA));
+        assertSame(eastAt, logic.botGuardPoint(botB));
+        assertSame(westAt, logic.botGuardPoint(), "the no-argument hook still means the first standing human");
+    }
     @Test void overrunSummaryIsWellPlayedNotGameOver() {
         var game = mock(GameInstance.class, RETURNS_DEEP_STUBS);
         when(game.arena()).thenReturn(ReadyPlayerZBotTest.arena());

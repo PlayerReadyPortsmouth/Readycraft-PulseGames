@@ -289,6 +289,7 @@ class BotServiceTest {
         when(game.logic()).thenReturn(logic);
         when(((BotObjectives) logic).botEnemies()).thenAnswer(c -> zombie == null ? List.of() : List.of(zombie));
         when(((BotObjectives) logic).botGuardPoint()).thenReturn(guard);
+        when(((BotObjectives) logic).botGuardPoint(any())).thenReturn(guard);
         if (zombie != null) {
             when(zombie.getUniqueId()).thenReturn(UUID.randomUUID());
             when(zombie.isValid()).thenReturn(true);
