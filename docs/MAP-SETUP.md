@@ -92,15 +92,23 @@ The checklist shows all of this in-game; this is the reference with map-building
 - **Rounds mode:** the arena region is snapshotted and restored (lava included); keep it under 300,000 blocks.
 
 ### King of the Hill (`koth` - solo, teams)
-- **Regions:** `hill` - the capture zone. **Spawns:** 4+ around it.
-- Optional: `target-score`, `kit` (a kit id from kits.yml).
+- **Regions:** `hill` - the capture zone. **Spawns:** 4+ around it; respawns pick the
+  spawn farthest from enemies (random among the farthest third) with 2 s protection.
+- A hill with two sides on it is **contested**: nobody scores. Kills pay 5, assists 2.
+- Optional: `target-score`, `kit` (a kit id from kits.yml). **Hill rotation:** define
+  `hill1..N` (two or more) instead of `hill`; the active hill moves every
+  `hill-rotate-seconds` (default 75, minimum 20) with a title announcement. A map with
+  only `hill` keeps one fixed hill.
 
 ### Duels (`duels` - classic, op, sumo)
 - **Spawns:** exactly 2, facing each other. **Settings:** `void-y` (sumo ring-out).
 - Optional: `rounds-to-win` (default 2), `kit`.
 
 ### Kit PvP (`kitpvp` - ffa, oitc)
-- **Spawns:** 4+ spread out. Optional: `target-kills`, `kit`.
+- **Spawns:** 4+ spread out; respawns pick the spawn farthest from enemies with 2 s
+  protection, so more spread-out spawns make it fairer. Optional: `target-kills`, `kit`.
+- Streaks (ffa only): 3 kills = golden apple, 5 = speed. The strict leader (3+ kills)
+  carries a glowing bounty worth 5 tokens, claimable 3 times per player per match.
 
 ### Parkour Race (`parkour` - sprint, elimination)
 - **Regions:** `checkpoint1..N` in course order, `finish` at the end.
@@ -191,10 +199,17 @@ it automatically.
 - Optional: `list-size`, `item-pool` (custom materials), `time-limit`.
 
 ### Party Games (`partygames`)
-- **Spawns:** 4+ at the central hub.
-- **Regions:** `floor` (Color Rush dance floor), `sumo` (knock-off platform - the
-  game spawns players on its top), `finish` (Sprint goal).
-- **Settings:** `void-y` below all three areas. Optional: `rounds`.
+- **Spawns:** 4+ at the central hub. **Lobby point:** where knocked-out players watch.
+- **Regions** (all optional per micro-game; a micro-game is only in the rotation if its
+  region exists): `floor` (Color Rush, Mini Spleef, TNT Run, Memory Tiles - Memory needs
+  at least 3x3 blocks), `sumo` (Sumo Brawl, Hot Potato - players start on its top),
+  `finish` (Sprint). Simon Says needs no region, so every map has at least one game.
+- **Settings:** `void-y` below all areas (floor games also eliminate anyone who drops
+  below the floor layer). Optional: `rounds` (default 5), `chaos-chance` (percent per
+  round after the first, default 15, 0 = never) for a double-points round, and
+  `podium1`, `podium2`, `podium3` locations (`x,y,z,yaw,pitch`) where the top three are
+  teleported during the final reveal. Without them the reveal happens on the hub.
+- Build: keep `floor` a flat single or few-layer block floor; it is restored after each round.
 
 ---
 
