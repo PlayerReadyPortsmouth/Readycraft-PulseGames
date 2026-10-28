@@ -52,6 +52,19 @@ final class ZMysteryBox {
 
     static boolean punchable(Material material) { return PUNCHABLE.contains(material); }
 
+    /** What Pack-a-Punch does to a weapon, free of the enchantment registry so it can be unit tested. */
+    enum PunchKind { SHARPNESS, POWER, QUICK_CHARGE }
+    record Punch(PunchKind kind, int level, String displayName) {}
+
+    /** Sharpness III / Power III / Quick Charge II, and the "Punched ..." name; null for anything not punchable. */
+    static Punch punch(Material material) {
+        if (!punchable(material)) return null;
+        PunchKind kind = material == Material.BOW ? PunchKind.POWER
+            : material == Material.CROSSBOW ? PunchKind.QUICK_CHARGE : PunchKind.SHARPNESS;
+        String base = material.name().toLowerCase(java.util.Locale.ROOT).replace('_', ' ');
+        return new Punch(kind, kind == PunchKind.QUICK_CHARGE ? 2 : 3, "<aqua><b>Punched " + base);
+    }
+
     /** Bows and crossbows get Power/Quick Charge; melee weapons get Sharpness. */
     static boolean ranged(Material material) { return material == Material.BOW || material == Material.CROSSBOW; }
 }

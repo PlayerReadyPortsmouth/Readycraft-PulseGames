@@ -987,6 +987,15 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
                 .serialize(line).contains(PUNCHED_LORE));
     }
 
+    /** Looked up here so tests can supply one; the enchantment registry does not load under Mockito. */
+    org.bukkit.enchantments.Enchantment enchantmentFor(ZMysteryBox.PunchKind kind) {
+        return switch (kind) {
+            case POWER -> org.bukkit.enchantments.Enchantment.POWER;
+            case QUICK_CHARGE -> org.bukkit.enchantments.Enchantment.QUICK_CHARGE;
+            case SHARPNESS -> org.bukkit.enchantments.Enchantment.SHARPNESS;
+        };
+    }
+
     /** 5000 points: upgrades the weapon in hand once (Sharpness III / Power III / Quick Charge II, renamed, glint). */
     boolean packAPunch(Player player) {
         ItemStack held = player.getInventory().getItemInMainHand();
@@ -994,14 +1003,10 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
             || game.score(player) < ZMysteryBox.PACK_A_PUNCH_PRICE)
             return false;
         game.addScore(player, -ZMysteryBox.PACK_A_PUNCH_PRICE);
-        var type = held.getType();
-        var enchant = type == Material.BOW ? org.bukkit.enchantments.Enchantment.POWER
-            : type == Material.CROSSBOW ? org.bukkit.enchantments.Enchantment.QUICK_CHARGE
-            : org.bukkit.enchantments.Enchantment.SHARPNESS;
-        held.addUnsafeEnchantment(enchant, type == Material.CROSSBOW ? 2 : 3);
+        var punch = ZMysteryBox.punch(held.getType());
+        held.addUnsafeEnchantment(enchantmentFor(punch.kind()), punch.level());
         held.editMeta(meta -> {
-            String base = type.name().toLowerCase(java.util.Locale.ROOT).replace('_', ' ');
-            meta.displayName(Text.mm("<aqua><b>Punched " + base));
+            meta.displayName(Text.mm(punch.displayName()));
             meta.lore(List.of(Text.mm("<gray>" + PUNCHED_LORE)));
             meta.setEnchantmentGlintOverride(true);
         });
