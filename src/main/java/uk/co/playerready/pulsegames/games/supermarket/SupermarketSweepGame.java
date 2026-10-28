@@ -116,18 +116,20 @@ public final class SupermarketSweepGame extends MiniGame {
         collected.remove(player.getUniqueId());
     }
 
+    /** Highest count wins and ties share it; nobody wins on zero items (idling must not pay a win). */
+    static <T> List<T> topCollectors(java.util.Map<T, Integer> counts) {
+        int best = counts.values().stream().mapToInt(Integer::intValue).max().orElse(0);
+        if (best <= 0) return List.of();
+        return counts.entrySet().stream().filter(e -> e.getValue() == best).map(java.util.Map.Entry::getKey).toList();
+    }
+
     @Override
     public void onTimeUp() {
-        Player best = null;
-        int bestCount = -1;
+        java.util.Map<Player, Integer> counts = new java.util.LinkedHashMap<>();
         for (Player p : game.alivePlayers()) {
-            int count = collected.getOrDefault(p.getUniqueId(), Set.of()).size();
-            if (count > bestCount) {
-                bestCount = count;
-                best = p;
-            }
+            counts.put(p, collected.getOrDefault(p.getUniqueId(), Set.of()).size());
         }
-        game.end(best == null ? List.of() : List.of(best), "time");
+        game.end(topCollectors(counts), "time");
     }
 
     @Override
