@@ -59,6 +59,8 @@ final class ZCombatBalance {
             return "insta-kill";
         if (weight < 68)
             return "double-points";
-        return "max-ammo";
+        if (weight < 84) return "max-ammo";
+        if (weight < 92) return "team-shield";
+        return "second-wind";
     }
 }

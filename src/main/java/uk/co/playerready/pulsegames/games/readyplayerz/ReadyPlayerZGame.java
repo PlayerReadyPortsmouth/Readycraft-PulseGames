@@ -67,6 +67,12 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
     private Boolean previousDaylight, previousWeather;
     private boolean nightApplied;
     private int round = 0;
+    private int lastZombieSeconds;
+    private final java.util.Map<UUID, Integer> kills = new java.util.HashMap<>();
+    private final java.util.Map<UUID, Long> lastKill = new java.util.HashMap<>();
+    private final java.util.Map<UUID, Integer> chains = new java.util.HashMap<>();
+    java.util.function.LongSupplier clock = System::currentTimeMillis;
+
     private int breakTimer = 8;
     private boolean roundActive;
     private int pendingSpawns;
@@ -174,6 +180,13 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
                 var entity = game.world().getEntity(id);
                 boolean gone=entity==null||entity.isDead();if(gone)variants.remove(id);return gone;
             });
+            if (zombies.size() == 1 && pendingSpawns == 0) {
+                if (++lastZombieSeconds == 20) {
+                    var last = game.world().getEntity(zombies.iterator().next());
+                    if (last != null) last.setGlowing(true);
+                    game.everyone().forEach(p -> p.sendActionBar(Text.mm("<yellow>Last zombie — follow the glow!")));
+                }
+            } else lastZombieSeconds = 0;
             // Spawns are staggered across the round, and a nuke empties the live set while
             // the rest of the wave is still queued - both would read as "round survived".
             if (zombies.isEmpty() && pendingSpawns <= 0) {
@@ -181,7 +194,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
                 game.everyone().forEach(this::clearDarkness);
                 nextPulse.clear();
                 breakTimer = isFrenzy() ? 5 : 10;
-                game.broadcast("<green><b>Round " + round + " survived!</b></green>");
+                announce("<green>Round " + round + " clear!", "Time to resupply", "minecraft:block.note_block.chime");
                 reviveDowned();
                 if (round >= totalRounds()) {
                     game.end(game.players(), "rounds-complete");
@@ -194,18 +207,16 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
 
     private void startRound() {
         round++;
+        lastZombieSeconds = 0;
         roundActive = true;
         int count = (int) ((6 + round * 4) * (isFrenzy() ? 1.5 : 1.0));
-        game.broadcast("<red><b>ROUND " + round + "</b></red> <gray>- " + count + " zombies!");
-        for (Player p : game.everyone()) {
-            p.playSound(p.getLocation(), "minecraft:entity.zombie.ambient", 1f, 0.7f);
-        }
+        announce("<gold>Round " + round, rushRound() ? "Rush round! Stay together" : count + " zombies incoming", "minecraft:event.raid.horn");
         progression.setRound(round);
         pendingSpawns = count;
         for (int i = 0; i < count; i++) {
             boolean boss = round % 5 == 0 && i == count - 1;
             int expectedRound = round;
-            game.runLater(i * (isFrenzy() ? 6L : 12L), () -> spawnQueued(expectedRound, boss, 0));
+            game.runLater(i * (isFrenzy() || rushRound() ? 6L : 12L), () -> spawnQueued(expectedRound, boss, 0));
         }
     }
 
@@ -254,11 +265,12 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
             return;
         }
         ZCombatBalance.Variant variant = ZCombatBalance.variant(round, boss, ThreadLocalRandom.current());
+        if (rushRound() && !boss) variant = ZCombatBalance.Variant.RUNNER;
         LivingEntity spawned = null;
         try {
             String id = model(variant);
             LivingEntity enemy = id.isBlank()
-                ? (LivingEntity) game.world().spawnEntity(location.get(), EntityType.ZOMBIE)
+                ? (LivingEntity) game.world().spawnEntity(location.get(), (variant == ZCombatBalance.Variant.VENOM ? EntityType.HUSK : EntityType.ZOMBIE))
                 : game.plugin().content().spawnMob(id, location.get(), game.everyone());
             spawned = enemy;
             if (enemy != null) {
@@ -300,7 +312,11 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
             if (enemy.getEquipment() != null) {
                 enemy.getEquipment().clear();
             }
-            setAttribute(enemy, org.bukkit.attribute.Attribute.ARMOR, 0);
+            setAttribute(enemy, org.bukkit.attribute.Attribute.ARMOR, variant == ZCombatBalance.Variant.BRUTE ? 4 : 0);
+            if (variant == ZCombatBalance.Variant.BRUTE && enemy.getEquipment() != null) {
+                enemy.getEquipment().setHelmet(new ItemStack(Material.IRON_HELMET));
+                enemy.getEquipment().setHelmetDropChance(0);
+            }
             setAttribute(enemy, org.bukkit.attribute.Attribute.ARMOR_TOUGHNESS, 0);
             setAttribute(enemy, org.bukkit.attribute.Attribute.SPAWN_REINFORCEMENTS, 0);
             setAttribute(enemy, org.bukkit.attribute.Attribute.MAX_HEALTH, stats.health());
@@ -310,7 +326,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
             setAttribute(enemy, org.bukkit.attribute.Attribute.FOLLOW_RANGE, bounded("aggro-range", 48, 16, 96));
             setAttribute(enemy, org.bukkit.attribute.Attribute.SCALE, stats.scale());
             enemy.customName(Text.mm("<red>"
-                + (variant == ZCombatBalance.Variant.BOSS ? "Foreman"
+                + (variant == ZCombatBalance.Variant.BOSS ? "Brute Boss"
                                                           : variant.name().toLowerCase(java.util.Locale.ROOT))));
             if (variant == ZCombatBalance.Variant.VENOM)
                 enemy.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, Integer.MAX_VALUE, 0, false, false));
@@ -368,8 +384,14 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
             if (source instanceof Player p && downed.contains(p.getUniqueId())) { event.setCancelled(true); return; }
         }
         if (event.getCause() == org.bukkit.event.entity.EntityDamageEvent.DamageCause.ENTITY_SWEEP_ATTACK
-            && legacyCombat())
-            event.setCancelled(true);
+            && legacyCombat()) { event.setCancelled(true); return; }
+        if (!event.isCancelled() && event.getFinalDamage() > 0 && zombies.contains(event.getEntity().getUniqueId())
+                && event instanceof org.bukkit.event.entity.EntityDamageByEntityEvent hit) {
+            var source = hit.getDamager();
+            Player attacker = source instanceof Player p ? p
+                    : source instanceof org.bukkit.entity.Projectile projectile && projectile.getShooter() instanceof Player p ? p : null;
+            if (attacker != null && game.isActive(attacker) && !downed.contains(attacker.getUniqueId())) awardPoints(attacker, 5, false);
+        }
     }
 
     private void setAttribute(LivingEntity entity, org.bukkit.attribute.Attribute attribute, double value) {
@@ -403,11 +425,33 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
             return;
         variants.remove(entity.getUniqueId());
         if (!nukeActive && killer != null && game.isActive(killer)) {
-            int points = System.currentTimeMillis() < doublePointsUntil ? 20 : 10;
-            game.addScore(killer, points);
-            killer.sendActionBar(Text.mm("<gold>+" + points + " points"));
+            kills.merge(killer.getUniqueId(), 1, Integer::sum);
+            awardPoints(killer, 10, true);
             maybeDropPowerup(entity.getLocation());
         }
+    }
+
+    private boolean rushRound() { return round > 0 && round % 3 == 0 && round % 5 != 0; }
+
+    private void announce(String title, String subtitle, String sound) {
+        for (Player p : game.everyone()) {
+            Text.title(p, title, subtitle);
+            p.playSound(p.getLocation(), sound, 1f, .9f);
+        }
+    }
+
+    void awardPoints(Player player, int base, boolean kill) {
+        UUID id = player.getUniqueId();
+        long now = clock.getAsLong();
+        int chain = chains.getOrDefault(id, 0);
+        if (kill) {
+            chain = now - lastKill.getOrDefault(id, Long.MIN_VALUE / 2) <= 2000 ? Math.min(8, chain + 1) : 1;
+            lastKill.put(id, now); chains.put(id, chain);
+        }
+        int points = base * (now < doublePointsUntil ? 2 : 1);
+        game.addScore(player, points);
+        player.sendActionBar(Text.mm("<gold>+" + points + (kill && chain > 1 ? " • " + chain + " chain!" : "")));
+        player.playSound(player.getLocation(), "minecraft:entity.experience_orb.pickup", .6f, Math.min(2f, 1f + .12f * Math.max(0, chain - 1)));
     }
 
     // ---- power-up drops (CoD style) -------------------------------------------
@@ -430,6 +474,8 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
             icon = Material.GOLD_INGOT;
         else if (type.equals("nuke"))
             icon = Material.TNT;
+        if (type.equals("team-shield")) icon = Material.SHIELD;
+        if (type.equals("second-wind")) icon = Material.HONEY_BOTTLE;
         ItemStack stack = new ItemStack(icon);
         stack.editMeta(meta -> meta.displayName(Text.mm("<gold><b>" + type.toUpperCase().replace('-', ' '))));
         var item = game.world().dropItem(location.clone().add(0, 0.5, 0), stack);
@@ -473,6 +519,11 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
                         p.getInventory().addItem(new ItemStack(Material.ARROW, 16));
                     }
                 });
+            case "team-shield" -> activeSquad().forEach(p -> p.setNoDamageTicks(200));
+            case "second-wind" -> activeSquad().forEach(p -> {
+                var max = p.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
+                p.setHealth(Math.min(max == null ? 20 : max.getValue(), p.getHealth() + 8));
+            });
             case "nuke" -> {
                 int killed = 0;
                 nukeActive = true;
@@ -829,8 +880,8 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
     @Override
     public List<String> sidebar(Player player) {
         List<String> lines = new java.util.ArrayList<>(List.of("<gray>Round: <red>" + round + "/" + totalRounds(),
-            "<gray>Zombies left: <red>" + zombies.size(), "<gold>Points: <white>" + game.score(player),
-            "<gray>Team: <white>" + (game.alivePlayers().size() - downed.size()) + " up"));
+            "<gray>Zombies left: <red>" + (zombies.size() + pendingSpawns), "<gold>Points: <white>" + game.score(player),
+            "<gray>Team: <white>" + (game.alivePlayers().size() - downed.size()) + " up / " + downed.size() + " down"));
         if (progression.doorCount() > 0) {
             var next = progression.nextDoor();
             lines.add("<gray>Doors: <white>" + progression.doorsOpened() + "/" + progression.doorCount()
