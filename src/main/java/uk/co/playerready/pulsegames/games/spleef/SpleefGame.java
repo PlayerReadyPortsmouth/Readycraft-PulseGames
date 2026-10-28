@@ -46,6 +46,13 @@ public final class SpleefGame extends MiniGame implements uk.co.playerready.puls
     private boolean isRounds() { return uk.co.playerready.pulsegames.games.common.RoundController.isRounds(game); }
 
     @Override
+    public String startProblem(List<Player> players) {
+        if (!isRounds()) return null;
+        return uk.co.playerready.pulsegames.games.common.RegionSnapshot.refusal("Spleef",
+                game.arena().regionsByPrefix("floor"), game.plugin().getLogger()::warning);
+    }
+
+    @Override
     public void onStart() {
         floors = game.arena().regionsByPrefix("floor");
         refreshFloorBlocks();

@@ -111,10 +111,15 @@ public final class AvalancheGame extends MiniGame implements uk.co.playerready.p
         if (!isRounds()) return null;
         Cuboid arena = game.arena().region("arena");
         if (arena == null) return null;
-        try { snapshotBox(arena); } catch (IllegalArgumentException | NullPointerException e) {
-            return "Avalanche rounds need an arena small enough to snapshot (under 300000 blocks)";
+        Cuboid box;
+        try { box = snapshotBox(arena); } catch (IllegalArgumentException | NullPointerException e) {
+            box = null;
         }
-        return null;
+        if (box == null) {
+            game.plugin().getLogger().warning("Avalanche rounds mode refused: the arena region is over the Cuboid limit.");
+            return "Avalanche rounds need an arena under " + RegionSnapshot.MAX_BLOCKS + " blocks to snapshot";
+        }
+        return RegionSnapshot.refusal("Avalanche", java.util.List.of(box), game.plugin().getLogger()::warning);
     }
 
     private void out(Player player) {
