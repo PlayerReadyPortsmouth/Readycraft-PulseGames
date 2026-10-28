@@ -634,7 +634,7 @@ needed. Do not bypass team/role requirements and call that a completed test.
 | Volcano | No accepted map/test recorded | Deployed: Classic, Eruption | Yes | Full lava/rock rounds; map-specific climbing routes |
 | Parkour | No accepted map/test recorded | None | Sprint yes; elimination needs 3 | Builder-authored routes, real jumps and checkpoints |
 | Elytra Racing | No accepted map/test recorded | None | Yes | Flight routes, checkpoint passage, rockets and recovery |
-| PulseKarts | 0.3.25 live; 0.3.26 + Content Paper 0.5.8 handling, drift and visual candidate not deployed | Sprint/Cup bots inherited from 0.3.20 are deployed; map acceptance pending; candidate deliberate drift checked locally; live map acceptance pending | Yes | Test authored routes and full bot laps; verify glancing wall slide, drift/release boosts, custom pickup boxes, kart interpolation, reset cleanup and Java/Bedrock appearance |
+| PulseKarts | 0.3.25 live; 0.3.26 + Content Paper 0.5.8 handling, drift and visual candidate not deployed; 0.4.3 arcade pack (collectable boxes, boost, jump, anti-gravity, drift tiers) prepared on a draft PR | Sprint/Cup bots inherited from 0.3.20 are deployed; map acceptance pending; candidate deliberate drift checked locally; live map acceptance pending | Yes | Test authored routes and full bot laps; verify glancing wall slide, drift/release boosts, custom pickup boxes, kart interpolation, reset cleanup and Java/Bedrock appearance |
 | Skywars | No accepted map/test recorded | Candidate: loot/equip, bridges, height steps, melee/bows | Solo/insane yes; doubles needs 4 | Chest, stairs, bridge, ranged combat and team acceptance |
 | Bedwars | No accepted map/test recorded | Candidate: resources, purchases, defence and bed objectives | Duos needs 4; quads needs 8 | Resources, shops, bed defence/destruction, bridging and respawns |
 | Build Battle | No accepted map/test recorded | None | Yes | Theme-aware building in plots, phases and fair voting bots |
@@ -1091,3 +1091,14 @@ damages the hider in one hit, and decoys are real blocks that can stack. Heads a
 non-full-cube props stay entity-only. Unit tests only; see `docs/PROP-HUNT.md` for the
 design and the live checks needed (kick/suffocation while hovering, owner see-through,
 restore on every exit path, Java and Bedrock).
+
+## 28 October - PulseKarts arcade pack (candidate)
+
+Prepared on `feat/karts-arcade` as a draft PR for PulseGames **0.4.3** (0.4.1 was the planned number; main reached 0.4.2 meanwhile); **not merged, not deployed, no live checks run, no restart requested.** Aurora asked for anti-gravity sections, jumps, boost panels and item pickups that are real collectables rather than a zone. Design note: [docs/PULSEKARTS-ARCADE-DESIGN.md](docs/PULSEKARTS-ARCADE-DESIGN.md).
+
+**What is built (unit-tested maths and state rules only):** collectable `itemboxN` locations (swept 1.2-block pickup, global 4 s respawn, 1.5 s hotbar roulette), a leader/middle/back item table, banana, triple shells, star, bullet and shield, `boostN` panels and a `boost-block` rule, `jumpN` pads with landing tricks, `antigravN` sections, three drift tiers (1 s / 2.5 s / 4 s), an action-bar HUD with place-change sound and FINAL LAP! title, and a one-lightning-flash-per-5-s cap. Bots collect boxes, use shell/banana/shield/turbo and get star or bullet only while a human holds one.
+
+**Honest limits:** anti-gravity is speed, glow, a particle ribbon and a bump boost; there is no spline hold or model tilt because the custom 20 Hz physics and the PulseContent kart visual (yaw only) cannot do either robustly. Drift tiers replace the 0.6 s / 1.25 s stages, so bots (whose drifts last about half a second) seldom earn drift boosts. Every new map entry is optional: Copper Canyon Raceway is unchanged until its builder adds `itemboxN` locations, `boostN`, `jumpN`, `antigravN` and a rail.
+
+**Needs a live drive before anything is called accepted:** item box visuals on Java and Bedrock (bridge model and the plain glass fallback; Geyser may not render display entities), roulette and hotbar icons on Bedrock, boost and jump feel and landing safety at speed, the trick spin on the Bedrock kart link, bullet autopilot round Copper Canyon, banana/shield/star behaviour with real traffic, bots over jump pads, HUD readability and the title on Bedrock, and the photosensitivity review of the particle trails. Record results separately from the unit tests above.
+

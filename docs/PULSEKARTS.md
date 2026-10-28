@@ -74,3 +74,15 @@ Continue `bot-waypoint3`, `bot-waypoint4`, etc., with no numbering gaps (3–128
 Record `checkpoint-spawnN` after each numbered checkpoint with a forward heading and clear, supported kart footprint. Each reset must lie within three blocks of the segment crossing its gate, after entry into the gate and before that segment’s endpoint. Bots recover along the section after the last earned checkpoint; recovery never awards progress. Use the same reviewed driving line for Sprint and Cup. Existing general `bot-route-*` location lists do not replace the kart's numbered driving line.
 
 Run arena validation before publishing, then enable `bots-enabled` through the normal setup setting command. Test one bot from the grid, every corner, all checkpoint recovery points, item use and three complete Cup laps. Test two bots side by side, a human overtaking them, a blocked route, off-track recovery, player replacement before the race, and cleanup after the last human leaves. Only mark that map bot-ready after these checks; route validation alone is not evidence that the kart can physically drive it.
+
+## Arcade pack (0.4.3 candidate, 28 October 2026)
+
+Prepared on `feat/karts-arcade`; **not merged, not deployed, never driven**. Design, numbers, item table and Bedrock notes:
+[PULSEKARTS-ARCADE-DESIGN.md](PULSEKARTS-ARCADE-DESIGN.md); map entries: the PulseKarts section of [MAP-SETUP.md](MAP-SETUP.md).
+
+- **Applies to every map:** the position-aware item table, 1.5 s item roulette, six new items (banana, triple shells, star, bullet, shield), three drift tiers (mini 1 s, super 2.5 s, ultra 4 s, replacing the 0.6 s / 1.25 s stages), the action-bar HUD, place-change sound, FINAL LAP! title and the one-lightning-flash-per-5-s cap. Boosts no longer stack; the largest active factor applies.
+- **Only where the map opts in:** collectable `itemboxN` locations, `boostN` panels and `boost-block`, `jumpN` pads, `antigravN` sections. Copper Canyon Raceway has none of these entries, so it keeps its region item boxes (with the new items and roulette) until a builder adds them.
+- **Anti-gravity is deliberately simple:** speed, glow, ribbon and bump boost. There is no spline hold and no model tilt (see the design note for why).
+- **Bots:** collect boxes they pass, use shell, triple shell, banana, shield and turbo; star and bullet only while a human holds that item. They stop probing for drops near jump pads, hold throttle in the air and do not brake against their own boost. Their drifts rarely last the full second now needed for mini-turbo, so they seldom earn drift boosts; the shared rules are unchanged.
+- **Unverified:** everything above is unit-tested for its maths and state rules only. The live checks are listed in the pull request.
+

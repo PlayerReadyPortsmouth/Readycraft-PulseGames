@@ -140,8 +140,10 @@ public final class PulseKartsGame extends CheckpointRaceGame {
             bridgeBoxes=game.plugin().content().worldVisualStartProblem(PICKUP_MODEL,game.alivePlayers())==null;
         }
         ribbons=arcade.antiGravityRails().stream().map(rail->KartAntiGravity.ribbon(rail,1.5)).toList();
-        // The bullet item follows the bot route, so a valid route is loaded even for all-human races.
-        if (game.alivePlayers().stream().anyMatch(game::isBot) || KartBotRoute.validationError(game.arena()) == null) {
+        // The bullet item follows the bot route. In an all-human race it is only used when the map's route is valid
+        // and marked reviewed with bots-enabled: validation alone does not prove the kart can drive the line.
+        if (game.alivePlayers().stream().anyMatch(game::isBot) || (game.arena().settings().getBoolean("bots-enabled", false)
+                && KartBotRoute.validationError(game.arena()) == null)) {
             botRoute = KartBotRoute.load(game.arena(), game.world());
             botPoints = botRoute.points();
         }
@@ -249,7 +251,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         if(closed || game.state()!=GameState.RUNNING)return;tick++;
         if (raceResults != null && raceResults.shouldEnd(tick)) { finishRace("race-grace-ended"); return; }
         if (tick % 20 == 0 && !itemBoxes.isEmpty()) refreshBoxVisuals();
-        if (displays != null) { if (tick % 20 == 0) configureBoxDisplays(); displays.update(tick); }
+        if (displays != null) { if (tick == 1 || tick % 20 == 0) configureBoxDisplays(); displays.update(tick); }
         if (tick % 20 == 0) expireBananas();
         if (tick % 10 == 0) bananaMarkers();
         Map<UUID,Integer> places = tick % KartHud.INTERVAL_TICKS == 0 ? places() : Map.of();

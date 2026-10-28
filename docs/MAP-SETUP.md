@@ -126,8 +126,28 @@ The checklist shows all of this in-game; this is the reference with map-building
 
 ### PulseKarts (`karts` - sprint, cup)
 - **Spawns:** 2+ on the starting grid. **Regions:** `checkpoint1..N`, `finish`
-  (drive through every lap), `itembox1..N` on the racing line.
-- Build: ice roads make boats fast. Optional: `laps`.
+  (drive through every lap). Optional: `laps`, `finish-grace-seconds`, reviewed
+  `checkpoint-spawnN` reset locations and the `bot-waypointN` driving line
+  (see `docs/PULSEKARTS.md`).
+- **Item boxes:** `/pulse setup setloc itembox1` (then `itembox2`, ...) while standing on the racing
+  line, consecutively from 1, at most 32. Each becomes a spinning, collectable cube (1.2-block pickup radius,
+  4 s respawn). Legacy `itembox1..N` *regions* still work on maps that have no `itemboxN` location, with the old
+  zone pickup; if any location exists the regions are ignored. Put boxes on the driving line so bots collect them too.
+- **Arcade pack, all optional** (a map with none of these drives exactly as before; design and numbers in
+  `docs/PULSEKARTS-ARCADE-DESIGN.md`). Regions must include the block the kart's feet are in (the first air block
+  above the road) and one above it, and be at least 3 blocks wide in the driving direction so a fast kart cannot skip them:
+  - `boost1..N` regions: boost panels (1.5 s at x1.50, 1 s cooldown per panel per kart).
+  - setting `boost-block`: block material(s), comma separated, e.g. `BLUE_GLAZED_TERRACOTTA`; standing on one acts as a panel.
+  - `jump1..N` regions: jump pads at the lip of a ramp (launch scales with speed); setting `jump-power` 0.5-1.5
+    (default 1). Leave real track on the landing side: falling below `void-y` resets to the last `checkpoint-spawnN`.
+  - `antigrav1..N` regions: anti-gravity sections (+10% speed, glow, boost when karts touch). Locations
+    `antigrav-path1..M` (consecutive, in driving order) trace a glowing ribbon; each point belongs to the
+    anti-gravity region that contains it and must be inside one. There is no wall or ceiling driving: build the
+    drivable floor normally and put the wall/ceiling decor beside it.
+  - Bullet items need a valid `bot-waypointN` route with `bots-enabled: true` (a reviewed route); without both they are never handed out.
+- Malformed optional entries (numbering gaps, unknown block, `jump-power` out of range, a rail point outside every
+  section) stop the race from starting with a message naming the entry.
+- Build: ice is no longer needed (controller speed is independent of surface).
 
 ### Skywars (`skywars` - solo, doubles, insane)
 - **Spawns:** one per island (doubles: islands need 2-player space; spawn N = team N).

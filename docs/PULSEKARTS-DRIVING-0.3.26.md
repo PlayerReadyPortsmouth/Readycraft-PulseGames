@@ -9,9 +9,9 @@ Mario Kart Wii-inspired arcade handling, forgiving turns and drift boosts. Drivi
 ## Implemented
 
 - Shallow wall scrapes preserve a safe movement component with speed loss. Frontal collisions, blocked corners, unloaded terrain and tall obstacles still stop the kart. Existing slab step-up remains.
-- Hold jump while driving forward and steering at speed to drift. Release after 12 ticks (0.6 seconds) for a 16-tick boost, or 25 ticks (1.25 seconds) for a 30-tick boost. Audible cues mark both charge stages and release. Rear slip changes the travel heading while the chassis continues turning.
+- Hold jump while driving forward and steering at speed to drift. Release after 12 ticks (0.6 seconds) for a 16-tick boost, or 25 ticks (1.25 seconds) for a 30-tick boost. *(Superseded in the 0.4.3 arcade candidate by three tiers at 20 / 50 / 80 ticks; see `PULSEKARTS-ARCADE-DESIGN.md`.)* Audible cues mark both charge stages and release. Rear slip changes the travel heading while the chassis continues turning.
 - Reverse/braking, opposite steering, airborne driving, spins/slows, resets and getting stuck cancel drift charge. A held key cannot re-arm a cancelled drift until released. Boost timers extend by maximum, not addition; turbo and drift multipliers do not stack.
-- World-owned pickup boxes are noncolliding and independent of any single racer. Slow spin/bob, six question marks, original artwork. Personal five-second collection cooldown remains; no global disappearance.
+- World-owned pickup boxes are noncolliding and independent of any single racer. Slow spin/bob, six question marks, original artwork. Personal five-second collection cooldown remains; no global disappearance. *(Legacy `itemboxN` regions only: 0.4.3 `itemboxN` locations are collectable and respawn globally after 4 s.)*
 - At most 32 authored pickup regions per map. Boxes only spawn in already loaded chunks and refresh for content-ready humans, including spectators after pack load. Match cleanup, failed starts and audience changes release handles. Failed close retains ownership for retry and prevents duplicate replacement.
 - Resetting preserves held forward/back/steering input, so a held accelerator does not require release/repress. Jump held through reset cannot immediately re-arm drift.
 - Track preflight rejects missing checkpoints/finish and overlapping first checkpoint/finish cuboids. Adjacent gate faces are allowed.
@@ -28,7 +28,7 @@ Pickup refresh now preserves unaffected boxes when another track chunk loads/unl
 
 ## Limitations
 
-This is not client-side prediction. Java and Bedrock responsiveness needs comparison testing. The candidate adds deliberate bot corner drifting using the same physics and 12/25-tick charge thresholds as players; 117 focused checks pass, including earned-boost and complete-lap simulations; actual complete-map bot laps are still pending. Cosmetic progression and additional item types are future work. Items remain shells, turbo and lightning; comeback weighting uses completed checkpoint progress, so racers within the same segment are not geometrically ranked. Source model preview is not in-game acceptance. For exact finish ties, the finish announcement shares the placing correctly; the sidebar list may still show consecutive row numbers (1, 2).
+This is not client-side prediction. Java and Bedrock responsiveness needs comparison testing. The candidate adds deliberate bot corner drifting using the same physics and 12/25-tick charge thresholds as players; 117 focused checks pass, including earned-boost and complete-lap simulations; actual complete-map bot laps are still pending. Cosmetic progression and additional item types are future work. Items were shells, turbo and lightning (0.4.3 adds more); comeback weighting uses completed checkpoint progress, so racers within the same segment are not geometrically ranked. Source model preview is not in-game acceptance. For exact finish ties, the finish announcement shares the placing correctly; the sidebar list may still show consecutive row numbers (1, 2).
 
 ## Test runbook
 

@@ -1,4 +1,4 @@
-# PulseKarts arcade pack - design (28 October 2026, candidate 0.4.1)
+# PulseKarts arcade pack - design (28 October 2026, candidate 0.4.3)
 
 Aim: collectable item boxes, boost panels, jumps, anti-gravity sections, drift tiers and a clearer HUD, without
 changing Copper Canyon Raceway. **Every feature is optional per arena.** A map with none of the new entries drives
@@ -25,7 +25,7 @@ anti-gravity, bump) keeps its own factor and expiry, and the kart uses the **lar
 | Triple shells | Three uses of the existing shell, at least 10 ticks apart. |
 | Star | 10 s: invulnerable to shells, bananas, lightning and bumps, speed x1.20, music-note particles. |
 | Shield | Right-click to raise; blocks the next hit of any kind, then pops. Expires after 15 s. |
-| Bullet | 8 s auto-pilot along the **bot route**, x1.60 speed, invulnerable. Only drawn if the arena has a valid `bot-waypointN` route; otherwise it is simply not in the table (equivalent to a re-roll). Resets use `checkpoint-spawn`. |
+| Bullet | 8 s auto-pilot along the **bot route**, x1.60 speed, invulnerable. Only drawn if the arena has a valid `bot-waypointN` route **and** `bots-enabled: true` (the route is marked reviewed); otherwise it is simply not in the table (equivalent to a re-roll). Resets use `checkpoint-spawn`. |
 | Safety | No item moves another kart sideways or upwards; items only slow, spin (in place, collision-checked) or shield. Bullet and star only add forward speed through the normal physics, so wall and void rules still apply. |
 
 ### Position-aware item table
