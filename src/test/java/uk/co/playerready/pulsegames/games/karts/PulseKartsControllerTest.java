@@ -205,14 +205,13 @@ class PulseKartsControllerTest {
   when(game.alivePlayers()).thenReturn(List.of(player,otherPlayer));
   var other=new PulseKartsGame.Kart(otherPlayer,mock(ArmorStand.class),()->{},new KartPhysics.State(0,64,10,0,8,0,true));
   var k=PulseKartsGame.class.getDeclaredField("karts");k.setAccessible(true);((Map<UUID,PulseKartsGame.Kart>)k.get(logic)).put(otherPlayer.getUniqueId(),other);
-  var behind=PulseKartsGame.class.getDeclaredMethod("clearlyBehind",PulseKartsGame.Kart.class);behind.setAccessible(true);
   var target=PulseKartsGame.class.getDeclaredMethod("lightningTarget",PulseKartsGame.Kart.class);target.setAccessible(true);
-  assertEquals(false,behind.invoke(logic,kart));assertNull(target.invoke(logic,kart));
+  assertNull(target.invoke(logic,kart));
   var base=uk.co.playerready.pulsegames.games.common.CheckpointRaceGame.class;
   var pc=Class.forName(base.getName()+"$Progress");var ctor=pc.getDeclaredConstructor();ctor.setAccessible(true);var progress=ctor.newInstance();
   var lap=pc.getDeclaredField("lap");lap.setAccessible(true);lap.setInt(progress,2);
   var field=base.getDeclaredField("progress");field.setAccessible(true);((Map<UUID,Object>)field.get(logic)).put(otherPlayer.getUniqueId(),progress);
-  assertEquals(true,behind.invoke(logic,kart));assertSame(other,target.invoke(logic,kart));
+  assertSame(other,target.invoke(logic,kart));
   other.bumpImmuneUntil=100;assertNull(target.invoke(logic,kart));
   kart.item=PulseKartsGame.Item.LIGHTNING;var use=PulseKartsGame.class.getDeclaredMethod("useItem",PulseKartsGame.Kart.class);use.setAccessible(true);use.invoke(logic,kart);
   assertEquals(PulseKartsGame.Item.LIGHTNING,kart.item);

@@ -13,6 +13,11 @@ public final class KartBotDriver {
             this(input, reset, useTurboSafe, false);
         }
     }
+    /** Arcade hints from the match: boost-scaled target speed, a jump gap ahead, or mid-flight. */
+    public record Context(double speedScale, boolean ignoreDrops, boolean airborne) {
+        public static final Context NONE = new Context(1, false, false);
+    }
+    private boolean ignoreDrops;
     private final double preference;
     private int stuck, reverseTicks, recoveryCount, ticks;
     private boolean drifting;
@@ -36,7 +41,19 @@ public final class KartBotDriver {
     public Decision update(KartPhysics.State state, Point target, Point following,
                            BotDifficulty difficulty, KartPhysics.CollisionSpace terrain,
                            List<KartPhysics.State> opponents, KartStyle style) {
+        return update(state,target,following,difficulty,terrain,opponents,style,Context.NONE);
+    }
+
+    /**
+     * Over a jump pad a bot stops probing for drops (the gap is the point) and in the air it just holds throttle
+     * and keeps its heading; boosted, it raises its target speed so it does not brake against its own boost.
+     */
+    public Decision update(KartPhysics.State state, Point target, Point following,
+                           BotDifficulty difficulty, KartPhysics.CollisionSpace terrain,
+                           List<KartPhysics.State> opponents, KartStyle style, Context context) {
         ticks++;
+        ignoreDrops = context.ignoreDrops();
+        if (context.airborne()) { cancelDrift(); return new Decision(new KartPhysics.Input(1,0),false,false); }
         if (driftCooldown > 0) driftCooldown--;
         if (Double.isFinite(lastX) && Math.hypot(state.x()-lastX,state.z()-lastZ) < .025) stuck++;
         else { stuck = Math.max(0, stuck-3); if (state.speed() > 3) recoveryCount = 0; }
@@ -74,7 +91,7 @@ public final class KartBotDriver {
             heldSteering = Math.clamp(best/40,-1,1);
         }
         double max = difficulty == BotDifficulty.EASY ? 6.0 : difficulty == BotDifficulty.NORMAL ? 8.0 : 9.5;
-        max += preference;
+        max = (max + preference) * Math.clamp(context.speedScale(), 1, 2);
         double distance = Math.hypot(target.x()-state.x(),target.z()-state.z());
         double corner = following == null ? 0 : Math.abs(angle(Math.toDegrees(Math.atan2(
                 -(following.x()-target.x()),following.z()-target.z()))-desired));
@@ -126,7 +143,7 @@ public final class KartBotDriver {
     }
 
     /** Preview ordinary shared drift physics; every future chassis needs terrain support and traffic clearance. */
-    private static boolean safeDrift(KartPhysics.State state, KartPhysics.Input input,
+    private boolean safeDrift(KartPhysics.State state, KartPhysics.Input input,
                                      KartPhysics.CollisionSpace terrain, List<KartPhysics.State> opponents, KartStyle style) {
         KartDrift preview = new KartDrift();
         var future = state;
@@ -140,7 +157,7 @@ public final class KartBotDriver {
         return true;
     }
 
-    private static boolean safe(KartPhysics.State state, double yaw, double distance,
+    private boolean safe(KartPhysics.State state, double yaw, double distance,
                                 KartPhysics.CollisionSpace terrain, List<KartPhysics.State> opponents) {
         double sin = -Math.sin(Math.toRadians(yaw)), cos = Math.cos(Math.toRadians(yaw));
         for (int step=1;step<=3;step++) {
@@ -148,7 +165,7 @@ public final class KartBotDriver {
             if (!terrain.clearAt(x,state.y(),z,(float)yaw)) return false;
             // Centre and four footprint corners need support: do not steer over a drop.
             double w=KartPhysics.BODY_WIDTH*.4,l=KartPhysics.BODY_LENGTH*.4;
-            for (double[] p : new double[][]{{0,0},{-w,-l},{w,-l},{-w,l},{w,l}})
+            if (!ignoreDrops) for (double[] p : new double[][]{{0,0},{-w,-l},{w,-l},{-w,l},{w,l}})
                 if (terrain.clear(x+cos*p[0]+sin*p[1],state.y()-.65,z-sin*p[0]+cos*p[1],.2,.65)) return false;
             for (var other : opponents)
                 if (KartPhysics.overlaps(new KartPhysics.State(x,state.y(),z,(float)yaw,0,0,true),other)) return false;

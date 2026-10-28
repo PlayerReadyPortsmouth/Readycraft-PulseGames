@@ -59,17 +59,6 @@ class KartArcadeTest {
         victim.style=KartStyle.HEAVY;tick(100);bump(before);assertEquals(119,victim.slowUntil);
         victim.style=KartStyle.LIGHT;victim.bumpImmuneUntil=0;tick(200);bump(before);assertEquals(234,victim.slowUntil);
     }
-    @Test void tricksterHasMoreTurboAndLightningAndFewerShells() {
-        var normal=new EnumMap<PulseKartsGame.Item,Integer>(PulseKartsGame.Item.class);
-        var trick=new EnumMap<PulseKartsGame.Item,Integer>(PulseKartsGame.Item.class);
-        for(int roll=0;roll<100;roll++) {
-            normal.merge(PulseKartsGame.pickItem(KartStyle.BALANCED,roll),1,Integer::sum);
-            trick.merge(PulseKartsGame.pickItem(KartStyle.TRICKSTER,roll),1,Integer::sum);
-        }
-        assertTrue(trick.get(PulseKartsGame.Item.TURBO)>normal.get(PulseKartsGame.Item.TURBO));
-        assertTrue(trick.get(PulseKartsGame.Item.LIGHTNING)>normal.get(PulseKartsGame.Item.LIGHTNING));
-        assertTrue(trick.get(PulseKartsGame.Item.SHELL)<normal.get(PulseKartsGame.Item.SHELL));
-    }
     @Test void cupUsesMapConfiguredFiveLapsWhileSprintStaysOne() {
         when(game.mode().id()).thenReturn("cup");when(game.arena().settings().getInt("laps",3)).thenReturn(5);
         assertEquals(5,logic.laps());when(game.mode().id()).thenReturn("sprint");assertEquals(1,logic.laps());
@@ -158,5 +147,70 @@ class KartArcadeTest {
   assertEquals(KartAntiGravity.BUMP_FACTOR,a.boost.multiplier(1),1e-9,"the bump boost is the larger factor, not stacked");
   assertFalse(solo.boost.active(KartBoost.Source.BUMP,1),"not touching anyone");
   assertEquals(1,far.boost.multiplier(1),"outside the section: nothing");
+ }
+ Object call(String name,Class<?>[] types,Object... args)throws Exception {
+  var m=PulseKartsGame.class.getDeclaredMethod(name,types);m.setAccessible(true);return m.invoke(logic,args);
+ }
+ void use(PulseKartsGame.Kart kart)throws Exception {call("useItem",new Class<?>[]{PulseKartsGame.Kart.class},kart);}
+ boolean slow(PulseKartsGame.Kart kart)throws Exception {return (boolean)call("slow",new Class<?>[]{PulseKartsGame.Kart.class,int.class},kart,50);}
+ void field(String name,Object value)throws Exception {var f=PulseKartsGame.class.getDeclaredField(name);f.setAccessible(true);f.set(logic,value);}
+ @Test void collectingABoxStartsAThirtyTickRouletteThatLandsAnItemAndLeavesTheBoxAwayForEveryone()throws Exception {
+  when(game.everyone()).thenReturn(List.of());
+  field("boxes",new KartItemBoxes(List.of(new KartArcadeConfig.Pt(0,64,3))));field("displays",mock(KartBoxDisplays.class));
+  var kart=kart(0,2.5,8);var other=kart(0,2.6,8);kart.input=other.input=new KartPhysics.Input(1,0);
+  try(var stacks=mockConstruction(org.bukkit.inventory.ItemStack.class)){
+  drive();
+  assertTrue(kart.rollStart>=0 ^ other.rollStart>=0,"exactly one kart takes the box");
+  var taker=kart.rollStart>=0?kart:other;assertNull(taker.item,"nothing until the roulette ends");
+  for(int i=0;i<29;i++){drive();assertNull(taker.item);}
+  drive();assertNotNull(taker.item);assertEquals(-1,taker.rollStart);
+  }
+ }
+ @Test void aKartHoldingAnItemDoesNotConsumeABox()throws Exception {
+  when(game.everyone()).thenReturn(List.of());
+  var boxes=new KartItemBoxes(List.of(new KartArcadeConfig.Pt(0,64,3)));field("boxes",boxes);field("displays",mock(KartBoxDisplays.class));
+  var kart=kart(0,2.5,8);kart.item=PulseKartsGame.Item.TURBO;kart.input=new KartPhysics.Input(1,0);
+  drive();assertEquals(PulseKartsGame.Item.TURBO,kart.item);assertEquals(-1,kart.rollStart);assertTrue(boxes.available(0,1));
+ }
+ @Test void aBananaSpinsTheNextKartThatHitsItButNotItsOwnerAndThenIsGone()throws Exception {
+  var owner=kart(0,0,12);owner.item=PulseKartsGame.Item.BANANA;tick(100);use(owner);assertNull(owner.item);
+  var bananas=(KartBananas)bananaField();assertEquals(1,bananas.live().size());
+  var victim=kart(0,-3.6,12);victim.input=new KartPhysics.Input(1,0);tick(120);
+  call("touchBananas",new Class<?>[]{PulseKartsGame.Kart.class,KartPhysics.State.class,KartPhysics.State.class},victim,victim.motion,
+    new KartPhysics.State(0,64,-2.8,0,12,0,true));
+  assertEquals(131,victim.spinUntil);assertEquals(150,victim.slowUntil);assertTrue(bananas.live().isEmpty());
+ }
+ Object bananaField()throws Exception {var f=PulseKartsGame.class.getDeclaredField("bananas");f.setAccessible(true);return f.get(logic);}
+ @Test void aProtectedKartRollsOverABananaAndLeavesItForOthers()throws Exception {
+  var owner=kart(0,0,12);owner.item=PulseKartsGame.Item.BANANA;tick(100);use(owner);
+  var victim=kart(0,-3.6,12);victim.bumpImmuneUntil=500;tick(120);
+  call("touchBananas",new Class<?>[]{PulseKartsGame.Kart.class,KartPhysics.State.class,KartPhysics.State.class},victim,victim.motion,
+    new KartPhysics.State(0,64,-2.8,0,12,0,true));
+  assertEquals(0,victim.spinUntil);assertEquals(1,((KartBananas)bananaField()).live().size());
+ }
+ @Test void tripleShellsGiveExactlyThreeUsesTenTicksApart()throws Exception {
+  var kart=kart(0,0,12);kart.item=PulseKartsGame.Item.TRIPLE_SHELL;kart.uses=3;tick(100);
+  try(var stacks=mockConstruction(org.bukkit.inventory.ItemStack.class)){
+  use(kart);assertEquals(2,kart.uses);assertEquals(PulseKartsGame.Item.TRIPLE_SHELL,kart.item);
+  use(kart);assertEquals(2,kart.uses,"too soon after the last shell");
+  tick(110);use(kart);assertEquals(1,kart.uses);assertNotNull(kart.item);
+  tick(120);use(kart);assertNull(kart.item);
+  }
+ }
+ @Test void aShieldBlocksExactlyOneHitAndStarAndBulletBlockEverything()throws Exception {
+  var kart=kart(0,0,12);tick(10);kart.shieldUntil=310;
+  assertFalse(slow(kart),"the shield takes the first hit");assertEquals(0,kart.shieldUntil);assertEquals(0,kart.slowUntil);
+  tick(40);assertTrue(slow(kart),"the second hit lands once the short grace has passed");
+  var star=kart(0,10,12);star.starUntil=500;tick(60);assertFalse(slow(star));assertEquals(0,star.slowUntil);
+  var bullet=kart(0,20,12);bullet.bulletUntil=500;assertFalse(slow(bullet));
+ }
+ @Test void aBulletWithoutABotRouteIsKeptNotWasted()throws Exception {
+  var kart=kart(0,0,12);kart.item=PulseKartsGame.Item.BULLET;use(kart);
+  assertEquals(PulseKartsGame.Item.BULLET,kart.item);assertEquals(0,kart.bulletUntil);
+ }
+ @Test void starAndShieldAreRaisedOnUseAndTheItemIsSpent()throws Exception {
+  var kart=kart(0,0,12);tick(100);kart.item=PulseKartsGame.Item.STAR;use(kart);
+  assertEquals(300,kart.starUntil);assertTrue(kart.boost.active(KartBoost.Source.STAR,150));assertNull(kart.item);
+  kart.item=PulseKartsGame.Item.SHIELD;use(kart);assertEquals(400,kart.shieldUntil);assertNull(kart.item);
  }
 }

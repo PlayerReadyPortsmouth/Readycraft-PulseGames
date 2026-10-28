@@ -9,7 +9,7 @@ import java.util.*;
  * existing maps (Copper Canyon Raceway) are untouched. Parsing is pure: no world access.
  */
 final class KartArcadeConfig {
-    static final KartArcadeConfig NONE = new KartArcadeConfig(List.of(), Set.of(), List.of(), 1, List.of(), List.of());
+    static final KartArcadeConfig NONE = new KartArcadeConfig(List.of(), Set.of(), List.of(), 1, List.of(), List.of(), List.of());
 
     private final List<Cuboid> boostPanels;
     private final Set<Material> boostBlocks;
@@ -17,11 +17,13 @@ final class KartArcadeConfig {
     private final double jumpPower;
     private final List<Cuboid> antiGravity;
     private final List<List<Pt>> antiGravityRails;
+    private final List<Pt> itemBoxes;
 
     record Pt(double x, double y, double z) {}
 
     private KartArcadeConfig(List<Cuboid> boostPanels, Set<Material> boostBlocks, List<Cuboid> jumps, double jumpPower,
-                             List<Cuboid> antiGravity, List<List<Pt>> antiGravityRails) {
+                             List<Cuboid> antiGravity, List<List<Pt>> antiGravityRails, List<Pt> itemBoxes) {
+        this.itemBoxes = List.copyOf(itemBoxes);
         this.antiGravity = List.copyOf(antiGravity);
         this.antiGravityRails = antiGravityRails.stream().map(List::copyOf).toList();
         this.boostPanels = List.copyOf(boostPanels);
@@ -34,6 +36,8 @@ final class KartArcadeConfig {
     Set<Material> boostBlocks() { return boostBlocks; }
     List<Cuboid> jumps() { return jumps; }
     double jumpPower() { return jumpPower; }
+    /** Collectable item-box positions ({@code itembox1..N} locations). Empty means the map uses legacy regions. */
+    List<Pt> itemBoxes() { return itemBoxes; }
     List<Cuboid> antiGravity() { return antiGravity; }
     /** Rail points for each anti-gravity region, same order as {@link #antiGravity()}; ribbon visuals only. */
     List<List<Pt>> antiGravityRails() { return antiGravityRails; }
@@ -47,7 +51,7 @@ final class KartArcadeConfig {
         List<Cuboid> antiGravity = numberedRegions(regions, "antigrav");
         return new KartArcadeConfig(numberedRegions(regions, "boost"), blockList(settings.get("boost-block")),
                 numberedRegions(regions, "jump"), jumpPower(settings.get("jump-power")),
-                antiGravity, rails(settings, antiGravity));
+                antiGravity, rails(settings, antiGravity), itemBoxes(settings));
     }
 
     static String validationError(Map<String, Object> settings, Map<String, Cuboid> regions) {
@@ -70,6 +74,27 @@ final class KartArcadeConfig {
                 throw new IllegalArgumentException("Number " + prefix + " regions consecutively from 1.");
             ordered.add(entry.getValue());
         }
+        return ordered;
+    }
+
+    static final int MAX_ITEM_BOXES = 32;
+
+    /** {@code itembox1..N} locations, consecutive from 1. They replace any legacy {@code itemboxN} regions. */
+    static List<Pt> itemBoxes(Map<String, Object> settings) {
+        SortedMap<Integer, Pt> found = new TreeMap<>();
+        settings.forEach((key, value) -> {
+            if (!key.matches("itembox[1-9][0-9]{0,2}") || !(value instanceof String text)) return;
+            try {
+                var at = uk.co.playerready.pulsegames.core.util.LocUtil.parse(text, null);
+                found.put(Integer.parseInt(key.substring("itembox".length())), new Pt(at.getX(), at.getY(), at.getZ()));
+            } catch (RuntimeException bad) { throw new IllegalArgumentException(key + " has invalid coordinates."); }
+        });
+        List<Pt> ordered = new ArrayList<>();
+        for (var entry : found.entrySet()) {
+            if (entry.getKey() != ordered.size() + 1) throw new IllegalArgumentException("Number itembox locations consecutively from 1.");
+            ordered.add(entry.getValue());
+        }
+        if (ordered.size() > MAX_ITEM_BOXES) throw new IllegalArgumentException("PulseKarts supports at most 32 item boxes per map.");
         return ordered;
     }
 

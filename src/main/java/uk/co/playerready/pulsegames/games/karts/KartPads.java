@@ -33,6 +33,12 @@ final class KartPads {
                 && bz >= box.minZ() && bz <= box.maxZ();
     }
 
+    /** Within {@code margin} blocks of the region horizontally (and a few blocks vertically). */
+    static boolean near(Cuboid box, double x, double y, double z, double margin) {
+        return x >= box.minX() - margin && x <= box.maxX() + 1 + margin && z >= box.minZ() - margin && z <= box.maxZ() + 1 + margin
+                && y >= box.minY() - 3 && y <= box.maxY() + 4;
+    }
+
     /**
      * Entry this tick: the swept path touches the region and the previous position was outside, so a kart
      * parked on a pad (or reset onto one) does not re-trigger it, and a fast kart cannot skip a thin pad.
