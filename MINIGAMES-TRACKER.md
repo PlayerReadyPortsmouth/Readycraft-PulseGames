@@ -1,11 +1,30 @@
 # Minigames development and play-test tracker
 
-Last updated: 19 October 2026. Owner: Aurora. Agents should update this file as
+Last updated: 28 October 2026. Owner: Aurora. Agents should update this file as
 work and player feedback arrive; keep it in the PulseGames repository.
 
 Readable report: [HTML](MINIGAMES-TRACKER.html) · [PDF](MINIGAMES-TRACKER.pdf).
 After editing this source, regenerate both exports with
 `node tools/render-minigames-tracker.mjs --pdf`; see [update instructions](tools/TRACKER-README.md).
+
+## 28 October - Engagement programme A: placements, spectators, objective cards (candidate)
+
+**Candidate, not deployed, not server-tested.** Draft PR "Engagement A: placements, spectator hotbar, objective cards" (branch `feat/engine-placements-spectators`, off `origin/main` at `aaeed16`). `pluginVersion` is not bumped; the bundle will. Mock-test coverage only: no played round, no Java or Bedrock client check.
+
+**Built (engine only, no game class edited):**
+- **Placements for every game**, derived from elimination order (last alive = 1st, ties share), with `GameInstance.recordFinish(player)` for race games to call later (finish order outranks everyone). `finishParticipant` also records a finish. Players who leave mid-round keep their place in the field. `MiniGame.placement(player)` / `placements()` expose them. Co-op games have no placings.
+- **Token bonuses**: 2nd 20, 3rd 10 (`economy.second-place-reward`, `third-place-reward`), only in fields of 4 or more (`economy.placement-min-players`), only for ranked rounds, on top of participation. A round with no declared winner pays its joint-first players the 2nd-place amount.
+- **Results**: chat gets "You finished 3rd of 8. Well played!" plus a podium line; the `/results` chest menu is now 36 slots with a 1st/2nd/3rd podium, your place, and the actions on the bottom row. A player who left early (queued the next game, or went to the lobby) gets a one-line result with a `/results` link when the match ends.
+- **Framing**: red "GAME OVER" and "Defeat" are gone. Non-winners see "Well played! You finished Nth of N"; the results outcome reads "Finished Nth of N" or "Draw (joint 1st)".
+- **Stats**: a draw or timeout with no winner is no longer logged as a loss (`draws` counter added, shown in the record line only when above 0). A co-op round nobody won is still a loss; a forced stop records nothing.
+- **Timeouts**: `MiniGame.onTimeUp` no longer makes every survivor a winner. Survivors share first place (participation plus placement bonus). A game opts back in with `survivorsWinOnTimeout()`. **Avalanche, Volcano, Spleef, TNT Run, Skywars and Bedwars use the default, so they now stop paying 50 tokens to every survivor; the hazard stream should decide whether Avalanche and Volcano (where surviving is the objective) override it.**
+- **Spectator hotbar** (`spectator.hotbar`, default true; false restores vanilla spectator mode): eliminated or finished players become invisible, invulnerable flying ghosts in adventure mode (vanilla spectator mode gives no usable hotbar, and Bedrock has no spectator menu). Items: Watch a player (chest menu of player heads, teleports), Play next game now (re-queues the same mode immediately, even while the match runs; refused while party mates are still alive), Pick another game, four reactions (cheer, love, wow, good game: sound plus particle at the nearest live player, one per 3 s per player), Leave. Projectiles pass through ghosts; ghosts that sink below the map are put back on the viewing platform.
+- **Results refusal fixed**: `/results` actions are blocked only while the player is alive in another running round; spectators, finished players and queue-waiters can act straight away.
+- **Objective cards**: `MiniGame.howToPlay()` (title, subtitle, tip) and `tip()`, defaulting to a one-line card per game in `GameCatalog` (all 24). Shown as a title when joining a queue, as the GO subtitle, and as the tip line in the waiting sidebar in place of "Waiting for players...".
+
+**Tests:** 691 passing in the full suite (18 new: 8 in `PlacementsTest`, 10 in `EngagementResultsTest`; one existing `GameOutcomeTest` case rewritten for the new timeout rule). They cover placement order, token bonuses, draw and timeout stats, the leave-early result, the spectator queue action and its party guard, emote rate limit, the results-action guard, and a card for every catalogue game.
+
+**Needs a real round before any rollout:** ghost mode on Java and Bedrock (flight toggle, invisibility, head menu rendering through Geyser), mobs and arrows around ghosts, the bigger results menu, and the 2nd/3rd bonuses against the economy balance.
 
 ## 19 October - ReadyPlayerZ faster kills and 1.8-style combat: 0.3.27 candidate
 
