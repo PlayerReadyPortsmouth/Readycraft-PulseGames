@@ -7,6 +7,10 @@ Readable report: [HTML](MINIGAMES-TRACKER.html) · [PDF](MINIGAMES-TRACKER.pdf).
 After editing this source, regenerate both exports with
 `node tools/render-minigames-tracker.mjs --pdf`; see [update instructions](tools/TRACKER-README.md).
 
+## 28 October - ReadyPlayerZ rework: candidate
+
+**Prepared, not deployed or server-tested** (draft PR "Engagement F"): crouch-to-revive with 45 s bleed-out and a solo self-revive; round start/clear titles and sounds, last-zombie glow, multikill action-bar chain, rush rounds, husk and armoured Brute variants, two new power-ups (Team Shield, Second Wind); a 27-slot Supply Shop, Mystery Box (950 points, +10% per use) and Pack-a-Punch (5000) as optional map locations with shop fallbacks; `difficulty` (relaxed/normal/hard); co-op summary with MVP and per-map best round; bots follow the first human and crouch to revive downed humans. Existing maps need no changes. Mock tests only; no played acceptance recorded. Version bump left to the bundle.
+
 ## 19 October - ReadyPlayerZ faster kills and 1.8-style combat: 0.3.27 candidate
 
 **Prepared, not deployed:** PulseGames **0.3.27** (draft PR) cuts zombie health (round 1 walker 20 to 10, round 15 48 to 27.5; boss 3.5x a walker instead of 4x), removes the Brute resistance effect, strips random vanilla zombie armour and reinforcements, and adds per-arena `legacy-combat` (default on): human players get no attack cooldown (ATTACK_SPEED base 1024) and sweep attacks are cancelled, restored on death, quit, elimination, end and cleanup. Tunables `zombie-health-base`, `zombie-health-per-round`, `zombie-health-max`, `boss-health-multiplier` and `legacy-combat` are documented in [docs/READYPLAYERZ-BALANCE.md](docs/READYPLAYERZ-BALANCE.md). Local mock tests only; no played acceptance recorded.

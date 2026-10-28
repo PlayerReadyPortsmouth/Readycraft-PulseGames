@@ -56,7 +56,21 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
                 p -> p.getInventory().setChestplate(new ItemStack(Material.IRON_CHESTPLATE))),
             new Upgrade("Heal Up", Material.GOLDEN_APPLE, 75, p -> p.setHealth(20)),
             new Upgrade("Speed Perk", Material.SUGAR, 250,
-                p -> p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 20 * 600, 0))));
+                p -> p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 20 * 600, 0))),
+            new Upgrade("Crossbow", Material.CROSSBOW, 350, p -> {
+                p.getInventory().addItem(new ItemStack(Material.CROSSBOW));
+                p.getInventory().addItem(new ItemStack(Material.ARROW, 16));
+            }),
+            new Upgrade("Tough Skin Perk", Material.GOLDEN_APPLE, 400,
+                p -> p.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, 20 * 600, 1))),
+            new Upgrade("Regen Perk", Material.GLISTERING_MELON_SLICE, 450,
+                p -> p.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION, 20 * 600, 0))));
+    /** Supply Shop chest (27 slots, Bedrock-safe): upgrades first, then the Mystery Box / Pack-a-Punch fallbacks. */
+    static final int BOX_SLOT = 12, PAP_SLOT = 14;
+    private final java.util.Map<UUID, Integer> boxUses = new java.util.HashMap<>();
+    private final Set<UUID> spinning = new HashSet<>();
+    private ZCombatBalance.Difficulty difficulty = ZCombatBalance.Difficulty.NORMAL;
+    private int bestRound;
 
     ZMapProgression progression;
     private final java.util.Map<UUID, ZCombatBalance.Variant> variants = new java.util.HashMap<>();
@@ -123,6 +137,9 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
     @Override
     public void onStart() {
         soloSelfRevive = game.alivePlayers().size() == 1;
+        difficulty = ZCombatBalance.Difficulty.parse(game.arena().settings().getString("difficulty"),
+            game.players().size());
+        if (game.stats() != null) bestRound = game.stats().record(bestKey());
         mobSpawns = game.arena().regionsByPrefix("mobspawn");
         String failure = startProblem(game.everyone());
         if(failure==null)failure=progression.startProblem();
@@ -145,13 +162,15 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
             applyLegacyCombat(player);
         }
         game.broadcast("Survive <yellow>" + totalRounds() + "</yellow> rounds of zombies! Kills earn points "
-            + "- spend them in the <green>Mystery Shop</green> (emerald).");
+            + "- spend them in the <green>Supply Shop</green> (emerald).");
     }
+
+    private String bestKey() { return game.arena().gameId() + "." + game.arena().id() + ".best-round"; }
 
     void equipBase(Player player) {
         player.getInventory().setItem(0, new ItemStack(Material.WOODEN_SWORD));
         ItemStack shop = new ItemStack(Material.EMERALD);
-        shop.editMeta(meta -> meta.displayName(Text.mm("<green><b>Mystery Shop</b> <gray>(right-click)")));
+        shop.editMeta(meta -> meta.displayName(Text.mm("<green><b>Supply Shop</b> <gray>(right-click)")));
         player.getInventory().setItem(8, shop);
         player.getInventory().setChestplate(new ItemStack(Material.LEATHER_CHESTPLATE));
     }
@@ -209,7 +228,8 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
         round++;
         lastZombieSeconds = 0;
         roundActive = true;
-        int count = (int) ((6 + round * 4) * (isFrenzy() ? 1.5 : 1.0));
+        int count = Math.max(1, (int) ((6 + round * 4) * (isFrenzy() ? 1.5 : 1.0) * difficulty.count));
+        boxUses.clear();
         announce("<gold>Round " + round, rushRound() ? "Rush round! Stay together" : count + " zombies incoming", "minecraft:event.raid.horn");
         progression.setRound(round);
         pendingSpawns = count;
@@ -338,7 +358,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
         return ZCombatBalance.Tuning.of(settings.getDouble("zombie-health-base", d.base()),
             settings.getDouble("zombie-health-per-round", d.perRound()),
             settings.getDouble("zombie-health-max", d.max()),
-            settings.getDouble("boss-health-multiplier", d.bossMultiplier()));
+            settings.getDouble("boss-health-multiplier", d.bossMultiplier())).scaled(difficulty.health);
     }
 
     // ---- legacy (1.8-style) combat: instance-scoped, restored on every exit path ----
@@ -713,6 +733,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
     }
     @Override
     public void onEnd(List<Player> winners) {
+        showSummary(winners);
         onCleanup();
     }
     @Override
@@ -749,11 +770,30 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
         }
     }
 
+    /** Replaces the engine's generic end titles with the co-op summary; overrun is "Well played", never "game over". */
+    void showSummary(List<Player> winners) {
+        boolean cleared = !winners.isEmpty() && round >= totalRounds();
+        boolean newBest = round > 0 && game.stats() != null && game.ranked()
+            && game.stats().recordBest(bestKey(), round);
+        if (newBest) bestRound = round;
+        List<uk.co.playerready.pulsegames.games.common.CoopSummary.Entry> entries = new java.util.ArrayList<>();
+        for (Player p : game.players())
+            entries.add(new uk.co.playerready.pulsegames.games.common.CoopSummary.Entry(p.getName(),
+                kills.getOrDefault(p.getUniqueId(), 0), revives.getOrDefault(p.getUniqueId(), 0), game.score(p)));
+        var lines = uk.co.playerready.pulsegames.games.common.CoopSummary.lines(round, bestRound, entries);
+        for (Player p : game.everyone()) {
+            if (game.isBot(p)) continue;
+            Text.title(p, uk.co.playerready.pulsegames.games.common.CoopSummary.title(cleared),
+                uk.co.playerready.pulsegames.games.common.CoopSummary.subtitle(round, newBest));
+            lines.forEach(line -> p.sendMessage(Text.msg(line)));
+        }
+    }
+
     private void checkOverrun() {
         List<Player> squad = game.alivePlayers();
         if (soloSelfRevive && !selfReviveUsed && !bleedOut.isEmpty()) return;
         if (squad.isEmpty() || squad.stream().allMatch(p -> downed.contains(p.getUniqueId()))) {
-            game.broadcast("<red><b>The team was overrun on round " + round + "!");
+            game.broadcast("<gold><b>Well played!</b> <gray>The squad reached round " + round + ".");
             game.end(List.of(), "overrun");
         }
     }
@@ -771,17 +811,32 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
 
     @Override
     public Location botGuardPoint() {
+        Player patient = downedHuman();
+        if (patient != null) return patient.getLocation();
         ZMapProgression.Door door = progression.cheapestAvailable();
         if (door != null && game.world() != null && game.alivePlayers().stream()
                 .anyMatch(p -> game.isBot(p) && game.score(p) >= door.cost() + BOT_DOOR_RESERVE))
             return progression.approach(door);
-        return game.arena().spawn(0, game.world());
+        // The framework gives one guard point for all bots, so every bot follows the first standing human.
+        Player human = activeSquad().stream().filter(p -> !game.isBot(p)).findFirst().orElse(null);
+        return human != null ? human.getLocation() : game.arena().spawn(0, game.world());
+    }
+
+    private Player downedHuman() {
+        return game.alivePlayers().stream()
+            .filter(p -> !game.isBot(p) && downed.contains(p.getUniqueId()) && p.getWorld() == game.world())
+            .findFirst().orElse(null);
     }
 
     @Override
     public void botTick(Player bot) {
         if (!game.isBot(bot) || !game.isActive(bot) || downed.contains(bot.getUniqueId()))
             return;
+        // Revive: a downed human within 8 blocks; crouch once beside them (tickRevives counts the 8 seconds).
+        Player patient = downedHuman();
+        boolean helping = patient != null && patient.getWorld() == bot.getWorld()
+            && patient.getLocation().distanceSquared(bot.getLocation()) <= 64;
+        bot.setSneaking(helping && patient.getLocation().distanceSquared(bot.getLocation()) <= 3);
         if (bot.getHealth() <= 10 && purchase(bot, 6))
             return;
         // Cheapest unlocked door first, but only with a reserve left over; buyDoor itself needs the bot at the door.
@@ -819,6 +874,21 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
         if(downed.contains(event.getPlayer().getUniqueId())){event.setCancelled(true);return;}
         if (progression.onInteract(event))
             return;
+        if (event.getAction() == org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK && event.getClickedBlock() != null
+            && event.getHand() == org.bukkit.inventory.EquipmentSlot.HAND) {
+            var clicked = event.getClickedBlock();
+            if (boxLocations().stream().anyMatch(l -> sameCell(l, clicked))) {
+                event.setCancelled(true);
+                if (!mysteryBox(event.getPlayer())) rejected(event.getPlayer());
+                return;
+            }
+            var pap = packLocation();
+            if (pap != null && sameCell(pap, clicked)) {
+                event.setCancelled(true);
+                if (!packAPunch(event.getPlayer())) rejected(event.getPlayer());
+                return;
+            }
+        }
         if (event.getItem() != null && event.getItem().getType() == Material.EMERALD
             && event.getAction().isRightClick()) {
             event.setCancelled(true);
@@ -826,10 +896,120 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
         }
     }
 
+    private static boolean sameCell(Location l, org.bukkit.block.Block b) {
+        return l.getWorld() == b.getWorld() && l.getBlockX() == b.getX() && l.getBlockY() == b.getY()
+            && l.getBlockZ() == b.getZ();
+    }
+
+    private void rejected(Player player) {
+        player.sendActionBar(Text.mm("<red>Not enough points, or nothing to use here right now."));
+    }
+
+    /** Optional arena locations {@code mysterybox1..N}; empty means the Supply Shop offers the box instead. */
+    List<Location> boxLocations() {
+        List<Location> out = new java.util.ArrayList<>();
+        if (game.world() == null) return out;
+        for (int i = 1; i <= 16; i++) {
+            Location l = game.arena().settingLocation("mysterybox" + i, game.world());
+            if (l != null) out.add(l);
+        }
+        return out;
+    }
+
+    Location packLocation() {
+        return game.world() == null ? null : game.arena().settingLocation("packapunch", game.world());
+    }
+
+    boolean playable(Player player) {
+        return game.state() == GameState.RUNNING && game.isActive(player) && !downed.contains(player.getUniqueId())
+            && player.getWorld() == game.world();
+    }
+
+    /** 950 points (+10% per use this round): 3 s action-bar spin, then a weighted weapon or perk. */
+    boolean mysteryBox(Player player) {
+        UUID id = player.getUniqueId();
+        int price = ZMysteryBox.price(boxUses.getOrDefault(id, 0));
+        if (!playable(player) || spinning.contains(id) || game.score(player) < price) return false;
+        game.addScore(player, -price);
+        boxUses.merge(id, 1, Integer::sum);
+        spinning.add(id);
+        var prize = ZMysteryBox.roll(ThreadLocalRandom.current());
+        for (int step = 0; step < ZMysteryBox.SPIN_STEPS; step++) {
+            boolean last = step == ZMysteryBox.SPIN_STEPS - 1;
+            var shown = last ? prize : ZMysteryBox.roll(ThreadLocalRandom.current());
+            game.runLater((long) step * ZMysteryBox.SPIN_STEP_TICKS, () -> {
+                if (!playable(player)) return;
+                player.sendActionBar(Text.mm((last ? "<green>" : "<light_purple>") + "[ " + shown.label + " ]"));
+                player.playSound(player.getLocation(), "minecraft:block.note_block.hat", .7f, last ? 1.6f : 1f);
+            });
+        }
+        game.runLater((long) ZMysteryBox.SPIN_STEPS * ZMysteryBox.SPIN_STEP_TICKS, () -> {
+            spinning.remove(id);
+            if (!playable(player) || (prize.weapon() && player.getInventory().firstEmpty() < 0)) {
+                if (game.state() == GameState.RUNNING && game.isActive(player)) game.addScore(player, price);
+                return;
+            }
+            grant(player, prize);
+            Text.title(player, "<light_purple>" + prize.label, "<gray>From the Mystery Box");
+        });
+        return true;
+    }
+
+    private void grant(Player player, ZMysteryBox.Prize prize) {
+        var inv = player.getInventory();
+        switch (prize) {
+            case STONE_SHARP -> {
+                ItemStack sword = new ItemStack(Material.STONE_SWORD);
+                sword.addUnsafeEnchantment(org.bukkit.enchantments.Enchantment.SHARPNESS, 2);
+                inv.addItem(sword);
+            }
+            case IRON_SWORD -> inv.addItem(new ItemStack(Material.IRON_SWORD));
+            case DIAMOND_SWORD -> inv.addItem(new ItemStack(Material.DIAMOND_SWORD));
+            case BOW -> { inv.addItem(new ItemStack(Material.BOW)); inv.addItem(new ItemStack(Material.ARROW, 24)); }
+            case CROSSBOW -> { inv.addItem(new ItemStack(Material.CROSSBOW)); inv.addItem(new ItemStack(Material.ARROW, 24)); }
+            case SPEED -> player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 20 * 600, 1));
+            case TOUGH -> player.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, 20 * 600, 1));
+            case REGEN -> player.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION, 20 * 600, 0));
+        }
+    }
+
+    static final String PUNCHED_LORE = "Pack-a-Punched";
+
+    static boolean isPunched(ItemStack item) {
+        var meta = item.getItemMeta();
+        return meta != null && meta.hasLore() && meta.lore().stream()
+            .anyMatch(line -> net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
+                .serialize(line).contains(PUNCHED_LORE));
+    }
+
+    /** 5000 points: upgrades the weapon in hand once (Sharpness III / Power III / Quick Charge II, renamed, glint). */
+    boolean packAPunch(Player player) {
+        ItemStack held = player.getInventory().getItemInMainHand();
+        if (!playable(player) || held == null || !ZMysteryBox.punchable(held.getType()) || isPunched(held)
+            || game.score(player) < ZMysteryBox.PACK_A_PUNCH_PRICE)
+            return false;
+        game.addScore(player, -ZMysteryBox.PACK_A_PUNCH_PRICE);
+        var type = held.getType();
+        var enchant = type == Material.BOW ? org.bukkit.enchantments.Enchantment.POWER
+            : type == Material.CROSSBOW ? org.bukkit.enchantments.Enchantment.QUICK_CHARGE
+            : org.bukkit.enchantments.Enchantment.SHARPNESS;
+        held.addUnsafeEnchantment(enchant, type == Material.CROSSBOW ? 2 : 3);
+        held.editMeta(meta -> {
+            String base = type.name().toLowerCase(java.util.Locale.ROOT).replace('_', ' ');
+            meta.displayName(Text.mm("<aqua><b>Punched " + base));
+            meta.lore(List.of(Text.mm("<gray>" + PUNCHED_LORE)));
+            meta.setEnchantmentGlintOverride(true);
+        });
+        player.getInventory().setItemInMainHand(held);
+        player.playSound(player.getLocation(), "minecraft:block.anvil.use", .8f, 1.4f);
+        Text.title(player, "<aqua>Pack-a-Punched!", "<gray>Your weapon hits harder");
+        return true;
+    }
+
     private void openShop(Player player) {
         if(game.state()!=GameState.RUNNING||!game.isActive(player)||downed.contains(player.getUniqueId())||player.getWorld()!=game.world())return;
         ShopHolder holder = new ShopHolder();
-        Inventory inv = Bukkit.createInventory(holder, 9, Text.mm("<dark_gray>Mystery Shop"));
+        Inventory inv = Bukkit.createInventory(holder, 27, Text.mm("<dark_gray>Supply Shop"));
         holder.inventory = inv;
         for (int i = 0; i < upgrades.size(); i++) {
             Upgrade upgrade = upgrades.get(i);
@@ -840,7 +1020,23 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
             });
             inv.setItem(i, item);
         }
+        if (boxLocations().isEmpty())
+            inv.setItem(BOX_SLOT, shopIcon(Material.ENDER_CHEST, "<light_purple>Mystery Box",
+                ZMysteryBox.price(boxUses.getOrDefault(player.getUniqueId(), 0)) + " points",
+                "Random weapon or perk"));
+        if (packLocation() == null)
+            inv.setItem(PAP_SLOT, shopIcon(Material.ANVIL, "<aqua>Pack-a-Punch", ZMysteryBox.PACK_A_PUNCH_PRICE + " points",
+                "Upgrade the weapon in your hand once"));
         player.openInventory(inv);
+    }
+
+    private ItemStack shopIcon(Material icon, String name, String cost, String detail) {
+        ItemStack item = new ItemStack(icon);
+        item.editMeta(meta -> {
+            meta.displayName(Text.mm(name));
+            meta.lore(List.of(Text.mm("<gold>" + cost), Text.mm("<gray>" + detail)));
+        });
+        return item;
     }
 
     @Override
@@ -849,7 +1045,8 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
             return;
         event.setCancelled(true);
         int slot = event.getSlot();
-        if (event.getClickedInventory() != event.getInventory() || slot < 0 || slot >= upgrades.size())
+        if (event.getClickedInventory() != event.getInventory() || slot < 0
+            || !(slot < upgrades.size() || slot == BOX_SLOT || slot == PAP_SLOT))
             return;
         if (!purchase(player, slot))
             player.sendMessage(Text.msg("<red>Purchase unavailable. Check your points and inventory space."));
@@ -862,6 +1059,8 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
 
     /** Shared shop action: bots pay exactly the same prices and obey active-player checks. */
     boolean purchase(Player player, int slot) {
+        if (slot == BOX_SLOT) return boxLocations().isEmpty() && mysteryBox(player);
+        if (slot == PAP_SLOT) return packLocation() == null && packAPunch(player);
         if (slot < 0 || slot >= upgrades.size() || game.state() != GameState.RUNNING || !game.isActive(player)
             || downed.contains(player.getUniqueId()) || player.getWorld() != game.world())
             return false;
@@ -882,6 +1081,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
         List<String> lines = new java.util.ArrayList<>(List.of("<gray>Round: <red>" + round + "/" + totalRounds(),
             "<gray>Zombies left: <red>" + (zombies.size() + pendingSpawns), "<gold>Points: <white>" + game.score(player),
             "<gray>Team: <white>" + (game.alivePlayers().size() - downed.size()) + " up / " + downed.size() + " down"));
+        if (bestRound > 0) lines.add("<gray>Map best: <white>round " + bestRound);
         if (progression.doorCount() > 0) {
             var next = progression.nextDoor();
             lines.add("<gray>Doors: <white>" + progression.doorsOpened() + "/" + progression.doorCount()

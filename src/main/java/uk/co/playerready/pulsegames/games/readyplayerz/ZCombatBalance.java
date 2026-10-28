@@ -28,8 +28,24 @@ final class ZCombatBalance {
             return new Tuning(clamp(base, 1, 100, DEFAULT.base), clamp(perRound, 0, 10, DEFAULT.perRound),
                 clamp(max, 1, 300, DEFAULT.max), clamp(bossMultiplier, 1, 10, DEFAULT.bossMultiplier));
         }
+        Tuning scaled(double factor) {
+            return of(base * factor, perRound * factor, max * factor, bossMultiplier);
+        }
         private static double clamp(double v, double lo, double hi, double fallback) {
             return Double.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : fallback;
+        }
+    }
+    /** Arena `difficulty` setting: scales zombie health (through Tuning) and wave size. */
+    enum Difficulty {
+        RELAXED(.75, .8), NORMAL(1, 1), HARD(1.25, 1.25);
+        final double health, count;
+        Difficulty(double health, double count) { this.health = health; this.count = count; }
+        /** Unset or unknown: relaxed for squads of two or fewer, otherwise normal. */
+        static Difficulty parse(String raw, int squadSize) {
+            if (raw != null)
+                for (Difficulty d : values())
+                    if (d.name().equalsIgnoreCase(raw.trim())) return d;
+            return squadSize <= 2 ? RELAXED : NORMAL;
         }
     }
     static Stats stats(int round, Variant variant) {
