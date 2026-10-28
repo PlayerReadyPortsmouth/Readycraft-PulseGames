@@ -46,6 +46,8 @@ public final class GameMenu implements Listener {
         Inventory inv = Bukkit.createInventory(holder, rows * 9, Text.mm("<dark_gray>Select a game"));
         holder.inventory = inv;
         int slot = 0;
+        var counts = plugin.quickPlay().counts();
+        String featured = plugin.quickPlay().featuredId();
         for (GameType game : games) {
             ItemStack item = new ItemStack(game.icon());
             item.editMeta(meta -> {
@@ -53,6 +55,12 @@ public final class GameMenu implements Listener {
                 List<Component> lore = new ArrayList<>();
                 lore.add(Text.mm("<gray>" + game.description()));
                 lore.add(Text.mm(""));
+                String tag = uk.co.playerready.pulsegames.games.GameTags.of(game.id());
+                if (tag != null) lore.add(Text.mm("<aqua>" + tag));
+                var count = counts.getOrDefault(game.id(), new QueueCounts.Count(0, 0));
+                lore.add(Text.mm("<gray>Now: <white>" + count.waiting() + " waiting / " + count.playing() + " playing"));
+                if (game.id().equals(featured))
+                    lore.add(Text.mm("<gold>Featured today: x" + plugin.quickPlay().multiplier() + " tokens"));
                 lore.add(Text.mm("<gray>Modes: <white>" + game.modes().size()));
                 lore.add(Text.mm(!plugin.gameAvailable(game) ? "<red>Coming soon!" : "<green>Click to play!"));
                 meta.lore(lore);
@@ -68,7 +76,16 @@ public final class GameMenu implements Listener {
                     Text.mm("<yellow>Click for party commands")));
         });
         inv.setItem(inv.getSize() - 2, party);
+        inv.setItem(inv.getSize() - 3, button(Material.GOLDEN_HELMET, "<gold><b>Weekly top 3</b>", "Who is winning this week"));
+        inv.setItem(inv.getSize() - 4, button(Material.WRITABLE_BOOK, "<yellow><b>Daily challenges</b>", "Earn bonus tokens"));
+        inv.setItem(inv.getSize() - 5, button(Material.ENDER_EYE, "<green><b>Quick Play</b>", "Join the busiest game now"));
         player.openInventory(inv);
+    }
+
+    private ItemStack button(Material material, String name, String lore) {
+        ItemStack item = new ItemStack(material);
+        item.editMeta(meta -> { meta.displayName(Text.mm(name)); meta.lore(List.of(Text.mm("<gray>" + lore), Text.mm("<yellow>Click!"))); });
+        return item;
     }
 
     public void openModes(Player player, GameType game) {
@@ -117,6 +134,12 @@ public final class GameMenu implements Listener {
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getType() == Material.AIR) return;
 
+        if (holder.gameOrNull == null) {
+            int fromEnd = event.getInventory().getSize() - event.getSlot();
+            if (fromEnd == 3) { player.closeInventory(); plugin.engagement().top(player, new String[0]); return; }
+            if (fromEnd == 4) { player.closeInventory(); plugin.engagement().openChallenges(player); return; }
+            if (fromEnd == 5) { player.closeInventory(); plugin.quickPlay().quickPlay(player); return; }
+        }
         if (holder.gameOrNull == null && event.getSlot() == event.getInventory().getSize() - 2) {
             player.closeInventory();
             player.sendMessage(Text.msg("<yellow>/party invite [name]</yellow> — invite a friend (network-wide when PulseNetwork is active)"));

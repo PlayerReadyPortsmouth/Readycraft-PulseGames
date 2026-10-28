@@ -82,7 +82,7 @@ public final class LobbyService {
         // Clear previous controls, including pre-tag versions moved before protection existed.
         for (int slot = 0; slot < player.getInventory().getSize(); slot++) {
             ItemStack item = player.getInventory().getItem(slot);
-            if (isMenuItem(item) || isShopItem(item) || isLegacyControl(item)) {
+            if (isMenuItem(item) || isShopItem(item) || isQuickPlayItem(item) || isLegacyControl(item)) {
                 player.getInventory().setItem(slot, null);
             }
         }
@@ -94,13 +94,17 @@ public final class LobbyService {
         shop.editMeta(meta -> meta.displayName(Text.mm("<gold><b>Token Shop</b> <gray>(right-click)")));
         shop.editMeta(meta -> meta.getPersistentDataContainer().set(controlKey, PersistentDataType.STRING, "shop"));
         giveMenuSlot(player, 6, shop);
+        ItemStack quick = new ItemStack(Material.ENDER_EYE);
+        quick.editMeta(meta -> meta.displayName(Text.mm("<green><b>Quick Play</b> <gray>(right-click)")));
+        quick.editMeta(meta -> meta.getPersistentDataContainer().set(controlKey, PersistentDataType.STRING, "quickplay"));
+        giveMenuSlot(player, 2, quick);
     }
 
     private void giveMenuSlot(Player player, int slot, ItemStack item) {
         ItemStack existing = player.getInventory().getItem(slot);
         player.getInventory().setItem(slot, item);
         if (existing == null || existing.getType() == Material.AIR
-                || isMenuItem(existing) || isShopItem(existing)) {
+                || isMenuItem(existing) || isShopItem(existing) || isQuickPlayItem(existing)) {
             return;
         }
         player.getInventory().addItem(existing).values()
@@ -117,6 +121,11 @@ public final class LobbyService {
     public boolean isMenuItem(ItemStack item) {
         return item != null && item.getType() == Material.COMPASS && item.hasItemMeta()
                 && "games".equals(item.getItemMeta().getPersistentDataContainer().get(controlKey, PersistentDataType.STRING));
+    }
+
+    public boolean isQuickPlayItem(ItemStack item) {
+        return item != null && item.getType() == Material.ENDER_EYE && item.hasItemMeta()
+                && "quickplay".equals(item.getItemMeta().getPersistentDataContainer().get(controlKey, PersistentDataType.STRING));
     }
 
     public boolean isShopItem(ItemStack item) {
