@@ -18,7 +18,7 @@ public final class LobbyItemListener implements Listener {
     public LobbyItemListener(LobbyService lobby) { this.lobby = lobby; }
 
     private boolean control(ItemStack item) {
-        return lobby.isMenuItem(item) || lobby.isShopItem(item);
+        return lobby.isMenuItem(item) || lobby.isShopItem(item) || lobby.isQuickPlayItem(item);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)

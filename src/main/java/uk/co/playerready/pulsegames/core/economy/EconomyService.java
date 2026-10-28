@@ -52,7 +52,21 @@ public final class EconomyService {
             var instance = games.instances().byPlayer(player);
             if (instance != null && !instance.ranked()) return;
         }
+        if (plugin instanceof uk.co.playerready.pulsegames.PulseGamesPlugin games && games.quickPlay() != null) {
+            var instance = games.instances().byPlayer(player);
+            if (instance != null && games.quickPlay().isFeatured(instance.type())) {
+                amount = (int) Math.max(1, Math.round(amount * games.quickPlay().multiplier()));
+                reason += ", featured game";
+            }
+        }
         addTokens(player, amount, reason);
+    }
+
+    /** Credits tokens to a player who may be offline (weekly leaderboard rewards). */
+    public synchronized void grant(java.util.UUID id, int amount) {
+        if (amount <= 0) return;
+        data.set(id + ".tokens", data.getInt(id + ".tokens") + amount);
+        dirty = true;
     }
 
     public void addTokens(Player player, int amount, String reason) {

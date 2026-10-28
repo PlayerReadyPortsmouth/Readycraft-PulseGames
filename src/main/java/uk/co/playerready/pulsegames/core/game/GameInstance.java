@@ -62,6 +62,9 @@ public final class GameInstance {
     private uk.co.playerready.pulsegames.core.bot.BotDifficulty practiceDifficulty = uk.co.playerready.pulsegames.core.bot.BotDifficulty.NORMAL;
     private int practiceBotTarget;
     private final Map<UUID, Integer> roundKills = new HashMap<>(), roundDeaths = new HashMap<>();
+    /** Engagement: kill tokens already paid this match (capped), ready votes, and seconds survived. */
+    private final Map<UUID, Integer> killTokens = new HashMap<>(), survivedAt = new HashMap<>();
+    private final java.util.Set<UUID> readyVotes = new java.util.HashSet<>();
     private final Set<UUID> alive = new LinkedHashSet<>();
     private final Set<UUID> spectators = new LinkedHashSet<>();
     private final List<GameTeam> teams = new ArrayList<>();
@@ -330,6 +333,34 @@ public final class GameInstance {
         ItemStack bed = new ItemStack(Material.RED_BED);
         bed.editMeta(meta -> meta.displayName(Text.mm("<red>Leave game <gray>(right-click)")));
         player.getInventory().setItem(8, bed);
+        player.getInventory().setItem(4, ReadyVote.item());
+    }
+
+    /** Seconds this player survived: when they went out, or the whole round if still alive. */
+    public int survivedSeconds(Player player) {
+        return survivedAt.getOrDefault(player.getUniqueId(), gameTime);
+    }
+
+    public int readyCount() {
+        return (int) players().stream().filter(p -> !isBot(p) && readyVotes.contains(p.getUniqueId())).count();
+    }
+
+    /** Waiting-room "ready" item: once every human has clicked, the countdown starts (or shortens). */
+    public void voteReady(Player player) {
+        if ((state != GameState.WAITING && state != GameState.COUNTDOWN) || !isParticipant(player) || isBot(player)) return;
+        if (!readyVotes.add(player.getUniqueId())) {
+            player.sendActionBar(Text.mm("<gray>You are already ready. Waiting for the others."));
+            return;
+        }
+        player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1f, 1.6f);
+        List<UUID> humans = players().stream().filter(p -> !isBot(p)).map(Player::getUniqueId).toList();
+        broadcast("<green>" + player.getName() + " is ready <gray>(" + readyCount() + "/" + humans.size() + ")");
+        if (ReadyVote.shouldStart(humans, readyVotes, participants.size(), minPlayers())) {
+            int ready = Math.max(1, plugin.getConfig().getInt("countdown.ready-seconds", 5));
+            countdown = state == GameState.WAITING ? ready : ReadyVote.shortenedCountdown(countdown, ready);
+            state = GameState.COUNTDOWN;
+            broadcast("<green>Everyone is ready! Starting in " + countdown + "s");
+        }
     }
 
     void suspendWaiting(Player player) {
@@ -686,8 +717,14 @@ public final class GameInstance {
             lastDamagerAt.remove(victim.getUniqueId());
             if (resolvedKiller != null && ranked() && !isBot(resolvedKiller)) {
                 plugin.cosmetics().playKillEffect(resolvedKiller, victim.getLocation());
-                plugin.economy().addMatchTokens(resolvedKiller,
-                        plugin.getConfig().getInt("economy.kill-reward", 5), "kill");
+                int killPay = uk.co.playerready.pulsegames.core.economy.RewardRules.killPayout(
+                        killTokens.getOrDefault(resolvedKiller.getUniqueId(), 0),
+                        plugin.getConfig().getInt("economy.kill-reward", 5),
+                        plugin.getConfig().getInt("economy.kill-token-cap", 25));
+                if (killPay > 0) {
+                    killTokens.merge(resolvedKiller.getUniqueId(), killPay, Integer::sum);
+                    plugin.economy().addMatchTokens(resolvedKiller, killPay, "kill");
+                }
             }
             logic.onDeath(victim, resolvedKiller);
         } finally {
@@ -713,6 +750,7 @@ public final class GameInstance {
 
     public void eliminate(Player player) {
         if (!alive.remove(player.getUniqueId())) return;
+        survivedAt.put(player.getUniqueId(), gameTime);
         spectators.add(player.getUniqueId());
         if (!outOrder.contains(player.getUniqueId())) outOrder.add(player.getUniqueId());
         if (plugin.combat() != null) plugin.combat().leave(player);
@@ -825,6 +863,7 @@ public final class GameInstance {
                 }
             }
             if (plugin.progression() != null) plugin.progression().completed(this, p, creditedWinners.contains(p), roundKills.getOrDefault(p.getUniqueId(), 0), reason);
+            if (plugin.engagement() != null) plugin.engagement().matchEnded(this, p, creditedWinners.contains(p), !creditedWinners.isEmpty(), reason);
             p.setGameMode(org.bukkit.GameMode.SPECTATOR);
             int draws = plugin.stats().get(p, type.id(), "draws");
             p.sendMessage(Text.msg("<gray>Record: <green>" + plugin.stats().get(p, type.id(), "wins")
@@ -986,6 +1025,7 @@ public final class GameInstance {
                 case WAITING -> {
                     lines.add("<gray>Players: <white>" + participants.size() + "/" + maxPlayers());
                     lines.add("<gray>" + tipLine());
+                    lines.add("<gray>Ready: <white>" + readyCount() + "/" + humanCount());
                     lines.add("<yellow>" + plugin.bots().queueStatus(this));
                 }
                 case COUNTDOWN -> {

@@ -22,7 +22,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
 
     public Commands(PulseGamesPlugin plugin) {
         this.plugin = plugin;
-        for (String name : List.of("play", "party", "lobby", "pulse", "stats", "shop", "pulsekits", "duels", "results", "challenges")) {
+        for (String name : List.of("play", "party", "lobby", "pulse", "stats", "shop", "pulsekits", "duels", "results", "challenges", "top")) {
             var command = plugin.getCommand(name);
             command.setExecutor(this);
             command.setTabCompleter(this);
@@ -48,7 +48,8 @@ public final class Commands implements CommandExecutor, TabCompleter {
             case "party" -> party(player, args);
             case "lobby" -> plugin.playService().leave(player);
             case "stats" -> stats(player);
-            case "challenges" -> plugin.progression().show(player);
+            case "challenges" -> plugin.engagement().openChallenges(player);
+            case "top" -> plugin.engagement().top(player, args);
             case "results" -> plugin.results().command(player,args);
             case "duels" -> plugin.duelMenu().open(player);
             case "pulsekits" -> plugin.kitSelection().open(player);

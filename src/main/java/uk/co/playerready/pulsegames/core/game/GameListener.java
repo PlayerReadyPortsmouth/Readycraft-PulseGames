@@ -56,6 +56,7 @@ public final class GameListener implements Listener {
         if (event.getPlayer().hasMetadata("NPC")) return;
         if (!plugin.instances().rejoin(event.getPlayer())) plugin.lobby().sendToLobby(event.getPlayer());
         plugin.economy().handleDailyBonus(event.getPlayer());
+        if (plugin.engagement() != null) plugin.engagement().onJoin(event.getPlayer());
     }
 
     @EventHandler
@@ -115,6 +116,10 @@ public final class GameListener implements Listener {
                 || from.getBlockY() != to.getBlockY()
                 || from.getBlockZ() != to.getBlockZ();
         if (!blockChanged) return;
+        if (instance.state() == GameState.RUNNING && instance.isAlive(player)
+                && uk.co.playerready.pulsegames.core.economy.CosmeticsService.trailInMatch(instance.type().id())) {
+            plugin.cosmetics().playTrail(player);
+        }
 
         // Safety net for pre-game states: damage (incl. void) is cancelled until the
         // game is RUNNING, so a player who walks off the waiting lobby would fall
@@ -416,6 +421,9 @@ public final class GameListener implements Listener {
             if (plugin.lobby().isMenuItem(event.getItem()) && event.getAction().isRightClick()) {
                 event.setCancelled(true);
                 plugin.gameMenu().openGames(player);
+            } else if (plugin.lobby().isQuickPlayItem(event.getItem()) && event.getAction().isRightClick()) {
+                event.setCancelled(true);
+                plugin.quickPlay().quickPlay(player);
             } else if (plugin.lobby().isShopItem(event.getItem()) && event.getAction().isRightClick()) {
                 event.setCancelled(true);
                 plugin.tokenShop().openMain(player);
@@ -435,6 +443,12 @@ public final class GameListener implements Listener {
                 && (instance.state() == GameState.WAITING || instance.state() == GameState.COUNTDOWN)) {
             event.setCancelled(true);
             plugin.playService().leave(player);
+            return;
+        }
+        if (ReadyVote.isItem(event.getItem()) && event.getAction().isRightClick()
+                && (instance.state() == GameState.WAITING || instance.state() == GameState.COUNTDOWN)) {
+            event.setCancelled(true);
+            instance.voteReady(player);
             return;
         }
         if (instance.state() == GameState.RUNNING && instance.isAlive(player)) {
