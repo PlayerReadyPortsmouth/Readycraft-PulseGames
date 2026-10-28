@@ -45,11 +45,22 @@ economy:
   win-reward: 50
   participation-reward: 10
   kill-reward: 5
+  # Placement bonuses for non-winners, on top of participation. A round with no declared
+  # winner (draw, or time up) pays its joint-first players the second-place amount.
+  second-place-reward: 20
+  third-place-reward: 10
+  # Smallest field (bots included) in which placement bonuses are paid.
+  placement-min-players: 4
   # ...being online (every N minutes)
   playtime-bonus: 25
   playtime-interval-minutes: 15
   # ...first login of the day
   daily-bonus: 100
+
+spectator:
+  # Players who are out of a round get a hotbar (watch a player, queue next game, reactions)
+  # and fly as invisible ghosts. false = old behaviour: vanilla spectator mode, no hotbar.
+  hotbar: true
 
 # Experimental games become queueable only when named here; add maps before enabling.
 games:

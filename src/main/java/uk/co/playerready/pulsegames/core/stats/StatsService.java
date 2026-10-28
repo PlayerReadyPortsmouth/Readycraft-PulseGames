@@ -37,6 +37,7 @@ public final class StatsService {
 
     public void addWin(Player player, String game) { bump(player, game, "wins"); }
     public void addLoss(Player player, String game) { bump(player, game, "losses"); }
+    public void addDraw(Player player, String game) { bump(player, game, "draws"); }
     public void addKill(Player player, String game) { bump(player, game, "kills"); }
     public void addPlayed(Player player, String game) { bump(player, game, "played"); }
 

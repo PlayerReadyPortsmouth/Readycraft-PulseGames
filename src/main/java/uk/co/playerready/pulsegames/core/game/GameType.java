@@ -17,6 +17,7 @@ public final class GameType {
     private final Function<GameInstance, MiniGame> factory;
     private final List<SetupRequirement> setup;
     private final boolean wip;
+    private volatile ObjectiveCard card;
 
     public GameType(String id, String displayName, String description, Material icon,
                     List<GameMode> modes, Function<GameInstance, MiniGame> factory,
@@ -60,6 +61,17 @@ public final class GameType {
     public List<GameMode> modes() { return modes; }
     public List<SetupRequirement> setup() { return setup; }
     public boolean wip() { return wip; }
+
+    /** Objective card shown to players; falls back to the name and description. */
+    public ObjectiveCard card() {
+        ObjectiveCard c = card;
+        return c != null ? c : ObjectiveCard.fallback(this);
+    }
+
+    public GameType withCard(ObjectiveCard card) {
+        this.card = card;
+        return this;
+    }
 
     public GameMode mode(String modeId) {
         return modes.stream().filter(m -> m.id().equalsIgnoreCase(modeId)).findFirst().orElse(null);

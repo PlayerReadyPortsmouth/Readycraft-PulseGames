@@ -99,6 +99,12 @@ public final class GameListener implements Listener {
             }
             return;
         }
+        if (instance.state() == GameState.RUNNING && instance.isSpectator(player) && instance.world() != null
+                && event.getTo().getY() < instance.logic().voidY() - 5) {
+            // Ghosts that drift under the map are put back on the viewing platform.
+            player.teleport(instance.arena().spectator(instance.world()));
+            return;
+        }
         if (instance.state() == GameState.RUNNING && instance.isAlive(player)) {
             instance.logic().onPlayerMove(event);
             if (event.isCancelled()) return;
@@ -384,7 +390,8 @@ public final class GameListener implements Listener {
     @EventHandler(ignoreCancelled = true)
     public void onDrop(PlayerDropItemEvent event) {
         GameInstance instance = instanceOf(event.getPlayer());
-        if (instance == null || instance.state() != GameState.RUNNING || !instance.logic().itemDrops()) {
+        if (instance == null || instance.state() != GameState.RUNNING || instance.isSpectator(event.getPlayer())
+                || !instance.logic().itemDrops()) {
             event.setCancelled(true);
         }
     }
@@ -393,7 +400,7 @@ public final class GameListener implements Listener {
     public void onPickup(EntityPickupItemEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
         GameInstance instance = instanceOf(player);
-        if (instance == null || instance.state() != GameState.RUNNING
+        if (instance == null || instance.state() != GameState.RUNNING || instance.isSpectator(player)
                 || !instance.logic().itemPickup(player, event.getItem())) {
             event.setCancelled(true);
         }
@@ -412,6 +419,14 @@ public final class GameListener implements Listener {
             } else if (plugin.lobby().isShopItem(event.getItem()) && event.getAction().isRightClick()) {
                 event.setCancelled(true);
                 plugin.tokenShop().openMain(player);
+            }
+            return;
+        }
+        // Out-of-round players are ghosts with a tool hotbar: only our items do anything.
+        if (instance.state() == GameState.RUNNING && instance.isSpectator(player)) {
+            event.setCancelled(true);
+            if (event.getAction().isRightClick() && event.getHand() == org.bukkit.inventory.EquipmentSlot.HAND) {
+                instance.spectatorTools().use(player, event.getItem());
             }
             return;
         }
@@ -441,6 +456,17 @@ public final class GameListener implements Listener {
         if (instance == null) return;
         if (instance.state() == GameState.RUNNING && instance.isAlive(event.getPlayer())) {
             instance.logic().onInteractEntity(event.getPlayer(), event.getRightClicked());
+        }
+    }
+
+    /** Projectiles pass through out-of-round ghosts instead of being used up on them. */
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onProjectileHitGhost(ProjectileHitEvent event) {
+        if (event.getHitEntity() instanceof Player hit) {
+            GameInstance instance = instanceOf(hit);
+            if (instance != null && instance.state() == GameState.RUNNING && instance.isSpectator(hit)) {
+                event.setCancelled(true);
+            }
         }
     }
 
@@ -492,6 +518,14 @@ public final class GameListener implements Listener {
         if (instance == null) return;
         if (instance.state() == GameState.WAITING || instance.state() == GameState.COUNTDOWN) {
             event.setCancelled(true);
+            return;
+        }
+        if (instance.state() == GameState.RUNNING && instance.isSpectator(player)) {
+            event.setCancelled(true);
+            if (event.getView().getTopInventory().getHolder() instanceof SpectatorTools.MenuHolder menu
+                    && event.getClickedInventory() == event.getView().getTopInventory()) {
+                instance.spectatorTools().menuClick(player, menu, event.getSlot());
+            }
             return;
         }
         instance.logic().onInventoryClick(player, event);
