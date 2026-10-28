@@ -1,11 +1,22 @@
 # Minigames development and play-test tracker
 
-Last updated: 19 October 2026. Owner: Aurora. Agents should update this file as
+Last updated: 28 October 2026. Owner: Aurora. Agents should update this file as
 work and player feedback arrive; keep it in the PulseGames repository.
 
 Readable report: [HTML](MINIGAMES-TRACKER.html) · [PDF](MINIGAMES-TRACKER.pdf).
 After editing this source, regenerate both exports with
 `node tools/render-minigames-tracker.mjs --pdf`; see [update instructions](tools/TRACKER-README.md).
+
+## 28 October - Engagement programme C: rounds mode and hazard-game feel (candidate)
+
+**Candidate on branch `feat/hazard-rounds-juice`, draft PR. Nothing is deployed, nothing has been server-tested, and PulseGames `pluginVersion` is not bumped. Played acceptance on MinigamesTest is still required.**
+
+**Built (items 3 and 10 of the 28 October engagement review):**
+- **New mode `rounds`** for Spleef, TNT Run, Avalanche, Volcano, Dodgeball and Prop Hunt, registered in `GameCatalog`; live modes are untouched. Best of three (`round-count`, default 3) rounds of `round-seconds` (default 75; Dodgeball 90; Prop Hunt hide time + 90), 5 s intermission, "Round N of 3" titles, placement points per round, match winner on points (ties: round wins, then shared). Shared helpers in `games/common`: `RoundController`, `RoundTracker` (pure scoring) and `RegionSnapshot` (budgeted restore, generalising Party Games' floor snapshot). Spleef restores its `floor*` regions, Avalanche and Volcano their arena box (Avalanche down to `void-y`), TNT Run journals the blocks it removes, Dodgeball needs no reset, Prop Hunt swaps seekers and hiders each round. Prop Hunt rounds refuse to start when PulseContent custom props are enabled.
+- **Hazard feel (live modes too):** Avalanche landing smoke/crit particles within about a second of impact, near-miss action bar and sound, survival-time scores; Volcano "lava is N blocks below you" action bar, next-rise bossbar, rising lava pop, smoke column a second before each rock, new `min-lava-interval` (default 2 s, so the late rise can no longer reach 1 block a second), survivors ranked by height; Spleef decay cracks a block a second before it vanishes (decay now removes blocks one second after marking), dig crack sound/particle and snowball count; TNT Run double-jump readiness on the action bar and XP bar, "last five" title and countdown, new `crumble-acceleration-seconds` (default 60) and `min-crumble-ticks` (default 4); Block Party rising-pitch tick, bass note on clear, round/alive title, name + shape on the action bar, optional `colour-patterns` glazed-terracotta floor, Hardcore shows the hint briefly instead of hiding it; Dodgeball lists everyone's lives, with level sides going to sudden death (45 s, one life) instead of a blanket draw; all of these use a louder elimination cue through a new `MiniGame.eliminationSound()` hook (one-line change in `GameInstance.eliminate`; default unchanged for other games) and a "final three" title.
+- **Behaviour changes to live modes to confirm in play:** Volcano late rise is slower by default; TNT Run late crumble is quicker by default; Spleef decay lags marking by one second; Dodgeball timeout is no longer a draw; Block Party Hardcore hint is shown for 2 s rather than hidden.
+
+**Tests:** 697 JUnit checks pass (673 before, 24 new: round scoring, snapshot and restore, round flow, rise-rate cap, decay telegraph timing, Dodgeball sudden death, Prop Hunt role rotation, feedback helpers). One existing Block Party test was adjusted to stub the hotbar-hint step. The rounds flow, region resets on real worlds, Bedrock rendering of titles/bossbars/action bars and the new sounds are untested.
 
 ## 19 October - ReadyPlayerZ faster kills and 1.8-style combat: 0.3.27 candidate
 

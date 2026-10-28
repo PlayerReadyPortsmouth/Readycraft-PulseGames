@@ -52,29 +52,44 @@ Restrict a map to certain modes with `/pulse setup set modes <mode1,mode2>`.
 
 The checklist shows all of this in-game; this is the reference with map-building advice.
 
-### Spleef (`spleef` - classic, decay, splegg)
+### Spleef (`spleef` - classic, decay, splegg, rounds)
 - **Spawns:** 4+ around the edge of the floor.
 - **Regions:** `floor1` (and `floor2`... for multi-layer maps) - flat snow-block layers.
 - **Settings:** `void-y` below the lowest floor.
 - Build: snow block floors work best; anything inside the floor regions is breakable/shootable.
+- **Rounds mode:** the floor regions are snapshotted at the start and restored between rounds (no new
+  region). Decay mode now cracks each block a second before it vanishes.
 
-### TNT Run (`tntrun` - classic, doublejump)
+### TNT Run (`tntrun` - classic, doublejump, rounds)
 - **Spawns:** 4+ on the top layer.
 - **Settings:** `void-y` under the bottom layer.
 - Build: classic maps use 2-3 stacked layers of TNT-on-sandstone; the game removes the
   block underfoot plus the one beneath it after a short delay.
+- **Rounds mode:** no region needed; every block the game removes is remembered and put back between rounds.
+- Optional: `crumble-acceleration-seconds` (the crumble gets one tick quicker every N seconds, default 60,
+  `0` = off) and `min-crumble-ticks` (fastest delay, default 4; the base delay is 8). These apply to
+  the live modes too.
 
 ### Block Party (`blockparty` - classic, hardcore)
 - **Regions:** `floor` - a one-block-tall dance floor (the plugin recolors it every round).
 - **Spawns:** 1+ on the floor. **Settings:** `void-y` just below it.
+- Optional: `colour-patterns: true` lays the floor in glazed terracotta patterns instead of wool, so the
+  call never depends on telling colours apart. The called colour is always shown as a name and shape
+  (for example "▲ RED") on the action bar, and Hardcore shows the hotbar hint briefly instead of hiding it.
 
-### Avalanche (`avalanche`)
+### Avalanche (`avalanche` - classic, rounds)
 - **Regions:** `arena` - the survival platform volume; blocks fall from its **top Y**,
   so make the region tall (platform at the bottom, ~20 blocks of air above).
+- **Rounds mode:** the arena box (extended down to `void-y` so the collapsing edge columns are included)
+  is snapshotted and restored between rounds. Keep the region under 300,000 blocks.
 
-### Volcano (`volcano` - classic, eruption)
+### Volcano (`volcano` - classic, eruption, rounds)
 - **Regions:** `arena` - the whole climbable mountain; lava starts at the region's
   **bottom Y** and rises one layer at a time. Optional `lava-interval` setting (seconds).
+- Optional `min-lava-interval` (seconds, default 2): the late rise never gets faster than one block per
+  this many seconds. Without a cap the lava reaches one block a second after about 90 s, which a child
+  cannot out-climb on a tall mountain. Set `1` for the old pacing.
+- **Rounds mode:** the arena region is snapshotted and restored (lava included); keep it under 300,000 blocks.
 
 ### King of the Hill (`koth` - solo, teams)
 - **Regions:** `hill` - the capture zone. **Spawns:** 4+ around it.
@@ -146,10 +161,22 @@ The checklist shows all of this in-game; this is the reference with map-building
   ice floor, swap, mob swarm...). The border event sets its own border and restores the
   original afterwards; keep players' pillars within ~60 blocks of each other.
 
-### Prop Hunt (`prophunt` - classic, infection)
+### Prop Hunt (`prophunt` - classic, infection, rounds)
 - **Spawns:** spawn 1 is the seeker release point; add more for hider scatter points.
 - Build: lots of clutter (hay bales, barrels, crafting tables, logs, melons...) so
   hider head-blocks blend in. Optional: `hide-seconds`, `time-limit`.
+- **Rounds mode:** best of three with seeker and hider roles swapped each round (whoever has sought
+  least seeks next). Plain disguises only: it refuses to start while PulseContent custom props are
+  enabled. No map changes. `round-seconds` includes the hide time (default `hide-seconds` + 90).
+
+### Rounds mode (`rounds`: Spleef, TNT Run, Avalanche, Volcano, Dodgeball, Prop Hunt)
+A separate mode id; the existing modes are unchanged. Best of three short rounds, a 5 second
+intermission with a full reset, "Round 2 of 3" titles, and points per round by placement (the longest
+survivor scores the field size, the first out scores 1; players who last the whole clock tie at the top).
+The match winner has the most points, ties broken by round wins, then shared. Optional arena settings for
+every rounds game: `round-count` (1-5, default 3) and `round-seconds` (20-180, default 75; Dodgeball 90).
+An arena with an explicit `modes:` list must list `rounds` before it is offered; an arena with no list offers
+it automatically.
 
 ### Supermarket Sweep (`supermarket` - classic, rush)
 - **Regions:** `checkout` - walk through it to bank list items.
@@ -214,7 +241,9 @@ Modes: `solo` (2–12), `teams` (2–4, two teams). Provide at least two opposit
 spawns (first two are team bases), an enclosed court and `void-y`. No region is
 required. Players receive a blaze rod: right-click throws one snowball every
 0.75 seconds. Three enemy hits eliminate; friendly hits do nothing. Balls expire
-after five seconds. The last player/team wins; the four-minute timeout is a draw.
+after five seconds. The last player/team wins. At the four-minute timeout the side with the most lives wins;
+level sides play a 45 second sudden death on one life each (still level: shared). The sidebar lists everyone's
+lives. Mode `rounds` (2-12) plays best of three 90 second rounds, ranked by lives at the clock.
 `blueprints/dodgeball-court.json` supplies a simple enclosed court.
 
 ### Dropper (local validation required)
