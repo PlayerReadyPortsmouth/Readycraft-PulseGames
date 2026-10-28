@@ -137,4 +137,22 @@ class KartPhysicsTest {
             }
         }
     }
+    @Test void launchImpulseLiftsAnApexOfAboutTwoBlocksAndLandsAfterAboutAThirdOfASecond() {
+        var state=KartPhysics.tick(new KartPhysics.State(0,0,0,0,12,KartAir.launchSpeed(12,1),false),new KartPhysics.Input(1,0),1,floor);
+        assertTrue(state.y()>0,"lifts off while the chassis still touches the pad");assertFalse(state.grounded());
+        double apex=state.y();int airTicks=1;
+        while(!state.grounded() && airTicks<100){state=KartPhysics.tick(state,new KartPhysics.Input(1,0),1,floor);apex=Math.max(apex,state.y());airTicks++;}
+        assertEquals(2.0,apex,.25);assertTrue(airTicks>=15 && airTicks<=19,"air ticks "+airTicks);
+        assertEquals(0,state.y(),1e-3);assertTrue(state.z()>8,"carries speed forward: "+state.z());
+    }
+    @Test void aCeilingStopsTheAscentInsteadOfClipping() {
+        KartPhysics.CollisionSpace lowCeiling=(x,y,z,w,h)->y>=-0.00001 && y+h<=3;
+        var state=new KartPhysics.State(0,0,0,0,12,KartAir.launchSpeed(12,1),false);
+        for(int i=0;i<40;i++){state=KartPhysics.tick(state,new KartPhysics.Input(1,0),1,lowCeiling);assertTrue(state.y()+KartPhysics.HEIGHT<=3+1e-6);}
+    }
+    @Test void restingAndFallingStatesStillBehaveExactlyAsBefore() {
+        var rest=KartPhysics.tick(start(0),new KartPhysics.Input(0,0),1,floor);assertEquals(0,rest.y(),1e-3);assertTrue(rest.grounded());
+        var falling=KartPhysics.tick(new KartPhysics.State(0,5,0,0,0,0,false),new KartPhysics.Input(0,0),1,floor);
+        assertTrue(falling.y()<5 && falling.verticalSpeed()<0);
+    }
 }

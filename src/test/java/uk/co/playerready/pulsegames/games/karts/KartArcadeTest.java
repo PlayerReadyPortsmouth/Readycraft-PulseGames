@@ -113,4 +113,38 @@ class KartArcadeTest {
   arcade("boost1",new uk.co.playerready.pulsegames.core.util.Cuboid(10,64,3,12,66,5));
   var kart=kart(0,2.8,12);kart.input=new KartPhysics.Input(1,0);drive();assertFalse(kart.boost.active(1));
  }
+ @Test void drivingIntoAJumpPadLaunchesOnceAndATrickLandsWithABoost()throws Exception {
+  var f=PulseKartsGame.class.getDeclaredField("arcade");f.setAccessible(true);
+  f.set(logic,KartArcadeConfig.load(Map.of(),Map.of("jump1",new uk.co.playerready.pulsegames.core.util.Cuboid(-1,64,3,1,66,5))));
+  var kart=kart(0,2.8,12);kart.input=new KartPhysics.Input(1,0);
+  drive();assertTrue(kart.air.flying());assertEquals(10,kart.motion.verticalSpeed(),1e-9);assertFalse(kart.motion.grounded());
+  for(int i=0;i<6;i++)drive();
+  kart.trickRequested=true;
+  int guard=0;while(kart.air.flying() && guard++<40)drive();
+  assertFalse(kart.air.flying(),"landed within the air-time cap");assertTrue(kart.motion.grounded());
+  assertTrue(kart.boost.active(KartBoost.Source.TRICK,logicTick()),"trick landing boost");
+  assertEquals(64,kart.motion.y(),.01);
+ }
+ long logicTick()throws Exception {var f=PulseKartsGame.class.getDeclaredField("tick");f.setAccessible(true);return f.getLong(logic);}
+ @Test void noTrickWithoutPressingJumpGivesNoLandingBoost()throws Exception {
+  var f=PulseKartsGame.class.getDeclaredField("arcade");f.setAccessible(true);
+  f.set(logic,KartArcadeConfig.load(Map.of(),Map.of("jump1",new uk.co.playerready.pulsegames.core.util.Cuboid(-1,64,3,1,66,5))));
+  var kart=kart(0,2.8,12);kart.input=new KartPhysics.Input(1,0);
+  drive();int guard=0;while(kart.air.flying() && guard++<40)drive();
+  assertFalse(kart.boost.active(KartBoost.Source.TRICK,logicTick()));
+ }
+ @Test void aSlowKartIsNotLaunched()throws Exception {
+  var f=PulseKartsGame.class.getDeclaredField("arcade");f.setAccessible(true);
+  f.set(logic,KartArcadeConfig.load(Map.of(),Map.of("jump1",new uk.co.playerready.pulsegames.core.util.Cuboid(-1,64,3,1,66,5))));
+  var kart=kart(0,2.9,0);kart.input=new KartPhysics.Input(0,0);kart.motion=new KartPhysics.State(0,64,2.95,0,2,0,true);
+  drive();assertFalse(kart.air.flying());
+ }
+ @Test void jumpConfigurationIsValidated() {
+  var regions=Map.of("jump1",new uk.co.playerready.pulsegames.core.util.Cuboid(0,0,0,1,1,1));
+  assertEquals(1.25,KartArcadeConfig.load(Map.of("jump-power","1.25"),regions).jumpPower());
+  assertEquals(1,KartArcadeConfig.load(Map.of(),regions).jumpPower());
+  assertNotNull(KartArcadeConfig.validationError(Map.of("jump-power","3"),regions));
+  assertNotNull(KartArcadeConfig.validationError(Map.of("jump-power","fast"),regions));
+  assertNotNull(KartArcadeConfig.validationError(Map.of(),Map.of("jump2",new uk.co.playerready.pulsegames.core.util.Cuboid(0,0,0,1,1,1))));
+ }
 }

@@ -94,7 +94,8 @@ public final class KartPhysics {
                 break;
             }
         }
-        double vertical = grounded ? 0 : Math.max(-12, state.verticalSpeed() - 24 * DT);
+        // A positive vertical speed is a launch (jump pad): it must lift off even while still touching the ground.
+        double vertical = grounded && state.verticalSpeed() <= 0 ? 0 : Math.max(-12, state.verticalSpeed() - 24 * DT);
         // Always probe down, including after climbing a slab or leaving an edge.
         if (vertical == 0) vertical = -24 * DT;
         double dy = vertical * DT;

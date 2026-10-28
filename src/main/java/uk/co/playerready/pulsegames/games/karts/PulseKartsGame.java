@@ -33,7 +33,8 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         final KartBoost boost = new KartBoost();
         long slowUntil, boxReady, resetReady;
         final KartDrift drift = new KartDrift();
-        boolean driftPressed, driftNeedsRelease;
+        boolean driftPressed, driftNeedsRelease, jumpDown, trickRequested;
+        final KartAir air = new KartAir();
         Item item;
         boolean insideBox;
         boolean selectionClosed = true;
@@ -195,6 +196,8 @@ public final class PulseKartsGame extends CheckpointRaceGame {
     }
     @Override public void onInput(Player player,Input input) {
         Kart kart=karts.get(player.getUniqueId());if(kart==null || kart.bot!=null)return;
+        if (input.isJump() && !kart.jumpDown) kart.trickRequested=true; // rising edge: a trick if airborne
+        kart.jumpDown=input.isJump();
         if (!input.isJump()) kart.driftNeedsRelease=false;
         kart.driftPressed=input.isJump() && !kart.driftNeedsRelease;
         kart.input=new KartPhysics.Input((input.isForward()?1:0)-(input.isBackward()?1:0),
@@ -264,10 +267,17 @@ public final class PulseKartsGame extends CheckpointRaceGame {
             }
             KartPhysics.State next=KartPhysics.tick(kart.motion,drift.input(),multiplier,space,kart.style,drift.slipDegrees());
             if (next.speed() < 4 || Math.hypot(next.x()-kart.motion.x(),next.z()-kart.motion.z()) < .08) kart.drift.cancelCharge();
+            boolean trickEdge=kart.trickRequested;kart.trickRequested=false;
+            KartAir.Step flight=kart.air.tick(next.grounded(),trickEdge && tick>=kart.spinUntil);
+            if (flight.capped()) next=new KartPhysics.State(next.x(),next.y(),next.z(),next.yaw(),next.speed(),
+                    Math.min(next.verticalSpeed(),KartAir.FORCED_DESCENT),false);
             Location to=location(next);
             if(to.getY()<voidY()) { reset(kart);continue; }
-            if(!kart.seat.teleport(to,TeleportFlag.EntityState.RETAIN_PASSENGERS)) {reset(kart);continue;}
+            // The trick spin turns the seat (and so the kart model) only; the physics heading is untouched.
+            Location seatAt=to.clone();seatAt.setYaw(to.getYaw()+(float)flight.spinDegrees());
+            if(!kart.seat.teleport(seatAt,TeleportFlag.EntityState.RETAIN_PASSENGERS)) {reset(kart);continue;}
             kart.motion=next;
+            flightEffects(kart,flight);
             finishFraction = finish == null ? 0 : RaceGateCrossing.entry(finish,from,to);
             super.onMove(player,from,to);
             if(closed || game.state()!=GameState.RUNNING)return;
@@ -391,9 +401,33 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         var panels = arcade.boostPanels();
         for (int i = 0; i < panels.size(); i++)
             if (KartPads.enters(panels.get(i), before, after)) boostPad(kart, "boost" + (i + 1));
+        var jumps = arcade.jumps();
+        for (int i = 0; i < jumps.size(); i++) {
+            if (kart.air.flying() || !after.grounded() || after.speed() < KartAir.MIN_LAUNCH_SPEED
+                    || !KartPads.enters(jumps.get(i), before, after)
+                    || !pads.trigger(kart.driver.getUniqueId(), "jump" + (i + 1), tick, KartAir.PAD_COOLDOWN)) continue;
+            kart.motion = kart.air.launch(kart.motion, arcade.jumpPower());
+            kart.drift.cancelCharge();
+            Location at = location(kart.motion);
+            game.world().spawnParticle(Particle.CLOUD, at.clone().add(0, .2, 0), 10, .5, .1, .5, .04);
+            if (kart.bot == null) kart.driver.playSound(at, "minecraft:entity.slime.jump", .8f, 1.3f);
+            break;
+        }
         if (!arcade.boostBlocks().isEmpty() && after.grounded()) {
             var under = game.world().getBlockAt((int) Math.floor(after.x()), (int) Math.floor(after.y() - .1), (int) Math.floor(after.z()));
             if (under != null && arcade.boostBlocks().contains(under.getType())) boostPad(kart, "block");
+        }
+    }
+    private void flightEffects(Kart kart, KartAir.Step flight) {
+        Location at = location(kart.motion);
+        if (flight.trickStarted()) {
+            game.world().spawnParticle(Particle.FIREWORK, at.clone().add(0, 1, 0), 10, .6, .4, .6, .03);
+            if (kart.bot == null) kart.driver.playSound(at, "minecraft:entity.player.attack.sweep", .8f, 1.5f);
+        }
+        if (flight.landedWithTrick()) {
+            kart.boost.apply(KartBoost.Source.TRICK, KartAir.TRICK_FACTOR, tick, KartAir.TRICK_BOOST_TICKS);
+            game.world().spawnParticle(Particle.END_ROD, at.clone().add(0, .3, 0), 14, .6, .1, .6, .06);
+            if (kart.bot == null) kart.driver.playSound(at, "minecraft:block.note_block.chime", .9f, 1.6f);
         }
     }
     private void boostPad(Kart kart, String pad) {
@@ -556,7 +590,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
                 && !space.clearAt(at.getX(),at.getY()-.1,at.getZ(),at.getYaw());
     }
     private void reset(Kart kart) {
-        kart.drift.reset();kart.driftPressed=false;
+        kart.drift.reset();kart.driftPressed=false;kart.air.cancel();kart.trickRequested=false;
         kart.resetTick=tick;kart.spinUntil=0;kart.bumpImmuneUntil=Math.max(kart.bumpImmuneUntil,tick+40);
         Location target=resetLocation(kart.driver);kart.input=new KartPhysics.Input(0,0);kart.boost.clear();kart.slowUntil=0;
         Input held = kart.bot == null ? kart.driver.getCurrentInput() : null;

@@ -215,6 +215,8 @@ public final class GameCatalog {
                         optional(location("bot-waypoint1", "ordered kart driving line; repeat consecutively for bot support")),
                         optional(regions("boost", 1, "boost panels: 1.5 s speed burst, 1 s cooldown per panel per kart")),
                         optional(setting("boost-block", "block material(s) that act as a boost panel, e.g. BLUE_GLAZED_TERRACOTTA")),
+                        optional(regions("jump", 1, "jump pads at the ramp lip: launch scaled by speed; press jump in the air for a trick")),
+                        optional(setting("jump-power", "vertical scale for every jump, 0.5-1.5 (default 1)")),
                         setting("void-y", "off-track fall level")),
                 false));
 
