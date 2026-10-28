@@ -213,16 +213,16 @@ class KartArcadeTest {
   assertEquals(300,kart.starUntil);assertTrue(kart.boost.active(KartBoost.Source.STAR,150));assertNull(kart.item);
   kart.item=PulseKartsGame.Item.SHIELD;use(kart);assertEquals(400,kart.shieldUntil);assertNull(kart.item);
  }
- @Test void hudShowsEveryTenTicksButNeverOverFreshNoticesAndOnlyOneLightningFlashPerFiveSeconds()throws Exception {
+ @Test void hudShowsEveryTenTicksButNeverOverFreshNoticesAndLightningFlashesAreRateCapped()throws Exception {
   when(game.everyone()).thenReturn(List.of());
   var kart=kart(0,0,0);tick(9);drive();
   verify(kart.driver).sendActionBar(any(net.kyori.adventure.text.Component.class));
   tick(19);kart.noticeUntil=40;drive();verify(kart.driver,times(1)).sendActionBar(any(net.kyori.adventure.text.Component.class));
   tick(39);kart.noticeUntil=0;drive();verify(kart.driver,times(2)).sendActionBar(any(net.kyori.adventure.text.Component.class));
   var strike=PulseKartsGame.class.getDeclaredMethod("lightningEffect",Location.class);strike.setAccessible(true);
-  tick(1000);strike.invoke(logic,new Location(game.world(),0,64,0));strike.invoke(logic,new Location(game.world(),0,64,0));
-  tick(1100);strike.invoke(logic,new Location(game.world(),0,64,0));
-  verify(game.world(),times(2)).strikeLightningEffect(any(Location.class));
+  for(int i=0;i<3;i++)strike.invoke(logic,new Location(game.world(),0,64,0));
+  verify(game.world(),times(1)).strikeLightningEffect(any(Location.class));
+  verify(game.world(),atLeastOnce()).spawnParticle(eq(Particle.ELECTRIC_SPARK),any(Location.class),anyInt(),anyDouble(),anyDouble(),anyDouble(),anyDouble());
  }
  @Test void enteringTheLastLapShowsAShortTitleOnce()throws Exception {
   when(game.mode().id()).thenReturn("cup");when(game.arena().settings().getInt("laps",3)).thenReturn(3);

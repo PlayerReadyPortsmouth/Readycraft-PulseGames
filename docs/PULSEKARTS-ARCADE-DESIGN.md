@@ -51,7 +51,7 @@ weight and the rest renormalise.
 Action bar (every 10 ticks, never over a fresh notice): `L2/3 P4/8 Banana BOOST` - lap, place, held item, boost or drift
 tier. A soft chime when a place is gained and a low note when lost (stable for 10 ticks, at most once per 3 s). Entering
 the last lap of a multi-lap race shows the title `FINAL LAP!` (0.25 s in, 1.5 s, 0.5 s out). Titles stay under 12
-characters. **Photosensitivity:** at most one lightning flash per 100 ticks (extra strikes slow the target but show
+characters. **Photosensitivity:** at most one lightning flash per 5 s of wall-clock time (extra strikes slow the target but show
 particles instead); no new strobing: roulette icons change at most 5 Hz in one slot, particles are continuous trails not
 pulses, the boost ring and sparks are small.
 

@@ -1,6 +1,6 @@
 package uk.co.playerready.pulsegames.games.karts;
 
-/** Short HUD strings (Bedrock action bars truncate) and the photosensitivity limiter. Pure. */
+/** Short HUD strings (Bedrock action bars truncate). Pure. */
 final class KartHud {
     static final int INTERVAL_TICKS = 10, NOTICE_HOLD_TICKS = 30;
     private KartHud() {}
@@ -17,15 +17,4 @@ final class KartHud {
     private static final String[] TIER_COLOUR = {"<blue>", "<gold>", "<light_purple>"};
 
     static boolean enteredFinalLap(int previousLap, int lap, int laps) { return laps > 1 && lap == laps && previousLap < lap; }
-
-    /** At most one lightning flash per 100 ticks (5 s); other strikes show quiet particles instead. */
-    static final class FlashLimiter {
-        static final int GAP_TICKS = 100;
-        private long next = Long.MIN_VALUE / 2;
-        boolean tryAcquire(long tick) {
-            if (tick < next) return false;
-            next = tick + GAP_TICKS;
-            return true;
-        }
-    }
 }

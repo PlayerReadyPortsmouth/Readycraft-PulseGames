@@ -85,7 +85,8 @@ public final class PulseKartsGame extends CheckpointRaceGame {
     private Set<UUID> boxViewers = Set.of();
     private KartArcadeConfig arcade = KartArcadeConfig.NONE;
     private final KartPads pads = new KartPads();
-    private final KartHud.FlashLimiter flashes = new KartHud.FlashLimiter();
+    /** Wall-clock cap, so a laggy server cannot stretch the gap between lightning flashes. */
+    private final uk.co.playerready.pulsegames.core.util.RateCap flashes = new uk.co.playerready.pulsegames.core.util.RateCap(1, 5000);
     private List<List<KartArcadeConfig.Pt>> ribbons = List.of();
     private KartItemBoxes boxes;
     private KartBoxDisplays displays;
@@ -656,7 +657,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
     }
     /** At most one lightning flash per 5 s for photosensitive players; any extra strike shows quiet sparks. */
     private void lightningEffect(Location at) {
-        if (flashes.tryAcquire(tick)) game.world().strikeLightningEffect(at);
+        if (flashes.allow(System.currentTimeMillis())) game.world().strikeLightningEffect(at);
         else game.world().spawnParticle(Particle.ELECTRIC_SPARK, at.add(0, 1, 0), 20, .5, .8, .5, .1);
     }
     /** An action-bar message the HUD must not overwrite for a moment. */

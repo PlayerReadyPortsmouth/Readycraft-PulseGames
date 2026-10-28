@@ -21,9 +21,4 @@ class KartHudTest {
   assertTrue(KartHud.enteredFinalLap(2,3,3));assertFalse(KartHud.enteredFinalLap(3,3,3));assertFalse(KartHud.enteredFinalLap(1,2,3));
   assertFalse(KartHud.enteredFinalLap(0,1,1),"a one-lap sprint has no final lap");
  }
- @Test void atMostOneLightningFlashEveryFiveSeconds() {
-  var limiter=new KartHud.FlashLimiter();
-  assertTrue(limiter.tryAcquire(0));assertFalse(limiter.tryAcquire(1));assertFalse(limiter.tryAcquire(99));
-  assertTrue(limiter.tryAcquire(100));assertFalse(limiter.tryAcquire(150));
- }
 }
