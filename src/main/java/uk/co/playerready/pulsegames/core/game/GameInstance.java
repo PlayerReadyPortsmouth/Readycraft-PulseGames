@@ -631,7 +631,7 @@ public final class GameInstance {
         world.spawnParticle(org.bukkit.Particle.CLOUD, deathSpot.add(0, 1, 0), 30, 0.3, 0.5, 0.3, 0.05);
         world.spawnParticle(org.bukkit.Particle.FLAME, deathSpot, 15, 0.2, 0.3, 0.2, 0.02);
         for (Player p : everyone()) {
-            p.playSound(deathSpot, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 0.3f, 1.6f);
+            p.playSound(deathSpot, logic.eliminationSound().sound(), logic.eliminationSound().volume(), logic.eliminationSound().pitch());
         }
         plugin.playerState().reset(player);
         player.setGameMode(org.bukkit.GameMode.SPECTATOR);
