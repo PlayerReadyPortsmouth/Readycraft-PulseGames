@@ -83,6 +83,19 @@ public final class StatsService {
         return player.getUniqueId() + "." + game + ".best-ms." + map.replace('.', '_');
     }
 
+    /** Keeps the highest value seen under a shared record key (e.g. a per-map best round). True if raised. */
+    public synchronized boolean recordBest(String key, int value) {
+        String path = "_records." + key;
+        if (value <= data.getInt(path)) return false;
+        data.set(path, value);
+        dirty = true;
+        return true;
+    }
+
+    public synchronized int record(String key) {
+        return data.getInt("_records." + key);
+    }
+
     public synchronized int get(Player player, String game, String key) {
         return data.getInt(player.getUniqueId() + "." + game + "." + key);
     }

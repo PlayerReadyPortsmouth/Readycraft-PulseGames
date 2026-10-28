@@ -160,9 +160,27 @@ The checklist shows all of this in-game; this is the reference with map-building
 
 ### ReadyPlayerZ (`readyplayerz` - classic, frenzy)
 - **Spawns:** the squad room. **Regions:** `mobspawn1..N` - zombie windows/doors,
-  CoD-zombies style. Optional: `rounds`.
-- Kills earn points; emerald opens the Mystery Shop (weapons, armor, perks, heals).
-  Downed players revive when the team clears the round.
+  CoD-zombies style. Optional: `rounds`. Existing maps need nothing else.
+- Kills earn points (and 5 per hit); the emerald opens the **Supply Shop** (27-slot chest:
+  weapons, armour, perks, heals). Every third round (not a boss round) is a rush round of
+  runners; bosses ("Brute Boss") arrive every fifth round.
+- **Revive:** a downed player stays where they fell (slow, weakened). A teammate crouching
+  within 2 blocks for 8 s revives them at half health (+50 points). Bleed-out is 45 s, then
+  spectator until the round clears. A solo player gets one self-revive per match.
+- **Results:** round reached, kills, revives, points and MVP show on end; an overrun reads
+  "Well played", never "game over". Best round per map is kept in `stats.yml`
+  (`_records.readyplayerz.<arena>.best-round`) and shown on the sidebar.
+- **Optional extras (all fall back to a Supply Shop entry when absent):**
+  - `mysterybox1..N` - setting locations (`x,y,z,yaw,pitch`); right-click the block under it.
+    950 points, +10% per use, price resets every round; 3 s action-bar spin, weighted
+    weapon or perk.
+  - `packapunch` - setting location; right-click with a weapon in hand. 5000 points,
+    once per weapon (Sharpness III / Power III / Quick Charge II, renamed, glint).
+  - `difficulty` - `relaxed`, `normal` or `hard` (zombie health x0.75 / 1 / 1.25 and wave
+    size x0.8 / 1 / 1.25). Unset: relaxed for squads of 2 or fewer, otherwise normal.
+  - Existing optional doors, wall buys, `bounds`, darkness and health-tuning settings are unchanged.
+- Power-ups: insta-kill, double points, max ammo, nuke, plus Team Shield (10 s of protection)
+  and Second Wind (+4 hearts for the squad).
 
 ### Lucky Pillars (`luckypillars` - classic, chaos)
 - **Spawns:** one per pillar top. **Settings:** `void-y`.

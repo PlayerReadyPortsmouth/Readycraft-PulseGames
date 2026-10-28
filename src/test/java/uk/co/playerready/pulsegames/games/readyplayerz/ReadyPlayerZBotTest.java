@@ -40,7 +40,7 @@ class ReadyPlayerZBotTest {
         var inv=mock(PlayerInventory.class);when(inv.contains(Material.DIAMOND_SWORD)).thenReturn(true);var plate=mock(org.bukkit.inventory.ItemStack.class);when(plate.getType()).thenReturn(Material.IRON_CHESTPLATE);when(inv.getChestplate()).thenReturn(plate);when(bot.getInventory()).thenReturn(inv);
         when(game.arena()).thenReturn(arena());
         var logic=spy(new ReadyPlayerZGame(game));
-        doNothing().when(logic).equipBase(bot);doReturn(null).when(logic).attackSpeed(any());
+        doNothing().when(logic).clearDownState(bot);doNothing().when(logic).equipBase(bot);doReturn(null).when(logic).attackSpeed(any());
         var field=ReadyPlayerZGame.class.getDeclaredField("downed");field.setAccessible(true);
         ((Set<UUID>)field.get(logic)).add(id);
         // Test the lookup/restoration seam without a live ItemFactory; the runtime probe verifies the base kit.

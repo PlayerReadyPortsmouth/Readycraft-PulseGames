@@ -38,7 +38,7 @@ class ReadyPlayerZWavesTest {
   for(Zombie zombie:spawned)verify(zombie).setTarget(human);
   var tracked=ReadyPlayerZGame.class.getDeclaredField("zombies");tracked.setAccessible(true);org.junit.jupiter.api.Assertions.assertEquals(10,((Set<?>)tracked.get(logic)).size());
   var pending=ReadyPlayerZGame.class.getDeclaredField("pendingSpawns");pending.setAccessible(true);org.junit.jupiter.api.Assertions.assertEquals(0,pending.get(logic));
-  verify(human).playSound(any(Location.class),eq("minecraft:entity.zombie.ambient"),eq(1f),eq(.7f));
+  verify(human).playSound(any(Location.class),eq("minecraft:event.raid.horn"),eq(1f),eq(.9f));
  }
  @Test void unloadedSpawnNeverFallsBackOntoPlayers()throws Exception{
   when(game.state()).thenReturn(GameState.RUNNING);World world=game.world();when(world.getMaxHeight()).thenReturn(320);when(world.getWorldBorder()).thenReturn(null);

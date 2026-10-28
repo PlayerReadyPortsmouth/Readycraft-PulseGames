@@ -167,7 +167,8 @@ public final class ZMapProgression implements org.bukkit.event.Listener {
         return true;
     }
     private boolean canAct(Player player) {
-        return game.state()==GameState.RUNNING&&game.isActive(player)&&player.getGameMode()!=org.bukkit.GameMode.SPECTATOR
+        return (!(game.logic() instanceof ReadyPlayerZGame z) || z.acceptsDeath(player))
+                &&game.state()==GameState.RUNNING&&game.isActive(player)&&player.getGameMode()!=org.bukkit.GameMode.SPECTATOR
                 &&player.getWorld()==game.world()&&game.world()!=null;
     }
     /** Distance from the player's feet to the nearest point of the door region. */
@@ -263,7 +264,7 @@ public final class ZMapProgression implements org.bukkit.event.Listener {
         }
     }
     private boolean ownedWorld(){return game.world()!=null&&game.world().getName().equals(game.plugin().getConfig().getString("instances.world-prefix","pulse_")+game.id());}
-    private static boolean sameCell(Location loc,Block block){return loc.getBlockX()==block.getX()&&loc.getBlockY()==block.getY()&&loc.getBlockZ()==block.getZ();}
+    private static boolean sameCell(Location loc,Block block){return loc!=null&&loc.getBlockX()==block.getX()&&loc.getBlockY()==block.getY()&&loc.getBlockZ()==block.getZ();}
     private static void message(Player player,String text){player.sendMessage(Text.msg("<yellow>"+text));}
     /** Physical check after the cloned world is loaded; read-only until listener registration. */
     public String startProblem() {
