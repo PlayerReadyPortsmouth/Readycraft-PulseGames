@@ -157,13 +157,27 @@ public final class EconomyService {
         dirty = true;
     }
 
-    public synchronized void flush() {
-        if (!dirty) return;
-        try {
-            data.save(file);
-            dirty = false;
-        } catch (IOException ex) {
-            plugin.getLogger().warning("Could not save economy.yml: " + ex.getMessage());
+    private final Object ioLock = new Object();
+
+    /**
+     * Snapshot under the data lock (cheap), then dump and write outside it: the main thread reads this store on
+     * every token and stat lookup and must not wait for a YAML dump. The write is temp-file-then-move.
+     */
+    public void flush() {
+        synchronized (ioLock) {
+            org.bukkit.configuration.file.YamlConfiguration copy;
+            synchronized (this) {
+                if (!dirty) return;
+                copy = uk.co.playerready.pulsegames.core.util.YamlFiles.snapshot(data);
+                dirty = false;
+            }
+            String yaml = copy.saveToString();
+            try {
+                uk.co.playerready.pulsegames.core.util.YamlFiles.writeAtomically(file, yaml);
+            } catch (IOException ex) {
+                synchronized (this) { dirty = true; }
+                plugin.getLogger().warning("Could not save economy.yml: " + ex.getMessage());
+            }
         }
     }
 }
