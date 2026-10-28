@@ -25,6 +25,7 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
     private record Visit(String request, long joinedAt) {}
     private final Map<UUID, Visit> visits = new HashMap<>();
     private Set<String> advertised = Set.of();
+    private StatusReporter status;
     @Override public void onEnable() {
         saveDefaultConfig();
         try { returnLocations = ReturnLocations.load(new java.io.File(getDataFolder(), "return-locations.yml").toPath()); }
@@ -37,6 +38,10 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
         getServer().getPluginManager().registerEvents(this, this);
         getServer().getScheduler().runTaskTimer(this, this::queues, 20, 100);
         getServer().getScheduler().runTaskTimer(this, this::returns, 20, 20);
+        if (getConfig().getBoolean("tab-status.enabled")) {
+            status = new StatusReporter(getConfig().getStringList("tab-status.afk-metadata-keys"));
+            getServer().getScheduler().runTaskTimer(this, this::statusTick, 40, 100);
+        }
         compatibility = new ChatCompatibility(this); compatibility.start();
         chatGames = new LocalChatGames(this);
         getServer().getScheduler().runTaskTimer(this, chatGames::tick, 20, 20);
@@ -133,6 +138,14 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
             getConfig().set("queues.enabled", false);
             getLogger().warning("Queue sharing disabled: this PulseGames build does not provide the network queue API.");
         }
+    }
+    /** Signed, bounded server status for the proxy tab list; sent through any online player's connection. */
+    private void statusTick() {
+        Player carrier = Bukkit.getOnlinePlayers().stream().filter(p -> !p.hasMetadata("NPC")).findFirst().orElse(null);
+        if (status == null || wire == null || carrier == null) return;
+        var report = status.collect(Bukkit.getTPS()[0], Bukkit.getAverageTickTime(), Bukkit.getOnlinePlayers(),
+                getServer().getPluginManager().getPlugin("PulseGames"));
+        send(carrier, "STATUS", report.toFields());
     }
     private void returns() {
         var games = getServer().getPluginManager().getPlugin("PulseGames");

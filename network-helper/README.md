@@ -2,7 +2,7 @@
 
 ## Cross-server parties — prepared draft, not deployed
 
-PulseNetwork **0.1.4** credits **AurorasChaos (on behalf of Player Ready)**. The current draft adds proxy-owned `/party` (also `/networkparty`) invitations, acceptance, list, leave, disband and private party chat. Invitations expire after 60 seconds; parties hold up to eight online players. Java has a clickable invitation; Bedrock can type `/party accept` or `/party deny`. Leaving the proxy removes a member and promotes another leader if needed. Backend transfers preserve membership; proxy restarts do not preserve parties yet.
+PulseNetwork **0.1.5** credits **AurorasChaos (on behalf of Player Ready)**. The current draft adds proxy-owned `/party` (also `/networkparty`) invitations, acceptance, list, leave, disband and private party chat. Invitations expire after 60 seconds; parties hold up to eight online players. Java has a clickable invitation; Bedrock can type `/party accept` or `/party deny`. Leaving the proxy removes a member and promotes another leader if needed. Backend transfers preserve membership; proxy restarts do not preserve parties yet.
 
 The leader selects an advertised game through `/queues` or `/joinqueue <id>`. Every party member transfers with their **own** saved origin. The destination receives one authenticated group admission only after everyone arrives. Transfer failure or timeout cancels the group and returns transferred members where possible; late successful transfers also return. The destination rejects conflicting local parties rather than overwriting them. A leader acknowledgement completes the whole proxy request atomically. Game capacity, team packing, preview access and admission remain PulseGames decisions.
 
@@ -11,6 +11,62 @@ This requires matching draft PulseNetwork Velocity/Paper and PulseGames builds. 
 Reconnects on the destination restore the signed return ticket without re-queuing or forcing a transfer home. PulseGames can retain a waiting seat or allow a spectator rejoin; otherwise normal return polling sends the player home. Missing resume acknowledgement has a 15-second fallback.
 
 Group transfers and source-position restoration still require live Java/Bedrock acceptance. No rollout or restart is authorised by this draft. Existing details below describe the original helper baseline and deployment history, not proof of current live configuration.
+
+## Network tab (0.1.5) — prepared draft, not deployed
+
+A proxy-owned player list, so it works on every backend, including ones without the Paper helper. It is **off by default** (`tab.enabled=false`). Requested by Aurora: current server, every player on the network, pings, and the current server's TPS.
+
+### Player experience
+
+- Everyone on the network appears in the tab list: the viewer's own server first, then other servers in the configured order, players alphabetically within each server. With a 1.21.2+ client this order is enforced through the entry list order; older clients ignore it and sort by name.
+- Names are `[prefix] name` with the LuckPerms-Velocity prefix/suffix when LuckPerms is installed (soft dependency, read by reflection; without it, plain names). Bedrock players carry a configurable marker (default `[B]`, from Floodgate). `(AFK)` and `[In a game]` tags come from the backend status. Ping is the proxy's ping to each player, rounded to 25 ms so jitter does not cause constant updates.
+- Optional per-server header rows (`— Survival (12) —`) are fake entries and are off by default (`tab.group-headers`). Check them on Bedrock before enabling.
+- Header and footer are MiniMessage templates. Lines that render blank (for example TPS when the server has not reported) are dropped. Players with `pulsenetwork.tab.staff` get an extra footer line with their Java/Bedrock flag and version. Bedrock viewers get the same text with hover, click and obfuscation removed.
+- Players with `pulsenetwork.tab.hidden` (or flagged hidden by their backend through Bukkit `vanished` metadata) are left out of the roster and counts. Velocity has no vanish of its own. Hidden players on the viewer's own backend are the backend's to hide: the proxy never removes entries it did not add.
+
+### Config keys (proxy `network.properties`)
+
+| Key | Default | Meaning |
+|---|---|---|
+| `tab.enabled` | `false` | Master switch (also needs `enabled=true` and a secret). |
+| `tab.server-order` | empty | Comma list; then remaining servers alphabetically. |
+| `tab.excluded-servers` | empty | Servers neither shown nor managed; their players keep the backend's own list. Only servers in `backends` ever take part. |
+| `tab.server-names` | capitalised id | `survival=Survival,creative=Creative`. |
+| `tab.group-headers` / `tab.group-header-format` | `false` / `<server> (<count>)` | Fake per-server header rows. |
+| `tab.header`, `tab.footer`, `tab.staff-line` | built in | MiniMessage; `\n` separates lines. |
+| `tab.tips`, `tab.tip-seconds` | empty, `30` | `a\|b\|c` tips rotate by time. |
+| `tab.bedrock-marker` | `<aqua>[B]</aqua> ` | Prefix for Floodgate players. |
+| `tab.list-order-higher-first` | `true` | Flip if a client sorts the other way round (see below). |
+| `tab.min-interval-ms` | `1000` | Tick period and per-viewer minimum gap between updates (250 to 30000). Ping refreshes every 5 s; joins, leaves and server switches refresh immediately (with a 4 s settle after a switch). |
+
+Placeholders: `<player>`, `<server>`, `<server_id>`, `<network_online>`, `<server_count>` (visible players on the viewer's server), `<server_online>`, `<tps>`, `<mspt>` (empty when unknown), `<counts>`, `<status_line>` (empty when unknown), `<tip>`, `<online_SERVERID>` (lower-case ids), `<client>`, `<version>`. Player-controlled text is inserted as plain text, never parsed.
+
+Paper backend (`config.yml`): `tab-status.enabled` (default `false`) sends a signed STATUS message every 5 s: TPS (1 min), MSPT (5 s average), online count and flags only for players that have one (AFK from metadata keys in `tab-status.afk-metadata-keys`, default `afk`/`AFK`; hidden from `vanished` metadata; in-match from `PulseGames.networkPlayerBusy`, which gives no game name). It follows the transport rules above: HMAC, 30 s freshness, nonces, at most 12 fields, 1,024 characters per field, 8 KiB packet, reports capped at 168 flagged players (hidden first). The proxy accepts it only from the current backend connection of an allowlisted, non-excluded server and treats a report older than 20 s as unknown. The NeoForge bridge does not send status (its servers show blank TPS) and stays at 0.1.0.
+
+Nothing logs player lists, names from the roster or secrets; a failed update logs one generic warning a minute.
+
+### Conflicts and limits
+
+- A backend that sets player-list names itself (EssentialsX on Creative, `change-playerlist`) **must have that turned off when the proxy tab is enabled for it**, or the two fight over display names. The simplest route is `tab.excluded-servers` for such a server until it is changed.
+- Entries the proxy adds alongside backend-sent entries need a **Bedrock-through-Geyser acceptance check**. It cannot be proven from code.
+- The pinned Velocity API (3.4.0-SNAPSHOT) exposes `TabListEntry#setListOrder`. Whether the running proxy version, Geyser and the vanilla client sort higher-first is unverified: confirm on a 1.21.2+ client and flip `tab.list-order-higher-first` if reversed. Clients before 1.21.2, and possibly Bedrock, order by name.
+- Velocity clears the list on every server switch; the proxy rebuilds it within about a second.
+
+### Install plan (needs separate rollout and restart approval)
+
+1. Back up proxy and backend configs and jars. Install Velocity and Paper 0.1.5 on the agreed canary only.
+2. Turn off backend player-list naming on canary servers (or exclude them). Set `tab.enabled=true`, order, names and, on canary Paper backends, `tab-status.enabled: true`.
+3. Restart under the approved window; widen only after the checklist passes. Rolling back means the previous jars/configs with another approved restart.
+
+### Acceptance checklist
+
+- [ ] Java: own server first, others in order, ping bars, header/footer, TPS shown and blank-safe when a backend has no helper.
+- [ ] Java and staff: staff line only with `pulsenetwork.tab.staff`; hidden players absent.
+- [ ] Join, leave and server switch update within about a second for everyone; no flicker or duplicate entries.
+- [ ] Bedrock via Geyser: entries and names render, marker shows, no hover or garbled text, no ghost or duplicate rows, `tab.group-headers` acceptable (or left off).
+- [ ] Ordering on a 1.21.2+ client matches expectations (flip `tab.list-order-higher-first` if not); older client sorts by name without errors.
+- [ ] Excluded or non-allowlisted server leaves the backend's own list untouched; no EssentialsX conflict.
+- [ ] Proxy load acceptable with a full roster; logs contain no player lists or secrets.
 
 ## Original baseline
 

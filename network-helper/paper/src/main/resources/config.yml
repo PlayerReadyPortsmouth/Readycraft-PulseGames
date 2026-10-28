@@ -11,3 +11,7 @@ chat-games:
   minimum-players: 2
   interval-seconds: 300
   external-provider-plugins: [ChatGames, ChatGames-Premium, PulseAddon]
+# Sends TPS/MSPT/online and afk/hidden/in-match flags to the proxy for its network tab list.
+tab-status:
+  enabled: false
+  afk-metadata-keys: [afk, AFK]
