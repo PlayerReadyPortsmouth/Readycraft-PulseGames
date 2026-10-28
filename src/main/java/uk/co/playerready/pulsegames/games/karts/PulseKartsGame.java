@@ -274,6 +274,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         if (raceResults == null) initialiseResults(karts.values().stream().map(k -> k.driver).toList());
         if (!raceResults.finish(player.getUniqueId(),tick,Double.isFinite(finishFraction) ? finishFraction : 0)) return;
         removeKart(player);
+        game.recordFinish(player); // engine order only; PulseKarts' own places stay authoritative
         game.finishParticipant(player);
         player.sendMessage(Text.mm("<green>Course complete! <gray>You can watch the remaining racers."));
     }

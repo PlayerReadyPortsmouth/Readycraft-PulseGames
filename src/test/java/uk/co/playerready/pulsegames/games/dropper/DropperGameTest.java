@@ -59,7 +59,9 @@ class DropperGameTest {
         DropperGame dropper = start();
         dropper.onMove(p1, pool(0), pool(2.5));
         dropper.onMove(p1, pool(0), pool(8.5));
+        verify(game).recordFinish(p1);
         verify(game).finishParticipant(p1);
+        assertFalse(dropper.cooperative(), "a race has places, so the engine must rank it");
         verify(game, never()).end(any(), anyString());
         clock += 20_000;
         dropper.onMove(p2, pool(0), pool(2.5));

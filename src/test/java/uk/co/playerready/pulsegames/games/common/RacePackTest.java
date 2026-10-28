@@ -69,6 +69,19 @@ class RacePackTest {
         verify(game).end(List.of(p1), "race-complete");
     }
 
+    @Test void engineHearsEveryFinishInRaceOrderThenTheUnfinished() {
+        Race race = race(List.of());
+        clock += 60_000;
+        race.onMove(p1, at(0), at(8.5));
+        var order = inOrder(game);
+        order.verify(game).recordFinish(p1);
+        order.verify(game).finishParticipant(p1);
+        clock += 31_000;
+        race.onSecond(91);
+        order.verify(game).recordFinish(p2); // did not finish: ranked after the finisher
+        order.verify(game).end(List.of(p1), "race-complete");
+    }
+
     @Test void graceExpiryEndsWithFirstFinisherAsWinner() {
         Race race = race(List.of());
         clock += 60_000;

@@ -150,6 +150,7 @@ public abstract class CheckpointRaceGame extends MiniGame {
         String time = RaceFinish.time(ms);
         RaceAwards.announceFinish(game, player, place, ms);
         game.broadcast("<gold>#" + place + " <yellow>" + player.getName() + " <gray>finished in <white>" + time);
+        game.recordFinish(player); // engine placements, podium and 2nd/3rd bonuses follow the race's finish order
         game.finishParticipant(player);
         player.sendMessage(Text.mm("<green>Course complete! <gray>You can watch the remaining racers."));
         onSecond(game.gameTime());
@@ -170,6 +171,9 @@ public abstract class CheckpointRaceGame extends MiniGame {
         }
         List<Player> winners = finishes.results().stream().filter(r -> r.place() == 1)
                 .map(r -> game.player(r.player())).filter(java.util.Objects::nonNull).toList();
+        // Finishers are already recorded; rank the rest in the order listed above so the engine agrees.
+        if (winnersOverride != null) winnersOverride.forEach(game::recordFinish);
+        order.stream().map(game::player).filter(java.util.Objects::nonNull).forEach(game::recordFinish);
         game.end(winnersOverride != null ? winnersOverride : winners, reason);
     }
 

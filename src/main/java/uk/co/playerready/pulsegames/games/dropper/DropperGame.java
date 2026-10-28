@@ -30,7 +30,8 @@ public class DropperGame extends MiniGame {
     private long startMs;
     private boolean closed;
     public DropperGame(GameInstance game) { super(game); }
-    @Override public boolean cooperative() { return true; } // Leaving never awards an unfinished race.
+    // Not cooperative: a race has places, so the engine must rank, pay and report them. managesCompletion()
+    // already stops a leaver from handing the last runner the round, which is what the old flag guarded.
     @Override public boolean managesCompletion() { return true; }
     @Override public boolean fallDamage() { return true; }
     @Override public int timeLimitSeconds() { return 600; }
@@ -99,6 +100,7 @@ public class DropperGame extends MiniGame {
         game.world().spawnParticle(Particle.SPLASH, player.getLocation().add(0, 1, 0), 80, 0.8, 0.6, 0.8, 0.1);
         game.broadcast("<gold>#" + place + " <yellow>" + player.getName() + " <gray>finished in <white>" + RaceFinish.time(ms)
                 + (misses.getOrDefault(id, 0) == 0 ? " <green>- clean run!" : ""));
+        game.recordFinish(player);
         game.finishParticipant(player);
         onSecond(game.gameTime());
     }
@@ -155,6 +157,7 @@ public class DropperGame extends MiniGame {
         }
         List<Player> winners = finishes.results().stream().filter(r -> r.place() == 1)
                 .map(r -> game.player(r.player())).filter(Objects::nonNull).toList();
+        order.stream().map(game::player).filter(Objects::nonNull).forEach(game::recordFinish);
         game.end(winners, winners.isEmpty() ? "time-unfinished" : reason);
     }
     @Override public void onTimeUp() {
