@@ -27,4 +27,11 @@ class CompetitiveEligibilityTest {
         assertFalse(CompetitiveEligibility.eligible(2, 0, 0));
         assertFalse(CompetitiveEligibility.eligible(Integer.MAX_VALUE, Integer.MAX_VALUE, 12));
     }
+    @Test void aLoneHumanInACompetitiveModeIsUnranked() {
+        // Dropper practice (min-players 1) was a one-player token loop.
+        assertFalse(CompetitiveEligibility.eligible(1, 0, 12, false));
+        assertTrue(CompetitiveEligibility.eligible(2, 0, 12, false));
+        assertTrue(CompetitiveEligibility.eligible(1, 1, 12, false), "a bot opponent still counts as a contest");
+        assertTrue(CompetitiveEligibility.eligible(1, 0, 8, true), "co-op against the map stays ranked");
+    }
 }

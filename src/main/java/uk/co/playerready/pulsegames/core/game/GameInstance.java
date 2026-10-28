@@ -596,7 +596,7 @@ public final class GameInstance {
                 return;
             }
         }
-        competitiveEligible = !practice && CompetitiveEligibility.eligible(humanCount(), botIds.size(), maxPlayers());
+        competitiveEligible = !practice && CompetitiveEligibility.eligible(humanCount(), botIds.size(), maxPlayers(), logic.cooperative());
         if (!botIds.isEmpty()) {
             broadcast(competitiveEligible
                     ? "<green>This bot-assisted match counts for competitive records and match token rewards."
