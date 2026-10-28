@@ -7,6 +7,31 @@ Readable report: [HTML](MINIGAMES-TRACKER.html) · [PDF](MINIGAMES-TRACKER.pdf).
 After editing this source, regenerate both exports with
 `node tools/render-minigames-tracker.mjs --pdf`; see [update instructions](tools/TRACKER-README.md).
 
+## 28 October - Bug-hunt fixes 0.4.2 (candidate)
+
+**Candidate only: merged to `main` and built, not deployed.** Fixes the 16 findings of the read-only bug hunt of the same day (`ops/readycraft/pulsegames-bughunt-2026-10-28.md` in the workspace). `pluginVersion` is **0.4.2** (0.4.1 is reserved for the karts branch; `games/karts/` is untouched). Full `build test` is green (842 tests, 0 failures, up from 809). Nothing has been played on a server; deployment to MinigamesTest needs its own go-ahead and restart approval. One commit per finding, each confirmed in the code first; no finding was found to be wrong.
+
+| # | Finding | Fix | Status |
+|---|---|---|---|
+| 1 | Lucky Pillars chaos wrote SCALE/GRAVITY base values that survive a quit | Transient keyed modifiers; `onQuit` restores that player; end and forced stop restore all; login sanitiser (#6) resets base values | Fixed, unit-tested |
+| 2 | Build Battle creative mode open to buckets, spawn eggs, hanging entities, fire, pistons, mobs | New `FenceListener` for fenced games: buckets, fire, spread, flow and pistons only inside one plot, no entity spawns except items, falling blocks and XP; banned items stripped from the palette (creative events), on leaving the plot and each build second; entities swept and inventories cleared at the end of the build phase; environmental damage off | Fixed, unit-tested; not played |
+| 3 | Dropper practice (one player) was ranked | `CompetitiveEligibility`: a lone human in a non-co-op mode is unranked (bots count as opponents; co-op unchanged) | Fixed, unit-tested |
+| 4 | Supermarket Sweep timeout gave the first player a win on zero items | Needs at least one item; ties are shared; zero means no winner | Fixed, unit-tested |
+| 5 | Leaver wins were full ranked wins | A win decided only by departures counts only after `economy.min-ranked-seconds` (60); in kill-target games (Quake, Kit PvP) the winner needs half the target from non-repeat kills; kills on one victim beyond `economy.same-victim-kill-cap` (3) pay no kill tokens | Fixed, unit-tested; kill-trading itself is design-level and unchanged |
+| 6 | No login sanitising | `PlayerSanitiser` on join (inventory cleared for non-staff) and on world change (flags, attributes, effects, gamemode; inventory kept, staff skipped) | Fixed, unit-tested; persistence of ghost flags still unobserved |
+| 7 | YAML saves truncated in place under the lock | Snapshot under the lock, dump and write outside it, temp file then atomic move, for economy, stats and engagement | Fixed, unit-tested |
+| 8 | Avalanche/Spleef snapshot limit unenforced | One 300,000 block limit (`RegionSnapshot.MAX_BLOCKS`) checked in Avalanche, Volcano and Spleef rounds with a console warning; the next round waits up to 15 s for a large restore instead of finishing it in one tick | Fixed, unit-tested |
+| 9 | Party chat unmoderated, invites open | Local filter (abuse, links, emails, phone numbers, `party.chat-blocklist`), 1 message per second, all messages logged; `/party invites on\|off` per player (stored in player data), 5 s invite cooldown | Fixed, unit-tested. No network filter hook exists in this repo, so this is a backstop, not network moderation |
+| 10 | Build Battle text unfiltered | Signs, books and name tags stripped from the palette; sign and book edits refused in fenced games (landed with #2) | Fixed, unit-tested |
+| 11 | Spleef late snowballs | Projectile hits ignored between rounds; snowballs and eggs removed at round end | Fixed, unit-tested |
+| 12 | Flash stacking | One lightning effect per world per 5 s (particles instead), winner fireworks 3 per second with no flicker, 2 visible ghost emotes per second, TNT rain at most 3 strikes per pulse | Fixed, unit-tested |
+| 13 | Weekly ties alphabetical; grants flushed separately | Ties go to the earliest to reach the count; payout, notices and the cleared board flush together, payout first, with a paid-week marker so a crash cannot pay a week twice | Fixed, unit-tested |
+| 14 | Mode menu fixed at 27 slots | Rows sized from the mode count (4 rows of 6 at most); today's games keep 27 slots | Fixed, unit-tested |
+| 15 | Async world copy only caught `IOException` | Any `Throwable` in the copy or the load fails the instance, which frees its slot | Fixed, unit-tested |
+| 16 | Ghosts could interact with entities | `PlayerInteractEntityEvent` cancelled for spectators while running | Fixed, unit-tested |
+
+**To verify on a server before enabling for children:** a Build Battle round (pick a bucket or spawn egg from the creative menu, confirm nothing happens; confirm the vote tour); Lucky Pillars chaos with a mid-event quit (Tiny and Giant), then rejoin; a two-player Quake round where one player leaves at 10 s and at 90 s; `/party chat` and `/party invites off`; economy.yml, stats.yml and engagement.yml written by autosave still load after a restart.
+
 ## 28 October - Engagement bundle 0.4.0 (candidate jar built, not deployed)
 
 **Candidate only. `PulseGames-0.4.0` is built and checksummed but has not been copied to any server, and nothing has been played.** Branch `bundle/engagement-2026-10-28`, one bundle PR against `main`; deployment to MinigamesTest needs its own go-ahead. `pluginVersion` is now **0.4.0**. The six constituent sections above (A, B, E, C, D and the ReadyPlayerZ rework) stay as their builders wrote them; this section records what the bundle changed on top.
