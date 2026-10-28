@@ -213,6 +213,8 @@ public final class GameCatalog {
                         regions("itembox", 1, "item box pickup zones on the track"),
                         optional(location("checkpoint-spawn1", "safe kart reset with heading; repeat for each checkpoint")),
                         optional(location("bot-waypoint1", "ordered kart driving line; repeat consecutively for bot support")),
+                        optional(regions("boost", 1, "boost panels: 1.5 s speed burst, 1 s cooldown per panel per kart")),
+                        optional(setting("boost-block", "block material(s) that act as a boost panel, e.g. BLUE_GLAZED_TERRACOTTA")),
                         setting("void-y", "off-track fall level")),
                 false));
 

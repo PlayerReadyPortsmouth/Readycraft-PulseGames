@@ -57,6 +57,8 @@ public final class PulseKartsGame extends CheckpointRaceGame {
     private List<Cuboid> itemBoxes=List.of();
     private final Map<Cuboid,uk.co.playerready.pulsegames.core.content.PulseContentBridge.WorldVisual> boxVisuals = new LinkedHashMap<>();
     private Set<UUID> boxViewers = Set.of();
+    private KartArcadeConfig arcade = KartArcadeConfig.NONE;
+    private final KartPads pads = new KartPads();
     private KartPhysics.CollisionSpace space;
     private KartBotRoute botRoute;
     private List<Location> botPoints = List.of();
@@ -82,6 +84,11 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         if(game.plugin().content()==null)return "PulseContent is required for kart models.";
         String kartProblem = game.plugin().content().kartStartProblem(MODEL,players);
         if (kartProblem != null) return kartProblem;
+        String arcadeProblem = KartArcadeConfig.validationError(game.arena().settings().getValues(false), game.arena().regions());
+        if (arcadeProblem != null) return arcadeProblem;
+        var notBlock = KartArcadeConfig.load(game.arena().settings().getValues(false), game.arena().regions()).boostBlocks()
+                .stream().filter(material -> !material.isBlock()).findFirst();
+        if (notBlock.isPresent()) return "boost-block " + notBlock.get() + " is not a block material.";
         int boxes = game.arena().regionsByPrefix("itembox").size();
         if (boxes > 32) return "PulseKarts supports at most 32 item-box regions per map.";
         return boxes == 0 ? null : game.plugin().content().worldVisualStartProblem(PICKUP_MODEL,players);
@@ -90,6 +97,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         super.onStart();
         initialiseResults(game.alivePlayers());
         space=KartPhysics.world(game.world());itemBoxes=game.arena().regionsByPrefix("itembox");
+        arcade=KartArcadeConfig.load(game.arena().settings().getValues(false),game.arena().regions());
         if (game.alivePlayers().stream().anyMatch(game::isBot)) {
             botRoute = KartBotRoute.load(game.arena(), game.world());
             botPoints = botRoute.points();
@@ -229,6 +237,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
                 player.getInventory().setItem(4,null);
             }
             if (tick >= kart.spinUntil && kart.bot != null && controlBot(kart)) continue;
+            KartPhysics.State before=kart.motion;
             Location from=location(kart.motion);
             double multiplier=speedMultiplier(kart.boost,tick,kart.slowUntil);
             // Karts may pass side by side; rear impacts are resolved after every chassis moves.
@@ -262,7 +271,8 @@ public final class PulseKartsGame extends CheckpointRaceGame {
             finishFraction = finish == null ? 0 : RaceGateCrossing.entry(finish,from,to);
             super.onMove(player,from,to);
             if(closed || game.state()!=GameState.RUNNING)return;
-            if (karts.containsKey(player.getUniqueId())) collect(kart,from,to);
+            if (karts.containsKey(player.getUniqueId())) { collect(kart,from,to); touchPads(kart,before,next); }
+            if (kart.boost.active(tick)) boostTrail(kart);
         }
         if (!game.frozen()) applyBumps(previous);
         completeRaceTick();
@@ -377,6 +387,30 @@ public final class PulseKartsGame extends CheckpointRaceGame {
     private static final float[] DRIFT_PITCH = {1.0f, 1.4f, 1.9f};
     private static final Color[] DRIFT_COLOUR = {Color.fromRGB(0x3b82f6), Color.fromRGB(0xf97316), Color.fromRGB(0xa855f7)};
     /** Colour-coded sparks at both rear corners: blue (mini), orange (super), purple (ultra). */
+    private void touchPads(Kart kart, KartPhysics.State before, KartPhysics.State after) {
+        var panels = arcade.boostPanels();
+        for (int i = 0; i < panels.size(); i++)
+            if (KartPads.enters(panels.get(i), before, after)) boostPad(kart, "boost" + (i + 1));
+        if (!arcade.boostBlocks().isEmpty() && after.grounded()) {
+            var under = game.world().getBlockAt((int) Math.floor(after.x()), (int) Math.floor(after.y() - .1), (int) Math.floor(after.z()));
+            if (under != null && arcade.boostBlocks().contains(under.getType())) boostPad(kart, "block");
+        }
+    }
+    private void boostPad(Kart kart, String pad) {
+        if (!pads.trigger(kart.driver.getUniqueId(), pad, tick, KartPads.BOOST_COOLDOWN)) return;
+        kart.boost.apply(KartBoost.Source.PANEL, PANEL_FACTOR, tick, PANEL_TICKS);
+        Location at = location(kart.motion);
+        game.world().spawnParticle(Particle.CLOUD, at.clone().add(0, .3, 0), 12, .5, .1, .5, .05);
+        if (kart.bot == null) kart.driver.playSound(at, "minecraft:entity.breeze.wind_burst", .8f, 1.2f);
+    }
+    /** One continuous cloud puff behind any boosted kart; a trail, not a flashing burst. */
+    private void boostTrail(Kart kart) {
+        Location at = location(kart.motion);
+        double yaw = Math.toRadians(at.getYaw());
+        game.world().spawnParticle(Particle.CLOUD, at.getX() + Math.sin(yaw) * 1.1, at.getY() + .35, at.getZ() - Math.cos(yaw) * 1.1, 1, .12, .05, .12, .01);
+    }
+    static final double PANEL_FACTOR = 1.5;
+    static final int PANEL_TICKS = 30;
     private void driftSparks(Kart kart) {
         Location at = location(kart.motion);
         double yaw = Math.toRadians(at.getYaw()), fx = -Math.sin(yaw), fz = Math.cos(yaw);
@@ -551,6 +585,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
     }
     private void removeKart(Player player) {
         Kart kart=karts.remove(player.getUniqueId());if(kart==null)return;
+        pads.forget(player.getUniqueId());
         closeStyleMenu(kart.driver);
         try{kart.visual.close();}catch(Exception failure){game.plugin().getLogger().warning("Kart visual cleanup: "+failure.getMessage());}
         finally {kart.seat.eject();kart.seat.remove();}

@@ -98,4 +98,19 @@ class KartArcadeTest {
         var complete=PulseKartsGame.class.getDeclaredMethod("completeRaceTick");complete.setAccessible(true);complete.invoke(logic);
         verify(game).end(List.of(racer.driver),"race-complete");
     }
+ void arcade(String key,uk.co.playerready.pulsegames.core.util.Cuboid box)throws Exception {
+  var f=PulseKartsGame.class.getDeclaredField("arcade");f.setAccessible(true);
+  f.set(logic,KartArcadeConfig.load(Map.of(),Map.of(key,box)));
+ }
+ void drive()throws Exception {var m=PulseKartsGame.class.getDeclaredMethod("drive");m.setAccessible(true);m.invoke(logic);}
+ @Test void drivingOntoABoostPanelBoostsOnceAndStayingOnItDoesNotRetrigger()throws Exception {
+  arcade("boost1",new uk.co.playerready.pulsegames.core.util.Cuboid(-1,64,3,1,66,5));
+  var kart=kart(0,2.8,12);kart.input=new KartPhysics.Input(1,0);
+  drive();assertTrue(kart.boost.active(1),"entered the panel");assertEquals(31,kart.boost.until());
+  drive();assertEquals(31,kart.boost.until(),"still inside, same boost");
+ }
+ @Test void aKartThatNeverTouchesAPanelIsNotBoosted()throws Exception {
+  arcade("boost1",new uk.co.playerready.pulsegames.core.util.Cuboid(10,64,3,12,66,5));
+  var kart=kart(0,2.8,12);kart.input=new KartPhysics.Input(1,0);drive();assertFalse(kart.boost.active(1));
+ }
 }
