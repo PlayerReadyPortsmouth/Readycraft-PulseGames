@@ -19,11 +19,36 @@ import java.util.Map;
  */
 public final class RegionSnapshot {
 
+    /** One documented limit for every rounds-mode snapshot: each cell holds a Block plus a cloned BlockData. */
+    public static final long MAX_BLOCKS = 300_000L;
+
     private final Map<Block, BlockData> cells = new LinkedHashMap<>();
     private List<Map.Entry<Block, BlockData>> pending = List.of();
     private int cursor;
 
     public static RegionSnapshot empty() { return new RegionSnapshot(); }
+
+    /** Total cells the regions would capture (overlaps counted twice, which only errs on the safe side). */
+    public static long volume(Collection<Cuboid> regions) {
+        long total = 0;
+        for (Cuboid region : regions) total = Math.min(Long.MAX_VALUE / 2, total + region.volume());
+        return total;
+    }
+
+    /**
+     * Null when the regions fit {@link #MAX_BLOCKS}; otherwise the lobby-facing refusal, which is also sent to
+     * {@code console} so an admin sees why rounds mode will not start on this arena.
+     */
+    public static String refusal(String game, Collection<Cuboid> regions, java.util.function.Consumer<String> console) {
+        long blocks = volume(regions);
+        if (blocks <= MAX_BLOCKS) return null;
+        console.accept(game + " rounds mode refused: the arena snapshot would hold " + blocks
+                + " blocks, over the " + MAX_BLOCKS + " limit. Shrink the region or use another mode.");
+        return game + " rounds need an arena under " + MAX_BLOCKS + " blocks to snapshot";
+    }
+
+    /** Cells still waiting to be put back by {@link #restoreStep}. */
+    public int remaining() { return Math.max(0, pending.size() - cursor); }
 
     /** Capture the current state of every region (overlapping cells are stored once). */
     public static RegionSnapshot capture(World world, Collection<Cuboid> regions) {

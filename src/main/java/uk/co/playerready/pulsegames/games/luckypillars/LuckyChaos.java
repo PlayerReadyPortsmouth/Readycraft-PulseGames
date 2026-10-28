@@ -8,6 +8,8 @@ import org.bukkit.World;
 import org.bukkit.WorldBorder;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
+import org.bukkit.attribute.AttributeModifier;
+import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Entity;
@@ -48,7 +50,7 @@ public enum LuckyChaos {
     }),
     TNT_RAIN("TNT Rain", "Look up", 6, 10, true, 1, c -> c.repeat(10, () -> {
         List<Player> alive = c.alive();
-        int strikes = 1 + alive.size() / 4;
+        int strikes = Math.min(3, 1 + alive.size() / 4);
         for (int i = 0; i < strikes && !alive.isEmpty(); i++) {
             Location at = alive.get(c.random.nextInt(alive.size())).getLocation().add(
                     c.random.nextInt(7) - 3, 14, c.random.nextInt(7) - 3);
@@ -218,6 +220,8 @@ public enum LuckyChaos {
         final LuckyChaos event;
         private final List<Entity> tracked;
         private final List<Runnable> restores = new ArrayList<>();
+        /** Player-bound undo steps, so one player can be restored alone (quit) without waiting for the event to end. */
+        private final java.util.Map<java.util.UUID, List<Runnable>> perPlayer = new java.util.HashMap<>();
         private final List<BukkitTask> tasks = new ArrayList<>();
 
         public Ctx(GameInstance game, RandomGenerator random, Supplier<LuckyDrops.Drop> roller,
@@ -231,12 +235,33 @@ public enum LuckyChaos {
         void onRestore(Runnable r) { restores.add(r); }
         void repeat(long period, Runnable r) { tasks.add(game.runRepeating(0, period, r)); }
 
+        /**
+         * Sets an attribute to {@code value} with a transient modifier. Transient modifiers are never
+         * written to playerdata, so a quit or crash mid-event cannot leave a changed base value behind.
+         */
         public void setAttribute(Player p, Attribute attribute, double value) {
             AttributeInstance inst = p.getAttribute(attribute);
             if (inst == null) return;
-            double old = inst.getBaseValue();
-            restores.add(() -> inst.setBaseValue(old));
-            inst.setBaseValue(value);
+            NamespacedKey key = modifierKey(game.plugin(), attribute);
+            inst.removeModifier(key);
+            inst.addTransientModifier(new AttributeModifier(key, modifierAmount(inst.getBaseValue(), value),
+                    AttributeModifier.Operation.ADD_NUMBER));
+            bind(p, () -> inst.removeModifier(key));
+        }
+
+        private void bind(Player p, Runnable undo) {
+            restores.add(undo);
+            perPlayer.computeIfAbsent(p.getUniqueId(), k -> new ArrayList<>()).add(undo);
+        }
+
+        /** Undo this event's changes for one player only (quit, kick, disconnect). */
+        public void restoreFor(Player p) {
+            List<Runnable> mine = perPlayer.remove(p.getUniqueId());
+            if (mine == null) return;
+            for (int i = mine.size() - 1; i >= 0; i--) {
+                try { mine.get(i).run(); } catch (RuntimeException ignored) { /* already gone */ }
+                restores.remove(mine.get(i));
+            }
         }
 
         void allAttribute(Attribute attribute, double value) { alive().forEach(p -> setAttribute(p, attribute, value)); }
@@ -244,7 +269,7 @@ public enum LuckyChaos {
         void allEffect(PotionEffect effect) {
             for (Player p : alive()) {
                 p.addPotionEffect(effect);
-                restores.add(() -> p.removePotionEffect(effect.getType()));
+                bind(p, () -> p.removePotionEffect(effect.getType()));
             }
         }
 
@@ -256,8 +281,16 @@ public enum LuckyChaos {
                 try { restores.get(i).run(); } catch (RuntimeException ignored) { /* player or world already gone */ }
             }
             restores.clear();
+            perPlayer.clear();
         }
     }
+
+    static NamespacedKey modifierKey(org.bukkit.plugin.Plugin plugin, Attribute attribute) {
+        return new NamespacedKey(plugin, "lucky_chaos_" + attribute.getKey().getKey());
+    }
+
+    /** Amount that, added to {@code base}, gives exactly {@code target}. */
+    static double modifierAmount(double base, double target) { return target - base; }
 
     // ---- scheduler ------------------------------------------------------------
 
@@ -353,6 +386,9 @@ public enum LuckyChaos {
         }
 
         public boolean stopped() { return stopped; }
+
+        /** A player left mid-event: put their attributes and effects back now. */
+        public void restoreFor(Player p) { if (ctx != null) ctx.restoreFor(p); }
 
         private void hideBar() {
             if (bar != null) {

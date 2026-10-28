@@ -59,6 +59,7 @@ public final class QuakeGame extends MiniGame implements BotMovement {
     @Override public boolean respawnable(){return true;}
     @Override public int respawnDelaySeconds(){return 2;}
     @Override public int timeLimitSeconds(){return Math.max(60,Math.min(900,game.arena().settings().getInt("time-limit",300)));}
+    @Override public int killTarget(){return target();}
     int target(){return Math.max(1,Math.min(100,game.arena().settings().getInt("target-kills",20)));}
     private boolean active(Player p){return game.state()==GameState.RUNNING && !game.frozen() && game.isActive(p) && p.getWorld()==game.world();}
     @Override public void onStart(){

@@ -87,8 +87,8 @@ public final class VolcanoGame extends MiniGame implements uk.co.playerready.pul
     @Override public String startProblem(List<Player> players) {
         if (!isRounds()) return null;
         Cuboid arena = game.arena().region("arena");
-        return arena != null && arena.volume() > 300_000
-                ? "Volcano rounds need an arena under 300000 blocks to snapshot" : null;
+        return arena == null ? null
+                : RegionSnapshot.refusal("Volcano", List.of(arena), game.plugin().getLogger()::warning);
     }
 
     @Override

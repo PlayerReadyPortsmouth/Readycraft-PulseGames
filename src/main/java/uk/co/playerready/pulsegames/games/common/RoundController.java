@@ -27,6 +27,8 @@ public final class RoundController {
     public static final int INTERMISSION_SECONDS = 5;
     private static final int FINAL_PAUSE_SECONDS = 3;
     private static final int RESTORE_BLOCKS_PER_TICK = 4096;
+    /** Extra intermission seconds allowed for a restore that has not finished, before it is completed in one go. */
+    private static final int MAX_RESTORE_WAIT_SECONDS = 15;
 
     /** What a game supplies; the controller does everything else. */
     public interface Host {
@@ -55,6 +57,7 @@ public final class RoundController {
     private boolean finalPause;
     private BukkitTask restoreTask;
     private int fieldSize;
+    private int restoreWaits;
 
     public static boolean isRounds(GameInstance game) { return MODE_ID.equals(game.mode().id()); }
 
@@ -129,7 +132,16 @@ public final class RoundController {
             }
             return;
         }
-        if (finalPause) finishMatch(); else startNextRound();
+        if (finalPause) { finishMatch(); return; }
+        if (restoreTask != null && snapshot != null && restoreWaits < MAX_RESTORE_WAIT_SECONDS) {
+            // A large arena is still going back block by block: finishing it here would put the whole
+            // remainder into one tick. Give it more seconds instead.
+            restoreWaits++;
+            intermissionLeft = 1;
+            for (Player p : game.players()) p.sendActionBar(Text.mm("<yellow>Resetting the arena..."));
+            return;
+        }
+        startNextRound();
     }
 
     /** Engine time limit hit: the match is decided on the points banked so far. */
@@ -195,6 +207,7 @@ public final class RoundController {
         clearFallingBlocks();
         finalPause = tracker.lastRound();
         intermissionLeft = finalPause ? FINAL_PAUSE_SECONDS : INTERMISSION_SECONDS;
+        restoreWaits = 0;
         if (!finalPause && snapshot != null) {
             snapshot.beginRestore();
             cancelRestore();

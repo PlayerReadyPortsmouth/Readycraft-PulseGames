@@ -37,6 +37,9 @@ countdown:
 party:
   max-size: 8
   invite-expiry-seconds: 60
+  # Extra words /party chat refuses, on top of the built-in list (links, emails and phone numbers are always refused).
+  # Every party message is also logged to the console.
+  chat-blocklist: []
 
 end:
   # Seconds to celebrate before players are returned to the lobby.
@@ -55,6 +58,11 @@ economy:
   placement-min-players: 4
   # Most tokens kills can earn in one match, so kills cannot out-earn a win.
   kill-token-cap: 25
+  # Kills on the same victim beyond this many per match earn no tokens and do not count toward a win by default.
+  same-victim-kill-cap: 3
+  # A round that ends only because everyone else left counts as a ranked win only if it ran this long
+  # (and, in kill-target games, the winner has half the target in non-repeat kills).
+  min-ranked-seconds: 60
   # Extra tokens on a player's first win each day.
   first-win-bonus: 30
   # Win streak: step tokens per win beyond the first, up to max (announced at 3, 5 and 10).

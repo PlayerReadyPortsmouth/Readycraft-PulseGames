@@ -139,6 +139,15 @@ public abstract class MiniGame {
 
     public boolean hunger() { return false; }
 
+    /**
+     * Creative-build games: close every world-altering route other than block place and break
+     * (buckets, fire, pistons, flowing liquid, entity spawns, sign and book text). See {@link FenceListener}.
+     */
+    public boolean fenced() { return false; }
+
+    /** For a {@link #fenced()} game: may a piston or flowing liquid at {@code from} act on {@code to}? */
+    public boolean fenceAllows(Location from, Location to) { return true; }
+
     public boolean canBreak(Player player, Block block) { return false; }
 
     public boolean canPlace(Player player, Block block) { return false; }
@@ -158,6 +167,9 @@ public abstract class MiniGame {
     public boolean itemPickup(Player player, Item item) { return false; }
 
     public int timeLimitSeconds() { return 600; }
+
+    /** Kills needed to win a first-to-N game; 0 when the game has no kill target. */
+    public int killTarget() { return 0; }
 
     /** Seconds players are frozen in place after the start teleport. */
     public int startFreezeSeconds() { return 3; }

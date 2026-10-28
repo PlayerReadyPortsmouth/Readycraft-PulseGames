@@ -206,9 +206,12 @@ public final class SpectatorTools {
         return true;
     }
 
+    /** However many ghosts react at once, a viewer sees at most two reactions a second. */
+    private final uk.co.playerready.pulsegames.core.util.RateCap visibleEmotes = new uk.co.playerready.pulsegames.core.util.RateCap(2, 1000);
+
     void emote(Player player, Tool tool, long nowMs) {
         if (!tool.emote) return;
-        if (!tryEmote(player.getUniqueId(), nowMs)) {
+        if (!tryEmote(player.getUniqueId(), nowMs) || !visibleEmotes.allow(nowMs)) {
             player.sendActionBar(Text.mm("<gray>Wait a moment before the next reaction"));
             return;
         }

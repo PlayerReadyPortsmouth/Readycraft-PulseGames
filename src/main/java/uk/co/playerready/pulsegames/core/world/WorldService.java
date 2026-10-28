@@ -100,47 +100,51 @@ public final class WorldService {
                 .environment(World.Environment.NORMAL).generator(new VoidGenerator());
         File target = worldDirectory(creator);
         boolean modern = modernLevelDirectory() != null;
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            try {
-                if (!source.isDirectory()) {
-                    throw new IOException("Missing world template: " + source.getPath());
-                }
-                if (modern && Files.exists(source.toPath().resolve("level.dat"))) {
-                    throw new IOException("Legacy template must be imported and re-captured on this Paper version: " + template);
-                }
-                if (!Files.isDirectory(source.toPath().resolve("region"))) {
-                    throw new IOException("Template has no saved region data: " + template);
-                }
-                if (target.exists()) throw new IOException("Instance folder already exists: " + target);
-                copyDirectory(source.toPath(), target.toPath());
-                Bukkit.getScheduler().runTask(plugin, () -> {
-                    World world;
-                    try {
-                        world = creator.createWorld();
-                    } catch (RuntimeException ex) {
-                        plugin.getLogger().severe("World load failed for " + template + ": " + ex.getMessage());
-                        onFail.run();
-                        return;
-                    }
-                    if (world == null) {
-                        onFail.run();
-                        return;
-                    }
-                    world.setAutoSave(false);
-                    world.setDifficulty(Difficulty.NORMAL);
-                    world.setGameRule(GameRule.DO_DAYLIGHT_CYCLE, false);
-                    world.setGameRule(GameRule.DO_WEATHER_CYCLE, false);
-                    world.setGameRule(GameRule.DO_MOB_SPAWNING, false);
-                    world.setGameRule(GameRule.ANNOUNCE_ADVANCEMENTS, false);
-                    world.setGameRule(GameRule.DO_IMMEDIATE_RESPAWN, true);
-                    world.setGameRule(GameRule.KEEP_INVENTORY, true);
-                    onReady.accept(world);
-                });
-            } catch (IOException ex) {
-                plugin.getLogger().severe("World clone failed for " + template + ": " + ex.getMessage());
-                Bukkit.getScheduler().runTask(plugin, onFail);
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> failSafe("World clone for " + template, () -> {
+            if (!source.isDirectory()) {
+                throw new IOException("Missing world template: " + source.getPath());
             }
-        });
+            if (modern && Files.exists(source.toPath().resolve("level.dat"))) {
+                throw new IOException("Legacy template must be imported and re-captured on this Paper version: " + template);
+            }
+            if (!Files.isDirectory(source.toPath().resolve("region"))) {
+                throw new IOException("Template has no saved region data: " + template);
+            }
+            if (target.exists()) throw new IOException("Instance folder already exists: " + target);
+            copyDirectory(source.toPath(), target.toPath());
+            Bukkit.getScheduler().runTask(plugin, () -> failSafe("World load for " + template, () -> {
+                World world = creator.createWorld();
+                if (world == null) {
+                    onFail.run();
+                    return;
+                }
+                world.setAutoSave(false);
+                world.setDifficulty(Difficulty.NORMAL);
+                world.setGameRule(GameRule.DO_DAYLIGHT_CYCLE, false);
+                world.setGameRule(GameRule.DO_WEATHER_CYCLE, false);
+                world.setGameRule(GameRule.DO_MOB_SPAWNING, false);
+                world.setGameRule(GameRule.ANNOUNCE_ADVANCEMENTS, false);
+                world.setGameRule(GameRule.DO_IMMEDIATE_RESPAWN, true);
+                world.setGameRule(GameRule.KEEP_INVENTORY, true);
+                onReady.accept(world);
+            }, onFail, plugin.getLogger()));
+        }, () -> Bukkit.getScheduler().runTask(plugin, onFail), plugin.getLogger()));
+    }
+
+    interface Step { void run() throws Exception; }
+
+    /**
+     * Runs one step of the clone/load. Anything it throws, not only an IOException (an unchecked error in the copy
+     * used to leave the instance in LOADING for good, holding one of the concurrent-instance slots), is logged and
+     * fails the instance so the slot is freed.
+     */
+    static void failSafe(String what, Step step, Runnable onFail, java.util.logging.Logger log) {
+        try {
+            step.run();
+        } catch (Throwable failure) {
+            log.severe(what + " failed: " + failure);
+            try { onFail.run(); } catch (Throwable ignored) { /* the slot is freed by cleanup; nothing more to do */ }
+        }
     }
 
     /** Saves a live world and copies it into the template folder (used by /pulse setup save). */

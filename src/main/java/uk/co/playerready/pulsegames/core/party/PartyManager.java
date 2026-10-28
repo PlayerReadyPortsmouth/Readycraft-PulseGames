@@ -17,6 +17,12 @@ public final class PartyManager {
 
     private record Invite(UUID partyLeader, long expiresAt) {}
 
+    private static final long INVITE_COOLDOWN_MS = 5_000L;
+    private static final long CHAT_COOLDOWN_MS = 1_000L;
+    private final Map<UUID, Long> lastInviteAt = new HashMap<>();
+    private final Map<UUID, Long> lastChatAt = new HashMap<>();
+    private final org.bukkit.NamespacedKey noInvitesKey;
+
     private final JavaPlugin plugin;
     private final List<Party> parties = new ArrayList<>();
     private final Map<UUID, Invite> invites = new HashMap<>();
@@ -78,6 +84,21 @@ public final class PartyManager {
 
     public PartyManager(JavaPlugin plugin) {
         this.plugin = plugin;
+        this.noInvitesKey = org.bukkit.NamespacedKey.fromString("pulsegames:no-party-invites");
+    }
+
+    /** Players choose whether strangers can pull them into a party; stored with their player data. */
+    public boolean acceptsInvites(Player player) {
+        var pdc = player.getPersistentDataContainer();
+        return pdc == null || !pdc.has(noInvitesKey, org.bukkit.persistence.PersistentDataType.BYTE);
+    }
+
+    public void setAcceptsInvites(Player player, boolean accepts) {
+        var pdc = player.getPersistentDataContainer();
+        if (pdc == null) return;
+        if (accepts) pdc.remove(noInvitesKey); else pdc.set(noInvitesKey, org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
+        invites.remove(player.getUniqueId());
+        player.sendMessage(Text.msg(accepts ? "Party invites are <green>on</green>." : "Party invites are <red>off</red>. Nobody can invite you."));
     }
 
     public Party partyOf(Player player) {
@@ -110,6 +131,17 @@ public final class PartyManager {
             inviter.sendMessage(Text.msg("<red>" + target.getName() + " is already in a party."));
             return false;
         }
+        if (!acceptsInvites(target)) {
+            inviter.sendMessage(Text.msg("<red>" + target.getName() + " is not taking party invites."));
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        Long last = lastInviteAt.get(inviter.getUniqueId());
+        if (last != null && now - last < INVITE_COOLDOWN_MS) {
+            inviter.sendMessage(Text.msg("<red>Slow down - wait a few seconds between invites."));
+            return false;
+        }
+        lastInviteAt.put(inviter.getUniqueId(), now);
         long expiry = plugin.getConfig().getInt("party.invite-expiry-seconds", 60) * 1000L;
         invites.put(target.getUniqueId(), new Invite(party.leader(), System.currentTimeMillis() + expiry));
         inviter.sendMessage(Text.msg("Invited <yellow>" + target.getName() + "</yellow> to your party."));
@@ -178,6 +210,20 @@ public final class PartyManager {
             sender.sendMessage(Text.msg("<red>You are not in a party."));
             return;
         }
+        long now = System.currentTimeMillis();
+        Long last = lastChatAt.get(sender.getUniqueId());
+        if (last != null && now - last < CHAT_COOLDOWN_MS) {
+            sender.sendMessage(Text.msg("<red>Slow down - one party message a second."));
+            return;
+        }
+        lastChatAt.put(sender.getUniqueId(), now);
+        boolean blocked = PartyChatFilter.blocked(message, plugin.getConfig().getStringList("party.chat-blocklist"));
+        // Private text reaches children, so it is always on the console for moderators.
+        plugin.getLogger().info("[party-chat" + (blocked ? " BLOCKED" : "") + "] " + sender.getName() + ": " + message);
+        if (blocked) {
+            sender.sendMessage(Text.msg("<red>That message was not sent. Keep party chat friendly and don't share links or contact details."));
+            return;
+        }
         for (Player member : party.onlineMembers()) {
             member.sendMessage(Text.mm("<blue>Party</blue> <dark_gray>» <yellow>" + sender.getName()
                     + "</yellow><gray>: <white>").append(Component.text(message)));
@@ -196,6 +242,8 @@ public final class PartyManager {
         if(party!=null && imported.remove(party)) parties.remove(party);
         else if(party!=null) leave(player);
         invites.remove(player.getUniqueId());
+        lastInviteAt.remove(player.getUniqueId());
+        lastChatAt.remove(player.getUniqueId());
     }
 
     /**

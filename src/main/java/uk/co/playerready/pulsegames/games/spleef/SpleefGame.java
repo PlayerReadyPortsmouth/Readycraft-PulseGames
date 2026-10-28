@@ -46,6 +46,13 @@ public final class SpleefGame extends MiniGame implements uk.co.playerready.puls
     private boolean isRounds() { return uk.co.playerready.pulsegames.games.common.RoundController.isRounds(game); }
 
     @Override
+    public String startProblem(List<Player> players) {
+        if (!isRounds()) return null;
+        return uk.co.playerready.pulsegames.games.common.RegionSnapshot.refusal("Spleef",
+                game.arena().regionsByPrefix("floor"), game.plugin().getLogger()::warning);
+    }
+
+    @Override
     public void onStart() {
         floors = game.arena().regionsByPrefix("floor");
         refreshFloorBlocks();
@@ -54,7 +61,7 @@ public final class SpleefGame extends MiniGame implements uk.co.playerready.puls
             rounds = new uk.co.playerready.pulsegames.games.common.RoundController(game,
                     new uk.co.playerready.pulsegames.games.common.RoundController.Host() {
                         @Override public void beginRound(int round) { refreshFloorBlocks(); equip(); }
-                        @Override public void resetWorld() { cracking.clear(); }
+                        @Override public void resetWorld() { cracking.clear(); clearProjectiles(); }
                     }, snapshot, 75, "Dig the floor out - last one standing scores most");
             rounds.start();
             return;
@@ -260,8 +267,16 @@ public final class SpleefGame extends MiniGame implements uk.co.playerready.puls
         return rounds != null ? rounds.sidebar(player) : List.of();
     }
 
+    /** Snowballs and eggs still flying at round end must not reach the floor after it has been restored. */
+    private void clearProjectiles() {
+        if (game.world() == null) return;
+        game.world().getEntitiesByClass(org.bukkit.entity.Snowball.class).forEach(org.bukkit.entity.Entity::remove);
+        game.world().getEntitiesByClass(Egg.class).forEach(org.bukkit.entity.Entity::remove);
+    }
+
     @Override
     public void onProjectileHit(ProjectileHitEvent event) {
+        if (rounds != null && !rounds.active()) return;
         boolean breaker = event.getEntity() instanceof Egg
                 || event.getEntity() instanceof org.bukkit.entity.Snowball;
         if (breaker && event.getHitBlock() != null && inFloor(event.getHitBlock())) {

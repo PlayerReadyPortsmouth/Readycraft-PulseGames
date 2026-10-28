@@ -172,8 +172,12 @@ public final class EngagementService {
     }
 
     private void weeklyRollover() {
+        String closing = plugin.stats().weeklyWeek();
         List<WeeklyStats.Entry> winners = plugin.stats().weeklyRollover(LocalDate.now());
         if (winners == null || winners.isEmpty()) return;
+        // A crash after the payout reached disk but before the board was cleared must not pay the week twice.
+        if (closing != null && closing.equals(plugin.economy().weeklyPaid())) { flushWeekly(); return; }
+        plugin.economy().markWeeklyPaid(closing);
         List<Integer> rewards = plugin.getConfig().getIntegerList("leaderboard.weekly-rewards");
         for (int i = 0; i < winners.size() && i < rewards.size(); i++) {
             var w = winners.get(i);
@@ -189,7 +193,14 @@ public final class EngagementService {
             Player online = plugin.getServer().getPlayer(w.player());
             if (online != null) onJoin(online);
         }
-        plugin.stats().flushAsync();
+        flushWeekly();
+    }
+
+    /** Payout, notices and the cleared board go to disk together, payout first, instead of on three timers. */
+    private void flushWeekly() {
+        plugin.economy().flush();
+        flush();
+        plugin.stats().flush();
     }
 
     /** Delivers weekly-reward notices to a player who was offline at the reset. */
@@ -215,9 +226,27 @@ public final class EngagementService {
         return item;
     }
 
-    public synchronized void flush() {
-        if (!dirty) return;
-        try { data.save(file); dirty = false; }
-        catch (IOException ex) { plugin.getLogger().warning("Could not save engagement.yml: " + ex.getMessage()); }
+    private final Object ioLock = new Object();
+
+    /**
+     * Snapshot under the data lock (cheap), then dump and write outside it: the main thread reads this store on
+     * every token and stat lookup and must not wait for a YAML dump. The write is temp-file-then-move.
+     */
+    public void flush() {
+        synchronized (ioLock) {
+            org.bukkit.configuration.file.YamlConfiguration copy;
+            synchronized (this) {
+                if (!dirty) return;
+                copy = uk.co.playerready.pulsegames.core.util.YamlFiles.snapshot(data);
+                dirty = false;
+            }
+            String yaml = copy.saveToString();
+            try {
+                uk.co.playerready.pulsegames.core.util.YamlFiles.writeAtomically(file, yaml);
+            } catch (IOException ex) {
+                synchronized (this) { dirty = true; }
+                plugin.getLogger().warning("Could not save engagement.yml: " + ex.getMessage());
+            }
+        }
     }
 }

@@ -106,7 +106,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
     private void party(Player player, String[] args) {
         if (!plugin.parties().localOnly(player) && plugin.networkPartyCommand(player,args)) return;
         if (args.length == 0) {
-            player.sendMessage(Text.msg("Usage: <yellow>/party <invite|accept|deny|leave|disband|list|chat>"));
+            player.sendMessage(Text.msg("Usage: <yellow>/party <invite|accept|deny|leave|disband|list|chat|invites>"));
             return;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
@@ -134,6 +134,14 @@ public final class Commands implements CommandExecutor, TabCompleter {
                 }
                 player.sendMessage(Text.msg("Party (<yellow>" + party.size() + "</yellow>): <white>"
                         + String.join(", ", party.onlineMembers().stream().map(Player::getName).toList())));
+            }
+            case "invites" -> {
+                if (args.length < 2 || !(args[1].equalsIgnoreCase("on") || args[1].equalsIgnoreCase("off"))) {
+                    player.sendMessage(Text.msg("Party invites are " + (plugin.parties().acceptsInvites(player) ? "<green>on" : "<red>off")
+                            + "</white>. Usage: <yellow>/party invites <on|off>"));
+                    return;
+                }
+                plugin.parties().setAcceptsInvites(player, args[1].equalsIgnoreCase("on"));
             }
             case "chat" -> {
                 if (args.length < 2) {
@@ -306,7 +314,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
             }
             case "party" -> {
                 if (args.length == 1) {
-                    return List.of("invite", "accept", "deny", "leave", "disband", "list", "chat");
+                    return List.of("invite", "accept", "deny", "leave", "disband", "list", "chat", "invites");
                 }
             }
             case "pulse" -> {

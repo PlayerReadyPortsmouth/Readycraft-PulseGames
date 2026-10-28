@@ -90,22 +90,53 @@ class LuckyVarietyTest {
         for (int seed = 0; seed < 50; seed++) assertNotEquals(LuckyChaos.SWAP, LuckyChaos.pickEvent(1, new Random(seed)));
     }
 
-    @Test void restoreAllResetsAttributesAndCancelsTasks() {
-        GameInstance game = mock(GameInstance.class);
-        BukkitTask task = mock(BukkitTask.class);
-        when(game.runRepeating(anyLong(), anyLong(), any())).thenReturn(task);
-        Attribute scaleAttr = null; // constants need a running server registry; any() matches it
-        Player p = mock(Player.class);
-        AttributeInstance scale = mock(AttributeInstance.class);
-        when(p.getAttribute(any())).thenReturn(scale);
-        when(scale.getBaseValue()).thenReturn(1.0);
-        var ctx = new LuckyChaos.Ctx(game, new Random(1), () -> null, (x, y) -> {}, LuckyChaos.TINY, new java.util.ArrayList<>());
-        ctx.setAttribute(p, scaleAttr, 0.4);
-        ctx.repeat(10, () -> {});
-        verify(scale).setBaseValue(0.4);
-        ctx.restoreAll();
-        ctx.restoreAll();
-        verify(scale).setBaseValue(1.0);
-        verify(task).cancel();
+    private static final class ChaosFixture {
+        final GameInstance game = mock(GameInstance.class);
+        final BukkitTask task = mock(BukkitTask.class);
+        final Attribute scaleAttr = uk.co.playerready.pulsegames.AttributeStub.named("scale");
+        final Player p = mock(Player.class);
+        final AttributeInstance scale = mock(AttributeInstance.class);
+        final LuckyChaos.Ctx ctx;
+        ChaosFixture() {
+            when(game.runRepeating(anyLong(), anyLong(), any())).thenReturn(task);
+            var plugin = mock(uk.co.playerready.pulsegames.PulseGamesPlugin.class);
+            when(plugin.getName()).thenReturn("PulseGames");
+            when(game.plugin()).thenReturn(plugin);
+            when(p.getUniqueId()).thenReturn(java.util.UUID.randomUUID());
+            when(p.getAttribute(any())).thenReturn(scale);
+            when(scale.getBaseValue()).thenReturn(1.0);
+            ctx = new LuckyChaos.Ctx(game, new Random(1), () -> null, (x, y) -> {}, LuckyChaos.TINY, new java.util.ArrayList<>());
+        }
+    }
+
+    @Test void chaosUsesTransientModifierNeverTheBaseValue() {
+        var f = new ChaosFixture();
+        f.ctx.setAttribute(f.p, f.scaleAttr, 0.4);
+        f.ctx.repeat(10, () -> {});
+        var modifier = org.mockito.ArgumentCaptor.forClass(org.bukkit.attribute.AttributeModifier.class);
+        verify(f.scale).addTransientModifier(modifier.capture());
+        assertEquals(-0.6, modifier.getValue().getAmount(), 1e-9);
+        verify(f.scale, never()).setBaseValue(anyDouble());
+        verify(f.scale, never()).addModifier(any());
+        f.ctx.restoreAll();
+        f.ctx.restoreAll();
+        verify(f.scale, atLeastOnce()).removeModifier(modifier.getValue().getKey());
+        verify(f.task).cancel();
+    }
+
+    @Test void quittingPlayerIsRestoredWithoutWaitingForTheEventToEnd() {
+        var f = new ChaosFixture();
+        f.ctx.setAttribute(f.p, f.scaleAttr, 2.0);
+        clearInvocations(f.scale);
+        f.ctx.restoreFor(f.p);
+        verify(f.scale).removeModifier(any(org.bukkit.NamespacedKey.class));
+        clearInvocations(f.scale);
+        f.ctx.restoreAll();
+        verify(f.scale, never()).removeModifier(any(org.bukkit.NamespacedKey.class));
+    }
+
+    @Test void modifierAmountReachesTheTarget() {
+        assertEquals(0.4, 1.0 + LuckyChaos.modifierAmount(1.0, 0.4), 1e-9);
+        assertEquals(0.02, 0.08 + LuckyChaos.modifierAmount(0.08, 0.02), 1e-9);
     }
 }

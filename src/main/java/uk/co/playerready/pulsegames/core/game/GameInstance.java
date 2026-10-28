@@ -48,6 +48,10 @@ public final class GameInstance {
     private GameState state = GameState.LOADING;
     private int countdown;
     private int gameTime;
+    /** A human left a round that had already started; see {@link LeaverWin}. */
+    private boolean humanDeparted;
+    /** Per-match kills as killer id to victim id to count, for the same-victim reward cap. */
+    private final Map<UUID, Map<UUID, Integer>> killsOnVictim = new HashMap<>();
     private long frozenUntil;
     private int lastStartAnnouncement = -1;
     private long emptySince;
@@ -406,6 +410,7 @@ public final class GameInstance {
         boolean wasAlive = alive.remove(player.getUniqueId());
         if (state == GameState.RUNNING && participants.contains(player.getUniqueId())) {
             departed.add(player.getUniqueId());
+            if (!bot) humanDeparted = true;
             names.putIfAbsent(player.getUniqueId(), player.getName());
             if (wasAlive && !outOrder.contains(player.getUniqueId()) && !finishOrder.contains(player.getUniqueId()))
                 outOrder.add(player.getUniqueId());
@@ -596,7 +601,7 @@ public final class GameInstance {
                 return;
             }
         }
-        competitiveEligible = !practice && CompetitiveEligibility.eligible(humanCount(), botIds.size(), maxPlayers());
+        competitiveEligible = !practice && CompetitiveEligibility.eligible(humanCount(), botIds.size(), maxPlayers(), logic.cooperative());
         if (!botIds.isEmpty()) {
             broadcast(competitiveEligible
                     ? "<green>This bot-assisted match counts for competitive records and match token rewards."
@@ -712,10 +717,16 @@ public final class GameInstance {
             Player resolvedKiller = killer != null ? killer : killerOf(victim);
             if (resolvedKiller != null && (!isParticipant(resolvedKiller) || resolvedKiller.equals(victim))) resolvedKiller = null;
             roundDeaths.merge(victim.getUniqueId(), 1, Integer::sum);
-            if (resolvedKiller != null) roundKills.merge(resolvedKiller.getUniqueId(), 1, Integer::sum);
+            int killsOnThisVictim = 0;
+            if (resolvedKiller != null) {
+                roundKills.merge(resolvedKiller.getUniqueId(), 1, Integer::sum);
+                killsOnThisVictim = killsOnVictim.computeIfAbsent(resolvedKiller.getUniqueId(), k -> new HashMap<>())
+                        .merge(victim.getUniqueId(), 1, Integer::sum);
+            }
             lastDamager.remove(victim.getUniqueId());
             lastDamagerAt.remove(victim.getUniqueId());
-            if (resolvedKiller != null && ranked() && !isBot(resolvedKiller)) {
+            if (resolvedKiller != null && ranked() && !isBot(resolvedKiller)
+                    && killsOnThisVictim <= plugin.getConfig().getInt("economy.same-victim-kill-cap", 3)) {
                 plugin.cosmetics().playKillEffect(resolvedKiller, victim.getLocation());
                 int killPay = uk.co.playerready.pulsegames.core.economy.RewardRules.killPayout(
                         killTokens.getOrDefault(resolvedKiller.getUniqueId(), 0),
@@ -810,6 +821,16 @@ public final class GameInstance {
         return participants.stream().filter(p -> declared.contains(p) || winnerTeams.contains(teamOf.apply(p))).toList();
     }
 
+    private boolean leaverWinCounts(List<Player> winners) {
+        int cap = plugin.getConfig().getInt("economy.same-victim-kill-cap", 3);
+        int bestValid = 0;
+        for (Player w : winners) {
+            bestValid = Math.max(bestValid, LeaverWin.validKills(killsOnVictim.getOrDefault(w.getUniqueId(), Map.of()), cap));
+        }
+        return LeaverWin.counts(gameTime, plugin.getConfig().getInt("economy.min-ranked-seconds", 60),
+                logic.killTarget(), bestValid);
+    }
+
     public void end(List<Player> winners, String reason) {
         note("ending", reason);
         if (state == GameState.ENDING || state == GameState.RESETTING) return;
@@ -817,6 +838,10 @@ public final class GameInstance {
         if (plugin.bots() != null) plugin.bots().onRoundEnd(this, creditedWinners, reason);
         state = GameState.ENDING;
         if ("forced".equals(reason)) competitiveEligible = false;
+        if (competitiveEligible && humanDeparted && LeaverWin.byDefault(reason) && !leaverWinCounts(creditedWinners)) {
+            competitiveEligible = false;
+            broadcast("<yellow>The round ended early because everyone else left, so it does not count for wins or token rewards.");
+        }
         boolean coop = logic.cooperative();
         Set<UUID> winnerIds = new LinkedHashSet<>();
         creditedWinners.forEach(w -> winnerIds.add(w.getUniqueId()));
@@ -941,14 +966,16 @@ public final class GameInstance {
         });
     }
 
+    /** Winner fireworks stack on big team wins; at most three a second per round, and no flicker. */
+    private final uk.co.playerready.pulsegames.core.util.RateCap fireworkCap = new uk.co.playerready.pulsegames.core.util.RateCap(3, 1000);
+
     private void spawnFirework(Location loc) {
-        if (loc.getWorld() == null) return;
+        if (loc.getWorld() == null || !fireworkCap.allow(System.currentTimeMillis())) return;
         Firework fw = loc.getWorld().spawn(loc, Firework.class);
         var meta = fw.getFireworkMeta();
         meta.addEffect(FireworkEffect.builder()
                 .with(FireworkEffect.Type.BALL_LARGE)
-                .withColor(Color.ORANGE, Color.YELLOW)
-                .withFlicker().build());
+                .withColor(Color.ORANGE, Color.YELLOW).build());
         meta.setPower(1);
         fw.setFireworkMeta(meta);
     }

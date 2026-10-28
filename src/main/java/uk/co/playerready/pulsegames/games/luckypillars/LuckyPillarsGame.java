@@ -123,6 +123,12 @@ public final class LuckyPillarsGame extends MiniGame {
         shutdownExtras();
     }
 
+    /** A quit or kick mid-event must not take a chaos scale or gravity change back to the lobby. */
+    @Override
+    public void onQuit(Player player) {
+        if (chaos != null) chaos.restoreFor(player);
+    }
+
     @Override
     public void onCleanup() {
         shutdownExtras();
