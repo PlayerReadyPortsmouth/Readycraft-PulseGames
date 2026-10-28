@@ -60,6 +60,10 @@ public abstract class MiniGame {
 
     public void onEliminated(Player player) {}
 
+    /** Sound everyone hears when a player is eliminated; the default is the original quiet thunder. */
+    public record Cue(String sound, float volume, float pitch) {}
+    public Cue eliminationSound() { return new Cue("minecraft:entity.lightning_bolt.thunder", 0.3f, 1.6f); }
+
     // ---- death & respawning ----------------------------------------------
 
     /**

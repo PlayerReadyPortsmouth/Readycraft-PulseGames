@@ -1,6 +1,7 @@
 package uk.co.playerready.pulsegames.games.spleef;
 
 import org.bukkit.Material;
+import org.bukkit.Particle;
 import org.bukkit.block.Block;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Egg;
@@ -27,6 +28,9 @@ public final class SpleefGame extends MiniGame implements uk.co.playerready.puls
     private List<Block> floorBlocks = List.of();
     private final java.util.function.IntUnaryOperator random;
     private final java.util.Map<java.util.UUID, Long> nextAction = new java.util.HashMap<>();
+    /** Decay blocks that have been marked (cracking) and vanish on the next second. */
+    private final List<Block> cracking = new ArrayList<>();
+    private uk.co.playerready.pulsegames.games.common.RoundController rounds;
 
     public SpleefGame(GameInstance game) {
         this(game, bound -> ThreadLocalRandom.current().nextInt(bound));
@@ -39,14 +43,36 @@ public final class SpleefGame extends MiniGame implements uk.co.playerready.puls
 
     private boolean isSplegg() { return game.mode().id().equals("splegg"); }
     private boolean isDecay() { return game.mode().id().equals("decay"); }
+    private boolean isRounds() { return uk.co.playerready.pulsegames.games.common.RoundController.isRounds(game); }
 
     @Override
     public void onStart() {
         floors = game.arena().regionsByPrefix("floor");
+        refreshFloorBlocks();
+        if (isRounds()) {
+            var snapshot = uk.co.playerready.pulsegames.games.common.RegionSnapshot.capture(game.world(), floors);
+            rounds = new uk.co.playerready.pulsegames.games.common.RoundController(game,
+                    new uk.co.playerready.pulsegames.games.common.RoundController.Host() {
+                        @Override public void beginRound(int round) { refreshFloorBlocks(); equip(); }
+                        @Override public void resetWorld() { cracking.clear(); }
+                    }, snapshot, 75, "Dig the floor out - last one standing scores most");
+            rounds.start();
+            return;
+        }
+        equip();
+        game.broadcast(isSplegg() ? "Shoot the floor out from under your enemies!"
+                : "Dig the floor out from under your enemies!");
+    }
+
+    private void refreshFloorBlocks() {
         List<Block> blocks = new ArrayList<>();
         floors.forEach(region -> blocks.addAll(region.blocks(game.world())));
         floorBlocks = blocks;
-        for (Player player : game.alivePlayers()) {
+        cracking.clear();
+    }
+
+    private void equip() {
+        for (Player player : isRounds() ? rounds.contestants() : game.alivePlayers()) {
             if (isSplegg()) {
                 ItemStack launcher = new ItemStack(Material.GOLDEN_HOE);
                 launcher.editMeta(meta -> meta.displayName(Text.mm("<gold><b>Splegg Launcher</b> <gray>(right-click)")));
@@ -57,18 +83,28 @@ public final class SpleefGame extends MiniGame implements uk.co.playerready.puls
                 player.getInventory().setItem(0, shovel);
             }
         }
-        game.broadcast(isSplegg() ? "Shoot the floor out from under your enemies!"
-                : "Dig the floor out from under your enemies!");
     }
 
     @Override
     public boolean canBreak(Player player, Block block) {
         if (isSplegg() || !inFloor(block)) return false;
+        if (isRounds() && !rounds.isContesting(player)) return false;
         // Digging earns throwable snowballs (max 16) for ranged plays.
         if (countSnowballs(player) < 16) {
             player.getInventory().addItem(new ItemStack(Material.SNOWBALL));
         }
+        digFeedback(player, block);
         return true;
+    }
+
+    /** Crack sound, a puff of the block and the snowball count, since the shovel breaks instantly. */
+    private void digFeedback(Player player, Block block) {
+        player.playSound(player.getLocation(), "minecraft:block.snow.break", 0.8f, 1.2f);
+        if (block.getWorld() != null) {
+            block.getWorld().spawnParticle(Particle.BLOCK, block.getLocation().add(0.5, 1.0, 0.5), 8,
+                    0.25, 0.1, 0.25, block.getBlockData());
+        }
+        player.sendActionBar(Text.mm("<aqua>Snowballs: <white>" + countSnowballs(player) + "<gray>/16"));
     }
 
     private int countSnowballs(Player player) {
@@ -85,7 +121,15 @@ public final class SpleefGame extends MiniGame implements uk.co.playerready.puls
 
     @Override
     public void onSecond(int gameTime) {
-        if (isDecay() && gameTime > 15 && !floorBlocks.isEmpty()) {
+        if (isRounds()) {
+            rounds.tick();
+            return;
+        }
+        if (!isDecay()) return;
+        // Blocks marked a second ago vanish now; the cracks were the warning.
+        for (Block block : cracking) if (!block.isEmpty()) block.setType(Material.AIR);
+        cracking.clear();
+        if (gameTime > 15 && !floorBlocks.isEmpty()) {
             int amount = Math.min(3 + gameTime / 15, 12);
             // Retire sampled cells permanently, including holes made by players. Bound
             // skipped holes as well as writes so a depleted large floor cannot stall a tick.
@@ -96,9 +140,17 @@ public final class SpleefGame extends MiniGame implements uk.co.playerready.puls
                 int last = floorBlocks.size() - 1;
                 floorBlocks.set(index, floorBlocks.get(last));
                 floorBlocks.remove(last);
-                if (!block.isEmpty()) { block.setType(Material.AIR); removed++; }
+                if (!block.isEmpty()) { telegraph(block); cracking.add(block); removed++; }
             }
         }
+    }
+
+    /** Crack particles and a creak on the block that will vanish next second. */
+    private void telegraph(Block block) {
+        if (block.getWorld() == null) return;
+        block.getWorld().spawnParticle(Particle.BLOCK, block.getLocation().add(0.5, 1.0, 0.5), 10,
+                0.3, 0.05, 0.3, block.getBlockData());
+        block.getWorld().playSound(block.getLocation(), "minecraft:block.snow.step", 0.7f, 0.6f);
     }
 
     @Override
@@ -188,7 +240,25 @@ public final class SpleefGame extends MiniGame implements uk.co.playerready.puls
         }
     }
 
-    @Override public void onCleanup() { nextAction.clear(); }
+    @Override public void onCleanup() { nextAction.clear(); cracking.clear(); if (rounds != null) rounds.close(); }
+    @Override public void onEnd(List<Player> winners) { if (rounds != null) rounds.close(); }
+    @Override public void onQuit(Player player) { if (rounds != null) rounds.playerLeft(player); }
+
+    @Override public MiniGame.Cue eliminationSound() {
+        return uk.co.playerready.pulsegames.games.common.HazardFeedback.LOUD_ELIMINATION;
+    }
+
+    @Override public void onEliminated(Player player) {
+        uk.co.playerready.pulsegames.games.common.HazardFeedback.finalThree(game.players(), game.alivePlayers().size(), game.players().size());
+    }
+
+    @Override public void onTimeUp() {
+        if (rounds != null) rounds.onTimeUp(); else super.onTimeUp();
+    }
+
+    @Override public List<String> sidebar(Player player) {
+        return rounds != null ? rounds.sidebar(player) : List.of();
+    }
 
     @Override
     public void onProjectileHit(ProjectileHitEvent event) {
@@ -206,9 +276,11 @@ public final class SpleefGame extends MiniGame implements uk.co.playerready.puls
     @Override
     public void onDeath(Player victim, Player killer) {
         game.broadcast("<red>" + victim.getName() + "</red> fell!");
-        game.eliminate(victim);
+        if (rounds != null) rounds.knockOut(victim); else game.eliminate(victim);
     }
 
     @Override
-    public int timeLimitSeconds() { return 300; }
+    public int timeLimitSeconds() {
+        return isRounds() ? uk.co.playerready.pulsegames.games.common.RoundController.matchSeconds(game, 75) : 300;
+    }
 }
