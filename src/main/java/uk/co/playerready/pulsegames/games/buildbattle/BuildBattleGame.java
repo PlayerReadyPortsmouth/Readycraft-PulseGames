@@ -100,6 +100,7 @@ public final class BuildBattleGame extends MiniGame {
                 }
             }
             case BUILD -> {
+                for (Player p : game.alivePlayers()) BuildBattleRules.strip(p.getInventory());
                 if (phaseTimer == 60 || phaseTimer == 30 || phaseTimer <= 10 && phaseTimer > 0) {
                     game.broadcast("<yellow>" + phaseTimer + "s</yellow> of build time left!");
                 }
@@ -114,14 +115,25 @@ public final class BuildBattleGame extends MiniGame {
 
     private void startVoting() {
         phase = Phase.VOTE;
+        clearNonPlayerEntities();
         game.broadcast("<yellow><b>Time's up!</b></yellow> <gray>Vote for each build (1-5 in your hotbar).");
         for (Player p : game.alivePlayers()) {
+            p.getInventory().clear();
+            p.setItemOnCursor(null);
             p.setGameMode(org.bukkit.GameMode.ADVENTURE);
             p.setAllowFlight(true);
             p.setFlying(true);
         }
         votingPlot = -1;
         nextVotingPlot();
+    }
+
+    /** Whatever got past the spawn fence (or was already in the map) must not reach the vote tour. */
+    private void clearNonPlayerEntities() {
+        if (game.world() == null) return;
+        for (org.bukkit.entity.Entity entity : game.world().getEntities()) {
+            if (!(entity instanceof Player)) entity.remove();
+        }
     }
 
     private void nextVotingPlot() {
@@ -179,6 +191,7 @@ public final class BuildBattleGame extends MiniGame {
 
     @Override
     public void onInteract(PlayerInteractEvent event) {
+        if (BuildBattleRules.banned(event.getItem())) { event.setCancelled(true); return; }
         if (phase != Phase.VOTE || event.getItem() == null || !event.getAction().isRightClick()) return;
         int score = -1;
         for (int i = 0; i < VOTE_ITEMS.length; i++) {
@@ -213,6 +226,41 @@ public final class BuildBattleGame extends MiniGame {
         game.end(best, "votes");
     }
 
+    /** Creative-only items must not leave the plot with the builder. */
+    @Override
+    public void onMove(Player player, Location from, Location to) {
+        if (phase == Phase.BUILD && !inOwnPlot(player, to)) BuildBattleRules.strip(player.getInventory());
+    }
+
+    @Override
+    public void onInventoryClick(Player player, org.bukkit.event.inventory.InventoryClickEvent event) {
+        if (event instanceof org.bukkit.event.inventory.InventoryCreativeEvent
+                && (BuildBattleRules.banned(event.getCursor()) || BuildBattleRules.banned(event.getCurrentItem()))) {
+            event.setCancelled(true);
+        }
+    }
+
+    @Override
+    public boolean fenced() { return true; }
+
+    @Override
+    public boolean fenceAllows(Location from, Location to) {
+        int plot = plotAt(from);
+        return plot >= 0 && plot == plotAt(to);
+    }
+
+    private int plotAt(Location location) {
+        for (int i = 0; i < plots.size(); i++) if (plots.get(i).contains(location)) return i;
+        return -1;
+    }
+
+    /** Voters and builders can be hurt by nothing: mobs and fire are fenced out, and damage must not eliminate. */
+    @Override
+    public boolean environmentalDamage() { return false; }
+
+    @Override
+    public void onEntityPlace(org.bukkit.event.entity.EntityPlaceEvent event) { event.setCancelled(true); }
+
     private boolean inOwnPlot(Player player, Location location) {
         Integer plot = plotOf.get(player.getUniqueId());
         return plot != null && plot < plots.size() && plots.get(plot).contains(location);
@@ -225,7 +273,7 @@ public final class BuildBattleGame extends MiniGame {
 
     @Override
     public boolean canPlace(Player player, Block block) {
-        return phase == Phase.BUILD && inOwnPlot(player, block.getLocation());
+        return phase == Phase.BUILD && !BuildBattleRules.banned(block.getType()) && inOwnPlot(player, block.getLocation());
     }
 
     @Override
