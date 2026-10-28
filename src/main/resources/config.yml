@@ -37,6 +37,9 @@ countdown:
 party:
   max-size: 8
   invite-expiry-seconds: 60
+  # Extra words /party chat refuses, on top of the built-in list (links, emails and phone numbers are always refused).
+  # Every party message is also logged to the console.
+  chat-blocklist: []
 
 end:
   # Seconds to celebrate before players are returned to the lobby.
