@@ -1,11 +1,54 @@
 # Minigames development and play-test tracker
 
-Last updated: 19 October 2026. Owner: Aurora. Agents should update this file as
+Last updated: 28 October 2026. Owner: Aurora. Agents should update this file as
 work and player feedback arrive; keep it in the PulseGames repository.
 
 Readable report: [HTML](MINIGAMES-TRACKER.html) · [PDF](MINIGAMES-TRACKER.pdf).
 After editing this source, regenerate both exports with
 `node tools/render-minigames-tracker.mjs --pdf`; see [update instructions](tools/TRACKER-README.md).
+
+## 28 October - Engagement programme B: quick play, challenges, streaks, leaderboard (candidate)
+
+Draft PR on `feat/engine-quickplay-challenges`, from the 28 October engagement review
+(top-10 items 6 and 7 plus the kill-token cap). **Not merged, not deployed, no server
+test.** The plugin version is unchanged. `./gradlew build test`: 695 tests pass (22 new,
+covering quick-play selection, featured-game determinism, kill-token cap, streak
+bonuses, weekly reset, challenge progress and the ready vote).
+
+- **Quick Play**: lobby hotbar item (slot 2) and game-menu button join the busiest open
+  queue; ties go to the featured game, then random; with no open queue it starts the
+  featured game or a random playable one. Duels is left to its own kit menu.
+- **Featured game**: rotates daily by date through the playable games, or
+  `quickplay.featured.override`. It pays `quickplay.featured.token-multiplier` (default
+  1.5) on match tokens, applied beside the personal booster, not through it.
+- **Menu**: each game shows "N waiting / M playing" (humans) and a one-line length and
+  difficulty tag (`games/GameTags.java`, rough guesses to be tuned after play).
+- **Waiting room**: a lime "I'm ready" item (slot 4); once every human has clicked and
+  the minimum is met the countdown drops to `countdown.ready-seconds` (5). One added
+  sidebar line, "Ready: n/m".
+- **Challenges**: three starter dailies in `config.yml` (play three different games, win
+  a round, survive 90 s in Avalanche), a win streak with a small escalating bonus
+  (announced at 3, 5 and 10), a first-win-of-the-day bonus, and a `/challenges` chest GUI.
+- **Kill tokens** are capped at `economy.kill-token-cap` (25) per match.
+- **Weekly top three**: `/top [game]` and a button in the compass menu (chest GUI, no
+  holograms), wins plus a per-game leader column, in `stats.yml`; at the Monday reset the
+  top three get 100/60/30 tokens (`leaderboard.weekly-rewards`), delivered at next login
+  if they were offline.
+- **Cosmetics**: Sparkle Trail (also shows in Party Games and Parkour), Victory Fanfare
+  and Victory Bells.
+
+**SQL dependency.** The existing `ProgressionService` and `/challenges` depend on the
+paired PulseContent progression schema and API v1 (receipts, counters, cosmetic awards);
+the tracker records that schema as not applied and `progression.enabled` is still false.
+So these challenges run from the plugin's own `engagement.yml` and need no SQL. The SQL
+path stays optional: if `progression.enabled` is later turned on, `/challenges` also
+prints the SQL rows. The two are independent, so SQL cosmetic awards are not given by the
+local challenges. Counting only covers ranked rounds with a human majority; practice and
+forced rounds are ignored.
+
+Still to check on a server: Bedrock handling of the new hotbar items and GUIs, whether
+the ready item sits well with each game's `onJoin`, in-match trail load, and the tag
+wording. Hazard, race and results work in parallel branches may touch the same files.
 
 ## 19 October - ReadyPlayerZ faster kills and 1.8-style combat: 0.3.27 candidate
 
