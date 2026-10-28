@@ -1066,3 +1066,11 @@ damages the hider in one hit, and decoys are real blocks that can stack. Heads a
 non-full-cube props stay entity-only. Unit tests only; see `docs/PROP-HUNT.md` for the
 design and the live checks needed (kick/suffocation while hovering, owner see-through,
 restore on every exit path, Java and Bedrock).
+
+## 28 October - Bundle #38 (0.4.0) deployed on MinigamesTest
+
+Aurora approved merge and deployment. PR #38 merged to `main` as `4e778d0` (no squash).
+`PulseGames-0.4.0.jar` (sha256 `5506b995…c8f`) replaced 0.3.27 in `plugins/` (old jar kept in
+`plugin-backups/`); restart through the ready-gamed API at 12:46 server time. Boot: `Enabling
+PulseGames v0.4.0`, `Loaded 64 arenas`, `Loaded 10 kits`, `Done (87.8s)`, zero errors. Deployed
+is not played: the acceptance checklist in the 0.4.0 section above still stands.
