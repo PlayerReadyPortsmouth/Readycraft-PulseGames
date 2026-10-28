@@ -56,6 +56,8 @@ public final class PulseGamesPlugin extends JavaPlugin {
     private TokenShopMenu tokenShop;
     private ShapeService shapes;
     private MapBuilder mapBuilder;
+    private uk.co.playerready.pulsegames.core.lobby.QuickPlayService quickPlay;
+    private uk.co.playerready.pulsegames.core.progression.EngagementService engagement;
 
     @Override
     public void onEnable() {
@@ -90,6 +92,8 @@ public final class PulseGamesPlugin extends JavaPlugin {
         tokenShop = new TokenShopMenu(this);
         shapes = new ShapeService(this);
         mapBuilder = new MapBuilder(this);
+        quickPlay = new uk.co.playerready.pulsegames.core.lobby.QuickPlayService(this);
+        engagement = new uk.co.playerready.pulsegames.core.progression.EngagementService(this);
 
         worlds.purgeLeftovers();
         // A broken arenas/ or kits.yml must not take the rest of the wiring down with
@@ -114,6 +118,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(kitSelection, this);
         getServer().getPluginManager().registerEvents(duelMenu, this);
         getServer().getPluginManager().registerEvents(results, this);
+        getServer().getPluginManager().registerEvents(new uk.co.playerready.pulsegames.core.lobby.InfoMenu(), this);
         new Commands(this);
         bots.start();
         practice.start();
@@ -140,6 +145,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
         if (diagnostics != null) diagnostics.close();
         if (stats != null) stats.flush();
         if (economy != null) economy.flush();
+        if (engagement != null) engagement.flush();
     }
 
     public uk.co.playerready.pulsegames.core.bot.BotService bots() { return bots; }
@@ -195,6 +201,8 @@ public final class PulseGamesPlugin extends JavaPlugin {
     public TokenShopMenu tokenShop() { return tokenShop; }
     public ShapeService shapes() { return shapes; }
     public MapBuilder mapBuilder() { return mapBuilder; }
+    public uk.co.playerready.pulsegames.core.lobby.QuickPlayService quickPlay() { return quickPlay; }
+    public uk.co.playerready.pulsegames.core.progression.EngagementService engagement() { return engagement; }
     /** Public optional bridge API; called on the server thread by PulseNetwork. */
     public java.util.List<java.util.Map<String, String>> networkQueues() {
         return instances().all().stream()

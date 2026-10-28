@@ -29,6 +29,10 @@ commands:
   challenges:
     description: View competitive minigame challenges and cosmetic rewards.
     usage: /challenges
+  top:
+    description: Weekly top three wins board.
+    usage: /top [game]
+    aliases: [leaderboard]
   results:
     description: View your latest match and choose what to do next.
     usage: /results [again|games|return]

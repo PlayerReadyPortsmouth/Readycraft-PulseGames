@@ -31,6 +31,8 @@ countdown:
   lobby-seconds: 30
   # When the arena is full, shorten the countdown to this.
   full-seconds: 10
+  # Countdown once every human in the waiting room has clicked the ready item.
+  ready-seconds: 5
 
 party:
   max-size: 8
@@ -45,6 +47,13 @@ economy:
   win-reward: 50
   participation-reward: 10
   kill-reward: 5
+  # Most tokens kills can earn in one match, so kills cannot out-earn a win.
+  kill-token-cap: 25
+  # Extra tokens on a player's first win each day.
+  first-win-bonus: 30
+  # Win streak: step tokens per win beyond the first, up to max (announced at 3, 5 and 10).
+  streak-bonus-step: 5
+  streak-bonus-max: 25
   # ...being online (every N minutes)
   playtime-bonus: 25
   playtime-interval-minutes: 15
@@ -140,3 +149,40 @@ combat:
 progression:
   enabled: false
   event-id: "" # Stable event ID; only matches completed during this configured event count.
+
+# Quick Play hotbar item/menu button and the daily featured game.
+quickplay:
+  enabled: true
+  featured:
+    # A game id to pin today's featured game; empty rotates by date through the pool.
+    override: ""
+    # Rotation pool; empty means every playable game with an arena.
+    games: []
+    # Match-token multiplier in the featured game (stacks with a personal booster).
+    token-multiplier: 1.5
+
+# Daily challenges kept in the plugin's own engagement.yml (no SQL needed).
+# type: DISTINCT_GAMES | WINS | SURVIVE_SECONDS; game is optional (id) and filters WINS/SURVIVE_SECONDS.
+challenges:
+  enabled: true
+  daily:
+    play-three:
+      name: "Play three different games"
+      type: DISTINCT_GAMES
+      target: 3
+      reward: 40
+    win-a-round:
+      name: "Win a round of anything"
+      type: WINS
+      target: 1
+      reward: 30
+    survive-avalanche:
+      name: "Survive 90 seconds in Avalanche"
+      type: SURVIVE_SECONDS
+      game: avalanche
+      target: 90
+      reward: 30
+
+# Weekly top-three board (/top): tokens paid at the Monday reset to 1st, 2nd and 3rd.
+leaderboard:
+  weekly-rewards: [100, 60, 30]
