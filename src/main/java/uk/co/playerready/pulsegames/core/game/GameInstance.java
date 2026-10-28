@@ -831,7 +831,11 @@ public final class GameInstance {
         countdown = plugin.getConfig().getInt("end.celebrate-seconds", 10);
         String winnerNames = creditedWinners.isEmpty() ? "Nobody"
                 : String.join("<gray>, </gray><yellow>", creditedWinners.stream().map(Player::getName).toList());
-        broadcast("<gold><b>Round over!</b></gold> <gray>" + (anyWinner ? "Winner(s): <yellow>" + winnerNames : "No single winner this time."));
+        MiniGame.EndSummary summary = coop ? coopSummary(creditedWinners) : null;
+        List<String> summaryLines = summary == null ? List.of() : summary.lines();
+        List<String> summaryPlain = summaryLines.stream().map(Text::plain).toList();
+        broadcast("<gold><b>Round over!</b></gold> <gray>" + (coop ? (anyWinner ? "The squad pulled it off." : "The squad's run has ended.")
+                : anyWinner ? "Winner(s): <yellow>" + winnerNames : "No single winner this time."));
         for (Player p : everyone()) {
             if (isBot(p)) { p.setGameMode(org.bukkit.GameMode.SPECTATOR); continue; }
             int balanceBefore = plugin.economy().tokens(p);
@@ -840,7 +844,8 @@ public final class GameInstance {
             int place = coop ? 0 : finalPlacements.getOrDefault(p.getUniqueId(), 0);
             if (creditedWinners.contains(p)) {
                 wardrobeCelebration(p, "win_animation");
-                Text.title(p, "<gold><b>VICTORY!", "<gray>You won " + type.displayName());
+                if (summary != null) Text.title(p, summary.title(), summary.subtitle());
+                else Text.title(p, "<gold><b>VICTORY!", "<gray>You won " + type.displayName());
                 p.playSound(p.getLocation(), "minecraft:ui.toast.challenge_complete", 1f, 1f);
                 plugin.stats().addWin(p, type.id());
                 plugin.economy().addMatchTokens(p, plugin.getConfig().getInt("economy.win-reward", 50), "victory");
@@ -853,8 +858,10 @@ public final class GameInstance {
                     if (bonus > 0) plugin.economy().addMatchTokens(p, bonus, "placement");
                 }
                 String line = place > 0 ? (anyWinner || place > 1 ? "You finished " + Placements.ordinal(place) + " of " + fieldSize
-                        : "Joint first - nobody took the win") : anyWinner ? "Winner(s): " + winnerNames : "The round is over";
-                Text.title(p, "<aqua><b>Well played!", "<gray>" + line);
+                        : "Joint first - nobody took the win") : coop ? "The round is over - nicely done, team"
+                        : anyWinner ? "Winner(s): " + winnerNames : "The round is over";
+                if (summary != null) Text.title(p, summary.title(), summary.subtitle());
+                else Text.title(p, "<aqua><b>Well played!", "<gray>" + line);
                 // A draw or timeout with no declared winner is not a loss.
                 // A co-op round nobody won is a genuine loss; a forced stop is neither.
                 if (isParticipant(p) && !"forced".equals(reason)) {
@@ -862,6 +869,7 @@ public final class GameInstance {
                     else plugin.stats().addDraw(p, type.id());
                 }
             }
+            summaryLines.forEach(line -> p.sendMessage(Text.msg(line)));
             if (plugin.progression() != null) plugin.progression().completed(this, p, creditedWinners.contains(p), roundKills.getOrDefault(p.getUniqueId(), 0), reason);
             if (plugin.engagement() != null) plugin.engagement().matchEnded(this, p, creditedWinners.contains(p), !creditedWinners.isEmpty(), reason);
             p.setGameMode(org.bukkit.GameMode.SPECTATOR);
@@ -871,7 +879,7 @@ public final class GameInstance {
                     + (draws > 0 ? " <yellow>" + draws + "D</yellow>" : "") + " <gray>in "
                     + type.displayName() + " <dark_gray>(" + plugin.stats().get(p, type.id(), "played") + " played)"));
             if (plugin.results() != null) {
-                plugin.results().publish(p, resultFor(p, creditedWinners, balanceBefore, place, fieldSize, podium));
+                plugin.results().publish(p, resultFor(p, creditedWinners, balanceBefore, place, fieldSize, podium, summaryPlain));
             }
         }
         // Players who left early (queued the next game, or went to the lobby) still get their result.
@@ -884,7 +892,7 @@ public final class GameInstance {
                 plugin.results().publishLate(gone, new MatchResults.Result(id, type.id(), mode.id(), arena.displayName(),
                         Placements.outcome(true, false, anyWinner, coop, gonePlace, fieldSize),
                         "Solo", 0, 0, roundKills.getOrDefault(gid, 0), roundDeaths.getOrDefault(gid, 0), 0, false, practice,
-                        System.currentTimeMillis() + 600_000L, gonePlace, fieldSize, podium));
+                        System.currentTimeMillis() + 600_000L, gonePlace, fieldSize, podium, summaryPlain));
             }
         }
         // Celebration: fireworks rain on the creditedWinners until cleanup.
@@ -899,7 +907,7 @@ public final class GameInstance {
     }
 
     private MatchResults.Result resultFor(Player p, List<Player> creditedWinners, int balanceBefore, int place,
-                                          int fieldSize, List<String> podium) {
+                                          int fieldSize, List<String> podium, List<String> summary) {
         GameTeam team = teamOf(p);
         int teamScore = team == null ? score(p) : players().stream().filter(team::contains).mapToInt(this::score).sum();
         String outcome = Placements.outcome(isParticipant(p), creditedWinners.contains(p), !creditedWinners.isEmpty(),
@@ -908,7 +916,17 @@ public final class GameInstance {
                 team == null ? "Solo" : "Team " + (team.index() + 1), score(p), teamScore,
                 roundKills.getOrDefault(p.getUniqueId(), 0), roundDeaths.getOrDefault(p.getUniqueId(), 0),
                 Math.max(0, plugin.economy().tokens(p) - balanceBefore), ranked() && isParticipant(p), practice,
-                System.currentTimeMillis() + 600_000L, place, fieldSize, podium);
+                System.currentTimeMillis() + 600_000L, place, fieldSize, podium, summary);
+    }
+
+    /** The logic's co-op end screen, or null (a failing hook must never stop a round from ending). */
+    private MiniGame.EndSummary coopSummary(List<Player> winners) {
+        try {
+            return logic.endSummary(winners);
+        } catch (RuntimeException ex) {
+            note("summary-failed", ex.getClass().getSimpleName());
+            return null;
+        }
     }
 
     private void wardrobeContext(Player player, String phase) {

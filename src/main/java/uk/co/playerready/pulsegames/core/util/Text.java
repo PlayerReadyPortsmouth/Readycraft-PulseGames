@@ -26,6 +26,11 @@ public final class Text {
         return MM.deserialize(PREFIX + miniMessage);
     }
 
+    /** MiniMessage with the tags removed, for item lore and menus that take plain text. */
+    public static String plain(String miniMessage) {
+        return MM.stripTags(miniMessage);
+    }
+
     public static String legacy(Component component) {
         return LEGACY.serialize(component);
     }

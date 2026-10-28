@@ -733,7 +733,6 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
     }
     @Override
     public void onEnd(List<Player> winners) {
-        showSummary(winners);
         onCleanup();
     }
     @Override
@@ -770,8 +769,9 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
         }
     }
 
-    /** Replaces the engine's generic end titles with the co-op summary; overrun is "Well played", never "game over". */
-    void showSummary(List<Player> winners) {
+    /** Co-op end screen for the engine: framed as "Well played", never "game over", also on overrun. */
+    @Override
+    public EndSummary endSummary(List<Player> winners) {
         boolean cleared = !winners.isEmpty() && round >= totalRounds();
         boolean newBest = round > 0 && game.stats() != null && game.ranked()
             && game.stats().recordBest(bestKey(), round);
@@ -780,20 +780,15 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
         for (Player p : game.players())
             entries.add(new uk.co.playerready.pulsegames.games.common.CoopSummary.Entry(p.getName(),
                 kills.getOrDefault(p.getUniqueId(), 0), revives.getOrDefault(p.getUniqueId(), 0), game.score(p)));
-        var lines = uk.co.playerready.pulsegames.games.common.CoopSummary.lines(round, bestRound, entries);
-        for (Player p : game.everyone()) {
-            if (game.isBot(p)) continue;
-            Text.title(p, uk.co.playerready.pulsegames.games.common.CoopSummary.title(cleared),
-                uk.co.playerready.pulsegames.games.common.CoopSummary.subtitle(round, newBest));
-            lines.forEach(line -> p.sendMessage(Text.msg(line)));
-        }
+        return new EndSummary(uk.co.playerready.pulsegames.games.common.CoopSummary.title(cleared),
+            uk.co.playerready.pulsegames.games.common.CoopSummary.subtitle(round, newBest),
+            uk.co.playerready.pulsegames.games.common.CoopSummary.lines(round, bestRound, entries));
     }
 
     private void checkOverrun() {
         List<Player> squad = game.alivePlayers();
         if (soloSelfRevive && !selfReviveUsed && !bleedOut.isEmpty()) return;
         if (squad.isEmpty() || squad.stream().allMatch(p -> downed.contains(p.getUniqueId()))) {
-            game.broadcast("<gold><b>Well played!</b> <gray>The squad reached round " + round + ".");
             game.end(List.of(), "overrun");
         }
     }
@@ -810,15 +805,25 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
     }
 
     @Override
-    public Location botGuardPoint() {
+    public Location botGuardPoint() { return guardPointFor(null); }
+
+    /** Each bot follows the standing human nearest to it, not the same one as its squadmates. */
+    @Override
+    public Location botGuardPoint(Player bot) { return guardPointFor(bot); }
+
+    private Location guardPointFor(Player bot) {
         Player patient = downedHuman();
         if (patient != null) return patient.getLocation();
         ZMapProgression.Door door = progression.cheapestAvailable();
         if (door != null && game.world() != null && game.alivePlayers().stream()
-                .anyMatch(p -> game.isBot(p) && game.score(p) >= door.cost() + BOT_DOOR_RESERVE))
+                .anyMatch(p -> game.isBot(p) && (bot == null || p == bot)
+                    && game.score(p) >= door.cost() + BOT_DOOR_RESERVE))
             return progression.approach(door);
-        // The framework gives one guard point for all bots, so every bot follows the first standing human.
-        Player human = activeSquad().stream().filter(p -> !game.isBot(p)).findFirst().orElse(null);
+        var humans = activeSquad().stream().filter(p -> !game.isBot(p));
+        Player human = bot == null ? humans.findFirst().orElse(null)
+            : humans.filter(p -> p.getWorld() == bot.getWorld())
+                .min(java.util.Comparator.comparingDouble(p -> p.getLocation().distanceSquared(bot.getLocation())))
+                .orElse(null);
         return human != null ? human.getLocation() : game.arena().spawn(0, game.world());
     }
 

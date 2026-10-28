@@ -55,12 +55,11 @@ class ZDifficultyBotSummaryTest {
         when(p.getName()).thenReturn("Sam"); when(p.getUniqueId()).thenReturn(UUID.randomUUID());
         when(game.players()).thenReturn(List.of(p)); when(game.everyone()).thenReturn(List.of(p));
         when(game.score(p)).thenReturn(120);
-        new ReadyPlayerZGame(game).showSummary(List.of());
-        var title = org.mockito.ArgumentCaptor.forClass(net.kyori.adventure.title.Title.class);
-        verify(p).showTitle(title.capture());
+        var summary = new ReadyPlayerZGame(game).endSummary(List.of());
         String text = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
-            .serialize(title.getValue().title());
+            .serialize(uk.co.playerready.pulsegames.core.util.Text.mm(summary.title()));
         assertTrue(text.contains("Well played"));
         assertFalse(text.toLowerCase().contains("game over"));
+        assertTrue(summary.lines().stream().anyMatch(l -> l.contains("MVP")));
     }
 }

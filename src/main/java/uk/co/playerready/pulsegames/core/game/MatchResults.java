@@ -19,7 +19,15 @@ public final class MatchResults implements Listener {
     public record Result(String match, String game, String mode, String map, String outcome, String team,
                          int score, int teamScore, int kills, int deaths, int endTokens,
                          boolean competitive, boolean practice, long expiresAt,
-                         int place, int field, List<String> podium) {
+                         int place, int field, List<String> podium, List<String> summary) {
+        /** Without a co-op summary. */
+        public Result(String match, String game, String mode, String map, String outcome, String team,
+                      int score, int teamScore, int kills, int deaths, int endTokens,
+                      boolean competitive, boolean practice, long expiresAt,
+                      int place, int field, List<String> podium) {
+            this(match, game, mode, map, outcome, team, score, teamScore, kills, deaths, endTokens,
+                    competitive, practice, expiresAt, place, field, podium, List.of());
+        }
         /** Pre-placement shape, kept so existing callers and tests need no change. */
         public Result(String match, String game, String mode, String map, String outcome, String team,
                       int score, int teamScore, int kills, int deaths, int endTokens,
@@ -158,6 +166,8 @@ public final class MatchResults implements Listener {
                     item(medals[Math.min(2, Math.max(0, line.charAt(0) - '1'))], line.substring(0, Math.max(0, colon)),
                             List.of(line.substring(colon + 2))));
         }
+        if (!result.summary().isEmpty())
+            holder.inventory.setItem(4, item(Material.NETHER_STAR, "Squad summary", result.summary()));
         List<String> mine = new ArrayList<>(result.placeLines().stream().filter(l -> l.startsWith("You finished")).toList());
         mine.addAll(result.lines());
         holder.inventory.setItem(13, item(Material.PAPER, result.place() > 0

@@ -58,6 +58,14 @@ public abstract class MiniGame {
     /** Winners decided (may be empty for a draw). Clean up entities/tasks here. */
     public void onEnd(List<Player> winners) {}
 
+    /**
+     * Co-op end screen: the headline and the detail lines (MiniMessage) for chat and the results
+     * menu. Called once by the engine as the round ends, before {@link #onEnd}. Null keeps the
+     * engine's default co-op wording.
+     */
+    public record EndSummary(String title, String subtitle, List<String> lines) {}
+    public EndSummary endSummary(List<Player> winners) { return null; }
+
     public void onEliminated(Player player) {}
 
     /** Sound everyone hears when a player is eliminated; the default is the original quiet thunder. */

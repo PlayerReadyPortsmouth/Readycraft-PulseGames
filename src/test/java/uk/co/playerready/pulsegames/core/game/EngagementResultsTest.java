@@ -6,6 +6,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitScheduler;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import uk.co.playerready.pulsegames.PulseGamesPlugin;
 import uk.co.playerready.pulsegames.core.arena.Arena;
 import uk.co.playerready.pulsegames.games.GameCatalog;
@@ -25,9 +26,11 @@ class EngagementResultsTest {
         GameInstance game;
         final List<Player> players = new ArrayList<>();
 
-        Fixture(int count) throws Exception {
+        Fixture(int count) throws Exception { this(count, g -> new MiniGame(g) { }); }
+
+        Fixture(int count, java.util.function.Function<GameInstance, MiniGame> logic) throws Exception {
             when(plugin.getConfig()).thenReturn(new YamlConfiguration());
-            when(type.createLogic(any())).thenAnswer(inv -> new MiniGame(inv.getArgument(0)) { });
+            when(type.createLogic(any())).thenAnswer(inv -> logic.apply(inv.getArgument(0)));
             when(type.id()).thenReturn("spleef");
             when(mode.id()).thenReturn("classic");
             game = new GameInstance(plugin, type, mode, mock(Arena.class));
@@ -156,6 +159,25 @@ class EngagementResultsTest {
         assertTrue(MatchResults.canAct(f.game, p, f.game.id()));       // same match, e.g. spectating
         f.field("alive").set(f.game, new LinkedHashSet<UUID>());        // eliminated
         assertTrue(MatchResults.canAct(f.game, p, "other"));
+    }
+
+    @Test void coopRoundNobodyWonIsFramedAsWellPlayedAndTheSquadSummaryReachesTheResultsMenu() throws Exception {
+        var f = new Fixture(2, g -> new MiniGame(g) {
+            @Override public boolean cooperative() { return true; }
+            @Override public EndSummary endSummary(List<Player> winners) {
+                return new EndSummary("<gold><b>Well played!", "<gray>Round 7 reached", List.of("<gold>Round reached: <white>7", "<light_purple>MVP: <white>P1"));
+            }
+        });
+        var p1 = f.players.get(0);
+        f.alive(p1);
+        f.end(List.of(), "overrun");
+        var title = ArgumentCaptor.forClass(net.kyori.adventure.title.Title.class);
+        verify(p1).showTitle(title.capture());
+        var plain = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText();
+        assertEquals("Well played!", plain.serialize(title.getValue().title()));
+        assertEquals("Round 7 reached", plain.serialize(title.getValue().subtitle()));
+        verify(f.plugin.results()).publish(eq(p1), argThat(r -> r.summary().equals(List.of("Round reached: 7", "MVP: P1"))
+                && r.place() == 0 && r.outcome().equals("Round ended")));
     }
 
     @Test void everyRegisteredGameHasAnObjectiveCardThatFitsTheSidebar() {
