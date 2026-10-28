@@ -18,6 +18,12 @@ import org.bukkit.inventory.ItemStack;
 import uk.co.playerready.pulsegames.core.game.GameInstance;
 import uk.co.playerready.pulsegames.core.game.MiniGame;
 import uk.co.playerready.pulsegames.core.kit.Kit;
+import uk.co.playerready.pulsegames.core.util.Text;
+import uk.co.playerready.pulsegames.games.common.SafeRespawn;
+import uk.co.playerready.pulsegames.games.common.SpawnProtection;
+import org.bukkit.Location;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,6 +38,12 @@ public final class KitPvpGame extends MiniGame {
         super(game);
     }
 
+    private static final double SPAWN_PROTECTION_SECONDS = 2;
+
+    private final SpawnProtection protection = new SpawnProtection();
+    private final KillStreaks streaks = new KillStreaks();
+    private final BountyBoard bounties = new BountyBoard();
+    private UUID bountyHolder;
     private final Map<UUID, Long> nextBotAttack = new HashMap<>();
     private final java.util.Set<UUID> drawingBow = new java.util.HashSet<>();
 
@@ -105,8 +117,16 @@ public final class KitPvpGame extends MiniGame {
         return -1;
     }
 
-    @Override public void onQuit(Player player) { nextBotAttack.remove(player.getUniqueId()); drawingBow.remove(player.getUniqueId()); }
-    @Override public void onCleanup() { nextBotAttack.clear(); drawingBow.clear(); }
+    @Override public void onQuit(Player player) {
+        nextBotAttack.remove(player.getUniqueId()); drawingBow.remove(player.getUniqueId());
+        protection.clear(player.getUniqueId()); streaks.died(player.getUniqueId());
+        if (player.getUniqueId().equals(bountyHolder)) { player.setGlowing(false); bountyHolder = null; }
+    }
+    @Override public void onCleanup() {
+        nextBotAttack.clear(); drawingBow.clear(); protection.clear(); streaks.clear(); bounties.clear();
+        clearBounty();
+    }
+    @Override public void onEnd(List<Player> winners) { clearBounty(); }
 
     private boolean isOitc() { return game.mode().rulesId().equals("oitc"); }
 
@@ -129,6 +149,7 @@ public final class KitPvpGame extends MiniGame {
     @Override
     public void onStart() {
         game.alivePlayers().forEach(this::equip);
+        game.alivePlayers().forEach(p -> protection.protect(p.getUniqueId(), SPAWN_PROTECTION_SECONDS));
         if (!isOitc()) game.broadcast("<aqua>Choose a loadout with /pulsekits. Changes apply on your next spawn.");
         game.broadcast("First to <yellow>" + targetKills() + "</yellow> kills wins!");
     }
@@ -145,14 +166,30 @@ public final class KitPvpGame extends MiniGame {
     }
 
     @Override
+    public Location respawnLocation(Player player) {
+        return SafeRespawn.forPlayer(game, player, ThreadLocalRandom.current());
+    }
+
+    @Override
     public void onRespawn(Player player) {
         nextBotAttack.remove(player.getUniqueId());
         drawingBow.remove(player.getUniqueId());
         equip(player);
+        protection.protect(player.getUniqueId(), SPAWN_PROTECTION_SECONDS);
+        player.sendActionBar(Text.mm("<aqua>Spawn protected for " + (int) SPAWN_PROTECTION_SECONDS + "s"));
+        if (player.getUniqueId().equals(bountyHolder)) player.setGlowing(true);
+        refreshBounty();
+    }
+
+    @Override
+    public void onDamage(Player victim, org.bukkit.event.entity.EntityDamageEvent event) {
+        if (protection.isProtected(victim.getUniqueId())) event.setCancelled(true);
     }
 
     @Override
     public void onDamageByPlayer(Player victim, Player damager, EntityDamageByEntityEvent event) {
+        if (protection.isProtected(victim.getUniqueId())) { event.setCancelled(true); return; }
+        protection.clear(damager.getUniqueId()); // attacking ends your own protection
         if (isOitc() && event.getDamager() instanceof Arrow) {
             event.setDamage(1000); // one in the chamber
         }
@@ -160,6 +197,7 @@ public final class KitPvpGame extends MiniGame {
 
     @Override
     public void onDeath(Player victim, Player killer) {
+        streaks.died(victim.getUniqueId());
         if (killer != null) {
             game.addScore(killer, 1);
             game.stats().addKill(killer, game.type().id());
@@ -168,6 +206,7 @@ public final class KitPvpGame extends MiniGame {
             if (isOitc()) {
                 killer.getInventory().addItem(new ItemStack(Material.ARROW, 1));
             }
+            rewardKill(victim, killer);
             if (sideScore(killer) >= targetKills()) {
                 game.end(sideMembers(killer), "kills");
                 return;
@@ -175,7 +214,59 @@ public final class KitPvpGame extends MiniGame {
         } else {
             game.broadcast("<red>" + victim.getName() + "</red> died");
         }
+        if (victim.getUniqueId().equals(bountyHolder)) victim.setGlowing(false);
         game.respawn(victim, respawnDelaySeconds());
+        refreshBounty();
+    }
+
+    /** Kill feed, streak rewards and bounty payout for one kill. */
+    private void rewardKill(Player victim, Player killer) {
+        int streak = streaks.kill(killer.getUniqueId());
+        String feed = "<red>⚔ <white>" + victim.getName() + " <gray>· " + game.score(killer) + "/" + targetKills()
+                + (streak >= 2 ? " <gold>· streak " + streak : "");
+        killer.sendActionBar(Text.mm(feed));
+        victim.sendActionBar(Text.mm("<gray>Defeated by <yellow>" + killer.getName()));
+        if (victim.getUniqueId().equals(bountyHolder) && bounties.claim(killer.getUniqueId())) {
+            game.plugin().economy().addMatchTokens(killer, BountyBoard.REWARD_TOKENS, "bounty");
+            announce("<gold>★ " + killer.getName() + " claimed the bounty on " + victim.getName() + "!");
+        }
+        KillStreaks.Reward reward = isOitc() ? KillStreaks.Reward.NONE : KillStreaks.reward(streak);
+        switch (reward) {
+            case GOLDEN_APPLE -> {
+                killer.getInventory().addItem(new ItemStack(Material.GOLDEN_APPLE));
+                Text.title(killer, "<gold><b>3 KILL STREAK", "<yellow>Golden apple!");
+                announce("<gold>" + killer.getName() + " is on a 3 kill streak!");
+            }
+            case SPEED -> {
+                killer.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 20 * 10, 1));
+                Text.title(killer, "<gold><b>5 KILL STREAK", "<yellow>Speed boost!");
+                announce("<gold>" + killer.getName() + " is on a 5 kill streak!");
+            }
+            default -> { }
+        }
+    }
+
+    private void announce(String miniMessage) {
+        game.players().forEach(p -> p.sendActionBar(Text.mm(miniMessage)));
+    }
+
+    /** Marks the strict leader (3+ kills) with a glow and tells the lobby. */
+    private void refreshBounty() {
+        UUID leader = BountyBoard.leader(game.topScores()).orElse(null);
+        if (java.util.Objects.equals(leader, bountyHolder)) return;
+        clearBounty();
+        Player holder = leader == null ? null : game.player(leader);
+        if (holder == null) return;
+        bountyHolder = leader;
+        holder.setGlowing(true);
+        announce("<gold>★ Bounty on " + holder.getName() + "! Defeat them for " + BountyBoard.REWARD_TOKENS + " tokens");
+    }
+
+    private void clearBounty() {
+        if (bountyHolder == null) return;
+        Player old = game.player(bountyHolder);
+        if (old != null) old.setGlowing(false);
+        bountyHolder = null;
     }
 
     @Override
