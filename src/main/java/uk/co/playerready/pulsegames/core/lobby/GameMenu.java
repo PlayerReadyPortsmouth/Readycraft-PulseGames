@@ -52,6 +52,17 @@ public final class GameMenu implements Listener {
         return Math.min(games, rowsFor(games) * 9 - FOOTER_SLOTS);
     }
 
+    /** Mode buttons sit six to a row starting at slot 11, leaving the border columns free. */
+    static int modeSlot(int index) { return 11 + (index / 6) * 9 + index % 6; }
+
+    /** Modes that fit: four rows of six, so a long mode list is trimmed rather than overflowing the inventory. */
+    static final int MAX_MODES = 24;
+
+    /** Rows for the mode menu: a header row, the mode rows, and a bottom border; never fewer than the old 27 slots. */
+    static int modeRows(int modes) {
+        return Math.max(3, Math.min(6, modeSlot(Math.max(0, Math.min(modes, MAX_MODES) - 1)) / 9 + 2));
+    }
+
     private List<GameType> visibleGames() {
         List<GameType> all = new ArrayList<>(plugin.registry().all());
         int shown = capacity(all.size());
@@ -112,10 +123,10 @@ public final class GameMenu implements Listener {
     public void openModes(Player player, GameType game) {
         if (game.id().equals("duels")) { plugin.duelMenu().open(player); return; }
         MenuHolder holder = new MenuHolder(game);
-        Inventory inv = Bukkit.createInventory(holder, 27, Text.mm("<dark_gray>" + game.displayName() + ": pick a mode"));
+        Inventory inv = Bukkit.createInventory(holder, modeRows(game.modes().size()) * 9, Text.mm("<dark_gray>" + game.displayName() + ": pick a mode"));
         holder.inventory = inv;
-        int slot = 11;
-        for (GameMode mode : game.modes()) {
+        int index = 0;
+        for (GameMode mode : game.modes().subList(0, Math.min(game.modes().size(), MAX_MODES))) {
             ItemStack item = new ItemStack(Material.PAPER);
             item.editMeta(meta -> {
                 meta.displayName(Text.mm("<yellow><b>" + mode.displayName()));
@@ -124,8 +135,7 @@ public final class GameMenu implements Listener {
                         Text.mm(mode.isTeams() ? "<gray>Teams of <white>" + mode.teamSize() : "<gray>Free for all"),
                         Text.mm("<green>Click to queue!")));
             });
-            inv.setItem(slot++, item);
-            if (slot % 9 == 8) slot += 3;
+            inv.setItem(modeSlot(index++), item);
         }
         addKitButton(holder, inv);
         player.openInventory(inv);
