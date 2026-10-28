@@ -72,6 +72,12 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
     private int pendingSpawns;
     private final Set<UUID> zombies = new HashSet<>();
     private final Set<UUID> downed = new HashSet<>();
+    private final java.util.Map<UUID, Long> bleedOut = new java.util.HashMap<>();
+    private final java.util.Map<UUID, UUID> rescuers = new java.util.HashMap<>();
+    private final java.util.Map<UUID, Integer> rescueSeconds = new java.util.HashMap<>();
+    private final java.util.Map<UUID, Integer> revives = new java.util.HashMap<>();
+    private boolean soloSelfRevive, selfReviveUsed;
+
     private final java.util.Map<UUID, String> powerupItems = new java.util.HashMap<>();
     private long doublePointsUntil;
     private List<Cuboid> mobSpawns = List.of();
@@ -110,6 +116,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
 
     @Override
     public void onStart() {
+        soloSelfRevive = game.alivePlayers().size() == 1;
         mobSpawns = game.arena().regionsByPrefix("mobspawn");
         String failure = startProblem(game.everyone());
         if(failure==null)failure=progression.startProblem();
@@ -147,6 +154,8 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
     public void onSecond(int gameTime) {
         elapsedTicks += 20;
         progression.tick();
+        tickRevives();
+        if (game.state() == GameState.ENDING || game.state() == GameState.RESETTING) return;
         if (roundActive) {
             pulseDarkness();
             double range = bounded("aggro-range", 48, 16, 96);
@@ -170,8 +179,6 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
             if (zombies.isEmpty() && pendingSpawns <= 0) {
                 roundActive = false;
                 game.everyone().forEach(this::clearDarkness);
-        game.everyone().forEach(this::restoreCombat);
-        originalAttackSpeed.clear();
                 nextPulse.clear();
                 breakTimer = isFrenzy() ? 5 : 10;
                 game.broadcast("<green><b>Round " + round + " survived!</b></green>");
@@ -355,6 +362,11 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
     /** Sweep attacks hit every zombie beside the target; 1.8 had none. */
     @Override
     public void onEntityDamage(org.bukkit.event.entity.EntityDamageEvent event) {
+        if (event instanceof org.bukkit.event.entity.EntityDamageByEntityEvent hit) {
+            org.bukkit.entity.Entity source = hit.getDamager();
+            if (source instanceof org.bukkit.entity.Projectile projectile && projectile.getShooter() instanceof Player p) source = p;
+            if (source instanceof Player p && downed.contains(p.getUniqueId())) { event.setCancelled(true); return; }
+        }
         if (event.getCause() == org.bukkit.event.entity.EntityDamageEvent.DamageCause.ENTITY_SWEEP_ATTACK
             && legacyCombat())
             event.setCancelled(true);
@@ -370,7 +382,11 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
         for (UUID id : new HashSet<>(downed)) {
             Player player = game.player(id);
             downed.remove(id);
+            bleedOut.remove(id);
+            rescuers.remove(id);
+            rescueSeconds.remove(id);
             if (player != null && game.isParticipant(player)) {
+                clearDownState(player);
                 player.setGameMode(playGameMode());
                 player.teleport(game.spawnFor(player));
                 game.plugin().playerState().reset(player);
@@ -489,33 +505,118 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
 
     @Override
     public void onDamage(Player victim, org.bukkit.event.entity.EntityDamageEvent event) {
-        if (event.isCancelled() || !game.isActive(victim) || downed.contains(victim.getUniqueId()))
+        if (downed.contains(victim.getUniqueId())) { event.setCancelled(true); return; }
+        if (event.isCancelled() || !game.isActive(victim))
             return;
         if (event instanceof org.bukkit.event.entity.EntityDamageByEntityEvent hit
             && variants.get(hit.getDamager().getUniqueId()) == ZCombatBalance.Variant.VENOM)
             victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 40, 0, false, true));
     }
 
-    /** Going down doesn't end your game - teammates clearing the round revives you. */
+    @Override
+    public boolean acceptsDeath(Player player) { return !downed.contains(player.getUniqueId()); }
+
     @Override
     public void onDeath(Player victim, Player killer) {
+        if (!downed.add(victim.getUniqueId())) return;
         clearDarkness(victim);
         restoreCombat(victim);
-        downed.add(victim.getUniqueId());
-        victim.setGameMode(org.bukkit.GameMode.SPECTATOR);
-        victim.teleport(game.arena().spectator(game.world()));
-        game.broadcast("<red>" + victim.getName() + "</red> is down! Survive the round to revive them.");
+        bleedOut.put(victim.getUniqueId(), elapsedTicks + 900);
+        victim.setHealth(1);
+        victim.closeInventory();
+        applyDownState(victim);
+        Text.title(victim, "<yellow>Hold on!", soloSelfRevive && !selfReviveUsed
+                ? "Self-revive in 8 seconds" : "Teammate: crouch within 2 blocks to revive");
         checkOverrun();
     }
 
-    /** Someone leaving must not leave a downed squad counted as still fighting. */
+    void tickRevives() {
+        for (UUID id : new HashSet<>(bleedOut.keySet())) {
+            Player patient = game.player(id);
+            if (patient == null) continue;
+            if (elapsedTicks >= bleedOut.get(id)) {
+                bleedOut.remove(id);
+                rescuers.remove(id);
+                rescueSeconds.remove(id);
+                clearDownState(patient);
+                patient.setGameMode(org.bukkit.GameMode.SPECTATOR);
+                patient.teleport(game.arena().spectator(game.world()));
+                continue;
+            }
+            if (soloSelfRevive && !selfReviveUsed && elapsedTicks >= bleedOut.get(id) - 740) {
+                selfReviveUsed = true;
+                revive(patient, null);
+                continue;
+            }
+            Player rescuer = activeSquad().stream().filter(Player::isSneaking)
+                    .filter(p -> p.getLocation().distanceSquared(patient.getLocation()) <= 4)
+                    .filter(p -> p.hasLineOfSight(patient))
+                    .min(java.util.Comparator.comparing(p -> p.getUniqueId().toString())).orElse(null);
+            if (rescuer == null) { rescuers.remove(id); rescueSeconds.remove(id); }
+            else {
+                if (!rescuer.getUniqueId().equals(rescuers.put(id, rescuer.getUniqueId()))) rescueSeconds.remove(id);
+                int seconds = rescueSeconds.merge(id, 1, Integer::sum);
+                rescuer.sendActionBar(Text.mm("<green>Reviving: " + seconds + "/8 seconds"));
+                if (seconds >= 8) { revive(patient, rescuer); continue; }
+            }
+            patient.sendActionBar(Text.mm("<yellow>Hold on: " + (bleedOut.get(id) - elapsedTicks) / 20 + "s • crouch nearby to help"));
+        }
+        if (!downed.isEmpty()) checkOverrun();
+    }
+
+    private void revive(Player patient, Player rescuer) {
+        UUID id = patient.getUniqueId();
+        downed.remove(id); bleedOut.remove(id); rescuers.remove(id); rescueSeconds.remove(id);
+        clearDownState(patient);
+        patient.setHealth(maxHealth(patient) / 2);
+        patient.setNoDamageTicks(40);
+        applyLegacyCombat(patient);
+        if (rescuer != null) {
+            game.addScore(rescuer, 50);
+            revives.merge(rescuer.getUniqueId(), 1, Integer::sum);
+        }
+        Text.title(patient, "<green>Back together!", "Half health • stay near your squad");
+    }
+
+    @Override
+    public void onPlayerMove(org.bukkit.event.player.PlayerMoveEvent event) {
+        if (event.getTo() == null) return;
+        rescuers.entrySet().removeIf(entry -> {
+            Player patient = game.player(entry.getKey());
+            if (!entry.getValue().equals(event.getPlayer().getUniqueId()) || patient == null) return false;
+            if (event.getTo().getWorld() == patient.getWorld()
+                    && event.getTo().distanceSquared(patient.getLocation()) <= 4) return false;
+            rescueSeconds.remove(entry.getKey()); return true;
+        });
+    }
+
+    double maxHealth(Player player) {
+        var health = player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
+        return health == null ? 20 : health.getValue();
+    }
+
+    void applyDownState(Player player) {
+        player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 900, 4, false, false));
+        player.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 900, 10, false, false));
+    }
+
+    void clearDownState(Player player) {
+        player.removePotionEffect(PotionEffectType.SLOWNESS);
+        player.removePotionEffect(PotionEffectType.WEAKNESS);
+    }
+
     @Override
     public void onQuit(Player player) {
         clearDarkness(player);
+        if (downed.contains(player.getUniqueId())) clearDownState(player);
         restoreCombat(player);
-        downed.remove(player.getUniqueId());
-        if (game.state() == GameState.RUNNING)
-            checkOverrun();
+        UUID id = player.getUniqueId();
+        downed.remove(id); bleedOut.remove(id); rescuers.remove(id); rescueSeconds.remove(id);
+        rescuers.entrySet().removeIf(entry -> {
+            if (!entry.getValue().equals(id)) return false;
+            rescueSeconds.remove(entry.getKey()); return true;
+        });
+        if (game.state() == GameState.RUNNING) checkOverrun();
     }
 
     /** Seconds between pulses, settings-driven; the next gap is randomised between 1x and 1.5x this. */
@@ -566,6 +667,8 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
     @Override
     public void onCleanup() {
         roundActive = false;
+        game.everyone().stream().filter(p -> downed.contains(p.getUniqueId())).forEach(this::clearDownState);
+        downed.clear(); bleedOut.clear(); rescuers.clear(); rescueSeconds.clear();
         game.everyone().forEach(this::clearDarkness);
         game.everyone().forEach(this::restoreCombat);
         originalAttackSpeed.clear();
@@ -597,6 +700,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
 
     private void checkOverrun() {
         List<Player> squad = game.alivePlayers();
+        if (soloSelfRevive && !selfReviveUsed && !bleedOut.isEmpty()) return;
         if (squad.isEmpty() || squad.stream().allMatch(p -> downed.contains(p.getUniqueId()))) {
             game.broadcast("<red><b>The team was overrun on round " + round + "!");
             game.end(List.of(), "overrun");
@@ -625,7 +729,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
 
     @Override
     public void botTick(Player bot) {
-        if (!game.isBot(bot) || !game.isActive(bot))
+        if (!game.isBot(bot) || !game.isActive(bot) || downed.contains(bot.getUniqueId()))
             return;
         if (bot.getHealth() <= 10 && purchase(bot, 6))
             return;
