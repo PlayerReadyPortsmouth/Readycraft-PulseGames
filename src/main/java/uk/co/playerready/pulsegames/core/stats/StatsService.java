@@ -40,6 +40,31 @@ public final class StatsService {
     public void addKill(Player player, String game) { bump(player, game, "kills"); }
     public void addPlayed(Player player, String game) { bump(player, game, "played"); }
 
+    /**
+     * Best time in ms for one map, or -1. Stored beside the counters as
+     * {@code <uuid>.<game>.best-ms.<map>}, so old stats files load unchanged.
+     */
+    public synchronized long bestTime(Player player, String game, String map) {
+        return data.getLong(bestPath(player, game, map), -1L);
+    }
+
+    /** Saves {@code ms} if it beats the stored time (or none exists). Bots and NPCs never save. */
+    public boolean submitBestTime(Player player, String game, String map, long ms) {
+        if (player.hasMetadata("NPC") || ms <= 0) return false;
+        String path = bestPath(player, game, map);
+        synchronized (this) {
+            long old = data.getLong(path, -1L);
+            if (old > 0 && old <= ms) return false;
+            data.set(path, ms);
+            dirty = true;
+            return true;
+        }
+    }
+
+    private static String bestPath(Player player, String game, String map) {
+        return player.getUniqueId() + "." + game + ".best-ms." + map.replace('.', '_');
+    }
+
     public synchronized int get(Player player, String game, String key) {
         return data.getInt(player.getUniqueId() + "." + game + "." + key);
     }
