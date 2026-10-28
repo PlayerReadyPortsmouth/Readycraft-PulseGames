@@ -31,7 +31,7 @@ class BlockPartyPatternIntegrationTest {
         var falling=player(world,-1);var survivor=player(world,.5);
         var alive=new ArrayList<>(List.of(falling,survivor));when(game.alivePlayers()).thenAnswer(i->List.copyOf(alive));
         doAnswer(i->{alive.remove(i.getArgument(0));return null;}).when(game).eliminate(any(Player.class));
-        var logic=new BlockPartyGame(game);field(logic,"floor",new Cuboid(0,64,0,0,64,0));field(logic,"round",6);
+        var logic=new BlockPartyGame(game);field(logic,"floor",new Cuboid(0,64,0,0,64,0));field(logic,"round",6);field(logic,"hintDelivery",(java.util.function.Consumer<Player>)p->{});
         var call=BlockPartyGame.class.getDeclaredMethod("pickTarget");call.setAccessible(true);
         assertEquals(true,call.invoke(logic));verify(game).eliminate(falling);
         verify(game,never()).end(anyList(),eq("invalid-floor"));verify(game,never()).eliminate(survivor);
