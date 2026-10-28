@@ -966,14 +966,16 @@ public final class GameInstance {
         });
     }
 
+    /** Winner fireworks stack on big team wins; at most three a second per round, and no flicker. */
+    private final uk.co.playerready.pulsegames.core.util.RateCap fireworkCap = new uk.co.playerready.pulsegames.core.util.RateCap(3, 1000);
+
     private void spawnFirework(Location loc) {
-        if (loc.getWorld() == null) return;
+        if (loc.getWorld() == null || !fireworkCap.allow(System.currentTimeMillis())) return;
         Firework fw = loc.getWorld().spawn(loc, Firework.class);
         var meta = fw.getFireworkMeta();
         meta.addEffect(FireworkEffect.builder()
                 .with(FireworkEffect.Type.BALL_LARGE)
-                .withColor(Color.ORANGE, Color.YELLOW)
-                .withFlicker().build());
+                .withColor(Color.ORANGE, Color.YELLOW).build());
         meta.setPower(1);
         fw.setFireworkMeta(meta);
     }

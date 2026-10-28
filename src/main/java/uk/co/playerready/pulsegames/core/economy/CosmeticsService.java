@@ -66,6 +66,8 @@ public final class CosmeticsService {
     }
 
     private final EconomyService economy;
+    /** One lightning flash per world per five seconds, however many equipped killers there are. */
+    private final java.util.Map<java.util.UUID, uk.co.playerready.pulsegames.core.util.RateCap> lightning = new java.util.HashMap<>();
 
     public CosmeticsService(EconomyService economy) {
         this.economy = economy;
@@ -76,7 +78,11 @@ public final class CosmeticsService {
         if (id == null) return;
         var world = victimLocation.getWorld();
         switch (id) {
-            case "ke-lightning" -> world.strikeLightningEffect(victimLocation);
+            case "ke-lightning" -> {
+                if (lightning.computeIfAbsent(world.getUID(), k -> new uk.co.playerready.pulsegames.core.util.RateCap(1, 5000))
+                        .allow(System.currentTimeMillis())) world.strikeLightningEffect(victimLocation);
+                else world.spawnParticle(Particle.CRIT, victimLocation.clone().add(0, 1, 0), 12, 0.4, 0.6, 0.4, 0.05);
+            }
             case "ke-hearts" -> world.spawnParticle(Particle.HEART, victimLocation.clone().add(0, 1, 0),
                     15, 0.5, 0.7, 0.5);
             case "ke-explosion" -> {

@@ -50,7 +50,7 @@ public enum LuckyChaos {
     }),
     TNT_RAIN("TNT Rain", "Look up", 6, 10, true, 1, c -> c.repeat(10, () -> {
         List<Player> alive = c.alive();
-        int strikes = 1 + alive.size() / 4;
+        int strikes = Math.min(3, 1 + alive.size() / 4);
         for (int i = 0; i < strikes && !alive.isEmpty(); i++) {
             Location at = alive.get(c.random.nextInt(alive.size())).getLocation().add(
                     c.random.nextInt(7) - 3, 14, c.random.nextInt(7) - 3);
