@@ -14,6 +14,8 @@ import uk.co.playerready.pulsegames.core.game.GameState;
 import uk.co.playerready.pulsegames.core.game.MiniGame;
 import uk.co.playerready.pulsegames.core.util.Text;
 
+import uk.co.playerready.pulsegames.games.common.RoundController;
+import uk.co.playerready.pulsegames.games.common.RoundTracker;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -40,6 +42,9 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
     private final Set<UUID> seekers = new HashSet<>();
     private final Set<UUID> hiders = new HashSet<>();
     private final Set<UUID> originalHiders = new HashSet<>();
+    private RoundController rounds;
+    private final Map<UUID, Integer> seekerTurns = new HashMap<>();
+    private List<String> propIds = List.of();
     private final Map<UUID, AutoCloseable> visuals = new HashMap<>();
     private final Map<UUID, HiderBody> bodies = new HashMap<>();
     private final Map<UUID, Long> nextLock = new HashMap<>();
@@ -236,10 +241,22 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
     }
 
     private boolean isInfection() { return game.mode().id().equals("infection"); }
+    private boolean isRounds() { return RoundController.isRounds(game); }
+    private int roundSecondsFallback() { return Math.max(0, game.arena().settings().getInt("hide-seconds", 30)) + 90; }
+
+    /** Fewest turns as seeker go first, so roles swap every round; ties are shuffled. */
+    static Set<UUID> pickSeekers(List<UUID> players, Map<UUID, Integer> turns, int count, java.util.Random random) {
+        List<UUID> order = new ArrayList<>(players);
+        Collections.shuffle(order, random);
+        order.sort(java.util.Comparator.comparingInt(id -> turns.getOrDefault(id, 0)));
+        return new java.util.LinkedHashSet<>(order.subList(0, Math.min(count, order.size())));
+    }
 
     @Override
     public String startProblem(List<Player> players) {
         if (players.size() < 2) return "Prop Hunt needs at least one seeker and one hider (2 players).";
+        if (isRounds() && game.plugin().getConfig().getBoolean("content.prophunt.enabled", false))
+            return "Prop Hunt rounds use the plain disguise mode; custom props are not supported in rounds yet.";
         if (!game.plugin().getConfig().getBoolean("content.prophunt.enabled", false)) return null;
         if (players.stream().anyMatch(game::isBot) && (!game.plugin().getConfig().getBoolean("content.prophunt.block-snapping", false)
                 || !game.plugin().content().npcPropVisualsReady())) return "Prop Hunt bots need block disguises and PulseContent NPC prop support.";
@@ -259,6 +276,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
         if (blockProps) palette = PropPalette.read(game.plugin().getConfig(), game.arena().settings());
         List<String> props = blockProps ? palette.stream().map(PropPalette.Option::model).toList()
                 : game.plugin().getConfig().getStringList("content.prophunt.props");
+        propIds = props;
         if (customProps) {
             String problem = startProblem(game.everyone());
             if (problem != null) throw new IllegalStateException(problem);
@@ -273,14 +291,54 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
         pulseCooldown = bounded("pulse-cooldown", 25, 5, 120);
         pulseRadius = bounded("pulse-radius", 12, 4, 24);
         hidePhase = Math.max(0, game.arena().settings().getInt("hide-seconds", 30));
+        seekerHold = game.arena().spawn(0, game.world());
+        if (isRounds()) {
+            rounds = new RoundController(game, new RoundController.Host() {
+                @Override public void beginRound(int round) { startRoundRoles(); }
+                @Override public List<List<UUID>> timeUpTiers(RoundTracker tracker) {
+                    // Surviving hiders win the clock; seekers rank above hiders who were found.
+                    List<List<UUID>> tiers = new ArrayList<>();
+                    List<UUID> survivors = hiders.stream().toList();
+                    if (!survivors.isEmpty()) tiers.add(survivors);
+                    List<UUID> seekerIds = seekers.stream().toList();
+                    if (!seekerIds.isEmpty()) tiers.add(seekerIds);
+                    foundTiers(tracker).forEach(tiers::add);
+                    return tiers;
+                }
+            }, null, roundSecondsFallback(), "Hiders stay hidden, seekers find them - roles swap").autoEnd(false);
+            rounds.start();
+            return;
+        }
         List<Player> players = new ArrayList<>(game.alivePlayers());
         Collections.shuffle(players);
         int seekerCount = Math.max(1, players.size() / 5);
-        seekerHold = game.arena().spawn(0, game.world());
+        assignRoles(players, players.stream().limit(seekerCount).map(Player::getUniqueId).collect(java.util.stream.Collectors.toSet()));
+        if (blockProps) game.runRepeating(1, 1, this::updateProps);
+    }
+
+    /** Rounds: forget last round's roles, swap them, hide again. */
+    private void startRoundRoles() {
+        seekers.clear(); hiders.clear(); originalHiders.clear();
+        hidePhase = Math.max(0, game.arena().settings().getInt("hide-seconds", 30));
+        List<Player> players = new ArrayList<>(rounds.contestants());
+        Set<UUID> chosen = pickSeekers(players.stream().map(Player::getUniqueId).toList(), seekerTurns,
+                Math.max(1, players.size() / 5), ThreadLocalRandom.current());
+        chosen.forEach(id -> seekerTurns.merge(id, 1, Integer::sum));
+        assignRoles(players, chosen);
+    }
+
+    /** Hiders found this round, last found first, each a tier of their own. */
+    private static List<List<UUID>> foundTiers(RoundTracker tracker) {
+        return tracker.eliminationTiers().stream().filter(tier -> !tracker.remaining().containsAll(tier)).toList();
+    }
+
+    private void assignRoles(List<Player> players, Set<UUID> seekerIds) {
+        List<String> props = propIds;
+        int seekerCount = seekerIds.size();
         var random = ThreadLocalRandom.current();
         for (int i = 0; i < players.size(); i++) {
             Player player = players.get(i);
-            if (i < seekerCount) {
+            if (seekerIds.contains(player.getUniqueId())) {
                 seekers.add(player.getUniqueId());
                 player.teleport(seekerHold);
                 if (hidePhase > 0) {
@@ -328,13 +386,13 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
                 Text.title(player, "<green><b>HIDER", "<gray>Disguise: " + disguiseName);
             }
         }
-        if (blockProps) game.runRepeating(1, 1, this::updateProps);
         game.broadcast("<yellow>" + seekerCount + " seeker(s)</yellow> will be released in <red>"
                 + hidePhase + "s</red>. Hide!");
     }
 
     @Override
     public void onSecond(int gameTime) {
+        if (rounds != null) { rounds.tick(); if (!rounds.active()) return; }
         for (UUID id : List.copyOf(decoys.keySet())) if (decoys.get(id).expires() <= gameTime) removeDecoy(id);
         if (customProps) {
             Set<UUID> currentAudience = game.everyone().stream().filter(p -> !game.isBot(p)).map(Player::getUniqueId).collect(java.util.stream.Collectors.toSet());
@@ -740,7 +798,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
                     + hiders.size() + " hiders left)");
         } else {
             game.broadcast("<red>" + victim.getName() + "</red> was found! <gray>(" + hiders.size() + " hiders left)");
-            game.eliminate(victim);
+            if (rounds != null) rounds.knockOut(victim); else game.eliminate(victim);
         }
         checkWin();
     }
@@ -757,6 +815,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
         releaseBody(player.getUniqueId()); clearDecoys(player.getUniqueId()); choices.remove(player.getUniqueId());
         boolean wasSeeker = seekers.remove(player.getUniqueId());
         boolean wasHider = hiders.remove(player.getUniqueId());
+        if (rounds != null) rounds.playerLeft(player);
         if (game.state() != GameState.RUNNING) return;
         if (customProps) {
             game.broadcast("<yellow>Custom Prop Hunt stopped because its viewing players changed. Please queue again.");
@@ -784,6 +843,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
     }
     @Override public void onEnd(List<Player> winners) { onCleanup(); }
     @Override public void onCleanup() {
+        if (rounds != null) rounds.close();
         RuntimeException failure = null;
         for (UUID id : Set.copyOf(visuals.keySet())) {
             try { closeVisual(id); }
@@ -978,6 +1038,23 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
     }
 
     private void checkWin() {
+        if (rounds != null) {
+            if (!rounds.active()) return;
+            if (hiders.isEmpty()) {
+                game.broadcast("<red><b>All hiders found - the seekers take the round!");
+                List<List<UUID>> tiers = new ArrayList<>();
+                if (!seekers.isEmpty()) tiers.add(seekers.stream().toList());
+                tiers.addAll(foundTiers(rounds.tracker()));
+                rounds.endRound(tiers);
+            } else if (seekers.isEmpty()) {
+                game.broadcast("<green><b>No seekers left - the hiders take the round!");
+                List<List<UUID>> tiers = new ArrayList<>();
+                tiers.add(hiders.stream().toList());
+                tiers.addAll(foundTiers(rounds.tracker()));
+                rounds.endRound(tiers);
+            }
+            return;
+        }
         if (hiders.isEmpty()) {
             game.broadcast("<red><b>All hiders found - seekers win!");
             game.end(game.alivePlayers().stream().filter(p -> seekers.contains(p.getUniqueId())).toList(), "all-found");
@@ -990,12 +1067,18 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
     /** Hiders survive the clock: hiders win. */
     @Override
     public void onTimeUp() {
+        if (rounds != null) { rounds.onTimeUp(); return; }
         game.broadcast("<green><b>Time's up - the hiders win!");
         game.end(game.alivePlayers().stream().filter(p -> hiders.contains(p.getUniqueId())).toList(), "time");
     }
 
     @Override
     public List<String> sidebar(Player player) {
+        if (rounds != null) {
+            List<String> lines = new ArrayList<>(rounds.sidebar(player));
+            lines.add("<gray>Role: " + (seekers.contains(player.getUniqueId()) ? "<red>Seeker" : "<green>Hider"));
+            return lines;
+        }
         return List.of(
                 "<gray>Role: " + (seekers.contains(player.getUniqueId()) ? "<red>Seeker" : "<green>Hider"),
                 "<gray>Hiders left: <green>" + hiders.size());
@@ -1006,6 +1089,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
 
     @Override
     public int timeLimitSeconds() {
+        if (isRounds()) return RoundController.matchSeconds(game, roundSecondsFallback());
         return game.arena().settings().getInt("time-limit", 300);
     }
     @Override

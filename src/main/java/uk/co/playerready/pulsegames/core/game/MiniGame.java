@@ -58,7 +58,19 @@ public abstract class MiniGame {
     /** Winners decided (may be empty for a draw). Clean up entities/tasks here. */
     public void onEnd(List<Player> winners) {}
 
+    /**
+     * Co-op end screen: the headline and the detail lines (MiniMessage) for chat and the results
+     * menu. Called once by the engine as the round ends, before {@link #onEnd}. Null keeps the
+     * engine's default co-op wording.
+     */
+    public record EndSummary(String title, String subtitle, List<String> lines) {}
+    public EndSummary endSummary(List<Player> winners) { return null; }
+
     public void onEliminated(Player player) {}
+
+    /** Sound everyone hears when a player is eliminated; the default is the original quiet thunder. */
+    public record Cue(String sound, float volume, float pitch) {}
+    public Cue eliminationSound() { return new Cue("minecraft:entity.lightning_bolt.thunder", 0.3f, 1.6f); }
 
     // ---- death & respawning ----------------------------------------------
 
@@ -157,10 +169,49 @@ public abstract class MiniGame {
         return game.arena().settings().getDouble("void-y", -64);
     }
 
-    /** Survival games reward survivors; co-op objectives must actually be completed. */
+    /**
+     * Do survivors win outright when the clock runs out? Default no: stalling must not pay
+     * the full win reward, so survivors share first place (participation plus placement
+     * bonus only). Override to true where surviving the clock genuinely is the objective.
+     */
+    public boolean survivorsWinOnTimeout() { return false; }
+
+    /** Co-op objectives must actually be completed; survivors win on time only if declared. */
     public void onTimeUp() {
-        game.end(cooperative() ? List.of() : game.alivePlayers(), "time");
+        if (cooperative() || !survivorsWinOnTimeout()) { game.end(List.of(), "time"); return; }
+        List<Player> survivors = game.alivePlayers();
+        rankSurvivorsByScore(survivors);
+        game.end(survivors, "time");
     }
+
+    /**
+     * Survivors who all win still need a podium order: best score first (survival seconds, height).
+     * The list stops at the first tie, so tied survivors share the place rather than getting an invented order.
+     */
+    protected void rankSurvivorsByScore(List<Player> survivors) {
+        List<Player> ranked = new java.util.ArrayList<>(survivors);
+        ranked.sort(java.util.Comparator.comparingInt((Player p) -> game.score(p)).reversed());
+        for (int i = 0; i < ranked.size(); i++) {
+            boolean tied = i + 1 < ranked.size() && game.score(ranked.get(i)) == game.score(ranked.get(i + 1))
+                    || i > 0 && game.score(ranked.get(i)) == game.score(ranked.get(i - 1));
+            if (tied) return;
+            game.recordFinish(ranked.get(i));
+        }
+    }
+
+    // ---- objective card & placements -------------------------------------------------
+
+    /** Title/subtitle/tip card shown at join and at GO. Default comes from {@code GameCatalog}. */
+    public ObjectiveCard howToPlay() { return game.type().card(); }
+
+    /** Short waiting-sidebar tip; defaults to the card's tip. */
+    public String tip() { return howToPlay().tip(); }
+
+    /** Final place (1 = best, ties share) once the round ends; provisional while running. 0 = not playing. */
+    public int placement(Player player) { return game.placement(player); }
+
+    /** Online participants ordered best place first. */
+    public List<Player> placements() { return game.placementOrder(); }
 
     // ---- event hooks -------------------------------------------------------
 

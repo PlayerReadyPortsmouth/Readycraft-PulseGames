@@ -50,7 +50,7 @@ Spleef action cadence; Quake selection, retreat and safe spawn areas on both cli
 | King of the Hill | solo, teams | capture hill, fight visible opponents, respawn |
 | Dodgeball preview | solo, teams | approach/retreat and the same projectile throw as humans |
 | Villager Defense | easy, hard | defend objective, fight wave enemies |
-| ReadyPlayerZ | classic, frenzy | wave combat, earned-point purchases, revival |
+| ReadyPlayerZ | classic, frenzy | wave combat, earned-point purchases, follows a human, crouch-revives downed humans |
 | Block Party | classic, hardcore | navigate to publicly called colour |
 | Avalanche | classic | evade visible falling blocks |
 | Spleef | classic, decay, splegg | safe floor navigation, protected digging, earned ammunition and shared egg launcher |
@@ -245,3 +245,12 @@ bridge exhaustion, multiple teams and instance cleanup require Java/Bedrock test
 The latest party, results, rejoin and private practice commands are documented in
 [PLAYTEST-WORKFLOW.md](PLAYTEST-WORKFLOW.md). Its island-game checks also cover the
 new Bedwars controller and expanded Skywars movement/ranged actions.
+
+## ReadyPlayerZ squadmates (28 October candidate)
+
+Bots fight zombies they can see, buy swords and armour with earned points and open doors as before. They now also
+follow the nearest standing human, each bot choosing for itself, and walk to a downed human, crouching beside them
+so the normal 8-second revive applies. `BotObjectives` has a per-bot `botGuardPoint(Player bot)` hook that defaults
+to the shared no-argument `botGuardPoint()`, so Villager Defense (which guards the Mayor) is unchanged; ReadyPlayerZ
+overrides it. A bot only walks to a door it can itself afford. The framework's 24-block target search is used instead
+of a 6-block attack rule; bots do not use the Mystery Box or Pack-a-Punch.

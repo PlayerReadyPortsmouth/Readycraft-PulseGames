@@ -52,49 +52,77 @@ Restrict a map to certain modes with `/pulse setup set modes <mode1,mode2>`.
 
 The checklist shows all of this in-game; this is the reference with map-building advice.
 
-### Spleef (`spleef` - classic, decay, splegg)
+### Spleef (`spleef` - classic, decay, splegg, rounds)
 - **Spawns:** 4+ around the edge of the floor.
 - **Regions:** `floor1` (and `floor2`... for multi-layer maps) - flat snow-block layers.
 - **Settings:** `void-y` below the lowest floor.
 - Build: snow block floors work best; anything inside the floor regions is breakable/shootable.
+- **Rounds mode:** the floor regions are snapshotted at the start and restored between rounds (no new
+  region). Decay mode now cracks each block a second before it vanishes.
 
-### TNT Run (`tntrun` - classic, doublejump)
+### TNT Run (`tntrun` - classic, doublejump, rounds)
 - **Spawns:** 4+ on the top layer.
 - **Settings:** `void-y` under the bottom layer.
 - Build: classic maps use 2-3 stacked layers of TNT-on-sandstone; the game removes the
   block underfoot plus the one beneath it after a short delay.
+- **Rounds mode:** no region needed; every block the game removes is remembered and put back between rounds.
+- Optional: `crumble-acceleration-seconds` (the crumble gets one tick quicker every N seconds, default 60,
+  `0` = off) and `min-crumble-ticks` (fastest delay, default 4; the base delay is 8). These apply to
+  the live modes too.
 
 ### Block Party (`blockparty` - classic, hardcore)
 - **Regions:** `floor` - a one-block-tall dance floor (the plugin recolors it every round).
 - **Spawns:** 1+ on the floor. **Settings:** `void-y` just below it.
+- Optional: `colour-patterns: true` lays the floor in glazed terracotta patterns instead of wool, so the
+  call never depends on telling colours apart. The called colour is always shown as a name and shape
+  (for example "▲ RED") on the action bar, and Hardcore shows the hotbar hint briefly instead of hiding it.
 
-### Avalanche (`avalanche`)
+### Avalanche (`avalanche` - classic, rounds)
 - **Regions:** `arena` - the survival platform volume; blocks fall from its **top Y**,
   so make the region tall (platform at the bottom, ~20 blocks of air above).
+- **Rounds mode:** the arena box (extended down to `void-y` so the collapsing edge columns are included)
+  is snapshotted and restored between rounds. Keep the region under 300,000 blocks.
 
-### Volcano (`volcano` - classic, eruption)
+### Volcano (`volcano` - classic, eruption, rounds)
 - **Regions:** `arena` - the whole climbable mountain; lava starts at the region's
   **bottom Y** and rises one layer at a time. Optional `lava-interval` setting (seconds).
+- Optional `min-lava-interval` (seconds, default 2): the late rise never gets faster than one block per
+  this many seconds. Without a cap the lava reaches one block a second after about 90 s, which a child
+  cannot out-climb on a tall mountain. Set `1` for the old pacing.
+- **Rounds mode:** the arena region is snapshotted and restored (lava included); keep it under 300,000 blocks.
 
 ### King of the Hill (`koth` - solo, teams)
-- **Regions:** `hill` - the capture zone. **Spawns:** 4+ around it.
-- Optional: `target-score`, `kit` (a kit id from kits.yml).
+- **Regions:** `hill` - the capture zone. **Spawns:** 4+ around it; respawns pick the
+  spawn farthest from enemies (random among the farthest third) with 2 s protection.
+- A hill with two sides on it is **contested**: nobody scores. Kills pay 5, assists 2.
+- Optional: `target-score`, `kit` (a kit id from kits.yml). **Hill rotation:** define
+  `hill1..N` (two or more) instead of `hill`; the active hill moves every
+  `hill-rotate-seconds` (default 75, minimum 20) with a title announcement. A map with
+  only `hill` keeps one fixed hill.
 
 ### Duels (`duels` - classic, op, sumo)
 - **Spawns:** exactly 2, facing each other. **Settings:** `void-y` (sumo ring-out).
 - Optional: `rounds-to-win` (default 2), `kit`.
 
 ### Kit PvP (`kitpvp` - ffa, oitc)
-- **Spawns:** 4+ spread out. Optional: `target-kills`, `kit`.
+- **Spawns:** 4+ spread out; respawns pick the spawn farthest from enemies with 2 s
+  protection, so more spread-out spawns make it fairer. Optional: `target-kills`, `kit`.
+- Streaks (ffa only): 3 kills = golden apple, 5 = speed. The strict leader (3+ kills)
+  carries a glowing bounty worth 5 tokens, claimable 3 times per player per match.
 
 ### Parkour Race (`parkour` - sprint, elimination)
 - **Regions:** `checkpoint1..N` in course order, `finish` at the end.
 - **Settings:** `void-y` - falling teleports you back to your last checkpoint (no death).
-- Optional: `elim-interval` for elimination mode.
+- Optional: `elim-interval` for elimination mode (seconds between cuts, default 45; each cut has a 10 s warning
+  and the cut runner becomes a ghost runner who keeps scoring per checkpoint). `finish-grace` - seconds after the
+  first finisher during which others can still finish and get a place (default 30, clamped 5-120).
+- Personal best times are kept per arena id, so renaming an arena resets its bests.
 
 ### Elytra Racing (`elytra` - sprint, grandprix)
 - **Spawns:** high launch platform. **Regions:** `checkpoint1..N` (big air rings),
-  `finish`. **Settings:** `void-y`. Optional: `laps`, `rockets`.
+  `finish`. **Settings:** `void-y`. Optional: `laps`, `rockets`, `finish-grace` (see Parkour).
+  Optional **boost rings** `boost1..N` (same cuboid style as checkpoints, not part of the route): flying through
+  one refills rockets to `rockets`, once per 3 s per ring.
 
 ### PulseKarts (`karts` - sprint, cup)
 - **Spawns:** 2+ on the starting grid. **Regions:** `checkpoint1..N`, `finish`
@@ -132,9 +160,27 @@ The checklist shows all of this in-game; this is the reference with map-building
 
 ### ReadyPlayerZ (`readyplayerz` - classic, frenzy)
 - **Spawns:** the squad room. **Regions:** `mobspawn1..N` - zombie windows/doors,
-  CoD-zombies style. Optional: `rounds`.
-- Kills earn points; emerald opens the Mystery Shop (weapons, armor, perks, heals).
-  Downed players revive when the team clears the round.
+  CoD-zombies style. Optional: `rounds`. Existing maps need nothing else.
+- Kills earn points (and 5 per hit); the emerald opens the **Supply Shop** (27-slot chest:
+  weapons, armour, perks, heals). Every third round (not a boss round) is a rush round of
+  runners; bosses ("Brute Boss") arrive every fifth round.
+- **Revive:** a downed player stays where they fell (slow, weakened). A teammate crouching
+  within 2 blocks for 8 s revives them at half health (+50 points). Bleed-out is 45 s, then
+  spectator until the round clears. A solo player gets one self-revive per match.
+- **Results:** round reached, kills, revives, points and MVP show on end; an overrun reads
+  "Well played", never "game over". Best round per map is kept in `stats.yml`
+  (`_records.readyplayerz.<arena>.best-round`) and shown on the sidebar.
+- **Optional extras (all fall back to a Supply Shop entry when absent):**
+  - `mysterybox1..N` - setting locations (`x,y,z,yaw,pitch`); right-click the block under it.
+    950 points, +10% per use, price resets every round; 3 s action-bar spin, weighted
+    weapon or perk.
+  - `packapunch` - setting location; right-click with a weapon in hand. 5000 points,
+    once per weapon (Sharpness III / Power III / Quick Charge II, renamed, glint).
+  - `difficulty` - `relaxed`, `normal` or `hard` (zombie health x0.75 / 1 / 1.25 and wave
+    size x0.8 / 1 / 1.25). Unset: relaxed for squads of 2 or fewer, otherwise normal.
+  - Existing optional doors, wall buys, `bounds`, darkness and health-tuning settings are unchanged.
+- Power-ups: insta-kill, double points, max ammo, nuke, plus Team Shield (10 s of protection)
+  and Second Wind (+4 hearts for the squad).
 
 ### Lucky Pillars (`luckypillars` - classic, chaos)
 - **Spawns:** one per pillar top. **Settings:** `void-y`.
@@ -146,10 +192,22 @@ The checklist shows all of this in-game; this is the reference with map-building
   ice floor, swap, mob swarm...). The border event sets its own border and restores the
   original afterwards; keep players' pillars within ~60 blocks of each other.
 
-### Prop Hunt (`prophunt` - classic, infection)
+### Prop Hunt (`prophunt` - classic, infection, rounds)
 - **Spawns:** spawn 1 is the seeker release point; add more for hider scatter points.
 - Build: lots of clutter (hay bales, barrels, crafting tables, logs, melons...) so
   hider head-blocks blend in. Optional: `hide-seconds`, `time-limit`.
+- **Rounds mode:** best of three with seeker and hider roles swapped each round (whoever has sought
+  least seeks next). Plain disguises only: it refuses to start while PulseContent custom props are
+  enabled. No map changes. `round-seconds` includes the hide time (default `hide-seconds` + 90).
+
+### Rounds mode (`rounds`: Spleef, TNT Run, Avalanche, Volcano, Dodgeball, Prop Hunt)
+A separate mode id; the existing modes are unchanged. Best of three short rounds, a 5 second
+intermission with a full reset, "Round 2 of 3" titles, and points per round by placement (the longest
+survivor scores the field size, the first out scores 1; players who last the whole clock tie at the top).
+The match winner has the most points, ties broken by round wins, then shared. Optional arena settings for
+every rounds game: `round-count` (1-5, default 3) and `round-seconds` (20-180, default 75; Dodgeball 90).
+An arena with an explicit `modes:` list must list `rounds` before it is offered; an arena with no list offers
+it automatically.
 
 ### Supermarket Sweep (`supermarket` - classic, rush)
 - **Regions:** `checkout` - walk through it to bank list items.
@@ -159,10 +217,17 @@ The checklist shows all of this in-game; this is the reference with map-building
 - Optional: `list-size`, `item-pool` (custom materials), `time-limit`.
 
 ### Party Games (`partygames`)
-- **Spawns:** 4+ at the central hub.
-- **Regions:** `floor` (Color Rush dance floor), `sumo` (knock-off platform - the
-  game spawns players on its top), `finish` (Sprint goal).
-- **Settings:** `void-y` below all three areas. Optional: `rounds`.
+- **Spawns:** 4+ at the central hub. **Lobby point:** where knocked-out players watch.
+- **Regions** (all optional per micro-game; a micro-game is only in the rotation if its
+  region exists): `floor` (Color Rush, Mini Spleef, TNT Run, Memory Tiles - Memory needs
+  at least 3x3 blocks), `sumo` (Sumo Brawl, Hot Potato - players start on its top),
+  `finish` (Sprint). Simon Says needs no region, so every map has at least one game.
+- **Settings:** `void-y` below all areas (floor games also eliminate anyone who drops
+  below the floor layer). Optional: `rounds` (default 5), `chaos-chance` (percent per
+  round after the first, default 15, 0 = never) for a double-points round, and
+  `podium1`, `podium2`, `podium3` locations (`x,y,z,yaw,pitch`) where the top three are
+  teleported during the final reveal. Without them the reveal happens on the hub.
+- Build: keep `floor` a flat single or few-layer block floor; it is restored after each round.
 
 ---
 
@@ -214,7 +279,9 @@ Modes: `solo` (2–12), `teams` (2–4, two teams). Provide at least two opposit
 spawns (first two are team bases), an enclosed court and `void-y`. No region is
 required. Players receive a blaze rod: right-click throws one snowball every
 0.75 seconds. Three enemy hits eliminate; friendly hits do nothing. Balls expire
-after five seconds. The last player/team wins; the four-minute timeout is a draw.
+after five seconds. The last player/team wins. At the four-minute timeout the side with the most lives wins;
+level sides play a 45 second sudden death on one life each (still level: shared). The sidebar lists everyone's
+lives. Mode `rounds` (2-12) plays best of three 90 second rounds, ranked by lives at the clock.
 `blueprints/dodgeball-court.json` supplies a simple enclosed court.
 
 ### Dropper (local validation required)
@@ -225,7 +292,9 @@ lowest landing. Optional `checkpoint1..N` regions cover intermediate water pools
 in numeric order. **Each** requires a `checkpoint-spawnN` location setting for
 the next stage's safe launch platform. Reaching a pool advances and teleports to
 that launch; damage or falling below `void-y` retries the current stage. The first
-player to complete all pools and the finish wins. Timeouts award no winner.
+player to complete all pools and the finish wins, but the race stays open for `finish-grace` seconds
+(default 30) so others still get a place and time; unfinished players are placed by stage reached. Timeouts
+with no finisher award no winner. Practice mode is a time trial against your per-map personal best.
 Pools must be reachable with ordinary falling and steering; provide solid rims
 and floors to contain water. Do not overlap launch points and landing regions.
 `blueprints/dropper-two-drops.json` supplies two 60-block drops with obstacle gates

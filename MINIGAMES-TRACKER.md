@@ -1,11 +1,170 @@
 # Minigames development and play-test tracker
 
-Last updated: 19 October 2026. Owner: Aurora. Agents should update this file as
+Last updated: 28 October 2026. Owner: Aurora. Agents should update this file as
 work and player feedback arrive; keep it in the PulseGames repository.
 
 Readable report: [HTML](MINIGAMES-TRACKER.html) · [PDF](MINIGAMES-TRACKER.pdf).
 After editing this source, regenerate both exports with
 `node tools/render-minigames-tracker.mjs --pdf`; see [update instructions](tools/TRACKER-README.md).
+
+## 28 October - Engagement bundle 0.4.0 (candidate jar built, not deployed)
+
+**Candidate only. `PulseGames-0.4.0` is built and checksummed but has not been copied to any server, and nothing has been played.** Branch `bundle/engagement-2026-10-28`, one bundle PR against `main`; deployment to MinigamesTest needs its own go-ahead. `pluginVersion` is now **0.4.0**. The six constituent sections above (A, B, E, C, D and the ReadyPlayerZ rework) stay as their builders wrote them; this section records what the bundle changed on top.
+
+**Constituent draft PRs (merged with `--no-ff`, in this order):** #34 stream A (placements, spectator hotbar, objective cards), #32 stream B (quick play, featured game, challenges, streaks, leaderboard), #33 stream E (race places, splits, personal bests), #36 stream C (rounds mode, hazard feel), #35 stream D (Party Games set, safe respawns, contested hill, streaks), #37 stream F (ReadyPlayerZ rework). The constituents are not closed; they ship in the bundle PR.
+
+**Cross-stream fixes made in the bundle (each its own commit):**
+1. **Races feed the podium.** Parkour, Elytra and Dropper call `GameInstance.recordFinish` as each racer finishes, and when the race closes the unfinished racers are recorded in the race's own order, so the engine's places, podium and 2nd/3rd bonuses match the race's list. PulseKarts calls it too (its own places stay authoritative). Dropper was marked cooperative, which suppressed engine placings and logged everyone behind the winner as a plain "Round ended"; it is no longer cooperative (`managesCompletion` already stops a leaver ending the race). Tied exact times still share first place in the race ledger but get consecutive engine places; noted as a small known difference.
+2. **Timeout rule.** `survivorsWinOnTimeout()` stays false by default. Survivors at the clock now get a podium order from `addScore` (survival seconds, height) via `MiniGame.onTimeUp`; a tie stops the ranked list so tied survivors share the place rather than getting an invented order. Decisions per game:
+   - **Avalanche: survivors win** (the objective is surviving `survive-seconds`; ranked by survival seconds, so a full-clock tie shares first).
+   - **Volcano: survivors win** (same; ranked by height, which gives a strict order).
+   - **Block Party: survivors win** (the floor cannot be stalled out, and surviving all rounds already wins; the clock ending is the same result).
+   - **Spleef: shared first, no win reward** (a stalemate, not a victory; stalling must not pay).
+   - **TNT Run: shared first** (the crumble speeds up with time, so a timeout means an unfinished round).
+   - **Skywars: shared first** (stalemate; a win needs the kills or last-alive).
+   - **Lucky Pillars: shared first** (a last-alive game, so a timeout is a stalemate).
+   - **Bedwars: shared first** (a win needs the beds and team elimination, so a timeout is a stalemate).
+   - **Prop Hunt: hiders win** (its own `onTimeUp`, unchanged: hiding until the clock is the hiders' objective).
+   - Death Run (Deaths win), Dodgeball (lives leader, sudden death), KOTH, Quake, Kit PvP, Duels and the races keep their own timeout logic. Rounds mode in Spleef, TNT Run, Avalanche, Volcano, Dodgeball and Prop Hunt decides on banked points as before.
+3. **One end-of-round voice.** "GAME OVER" and "Defeat" are gone from every path. The engine asks the game for a co-op end screen (`MiniGame.endSummary`): ReadyPlayerZ's title, subtitle and `CoopSummary` lines (round reached, kills, revives, points, MVP) now go to chat and into a "Squad summary" item in the 36-slot results menu, including the overrun path. Without a summary, co-op games get "Well played" wording and "The squad's run has ended". ReadyPlayerZ no longer overrides the title from `onEnd`.
+4. **ReadyPlayerZ bots.** New `BotObjectives.botGuardPoint(Player bot)` defaults to the shared hook, so Villager Defense is unchanged; ReadyPlayerZ bots each follow the nearest standing human and only walk to a door they can afford themselves. See `docs/QUEUE-BOTS.md`.
+5. **Game menu.** Rows are sized from the catalogue count (`rowsFor`), so Quick Play, challenges, weekly top 3, party and kit buttons never share a slot with a game; games beyond the 49 that fit in six rows are left out with a console warning rather than hidden under a button.
+6. **Pack-a-Punch success path** is now tested: the upgrade plan (Sharpness III, Power III, Quick Charge II, "Punched ..." name) is a pure function, and the enchantment lookup is overridable, so the whole purchase (charge, enchant, rename, lore, glint) runs under Mockito. There is no MockBukkit in the repo.
+7. Tracker HTML and PDF regenerated.
+
+**Tests:** 809 tests passing in `ready-gate exec -- bash ./gradlew build test` (before the bundle fixes the merged streams ran 799). New in the bundle commits: race-order and unfinished ranking, Dropper placings, timeout rule per game and podium order, co-op end screen and results summary, per-bot guard point and its default, game menu layout, Pack-a-Punch plan and success path.
+
+**Candidate jar:** `/home/ara/Projects/Ready/output/pulsegames/PulseGames-0.4.0-engagement-20261028.jar`, sha256 `5506b995b5d78f04a03f26beb8bce21070c4a54d63ba23571cb8f5c2b3780c8f`. Built from the bundle branch; not deployed anywhere.
+
+**Played acceptance still required on MinigamesTest (from the six builders):**
+- Titles, bossbars and action bars on Bedrock through Geyser (all new HUD text: race place line, hazard telegraphs, ReadyPlayerZ round titles, co-op summary).
+- Ghost spectators on Java and Bedrock, and the Geyser head menu for "Watch a player"; the 36-slot results menu with podium and Squad summary.
+- Region resets in rounds mode on real worlds (Spleef, TNT Run, Avalanche, Volcano, Dodgeball, Prop Hunt).
+- Prop Hunt rounds only with helmet disguises (custom PulseContent props are refused in rounds).
+- Avalanche and Volcano rounds need arenas under 300k blocks for the region snapshot.
+- Live-mode default changes to confirm in play: Volcano minimum rise interval 2 s, TNT Run late crumble quicker, Dodgeball timeout no longer a draw (lives leader, then sudden death), Block Party Hardcore hint shown for 2 s.
+- New in the bundle: the timeout rule for Avalanche, Volcano and Block Party (survivors paid a win) against the shared-first rule elsewhere; race podium agreement in Parkour, Elytra and Dropper; bots following the nearest human in ReadyPlayerZ; the game menu with a full footer.
+
+## 28 October - Engagement programme A: placements, spectators, objective cards (candidate)
+
+**Candidate, not deployed, not server-tested.** Draft PR "Engagement A: placements, spectator hotbar, objective cards" (branch `feat/engine-placements-spectators`, off `origin/main` at `aaeed16`). `pluginVersion` is not bumped; the bundle will. Mock-test coverage only: no played round, no Java or Bedrock client check.
+
+**Built (engine only, no game class edited):**
+- **Placements for every game**, derived from elimination order (last alive = 1st, ties share), with `GameInstance.recordFinish(player)` for race games to call later (finish order outranks everyone). `finishParticipant` also records a finish. Players who leave mid-round keep their place in the field. `MiniGame.placement(player)` / `placements()` expose them. Co-op games have no placings.
+- **Token bonuses**: 2nd 20, 3rd 10 (`economy.second-place-reward`, `third-place-reward`), only in fields of 4 or more (`economy.placement-min-players`), only for ranked rounds, on top of participation. A round with no declared winner pays its joint-first players the 2nd-place amount.
+- **Results**: chat gets "You finished 3rd of 8. Well played!" plus a podium line; the `/results` chest menu is now 36 slots with a 1st/2nd/3rd podium, your place, and the actions on the bottom row. A player who left early (queued the next game, or went to the lobby) gets a one-line result with a `/results` link when the match ends.
+- **Framing**: red "GAME OVER" and "Defeat" are gone. Non-winners see "Well played! You finished Nth of N"; the results outcome reads "Finished Nth of N" or "Draw (joint 1st)".
+- **Stats**: a draw or timeout with no winner is no longer logged as a loss (`draws` counter added, shown in the record line only when above 0). A co-op round nobody won is still a loss; a forced stop records nothing.
+- **Timeouts**: `MiniGame.onTimeUp` no longer makes every survivor a winner. Survivors share first place (participation plus placement bonus). A game opts back in with `survivorsWinOnTimeout()`. **Avalanche, Volcano, Spleef, TNT Run, Skywars and Bedwars use the default, so they now stop paying 50 tokens to every survivor; the hazard stream should decide whether Avalanche and Volcano (where surviving is the objective) override it.**
+- **Spectator hotbar** (`spectator.hotbar`, default true; false restores vanilla spectator mode): eliminated or finished players become invisible, invulnerable flying ghosts in adventure mode (vanilla spectator mode gives no usable hotbar, and Bedrock has no spectator menu). Items: Watch a player (chest menu of player heads, teleports), Play next game now (re-queues the same mode immediately, even while the match runs; refused while party mates are still alive), Pick another game, four reactions (cheer, love, wow, good game: sound plus particle at the nearest live player, one per 3 s per player), Leave. Projectiles pass through ghosts; ghosts that sink below the map are put back on the viewing platform.
+- **Results refusal fixed**: `/results` actions are blocked only while the player is alive in another running round; spectators, finished players and queue-waiters can act straight away.
+- **Objective cards**: `MiniGame.howToPlay()` (title, subtitle, tip) and `tip()`, defaulting to a one-line card per game in `GameCatalog` (all 24). Shown as a title when joining a queue, as the GO subtitle, and as the tip line in the waiting sidebar in place of "Waiting for players...".
+
+**Tests:** 691 passing in the full suite (18 new: 8 in `PlacementsTest`, 10 in `EngagementResultsTest`; one existing `GameOutcomeTest` case rewritten for the new timeout rule). They cover placement order, token bonuses, draw and timeout stats, the leave-early result, the spectator queue action and its party guard, emote rate limit, the results-action guard, and a card for every catalogue game.
+
+**Needs a real round before any rollout:** ghost mode on Java and Bedrock (flight toggle, invisibility, head menu rendering through Geyser), mobs and arrows around ghosts, the bigger results menu, and the 2nd/3rd bonuses against the economy balance.
+
+## 28 October - Engagement programme B: quick play, challenges, streaks, leaderboard (candidate)
+
+Draft PR on `feat/engine-quickplay-challenges`, from the 28 October engagement review
+(top-10 items 6 and 7 plus the kill-token cap). **Not merged, not deployed, no server
+test.** The plugin version is unchanged. `./gradlew build test`: 695 tests pass (22 new,
+covering quick-play selection, featured-game determinism, kill-token cap, streak
+bonuses, weekly reset, challenge progress and the ready vote).
+
+- **Quick Play**: lobby hotbar item (slot 2) and game-menu button join the busiest open
+  queue; ties go to the featured game, then random; with no open queue it starts the
+  featured game or a random playable one. Duels is left to its own kit menu.
+- **Featured game**: rotates daily by date through the playable games, or
+  `quickplay.featured.override`. It pays `quickplay.featured.token-multiplier` (default
+  1.5) on match tokens, applied beside the personal booster, not through it.
+- **Menu**: each game shows "N waiting / M playing" (humans) and a one-line length and
+  difficulty tag (`games/GameTags.java`, rough guesses to be tuned after play).
+- **Waiting room**: a lime "I'm ready" item (slot 4); once every human has clicked and
+  the minimum is met the countdown drops to `countdown.ready-seconds` (5). One added
+  sidebar line, "Ready: n/m".
+- **Challenges**: three starter dailies in `config.yml` (play three different games, win
+  a round, survive 90 s in Avalanche), a win streak with a small escalating bonus
+  (announced at 3, 5 and 10), a first-win-of-the-day bonus, and a `/challenges` chest GUI.
+- **Kill tokens** are capped at `economy.kill-token-cap` (25) per match.
+- **Weekly top three**: `/top [game]` and a button in the compass menu (chest GUI, no
+  holograms), wins plus a per-game leader column, in `stats.yml`; at the Monday reset the
+  top three get 100/60/30 tokens (`leaderboard.weekly-rewards`), delivered at next login
+  if they were offline.
+- **Cosmetics**: Sparkle Trail (also shows in Party Games and Parkour), Victory Fanfare
+  and Victory Bells.
+
+**SQL dependency.** The existing `ProgressionService` and `/challenges` depend on the
+paired PulseContent progression schema and API v1 (receipts, counters, cosmetic awards);
+the tracker records that schema as not applied and `progression.enabled` is still false.
+So these challenges run from the plugin's own `engagement.yml` and need no SQL. The SQL
+path stays optional: if `progression.enabled` is later turned on, `/challenges` also
+prints the SQL rows. The two are independent, so SQL cosmetic awards are not given by the
+local challenges. Counting only covers ranked rounds with a human majority; practice and
+forced rounds are ignored.
+
+Still to check on a server: Bedrock handling of the new hotbar items and GUIs, whether
+the ready item sits well with each game's `onJoin`, in-match trail load, and the tag
+wording. Hazard, race and results work in parallel branches may touch the same files.
+
+## 28 October - Engagement programme E: race pack (candidate)
+
+**Candidate, not deployed, not server-tested.** Draft PR "Engagement E: race places, splits, personal bests for Parkour, Elytra, Dropper" (branch `feat/race-pack`, no version bump). Covered only by unit tests (24 new, full suite 697 passing); nothing has been run on a server, so Bedrock/Geyser title and sound behaviour is unchecked.
+
+Built:
+- **Shared:** new `games/common/RaceFinish` (finish ledger: places, times, grace window, splits against the leader, time/ordinal formatting) and `RaceAwards` (finish title and personal best). `CheckpointRaceGame` has an opt-in `racePack()`; Parkour and Elytra opt in, PulseKarts does not and is untouched.
+- **Places:** the first finisher no longer ends the race. They start a grace window (arena setting `finish-grace`, default 30 s); everyone finishing inside it gets a place and time, the rest are placed by checkpoint/stage, then the race ends (or on timeout).
+- **HUD:** "You are 3rd/6" with the gap to the leader on the action bar; split vs leader at every checkpoint/ring/stage; finish time on the title; sidebar lists everyone's place (up to 8 plus your own row), with times for finishers; "Race closes in Ns" in the last 10 s of grace.
+- **Personal bests:** `StatsService.bestTime/submitBestTime`, stored additively as `<uuid>.<game>.best-ms.<map>` (old stats.yml loads unchanged; bots/NPCs never save). "New personal best!" title and sound. Dropper practice is now a time trial against the same PB.
+- **Parkour elimination (id kept):** 10 s warning (title, then countdown on the action bar, tick sounds) before each cut; the last runner becomes a ghost runner in spectator flight who keeps scoring 1 point per checkpoint instead of being eliminated. Cuts pause once someone finishes; one runner left wins ("last-runner"); ties still cut nobody. Setting `elim-interval` unchanged.
+- **Elytra:** ring-pass particle burst and chime, km/h speed readout beside the place, optional `boost1..N` regions that refill rockets (3 s cooldown per ring).
+- **Dropper:** "Stage 2/5" title with stage time and total, level-up sound, splash particles; per-stage and total timer and a friendly miss counter on the action bar; finish places with grace, so the first finisher no longer makes everyone else lose.
+
+Notes for the bundle:
+- Stream A is adding engine placements (`recordFinish`-style API in GameInstance/MatchResults). These places are self-contained in the race games and the helper; **once both merge, wire the race pack's places (`RaceFinish.results()`, `placings()`) into the engine podium.** Until then the engine still marks only the first-place finisher as the winner and everyone else as "Defeat".
+- Not done: Elytra slipstream, Parkour alternate routes, varied Dropper themes, switching PulseKarts to `RaceFinish` (left on `KartRaceResults` on purpose). Ghost-runner behaviour (spectator mode keeps move events and the finish guard) needs a real two-player test.
+
+## 28 October - Engagement programme C: rounds mode and hazard-game feel (candidate)
+
+**Candidate on branch `feat/hazard-rounds-juice`, draft PR. Nothing is deployed, nothing has been server-tested, and PulseGames `pluginVersion` is not bumped. Played acceptance on MinigamesTest is still required.**
+
+**Built (items 3 and 10 of the 28 October engagement review):**
+- **New mode `rounds`** for Spleef, TNT Run, Avalanche, Volcano, Dodgeball and Prop Hunt, registered in `GameCatalog`; live modes are untouched. Best of three (`round-count`, default 3) rounds of `round-seconds` (default 75; Dodgeball 90; Prop Hunt hide time + 90), 5 s intermission, "Round N of 3" titles, placement points per round, match winner on points (ties: round wins, then shared). Shared helpers in `games/common`: `RoundController`, `RoundTracker` (pure scoring) and `RegionSnapshot` (budgeted restore, generalising Party Games' floor snapshot). Spleef restores its `floor*` regions, Avalanche and Volcano their arena box (Avalanche down to `void-y`), TNT Run journals the blocks it removes, Dodgeball needs no reset, Prop Hunt swaps seekers and hiders each round. Prop Hunt rounds refuse to start when PulseContent custom props are enabled.
+- **Hazard feel (live modes too):** Avalanche landing smoke/crit particles within about a second of impact, near-miss action bar and sound, survival-time scores; Volcano "lava is N blocks below you" action bar, next-rise bossbar, rising lava pop, smoke column a second before each rock, new `min-lava-interval` (default 2 s, so the late rise can no longer reach 1 block a second), survivors ranked by height; Spleef decay cracks a block a second before it vanishes (decay now removes blocks one second after marking), dig crack sound/particle and snowball count; TNT Run double-jump readiness on the action bar and XP bar, "last five" title and countdown, new `crumble-acceleration-seconds` (default 60) and `min-crumble-ticks` (default 4); Block Party rising-pitch tick, bass note on clear, round/alive title, name + shape on the action bar, optional `colour-patterns` glazed-terracotta floor, Hardcore shows the hint briefly instead of hiding it; Dodgeball lists everyone's lives, with level sides going to sudden death (45 s, one life) instead of a blanket draw; all of these use a louder elimination cue through a new `MiniGame.eliminationSound()` hook (one-line change in `GameInstance.eliminate`; default unchanged for other games) and a "final three" title.
+- **Behaviour changes to live modes to confirm in play:** Volcano late rise is slower by default; TNT Run late crumble is quicker by default; Spleef decay lags marking by one second; Dodgeball timeout is no longer a draw; Block Party Hardcore hint is shown for 2 s rather than hidden.
+
+**Tests:** 697 JUnit checks pass (673 before, 24 new: round scoring, snapshot and restore, round flow, rise-rate cap, decay telegraph timing, Dodgeball sudden death, Prop Hunt role rotation, feedback helpers). One existing Block Party test was adjusted to stub the hotbar-hint step. The rounds flow, region resets on real worlds, Bedrock rendering of titles/bossbars/action bars and the new sounds are untested.
+
+## 28 October - ReadyPlayerZ rework: candidate
+
+**Prepared, not deployed or server-tested** (draft PR "Engagement F"): crouch-to-revive with 45 s bleed-out and a solo self-revive; round start/clear titles and sounds, last-zombie glow, multikill action-bar chain, rush rounds, husk and armoured Brute variants, two new power-ups (Team Shield, Second Wind); a 27-slot Supply Shop, Mystery Box (950 points, +10% per use) and Pack-a-Punch (5000) as optional map locations with shop fallbacks; `difficulty` (relaxed/normal/hard); co-op summary with MVP and per-map best round; bots follow the first human and crouch to revive downed humans. Existing maps need no changes. Mock tests only; no played acceptance recorded. Version bump left to the bundle.
+
+## 28 October - Engagement programme D: Party Games variety, Kit PvP and KOTH fairness (candidate)
+
+Prepared on `feat/party-games-combat-fairness` as a draft PR against `main`. **Nothing is
+merged, deployed or server-tested**; unit tests only. No plugin version bump.
+
+- **Party Games:** eight micro-games in a shuffle bag (no repeats until all have played):
+  Color Rush, Sumo Brawl, Sprint, Mini Spleef, TNT Run, Hot Potato, Memory Tiles, Simon
+  Says. They use only the existing `floor`, `sumo` and `finish` regions; a game whose
+  region is missing is left out, and Simon Says works anywhere. Placement points 5/3/1
+  plus 1 for taking part; a title card with a one-line instruction and a 3 s countdown
+  before each game; an optional chaos round (double points, `chaos-chance`, default 15%);
+  knocked-out players watch from the hub with a live "still in" action bar; the match ends
+  with a podium reveal (3rd, 2nd, 1st, fireworks) before the engine's results.
+  Egg Shoot and Dodgeball variants were not built (they need spawned targets/projectile
+  handling and overlap the hazard-games work).
+- **Kit PvP and KOTH:** safe respawn (farthest from enemies, random among the farthest
+  third of spawns) with 2 s spawn protection; KOTH contested hill pauses scoring with a
+  CONTESTED title and bossbar, kill (5) and assist (2) points, team-coloured capture
+  bossbar, optional `hill1..N` rotation; Kit PvP streak rewards (3 golden apple, 5 speed,
+  ffa only), a glowing bounty on the strict leader paid in tokens (capped at 3 claims per
+  player), and a kill feed on the killer's action bar. OITC keeps its rules.
+- **Tests:** 21 new (shuffle bag, placement points, contested hill, safe spawn, protection,
+  assists, streaks, bounty); full suite 694 passed, 0 failed.
+- **Needs a real server before release:** Spleef/TNT Run/Memory floor restore on every
+  exit path, freeze effect during the countdown on Bedrock, Simon Says sneak/look checks on
+  Bedrock and touch clients, bossbar colours, and map spawn spread for safe respawns.
 
 ## 19 October - ReadyPlayerZ faster kills and 1.8-style combat: 0.3.27 candidate
 

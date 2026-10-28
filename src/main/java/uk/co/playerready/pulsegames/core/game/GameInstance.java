@@ -62,6 +62,9 @@ public final class GameInstance {
     private uk.co.playerready.pulsegames.core.bot.BotDifficulty practiceDifficulty = uk.co.playerready.pulsegames.core.bot.BotDifficulty.NORMAL;
     private int practiceBotTarget;
     private final Map<UUID, Integer> roundKills = new HashMap<>(), roundDeaths = new HashMap<>();
+    /** Engagement: kill tokens already paid this match (capped), ready votes, and seconds survived. */
+    private final Map<UUID, Integer> killTokens = new HashMap<>(), survivedAt = new HashMap<>();
+    private final java.util.Set<UUID> readyVotes = new java.util.HashSet<>();
     private final Set<UUID> alive = new LinkedHashSet<>();
     private final Set<UUID> spectators = new LinkedHashSet<>();
     private final List<GameTeam> teams = new ArrayList<>();
@@ -69,6 +72,14 @@ public final class GameInstance {
     private final Map<UUID, UUID> lastDamager = new HashMap<>();
     private final Map<UUID, Long> lastDamagerAt = new HashMap<>();
     private final Map<UUID, Integer> scores = new HashMap<>();
+    // Placement bookkeeping: finish order is best first, out order is first out first.
+    private final List<UUID> finishOrder = new ArrayList<>();
+    private final List<UUID> outOrder = new ArrayList<>();
+    /** Participants (bots included) who left mid-round; they still count in the field and get a late result. */
+    private final Set<UUID> departed = new LinkedHashSet<>();
+    private final Map<UUID, String> names = new HashMap<>();
+    private Map<UUID, Integer> finalPlacements;
+    private final SpectatorTools spectatorTools = new SpectatorTools(this);
 
     public GameInstance(PulseGamesPlugin plugin, GameType type, GameMode mode, Arena arena) {
         this.plugin = plugin;
@@ -114,6 +125,7 @@ public final class GameInstance {
     public StatsService stats() { return plugin.stats(); }
     public List<GameTeam> teams() { return teams; }
     public boolean frozen() { return startCountdownSeconds() > 0; }
+    public SpectatorTools spectatorTools() { return spectatorTools; }
 
     /** Same deadline as movement/combat protection; round upwards so zero means unlocked. */
     public int startCountdownSeconds() {
@@ -214,6 +226,47 @@ public final class GameInstance {
                 .toList();
     }
 
+    // ---- placements ----------------------------------------------------------------------
+
+    /**
+     * Race-style games call this when a player completes the course. Finish order decides
+     * the top places; everyone else is ranked from elimination order. Idempotent, and it
+     * does not remove the player from the round (use {@link #finishParticipant} for that).
+     */
+    public void recordFinish(Player player) {
+        UUID id = player.getUniqueId();
+        if (state != GameState.RUNNING || !participants.contains(id) || finishOrder.contains(id)) return;
+        finishOrder.add(id);
+    }
+
+    private Set<UUID> field() {
+        Set<UUID> field = new LinkedHashSet<>(participants);
+        field.addAll(departed);
+        return field;
+    }
+
+    /** Places for everyone in the round, best first; frozen once the round has ended. */
+    public Map<UUID, Integer> placements() {
+        if (finalPlacements != null) return finalPlacements;
+        return Placements.compute(field(), finishOrder, List.of(), alive, outOrder);
+    }
+
+    /** 1 = best, ties share; provisional while the round runs. 0 for non-participants and co-op games. */
+    public int placement(Player player) {
+        if (logic.cooperative()) return 0;
+        return placements().getOrDefault(player.getUniqueId(), 0);
+    }
+
+    /** Online participants ordered best place first. */
+    public List<Player> placementOrder() {
+        return placements().keySet().stream().map(this::player).filter(java.util.Objects::nonNull).toList();
+    }
+
+    private String nameOf(UUID id) {
+        Player p = player(id);
+        return p != null ? p.getName() : names.getOrDefault(id, "Player");
+    }
+
     // ---- joining / leaving ---------------------------------------------------
 
     public boolean add(Player player) {
@@ -223,6 +276,7 @@ public final class GameInstance {
         if (!bot && plugin.bots() != null) plugin.bots().beforeHumanJoin(this, player);
         if (bot) botIds.add(player.getUniqueId());
         participants.add(player.getUniqueId());
+        names.put(player.getUniqueId(), player.getName());
         plugin.instances().index(player, this);
         if (bot) plugin.playerState().reset(player);
         else plugin.playerState().save(player);
@@ -245,15 +299,68 @@ public final class GameInstance {
             note("join-failed",ex.getClass().getSimpleName());remove(player,true);return false;
         }
         if (!bot && plugin.results() != null) plugin.results().clearReturnHold(player);
+        if (!bot) showObjectiveCard(player);
         note("joined", "participants="+participants.size());
         if (plugin.combat() != null) plugin.combat().refresh(player);
         return true;
+    }
+
+    private ObjectiveCard card() {
+        ObjectiveCard card = logic.howToPlay();
+        return card != null ? card : ObjectiveCard.fallback(type);
+    }
+
+    /** Objective title at queue-join. */
+    private void showObjectiveCard(Player player) {
+        try {
+            ObjectiveCard card = card();
+            Text.title(player, "<aqua><b>" + card.title(), "<gray>" + card.subtitle());
+        } catch (RuntimeException ex) {
+            note("card-failed", ex.getClass().getSimpleName());
+        }
+    }
+
+    private String tipLine() {
+        try {
+            String tip = logic.tip();
+            return tip == null || tip.isBlank() ? "Waiting for players..." : tip;
+        } catch (RuntimeException ex) {
+            return "Waiting for players...";
+        }
     }
 
     private void giveLeaveItem(Player player) {
         ItemStack bed = new ItemStack(Material.RED_BED);
         bed.editMeta(meta -> meta.displayName(Text.mm("<red>Leave game <gray>(right-click)")));
         player.getInventory().setItem(8, bed);
+        player.getInventory().setItem(4, ReadyVote.item());
+    }
+
+    /** Seconds this player survived: when they went out, or the whole round if still alive. */
+    public int survivedSeconds(Player player) {
+        return survivedAt.getOrDefault(player.getUniqueId(), gameTime);
+    }
+
+    public int readyCount() {
+        return (int) players().stream().filter(p -> !isBot(p) && readyVotes.contains(p.getUniqueId())).count();
+    }
+
+    /** Waiting-room "ready" item: once every human has clicked, the countdown starts (or shortens). */
+    public void voteReady(Player player) {
+        if ((state != GameState.WAITING && state != GameState.COUNTDOWN) || !isParticipant(player) || isBot(player)) return;
+        if (!readyVotes.add(player.getUniqueId())) {
+            player.sendActionBar(Text.mm("<gray>You are already ready. Waiting for the others."));
+            return;
+        }
+        player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1f, 1.6f);
+        List<UUID> humans = players().stream().filter(p -> !isBot(p)).map(Player::getUniqueId).toList();
+        broadcast("<green>" + player.getName() + " is ready <gray>(" + readyCount() + "/" + humans.size() + ")");
+        if (ReadyVote.shouldStart(humans, readyVotes, participants.size(), minPlayers())) {
+            int ready = Math.max(1, plugin.getConfig().getInt("countdown.ready-seconds", 5));
+            countdown = state == GameState.WAITING ? ready : ReadyVote.shortenedCountdown(countdown, ready);
+            state = GameState.COUNTDOWN;
+            broadcast("<green>Everyone is ready! Starting in " + countdown + "s");
+        }
     }
 
     void suspendWaiting(Player player) {
@@ -297,6 +404,12 @@ public final class GameInstance {
         if (!participants.contains(player.getUniqueId()) && !spectators.contains(player.getUniqueId())) return;
         boolean bot = isBot(player);
         boolean wasAlive = alive.remove(player.getUniqueId());
+        if (state == GameState.RUNNING && participants.contains(player.getUniqueId())) {
+            departed.add(player.getUniqueId());
+            names.putIfAbsent(player.getUniqueId(), player.getName());
+            if (wasAlive && !outOrder.contains(player.getUniqueId()) && !finishOrder.contains(player.getUniqueId()))
+                outOrder.add(player.getUniqueId());
+        }
         respawning.remove(player.getUniqueId());
         lastDamager.remove(player.getUniqueId());
         lastDamagerAt.remove(player.getUniqueId());
@@ -308,6 +421,7 @@ public final class GameInstance {
         releaseStep("combat", () -> { if (plugin.combat() != null) plugin.combat().leave(player); });
         try { logic.onQuit(player); } catch (RuntimeException ex) { note("quit-hook-failed", ex.getClass().getSimpleName()); }
         if (!bot) {
+            releaseStep("ghost", () -> spectatorTools.release(player));
             releaseStep("inventory", () -> plugin.playerState().restore(player));
             releaseStep("sidebar", () -> plugin.sidebar().clear(player));
             if (teleportToLobby && player.isOnline()) releaseStep("lobby", () -> plugin.lobby().sendToLobby(player));
@@ -537,13 +651,17 @@ public final class GameInstance {
                     if (isBot(p)) continue;
                     Text.title(p, seconds > 0 ? "<yellow><b>" + seconds
                                     : phase == null ? "<green><b>GO!" : "<green><b>READY!",
-                            phase != null ? "<gray>" + phase : seconds > 0 ? "<gray>Get ready" : "<gray>" + type.displayName());
+                            phase != null ? "<gray>" + phase : seconds > 0 ? "<gray>Get ready" : "<yellow>" + goLine());
                     p.playSound(p.getLocation(), seconds > 0 ? "minecraft:block.note_block.hat"
                             : "minecraft:entity.ender_dragon.growl", 0.6f, seconds > 0 ? 2f : 1.4f);
                 }
             }
         }
         return seconds > 0;
+    }
+
+    private String goLine() {
+        try { return card().title(); } catch (RuntimeException ex) { return type.displayName(); }
     }
 
     /** Reserve space for timers and the shared footer before adding game-specific scores. */
@@ -599,8 +717,14 @@ public final class GameInstance {
             lastDamagerAt.remove(victim.getUniqueId());
             if (resolvedKiller != null && ranked() && !isBot(resolvedKiller)) {
                 plugin.cosmetics().playKillEffect(resolvedKiller, victim.getLocation());
-                plugin.economy().addMatchTokens(resolvedKiller,
-                        plugin.getConfig().getInt("economy.kill-reward", 5), "kill");
+                int killPay = uk.co.playerready.pulsegames.core.economy.RewardRules.killPayout(
+                        killTokens.getOrDefault(resolvedKiller.getUniqueId(), 0),
+                        plugin.getConfig().getInt("economy.kill-reward", 5),
+                        plugin.getConfig().getInt("economy.kill-token-cap", 25));
+                if (killPay > 0) {
+                    killTokens.merge(resolvedKiller.getUniqueId(), killPay, Integer::sum);
+                    plugin.economy().addMatchTokens(resolvedKiller, killPay, "kill");
+                }
             }
             logic.onDeath(victim, resolvedKiller);
         } finally {
@@ -617,29 +741,34 @@ public final class GameInstance {
         lastDamager.remove(player.getUniqueId());
         lastDamagerAt.remove(player.getUniqueId());
         spectators.add(player.getUniqueId());
+        if (!finishOrder.contains(player.getUniqueId())) finishOrder.add(player.getUniqueId());
         if (plugin.combat() != null) plugin.combat().leave(player);
         plugin.playerState().reset(player);
-        player.setGameMode(org.bukkit.GameMode.SPECTATOR);
+        spectatorTools.enter(player);
         player.teleport(arena.spectator(world));
     }
 
     public void eliminate(Player player) {
         if (!alive.remove(player.getUniqueId())) return;
+        survivedAt.put(player.getUniqueId(), gameTime);
         spectators.add(player.getUniqueId());
+        if (!outOrder.contains(player.getUniqueId())) outOrder.add(player.getUniqueId());
         if (plugin.combat() != null) plugin.combat().leave(player);
         Location deathSpot = player.getLocation();
         world.spawnParticle(org.bukkit.Particle.CLOUD, deathSpot.add(0, 1, 0), 30, 0.3, 0.5, 0.3, 0.05);
         world.spawnParticle(org.bukkit.Particle.FLAME, deathSpot, 15, 0.2, 0.3, 0.2, 0.02);
         for (Player p : everyone()) {
-            p.playSound(deathSpot, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 0.3f, 1.6f);
+            p.playSound(deathSpot, logic.eliminationSound().sound(), logic.eliminationSound().volume(), logic.eliminationSound().pitch());
         }
         plugin.playerState().reset(player);
-        player.setGameMode(org.bukkit.GameMode.SPECTATOR);
+        spectatorTools.enter(player);
         player.teleport(arena.spectator(world));
-        Text.title(player, "<red><b>ELIMINATED", "<gray>You are now spectating");
-        // Bedrock clients have no vanilla spectator menu, so only name what works everywhere.
-        player.sendMessage(Text.msg("<gray>You're spectating - fly around to watch the rest of the "
-                + "game, or type <yellow>/lobby</yellow> to leave."));
+        int outPlace = placement(player);
+        Text.title(player, "<yellow><b>You're out!", "<gray>" + (outPlace > 0 ? "You're in " + Placements.ordinal(outPlace)
+                + " place. " : "") + "Tap the items below to watch or queue.");
+        // Bedrock clients have no vanilla spectator menu, so the hotbar items do that job.
+        player.sendMessage(Text.msg("<gray>You're out - use the hotbar to <yellow>watch a player</yellow>, "
+                + "<yellow>play the next game now</yellow>, or send a reaction. <yellow>/lobby</yellow> leaves."));
         logic.onEliminated(player);
         checkEnd();
     }
@@ -688,19 +817,36 @@ public final class GameInstance {
         if (plugin.bots() != null) plugin.bots().onRoundEnd(this, creditedWinners, reason);
         state = GameState.ENDING;
         if ("forced".equals(reason)) competitiveEligible = false;
+        boolean coop = logic.cooperative();
+        Set<UUID> winnerIds = new LinkedHashSet<>();
+        creditedWinners.forEach(w -> winnerIds.add(w.getUniqueId()));
+        finalPlacements = coop ? Map.of() : Placements.compute(field(), finishOrder, winnerIds, alive, outOrder);
+        int fieldSize = field().size();
+        List<String> podium = Placements.podium(finalPlacements, this::nameOf);
+        boolean anyWinner = !creditedWinners.isEmpty();
+        boolean decided = anyWinner || !reason.equals("forced");
+        int minField = plugin.getConfig().getInt("economy.placement-min-players", 4);
+        int secondReward = plugin.getConfig().getInt("economy.second-place-reward", 20);
+        int thirdReward = plugin.getConfig().getInt("economy.third-place-reward", 10);
         countdown = plugin.getConfig().getInt("end.celebrate-seconds", 10);
-        String names = creditedWinners.isEmpty() ? "Nobody"
+        String winnerNames = creditedWinners.isEmpty() ? "Nobody"
                 : String.join("<gray>, </gray><yellow>", creditedWinners.stream().map(Player::getName).toList());
-        broadcast("<gold><b>GAME OVER!</b></gold> <gray>Winner(s): <yellow>" + names);
+        MiniGame.EndSummary summary = coop ? coopSummary(creditedWinners) : null;
+        List<String> summaryLines = summary == null ? List.of() : summary.lines();
+        List<String> summaryPlain = summaryLines.stream().map(Text::plain).toList();
+        broadcast("<gold><b>Round over!</b></gold> <gray>" + (coop ? (anyWinner ? "The squad pulled it off." : "The squad's run has ended.")
+                : anyWinner ? "Winner(s): <yellow>" + winnerNames : "No single winner this time."));
         for (Player p : everyone()) {
             if (isBot(p)) { p.setGameMode(org.bukkit.GameMode.SPECTATOR); continue; }
             int balanceBefore = plugin.economy().tokens(p);
             wardrobeContext(p, "ended");
             if (isParticipant(p)) wardrobeCelebration(p, "finish_event");
+            int place = coop ? 0 : finalPlacements.getOrDefault(p.getUniqueId(), 0);
             if (creditedWinners.contains(p)) {
                 wardrobeCelebration(p, "win_animation");
-                Text.title(p, "<gold><b>VICTORY!", "<gray>You won " + type.displayName());
-                p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
+                if (summary != null) Text.title(p, summary.title(), summary.subtitle());
+                else Text.title(p, "<gold><b>VICTORY!", "<gray>You won " + type.displayName());
+                p.playSound(p.getLocation(), "minecraft:ui.toast.challenge_complete", 1f, 1f);
                 plugin.stats().addWin(p, type.id());
                 plugin.economy().addMatchTokens(p, plugin.getConfig().getInt("economy.win-reward", 50), "victory");
                 spawnFirework(p.getLocation());
@@ -708,24 +854,45 @@ public final class GameInstance {
                 if (isParticipant(p)) {
                     plugin.economy().addMatchTokens(p,
                             plugin.getConfig().getInt("economy.participation-reward", 10), "game played");
+                    int bonus = ranked() && decided ? Placements.bonus(place, anyWinner, fieldSize, minField, secondReward, thirdReward) : 0;
+                    if (bonus > 0) plugin.economy().addMatchTokens(p, bonus, "placement");
                 }
-                Text.title(p, "<red><b>GAME OVER", "<gray>Winner(s): " + names);
-                if (isParticipant(p)) plugin.stats().addLoss(p, type.id());
+                String line = place > 0 ? (anyWinner || place > 1 ? "You finished " + Placements.ordinal(place) + " of " + fieldSize
+                        : "Joint first - nobody took the win") : coop ? "The round is over - nicely done, team"
+                        : anyWinner ? "Winner(s): " + winnerNames : "The round is over";
+                if (summary != null) Text.title(p, summary.title(), summary.subtitle());
+                else Text.title(p, "<aqua><b>Well played!", "<gray>" + line);
+                // A draw or timeout with no declared winner is not a loss.
+                // A co-op round nobody won is a genuine loss; a forced stop is neither.
+                if (isParticipant(p) && !"forced".equals(reason)) {
+                    if (anyWinner || coop) plugin.stats().addLoss(p, type.id());
+                    else plugin.stats().addDraw(p, type.id());
+                }
             }
+            summaryLines.forEach(line -> p.sendMessage(Text.msg(line)));
             if (plugin.progression() != null) plugin.progression().completed(this, p, creditedWinners.contains(p), roundKills.getOrDefault(p.getUniqueId(), 0), reason);
+            if (plugin.engagement() != null) plugin.engagement().matchEnded(this, p, creditedWinners.contains(p), !creditedWinners.isEmpty(), reason);
             p.setGameMode(org.bukkit.GameMode.SPECTATOR);
+            int draws = plugin.stats().get(p, type.id(), "draws");
             p.sendMessage(Text.msg("<gray>Record: <green>" + plugin.stats().get(p, type.id(), "wins")
-                    + "W</green> <red>" + plugin.stats().get(p, type.id(), "losses") + "L</red> <gray>in "
+                    + "W</green> <red>" + plugin.stats().get(p, type.id(), "losses") + "L</red>"
+                    + (draws > 0 ? " <yellow>" + draws + "D</yellow>" : "") + " <gray>in "
                     + type.displayName() + " <dark_gray>(" + plugin.stats().get(p, type.id(), "played") + " played)"));
             if (plugin.results() != null) {
-                GameTeam team = teamOf(p);
-                int teamScore = team == null ? score(p) : players().stream().filter(team::contains).mapToInt(this::score).sum();
-                plugin.results().publish(p, new MatchResults.Result(id, type.id(), mode.id(), arena.displayName(),
-                        !isParticipant(p) ? "Spectated" : creditedWinners.contains(p) ? "Victory" : creditedWinners.isEmpty() ? "Round ended" : "Defeat",
-                        team == null ? "Solo" : "Team " + (team.index() + 1), score(p), teamScore,
-                        roundKills.getOrDefault(p.getUniqueId(), 0), roundDeaths.getOrDefault(p.getUniqueId(), 0),
-                        Math.max(0, plugin.economy().tokens(p) - balanceBefore), ranked() && isParticipant(p), practice,
-                        System.currentTimeMillis() + 600_000L));
+                plugin.results().publish(p, resultFor(p, creditedWinners, balanceBefore, place, fieldSize, podium, summaryPlain));
+            }
+        }
+        // Players who left early (queued the next game, or went to the lobby) still get their result.
+        if (plugin.results() != null) {
+            for (UUID gid : departed) {
+                Player gone = plugin.getServer().getPlayer(gid);
+                if (gone == null || !gone.isOnline() || participants.contains(gid) || spectators.contains(gid)
+                        || plugin.bots() != null && plugin.bots().isBot(gone)) continue;
+                int gonePlace = coop ? 0 : finalPlacements.getOrDefault(gid, 0);
+                plugin.results().publishLate(gone, new MatchResults.Result(id, type.id(), mode.id(), arena.displayName(),
+                        Placements.outcome(true, false, anyWinner, coop, gonePlace, fieldSize),
+                        "Solo", 0, 0, roundKills.getOrDefault(gid, 0), roundDeaths.getOrDefault(gid, 0), 0, false, practice,
+                        System.currentTimeMillis() + 600_000L, gonePlace, fieldSize, podium, summaryPlain));
             }
         }
         // Celebration: fireworks rain on the creditedWinners until cleanup.
@@ -737,6 +904,29 @@ public final class GameInstance {
             }
         });
         runLogic("onEnd", () -> logic.onEnd(creditedWinners));
+    }
+
+    private MatchResults.Result resultFor(Player p, List<Player> creditedWinners, int balanceBefore, int place,
+                                          int fieldSize, List<String> podium, List<String> summary) {
+        GameTeam team = teamOf(p);
+        int teamScore = team == null ? score(p) : players().stream().filter(team::contains).mapToInt(this::score).sum();
+        String outcome = Placements.outcome(isParticipant(p), creditedWinners.contains(p), !creditedWinners.isEmpty(),
+                logic.cooperative(), place, fieldSize);
+        return new MatchResults.Result(id, type.id(), mode.id(), arena.displayName(), outcome,
+                team == null ? "Solo" : "Team " + (team.index() + 1), score(p), teamScore,
+                roundKills.getOrDefault(p.getUniqueId(), 0), roundDeaths.getOrDefault(p.getUniqueId(), 0),
+                Math.max(0, plugin.economy().tokens(p) - balanceBefore), ranked() && isParticipant(p), practice,
+                System.currentTimeMillis() + 600_000L, place, fieldSize, podium, summary);
+    }
+
+    /** The logic's co-op end screen, or null (a failing hook must never stop a round from ending). */
+    private MiniGame.EndSummary coopSummary(List<Player> winners) {
+        try {
+            return logic.endSummary(winners);
+        } catch (RuntimeException ex) {
+            note("summary-failed", ex.getClass().getSimpleName());
+            return null;
+        }
     }
 
     private void wardrobeContext(Player player, String phase) {
@@ -783,6 +973,7 @@ public final class GameInstance {
             plugin.instances().unindex(p);
             releaseStep("wardrobe", () -> { if (plugin.content() != null) plugin.content().clearWardrobeContext(p); });
             releaseStep("combat", () -> { if (plugin.combat() != null) plugin.combat().leave(p); });
+            releaseStep("ghost", () -> spectatorTools.release(p));
             if (!isBot(p)) {
                 releaseStep("inventory", () -> plugin.playerState().restore(p));
                 releaseStep("sidebar", () -> plugin.sidebar().clear(p));
@@ -851,7 +1042,8 @@ public final class GameInstance {
             switch (state) {
                 case WAITING -> {
                     lines.add("<gray>Players: <white>" + participants.size() + "/" + maxPlayers());
-                    lines.add("<gray>Waiting for players...");
+                    lines.add("<gray>" + tipLine());
+                    lines.add("<gray>Ready: <white>" + readyCount() + "/" + humanCount());
                     lines.add("<yellow>" + plugin.bots().queueStatus(this));
                 }
                 case COUNTDOWN -> {

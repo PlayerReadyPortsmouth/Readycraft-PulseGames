@@ -7,6 +7,10 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import uk.co.playerready.pulsegames.core.game.GameInstance;
 import uk.co.playerready.pulsegames.core.game.MiniGame;
 import uk.co.playerready.pulsegames.core.util.Cuboid;
+import uk.co.playerready.pulsegames.core.util.Text;
+import uk.co.playerready.pulsegames.games.common.HazardFeedback;
+import uk.co.playerready.pulsegames.games.common.RegionSnapshot;
+import uk.co.playerready.pulsegames.games.common.RoundController;
 
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -22,6 +26,27 @@ public final class AvalancheGame extends MiniGame implements uk.co.playerready.p
     private int graceUntil;
     private boolean cleaning;
     private boolean closed;
+    private long shrinkGeneration;
+    private RoundController rounds;
+    private final java.util.List<org.bukkit.entity.FallingBlock> inFlight = new java.util.ArrayList<>();
+    private final java.util.Set<java.util.UUID> telegraphed = new java.util.HashSet<>();
+    private final java.util.Set<String> nearMisses = new java.util.HashSet<>();
+
+    /** A falling block gets its landing marker once it is within this many blocks of the ground (about a second out). */
+    static final double TELEGRAPH_BLOCKS = 20;
+    /** A block landing between a body's width and this far away is a near miss. */
+    static final double NEAR_MISS_RADIUS = 2.0;
+    static final double HIT_RADIUS = 0.9;
+
+    public static boolean shouldTelegraph(double heightAboveLanding) {
+        return heightAboveLanding >= 0 && heightAboveLanding <= TELEGRAPH_BLOCKS;
+    }
+
+    public static boolean isNearMiss(double horizontalDistance) {
+        return horizontalDistance > HIT_RADIUS && horizontalDistance <= NEAR_MISS_RADIUS;
+    }
+
+    private boolean isRounds() { return RoundController.isRounds(game); }
 
     static Cuboid inset(Cuboid area, int minimum) {
         if (area.maxX() - area.minX() + 1 < minimum + 2
@@ -33,15 +58,15 @@ public final class AvalancheGame extends MiniGame implements uk.co.playerready.p
     private int interval() { return Math.max(10, game.arena().settings().getInt("shrink-interval", 15)); }
     private Cuboid nextArea() { return inset(area, Math.max(3, game.arena().settings().getInt("minimum-size", 7))); }
 
-    private void removeEdges(java.util.Iterator<org.bukkit.block.Block> blocks, Cuboid keep) {
-        if (closed || game.world() == null) { cleaning = false; return; }
+    private void removeEdges(java.util.Iterator<org.bukkit.block.Block> blocks, Cuboid keep, long generation) {
+        if (closed || game.world() == null || generation != shrinkGeneration) { cleaning = false; return; }
         // Bounded work per tick, even with tall or unusually large map regions.
         int budget = 512;
         while (budget-- > 0 && blocks.hasNext()) {
             var block = blocks.next();
             if (!keep.containsColumn(block.getLocation())) block.setType(Material.AIR, false);
         }
-        if (blocks.hasNext()) game.runLater(1, () -> removeEdges(blocks, keep));
+        if (blocks.hasNext()) game.runLater(1, () -> removeEdges(blocks, keep, generation));
         else cleaning = false;
     }
 
@@ -67,11 +92,99 @@ public final class AvalancheGame extends MiniGame implements uk.co.playerready.p
                 new Cuboid(next.minX(),bottom,previous.minZ(),next.maxX(),previous.maxY(),previous.minZ()),
                 new Cuboid(next.minX(),bottom,previous.maxZ(),next.maxX(),previous.maxY(),previous.maxZ()));
         var blocks = edges.stream().flatMap(edge -> edge.blocks(game.world()).stream()).iterator();
-        removeEdges(blocks, next);
+        removeEdges(blocks, next, shrinkGeneration);
     }
 
-    @Override public void onCleanup() { closed = true; }
+    @Override public void onCleanup() { closed = true; shrinkGeneration++; if (rounds != null) rounds.close(); }
     @Override public void onEnd(java.util.List<Player> winners) { onCleanup(); }
+    @Override public void onQuit(Player player) { if (rounds != null) rounds.playerLeft(player); }
+    @Override public MiniGame.Cue eliminationSound() { return HazardFeedback.LOUD_ELIMINATION; }
+
+    /** Support columns count too: the collapse removes them down to the void threshold. */
+    private Cuboid snapshotBox(Cuboid arena) {
+        int bottom = Math.max(game.world().getMinHeight(), Math.min(arena.minY() - 1,
+                game.arena().settings().getInt("void-y", arena.minY() - 2) + 1));
+        return new Cuboid(arena.minX(), bottom, arena.minZ(), arena.maxX(), arena.maxY(), arena.maxZ());
+    }
+
+    @Override public String startProblem(java.util.List<Player> players) {
+        if (!isRounds()) return null;
+        Cuboid arena = game.arena().region("arena");
+        if (arena == null) return null;
+        try { snapshotBox(arena); } catch (IllegalArgumentException | NullPointerException e) {
+            return "Avalanche rounds need an arena small enough to snapshot (under 300000 blocks)";
+        }
+        return null;
+    }
+
+    private void out(Player player) {
+        if (rounds != null) rounds.knockOut(player); else game.eliminate(player);
+    }
+
+    @Override public void onEliminated(Player player) {
+        int survived = game.gameTime();
+        game.addScore(player, survived);
+        player.sendActionBar(Text.mm("<gray>You survived <white>" + Text.time(survived)));
+        var alive = game.alivePlayers();
+        if (alive.size() == 1) game.addScore(alive.get(0), survived);
+        HazardFeedback.finalThree(game.players(), alive.size(), game.players().size());
+    }
+
+    /** Surviving the clock is the objective here; survivors are ranked by survival time / height. */
+    @Override public boolean survivorsWinOnTimeout() { return true; }
+
+    @Override public void onTimeUp() {
+        if (rounds != null) { rounds.onTimeUp(); return; }
+        // Everyone left survived the whole clock, so they tie at the top of the survival ranking.
+        for (Player p : game.alivePlayers()) game.addScore(p, game.gameTime());
+        super.onTimeUp();
+    }
+
+    @Override public java.util.List<String> sidebar(Player player) {
+        return rounds != null ? rounds.sidebar(player) : java.util.List.of();
+    }
+
+    /** Landing markers and near-miss cues for blocks in flight; runs every few ticks. */
+    private void telegraphTick() {
+        if (closed || game.world() == null) return;
+        inFlight.removeIf(block -> !block.isValid());
+        for (var block : inFlight) {
+            var at = block.getLocation();
+            var hit = game.world().rayTraceBlocks(at, new org.bukkit.util.Vector(0, -1, 0), 80,
+                    org.bukkit.FluidCollisionMode.NEVER, true);
+            if (hit == null || hit.getHitPosition() == null) continue;
+            double height = at.getY() - hit.getHitPosition().getY();
+            if (!shouldTelegraph(height)) continue;
+            Location landing = new Location(game.world(), at.getX(), hit.getHitPosition().getY() + 0.1, at.getZ());
+            game.world().spawnParticle(block.getBlockData().getMaterial() == Material.ANVIL
+                    ? org.bukkit.Particle.CRIT : org.bukkit.Particle.CLOUD, landing, 3, 0.3, 0.02, 0.3, 0.0);
+            if (telegraphed.add(block.getUniqueId()) && block.getBlockData().getMaterial() == Material.ANVIL) {
+                game.world().playSound(landing, "minecraft:block.anvil.place", 0.25f, 1.8f);
+            }
+            if (height <= 2.5) {
+                for (Player p : rounds != null ? rounds.contestants() : game.alivePlayers()) {
+                    double dx = p.getLocation().getX() - at.getX(), dz = p.getLocation().getZ() - at.getZ();
+                    if (Math.abs(p.getLocation().getY() - landing.getY()) > 2.5) continue;
+                    if (isNearMiss(Math.sqrt(dx * dx + dz * dz)) && nearMisses.add(block.getUniqueId() + ":" + p.getUniqueId())) {
+                        p.sendActionBar(Text.mm("<yellow>Close call!"));
+                        p.playSound(p.getLocation(), "minecraft:entity.arrow.hit_player", 0.6f, 1.8f);
+                    }
+                }
+            }
+        }
+        if (telegraphed.size() > 512) { telegraphed.retainAll(inFlight.stream().map(org.bukkit.entity.Entity::getUniqueId).collect(java.util.stream.Collectors.toSet())); nearMisses.clear(); }
+    }
+
+    private void resetRound() {
+        shrinkGeneration++;
+        cleaning = false;
+        area = original;
+        nextShrink = Math.max(10, game.arena().settings().getInt("shrink-start", 30));
+        graceUntil = 0;
+        inFlight.clear();
+        telegraphed.clear();
+        nearMisses.clear();
+    }
 
 
     public AvalancheGame(GameInstance game) {
@@ -83,18 +196,34 @@ public final class AvalancheGame extends MiniGame implements uk.co.playerready.p
         area = game.arena().region("arena");
         original = area;
         nextShrink = Math.max(10, game.arena().settings().getInt("shrink-start", 30));
+        game.runRepeating(4L, 4L, this::telegraphTick);
+        if (isRounds() && area != null) {
+            var snapshot = RegionSnapshot.capture(game.world(), java.util.List.of(snapshotBox(area)));
+            rounds = new RoundController(game, new RoundController.Host() {
+                @Override public void beginRound(int round) { resetRound(); }
+                @Override public void resetWorld() { shrinkGeneration++; cleaning = false; }
+            }, snapshot, 75, "Dodge the falling blocks - last one standing scores most");
+            rounds.start();
+            return;
+        }
         game.broadcast("<yellow>Incoming avalanche! Dodge the falling blocks!");
     }
 
     @Override
-    public void onSecond(int gameTime) {
+    public void onSecond(int matchTime) {
+        int gameTime = matchTime;
+        if (rounds != null) {
+            rounds.tick();
+            if (!rounds.active()) return;
+            gameTime = rounds.roundElapsed();
+        }
         if (area == null || gameTime < 5) return;
         shrink(gameTime);
         if (gameTime >= graceUntil) {
-            for (Player player : java.util.List.copyOf(game.alivePlayers())) {
+            for (Player player : java.util.List.copyOf(rounds != null ? rounds.contestants() : game.alivePlayers())) {
                 if (!area.containsColumn(player.getLocation())) {
                     game.broadcast("<red>" + player.getName() + "</red> was caught outside the avalanche arena!");
-                    game.eliminate(player);
+                    out(player);
                 }
             }
         }
@@ -108,6 +237,7 @@ public final class AvalancheGame extends MiniGame implements uk.co.playerready.p
             var falling = game.world().spawnFallingBlock(spawn, material.createBlockData());
             falling.setDropItem(false);
             falling.setHurtEntities(true);
+            inFlight.add(falling);
         }
     }
 
@@ -138,13 +268,14 @@ public final class AvalancheGame extends MiniGame implements uk.co.playerready.p
                 || event.getCause() == EntityDamageEvent.DamageCause.SUFFOCATION) {
             event.setCancelled(true);
             game.broadcast("<red>" + victim.getName() + "</red> was buried by the avalanche!");
-            game.eliminate(victim);
+            out(victim);
         }
     }
 
     /** Everyone still alive at the end survives together. */
     @Override
     public int timeLimitSeconds() {
+        if (isRounds()) return RoundController.matchSeconds(game, 75);
         return game.arena().settings().getInt("survive-seconds", 180);
     }
 }

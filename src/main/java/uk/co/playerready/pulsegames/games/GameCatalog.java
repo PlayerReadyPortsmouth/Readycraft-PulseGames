@@ -4,6 +4,7 @@ import org.bukkit.Material;
 import uk.co.playerready.pulsegames.core.game.GameMode;
 import uk.co.playerready.pulsegames.core.game.GameRegistry;
 import uk.co.playerready.pulsegames.core.game.GameType;
+import uk.co.playerready.pulsegames.core.game.ObjectiveCard;
 import uk.co.playerready.pulsegames.games.avalanche.AvalancheGame;
 import uk.co.playerready.pulsegames.games.bedwars.BedwarsGame;
 import uk.co.playerready.pulsegames.games.blockparty.BlockPartyGame;
@@ -27,6 +28,7 @@ import uk.co.playerready.pulsegames.games.villagerdefense.VillagerDefenseGame;
 import uk.co.playerready.pulsegames.games.volcano.VolcanoGame;
 
 import java.util.List;
+import java.util.Map;
 
 import static uk.co.playerready.pulsegames.core.setup.SetupRequirement.location;
 import static uk.co.playerready.pulsegames.core.setup.SetupRequirement.optional;
@@ -54,11 +56,14 @@ public final class GameCatalog {
         registry.register(new GameType("dodgeball", "Dodgeball",
                 "Dodge, aim and throw! Three hits and you are out.", Material.SNOWBALL,
                 List.of(GameMode.ffa("solo", "Solo", 2, 12),
-                        GameMode.teams("teams", "Teams", 2, 4, 2)),
+                        GameMode.teams("teams", "Teams", 2, 4, 2),
+                        GameMode.ffa("rounds", "Rounds (best of 3)", 2, 12)),
                 uk.co.playerready.pulsegames.games.dodgeball.DodgeballGame::new,
                 List.of(spawns(2, "opposite ends of an enclosed court"),
                         setting("void-y", "fall-off elimination level"),
-                        optional(setting("throw-cooldown-ticks", "throw delay in ticks (1–40; default 7)"))), true));
+                        optional(setting("throw-cooldown-ticks", "throw delay in ticks (1–40; default 7)")),
+                        optional(setting("round-count", "rounds mode: rounds per match, 1-5 (default 3)")),
+                        optional(setting("round-seconds", "rounds mode: seconds per round, 20-180 (default 90)"))), true));
         registry.register(new GameType("dropper", "Dropper",
                 "Fall through obstacles and land in the water!", Material.WATER_BUCKET,
                 List.of(GameMode.ffa("practice", "Practice", 1, 1),
@@ -73,20 +78,28 @@ public final class GameCatalog {
                 "Dig the floor out from under everyone else!", Material.DIAMOND_SHOVEL,
                 List.of(GameMode.ffa("classic", "Classic", 2, 12),
                         GameMode.ffa("decay", "Decay", 2, 12),
-                        GameMode.ffa("splegg", "Splegg", 2, 12)),
+                        GameMode.ffa("splegg", "Splegg", 2, 12),
+                        GameMode.ffa("rounds", "Rounds (best of 3)", 2, 12)),
                 SpleefGame::new,
                 List.of(spawns(4, "spread around the floor"),
                         regions("floor", 1, "the breakable snow floor layer(s)"),
-                        setting("void-y", "Y level below the floor that eliminates players")),
+                        setting("void-y", "Y level below the floor that eliminates players"),
+                        optional(setting("round-count", "rounds mode: rounds per match, 1-5 (default 3)")),
+                        optional(setting("round-seconds", "rounds mode: seconds per round, 20-180 (default 75)"))),
                 false));
 
         registry.register(new GameType("tntrun", "TNT Run",
                 "The floor crumbles behind you - keep moving!", Material.TNT,
                 List.of(GameMode.ffa("classic", "Classic", 2, 16),
-                        GameMode.ffa("doublejump", "Double Jump", 2, 16)),
+                        GameMode.ffa("doublejump", "Double Jump", 2, 16),
+                        GameMode.ffa("rounds", "Rounds (best of 3)", 2, 16)),
                 TntRunGame::new,
                 List.of(spawns(4, "spread around the top layer"),
-                        setting("void-y", "Y level below the lowest layer")),
+                        setting("void-y", "Y level below the lowest layer"),
+                        optional(setting("crumble-acceleration-seconds", "crumble gets one tick quicker every N seconds; 0 = off (default 60)")),
+                        optional(setting("min-crumble-ticks", "fastest crumble delay in ticks (default 4)")),
+                        optional(setting("round-count", "rounds mode: rounds per match, 1-5 (default 3)")),
+                        optional(setting("round-seconds", "rounds mode: seconds per round, 20-180 (default 75)"))),
                 false));
 
         registry.register(new GameType("blockparty", "Block Party",
@@ -96,12 +109,14 @@ public final class GameCatalog {
                 BlockPartyGame::new,
                 List.of(spawns(1, "on the dance floor"),
                         region("floor", "the color dance floor (1 block tall)"),
-                        setting("void-y", "Y level just below the floor")),
+                        setting("void-y", "Y level just below the floor"),
+                        optional(setting("colour-patterns", "true = glazed-terracotta patterns instead of wool, for colour-blind players (default false)"))),
                 false));
 
         registry.register(new GameType("avalanche", "Avalanche",
                 "Dodge the falling blocks - survive the storm!", Material.SNOW_BLOCK,
-                List.of(GameMode.ffa("classic", "Classic", 2, 16)),
+                List.of(GameMode.ffa("classic", "Classic", 2, 16),
+                        GameMode.ffa("rounds", "Rounds (best of 3)", 2, 16)),
                 AvalancheGame::new,
                 List.of(spawns(1, "on the survival platform"),
                         region("arena", "platform footprint, player feet to falling-block ceiling"),
@@ -109,16 +124,22 @@ public final class GameCatalog {
                         optional(setting("shrinking", "collapse arena edges inward; default true")),
                         optional(setting("shrink-start", "first collapse after seconds; default 30")),
                         optional(setting("shrink-interval", "seconds between collapses; default 15")),
-                        optional(setting("minimum-size", "smallest remaining width/depth; default 7"))),
+                        optional(setting("minimum-size", "smallest remaining width/depth; default 7")),
+                        optional(setting("round-count", "rounds mode: rounds per match, 1-5 (default 3)")),
+                        optional(setting("round-seconds", "rounds mode: seconds per round, 20-180 (default 75)"))),
                 false));
 
         registry.register(new GameType("volcano", "Volcano",
                 "The lava is rising - climb for your life!", Material.MAGMA_BLOCK,
                 List.of(GameMode.ffa("classic", "Classic", 2, 16),
-                        GameMode.ffa("eruption", "Eruption", 2, 16)),
+                        GameMode.ffa("eruption", "Eruption", 2, 16),
+                        GameMode.ffa("rounds", "Rounds (best of 3)", 2, 16)),
                 VolcanoGame::new,
                 List.of(spawns(1, "at the foot of the mountain"),
-                        region("arena", "full climbable area, bottom = first lava level")),
+                        region("arena", "full climbable area, bottom = first lava level"),
+                        optional(setting("min-lava-interval", "slowest the late lava rise may get, in seconds per block (default 2)")),
+                        optional(setting("round-count", "rounds mode: rounds per match, 1-5 (default 3)")),
+                        optional(setting("round-seconds", "rounds mode: seconds per round, 20-180 (default 75)"))),
                 false));
 
         registry.register(new GameType("koth", "King of the Hill",
@@ -253,6 +274,9 @@ public final class GameCatalog {
                 ReadyPlayerZGame::new,
                 List.of(spawns(1, "the squad spawn room"),
                         regions("mobspawn", 1, "zombie entry points (windows, doors...)"),
+                        optional(setting("difficulty", "relaxed, normal or hard; default relaxed for squads of 2 or fewer, else normal")),
+                        optional(location("mysterybox1", "Mystery Box block (right-click, 950 points); repeat mysterybox2..N; without one the Supply Shop sells it")),
+                        optional(location("packapunch", "Pack-a-Punch block (5000 points, upgrades the held weapon once); without one the Supply Shop sells it")),
                         optional(setting("darkness", "short darkness pulses during waves; true by default")),
                         optional(setting("darkness-interval", "minimum seconds between pulses, 10-120; default 30")),
                         optional(setting("darkness-duration", "pulse length in seconds, 1-6; default 2.5")),
@@ -280,7 +304,8 @@ public final class GameCatalog {
         registry.register(new GameType("prophunt", "Prop Hunt",
                 "Hide as a block... or hunt them all down!", Material.HAY_BLOCK,
                 List.of(GameMode.ffa("classic", "Classic", 2, 16),
-                        GameMode.ffa("infection", "Infection", 2, 16)),
+                        GameMode.ffa("infection", "Infection", 2, 16),
+                        GameMode.ffa("rounds", "Rounds (roles swap)", 2, 16)),
                 PropHuntGame::new,
                 List.of(spawns(1, "spawn 1 = seeker release point; add more for hiders"),
                         optional(setting("decoy-limit", "decoys per hider: 1-3 (default 3)")),
@@ -289,7 +314,9 @@ public final class GameCatalog {
                         optional(setting("sprint-cooldown", "role sprint cooldown: 5-120 seconds (default 25)")),
                         optional(setting("pulse-cooldown", "seeker pulse cooldown: 5-120 seconds (default 25)")),
                         optional(setting("pulse-radius", "seeker pulse radius: 4-24 blocks (default 12)")),
-                        optional(setting("real-blocks", "true = locked hiders and decoys are real blocks, lockable mid-air (default false)"))),
+                        optional(setting("real-blocks", "true = locked hiders and decoys are real blocks, lockable mid-air (default false)")),
+                        optional(setting("round-count", "rounds mode: rounds per match, 1-5 (default 3)")),
+                        optional(setting("round-seconds", "rounds mode: seconds per round including hiding, 20-180 (default hide-seconds + 90)"))),
                 false));
 
         registry.register(new GameType("supermarket", "Supermarket Sweep",
@@ -312,5 +339,48 @@ public final class GameCatalog {
                         region("finish", "Sprint finish area"),
                         setting("void-y", "fall level below the mini-game areas")),
                 false));
+        applyObjectiveCards(registry);
+    }
+
+    private static ObjectiveCard card(String title, String subtitle, String tip) {
+        return new ObjectiveCard(title, subtitle, tip);
+    }
+
+    /**
+     * One-line "how to win" cards, kept here so every game gets one without its own class
+     * changing. A game can still override {@code MiniGame.howToPlay()} for mode-specific text.
+     * Tips must stay short (about 36 characters): they are shown in the waiting sidebar.
+     */
+    static final Map<String, ObjectiveCard> CARDS = Map.ofEntries(
+            Map.entry("quake", card("First to the target score wins!", "Pick a weapon, then right-click to fire", "Keep moving - still targets get hit")),
+            Map.entry("dodgeball", card("Hit others, don't get hit!", "Right-click to throw. Three hits and you're out", "Move side to side to dodge")),
+            Map.entry("dropper", card("Fall to the water to win!", "Steer through the obstacles and land in the pool", "Aim for the water, not the blocks")),
+            Map.entry("spleef", card("Last one standing wins!", "Dig the floor out from under everyone else", "Dig under others, not yourself")),
+            Map.entry("tntrun", card("Keep moving - last one standing wins!", "The floor crumbles behind you", "Never stand still")),
+            Map.entry("blockparty", card("Stand on the called colour!", "Check your hotbar, then run to that colour", "Watch the hotbar for the colour")),
+            Map.entry("avalanche", card("Survive the falling blocks!", "Dodge the storm - one hit and you're out", "The edges collapse over time")),
+            Map.entry("volcano", card("Climb higher than the lava!", "The lava keeps rising - last one standing wins", "Keep climbing, never wait")),
+            Map.entry("koth", card("Hold the hill to score!", "Stand on the hill to earn points", "Hold the top and fight for it")),
+            Map.entry("duels", card("Win the 1v1 rounds to win!", "Fight one opponent, best of three", "Stay calm and aim your hits")),
+            Map.entry("kitpvp", card("Reach the kill target first!", "Fight with your loadout - you respawn when beaten", "Respawns are quick, keep fighting")),
+            Map.entry("parkour", card("Reach the finish first!", "Jump through the checkpoints along the way", "Take your time on tricky jumps")),
+            Map.entry("elytra", card("Fly the rings to the finish!", "Glide through every ring and boost with rockets", "Rockets are limited, use them well")),
+            Map.entry("karts", card("Finish the laps first!", "Drive, drift and grab item boxes", "Hold jump to drift round corners")),
+            Map.entry("skywars", card("Be the last one alive!", "Loot your island, bridge out and fight", "Grab armour and blocks first")),
+            Map.entry("bedwars", card("Protect your bed, break theirs!", "No bed means no respawns", "Guard your bed before attacking")),
+            Map.entry("buildbattle", card("Build the best to the theme!", "Build, then vote for the other builds", "Finish before the time runs out")),
+            Map.entry("deathrun", card("Runners race, Death sets the traps!", "Runners reach the finish, Death tries to stop them", "Watch out for traps ahead")),
+            Map.entry("villagerdefense", card("Keep the Mayor alive!", "Beat every wave of zombies together", "Stay close to the Mayor")),
+            Map.entry("readyplayerz", card("Survive every round together!", "Fight zombies, earn points, buy perks", "Stick together - teamwork wins")),
+            Map.entry("luckypillars", card("Be the last one standing!", "Lucky items drop every few seconds", "Use every drop - they get wilder")),
+            Map.entry("prophunt", card("Hiders blend in, seekers find them!", "Hide as a block - or hunt the hiders", "Stay still to stay hidden")),
+            Map.entry("supermarket", card("Fill your shopping list first!", "Grab the items on your list, then check out", "Your list is on the sidebar")),
+            Map.entry("partygames", card("Win mini-rounds for points!", "Quick games - the most points wins", "Every round is a fresh start")));
+
+    static void applyObjectiveCards(GameRegistry registry) {
+        for (GameType type : registry.all()) {
+            ObjectiveCard card = CARDS.get(type.id());
+            if (card != null) type.withCard(card);
+        }
     }
 }

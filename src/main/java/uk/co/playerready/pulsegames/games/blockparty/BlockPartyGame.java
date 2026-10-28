@@ -25,6 +25,23 @@ public final class BlockPartyGame extends MiniGame implements uk.co.playerready.
             Material.WHITE_WOOL, Material.LIGHT_BLUE_WOOL
     };
 
+    /** Same ten colours as distinct glazed-terracotta patterns, for players who cannot tell the wool apart. */
+    private static final Material[] PATTERNS = {
+            Material.RED_GLAZED_TERRACOTTA, Material.BLUE_GLAZED_TERRACOTTA, Material.LIME_GLAZED_TERRACOTTA,
+            Material.YELLOW_GLAZED_TERRACOTTA, Material.PURPLE_GLAZED_TERRACOTTA, Material.ORANGE_GLAZED_TERRACOTTA,
+            Material.PINK_GLAZED_TERRACOTTA, Material.CYAN_GLAZED_TERRACOTTA, Material.WHITE_GLAZED_TERRACOTTA,
+            Material.LIGHT_BLUE_GLAZED_TERRACOTTA
+    };
+
+    /** A shape per colour so the call never depends on telling colours apart. */
+    static final String[] SYMBOLS = {"▲", "■", "●", "★", "◆", "♠", "♥", "♣", "♦", "▼"};
+
+    /** Fills the hotbar with the called colour; a field so tests need not build item stacks. */
+    private java.util.function.Consumer<Player> hintDelivery = player -> {
+        player.getInventory().clear();
+        for (int i = 0; i < 9; i++) player.getInventory().setItem(i, new ItemStack(this.target));
+    };
+
     private enum Phase { SHUFFLE, STAND, CLEARED }
 
     private Cuboid floor;
@@ -38,6 +55,25 @@ public final class BlockPartyGame extends MiniGame implements uk.co.playerready.
 
     public BlockPartyGame(GameInstance game) {
         super(game);
+    }
+
+    private Material[] colors() {
+        return game.arena().settings().getBoolean("colour-patterns", false) ? PATTERNS : COLORS;
+    }
+
+    /** Colour name for the call, the same whichever floor material is in use. */
+    static String colourName(Material material) {
+        return material.name().replace("_GLAZED_TERRACOTTA", "").replace("_WOOL", "").replace('_', ' ');
+    }
+
+    /** The target colour as "▲ RED", the non-colour cue shown on the action bar. */
+    static String callLabel(int colourIndex, Material material) {
+        return SYMBOLS[Math.floorMod(colourIndex, SYMBOLS.length)] + " " + colourName(material);
+    }
+
+    /** Hardcore no longer hides the hotbar hint; it shows it for a shorter time instead. */
+    static int hintSeconds(boolean hardcore, int round, int callSeconds) {
+        return hardcore && round > 5 ? Math.min(callSeconds, 2) : callSeconds;
     }
 
     private boolean isHardcore() { return game.mode().id().equals("hardcore"); }
@@ -67,7 +103,14 @@ public final class BlockPartyGame extends MiniGame implements uk.co.playerready.
     public void onSecond(int gameTime) {
         if (floor == null || --phaseTimer > 0) {
             if (phase == Phase.STAND && phaseTimer > 0) {
-                game.alivePlayers().forEach(p -> p.setLevel(phaseTimer));
+                int step = callSeconds - phaseTimer;
+                float pitch = uk.co.playerready.pulsegames.games.common.HazardFeedback.risingPitch(step, callSeconds);
+                String label = callLabel(java.util.Arrays.asList(colors()).indexOf(target), target);
+                for (Player p : game.alivePlayers()) {
+                    p.setLevel(phaseTimer);
+                    p.playSound(p.getLocation(), "minecraft:block.note_block.hat", 0.8f, pitch);
+                    p.sendActionBar(Text.mm("<yellow>Stand on <white>" + label + " <gray>(" + phaseTimer + ")"));
+                }
             }
             return;
         }
@@ -102,7 +145,7 @@ public final class BlockPartyGame extends MiniGame implements uk.co.playerready.
         lastPattern=layout.pattern();
         for(int x=0;x<width;x++) for(int z=0;z<depth;z++)
             game.world().getBlockAt(floor.minX()+x,floor.minY(),floor.minZ()+z)
-                    .setType(COLORS[layout.colors()[x*depth+z]],false);
+                    .setType(colors()[layout.colors()[x*depth+z]],false);
     }
 
     private boolean pickTarget() {
@@ -113,7 +156,7 @@ public final class BlockPartyGame extends MiniGame implements uk.co.playerready.
         for(int x=0;x<width;x++) for(int z=0;z<depth;z++) {
             int i=x*depth+z,wx=floor.minX()+x,wz=floor.minZ()+z,y=floor.maxY();
             Material material=game.world().getBlockAt(wx,y,wz).getType();
-            colors[i]=java.util.Arrays.asList(COLORS).indexOf(material);
+            colors[i]=java.util.Arrays.asList(colors()).indexOf(material);
             clear[i]=colors[i]>=0 && game.world().getBlockAt(wx,y+1,wz).isPassable()
                     && game.world().getBlockAt(wx,y+2,wz).isPassable();
         }
@@ -131,24 +174,27 @@ public final class BlockPartyGame extends MiniGame implements uk.co.playerready.
         }
         if(starts.isEmpty()) return false;
         var call=DanceFloor.choose(width,depth,colors,clear,starts,standSeconds(),
-                java.util.Arrays.asList(COLORS).indexOf(target),ThreadLocalRandom.current());
+                java.util.Arrays.asList(colors()).indexOf(target),ThreadLocalRandom.current());
         if(call==null) {
             game.broadcast("<red>No fair reachable colour on this floor. Check spawns, obstacles and floor size.");
             game.end(List.of(),"invalid-floor");return false;
         }
-        target=COLORS[call.color()];callSeconds=call.seconds();
-        String name = target.name().replace("_WOOL", "").replace('_', ' ');
-        game.broadcast("<yellow><b>" + name + "!</b></yellow> <gray>(" + callSeconds + "s)");
-        boolean hideHint = isHardcore() && round > 5;
+        target=colors()[call.color()];callSeconds=call.seconds();
+        String label = callLabel(call.color(), target);
+        game.broadcast("<yellow><b>" + label + "!</b></yellow> <gray>(" + callSeconds + "s)");
+        int hint = hintSeconds(isHardcore(), round, callSeconds);
+        final int calledRound = round;
+        if (hint < callSeconds) {
+            game.runLater(hint * 20L, () -> {
+                if (round != calledRound || phase != Phase.STAND) return;
+                game.alivePlayers().forEach(p -> p.getInventory().clear());
+            });
+        }
         for (Player player : game.alivePlayers()) {
-            Text.title(player, "<yellow><b>" + name, "");
+            Text.title(player, "<yellow><b>" + label, "<gray>Round " + round + "/" + maxRounds() + " · "
+                    + game.alivePlayers().size() + " left");
             player.playSound(player.getLocation(), "minecraft:block.note_block.pling", 1f, 1.4f);
-            player.getInventory().clear();
-            if (!hideHint) {
-                for (int i = 0; i < 9; i++) {
-                    player.getInventory().setItem(i, new ItemStack(target));
-                }
-            }
+            hintDelivery.accept(player);
         }
         return true;
     }
@@ -160,7 +206,10 @@ public final class BlockPartyGame extends MiniGame implements uk.co.playerready.
             }
         }
         game.alivePlayers().forEach(p ->
-                p.playSound(p.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, 0.4f, 1.8f));
+                {
+            p.playSound(p.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, 0.4f, 1.8f);
+            p.playSound(p.getLocation(), "minecraft:block.note_block.bass", 1.2f, 0.5f);
+        });
     }
 
     @Override
@@ -191,6 +240,12 @@ public final class BlockPartyGame extends MiniGame implements uk.co.playerready.
     }
 
     @Override public void onCleanup() { botGoals.clear(); }
+    @Override public MiniGame.Cue eliminationSound() {
+        return uk.co.playerready.pulsegames.games.common.HazardFeedback.LOUD_ELIMINATION;
+    }
+    @Override public void onEliminated(Player player) {
+        uk.co.playerready.pulsegames.games.common.HazardFeedback.finalThree(game.players(), game.alivePlayers().size(), game.players().size());
+    }
     @Override public void onQuit(Player player) { botGoals.remove(player.getUniqueId()); }
 
     @Override
@@ -205,6 +260,10 @@ public final class BlockPartyGame extends MiniGame implements uk.co.playerready.
                 "<gray>Round: <white>" + round + "/" + maxRounds(),
                 "<gray>Alive: <white>" + game.alivePlayers().size());
     }
+
+    /** Still on the floor when the clock runs out counts as surviving, as it does after the last round. */
+    @Override
+    public boolean survivorsWinOnTimeout() { return true; }
 
     @Override
     public int timeLimitSeconds() { return 600; }

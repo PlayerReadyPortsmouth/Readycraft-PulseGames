@@ -47,7 +47,9 @@ class ReadyPlayerZCombatTest {
     @Test void cleanupRemovesOwnedEntitiesAndRestoresInstanceNightRules()throws Exception{
         Zombie mob=enemy(ZCombatBalance.Variant.BOSS);
         when(world.getTime()).thenReturn(6000L);when(world.getGameRuleValue(GameRule.DO_DAYLIGHT_CYCLE)).thenReturn(true);when(world.getGameRuleValue(GameRule.DO_WEATHER_CYCLE)).thenReturn(true);
-        doNothing().when(logic).equipBase(any());logic.onStart();
+        doNothing().when(logic).equipBase(any());
+        doNothing().when(logic).applyDownState(any());
+        doNothing().when(logic).clearDownState(any());logic.onStart();
         verify(world).setTime(18000);verify(world).setGameRule(GameRule.DO_DAYLIGHT_CYCLE,false);verify(world).setGameRule(GameRule.DO_WEATHER_CYCLE,false);
         logic.onCleanup();logic.onCleanup();
         verify(mob,times(1)).remove();verify(world,times(1)).setTime(6000);verify(world,times(1)).setGameRule(GameRule.DO_DAYLIGHT_CYCLE,true);
@@ -79,6 +81,8 @@ class ReadyPlayerZCombatTest {
     double speed(Player p){return speeds.get(p).getBaseValue();}
     @Test void legacyCombatSetsHighAttackSpeedOnStartAndRestoresOnEveryExitPath()throws Exception{
         doNothing().when(logic).equipBase(any());
+        doNothing().when(logic).applyDownState(any());
+        doNothing().when(logic).clearDownState(any());
         for(String path:List.of("death","quit","eliminated","cleanup","end")){
             Player p=mock(Player.class);when(p.getUniqueId()).thenReturn(UUID.randomUUID());attackSpeed(p,4.0);
             when(game.alivePlayers()).thenReturn(List.of(p));when(game.everyone()).thenReturn(List.of(p));
