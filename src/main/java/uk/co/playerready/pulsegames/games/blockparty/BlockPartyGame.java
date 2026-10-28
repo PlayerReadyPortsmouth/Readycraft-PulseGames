@@ -261,6 +261,10 @@ public final class BlockPartyGame extends MiniGame implements uk.co.playerready.
                 "<gray>Alive: <white>" + game.alivePlayers().size());
     }
 
+    /** Still on the floor when the clock runs out counts as surviving, as it does after the last round. */
+    @Override
+    public boolean survivorsWinOnTimeout() { return true; }
+
     @Override
     public int timeLimitSeconds() { return 600; }
     @Override

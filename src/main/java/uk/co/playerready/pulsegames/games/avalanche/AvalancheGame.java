@@ -130,6 +130,9 @@ public final class AvalancheGame extends MiniGame implements uk.co.playerready.p
         HazardFeedback.finalThree(game.players(), alive.size(), game.players().size());
     }
 
+    /** Surviving the clock is the objective here; survivors are ranked by survival time / height. */
+    @Override public boolean survivorsWinOnTimeout() { return true; }
+
     @Override public void onTimeUp() {
         if (rounds != null) { rounds.onTimeUp(); return; }
         // Everyone left survived the whole clock, so they tie at the top of the survival ranking.

@@ -54,4 +54,39 @@ class GameOutcomeTest {
         new MiniGame(declared) { @Override public boolean survivorsWinOnTimeout() { return true; } }.onTimeUp();
         verify(declared).end(survivors, "time");
     }
+
+    @Test void survivalIsTheObjectiveOnlyWhereTheTimeoutRuleSaysSo() {
+        record Rule(Function<GameInstance, MiniGame> game, boolean survivorsWin) {}
+        for (var rule : List.of(
+                new Rule(uk.co.playerready.pulsegames.games.avalanche.AvalancheGame::new, true),
+                new Rule(uk.co.playerready.pulsegames.games.volcano.VolcanoGame::new, true),
+                new Rule(uk.co.playerready.pulsegames.games.blockparty.BlockPartyGame::new, true),
+                new Rule(uk.co.playerready.pulsegames.games.spleef.SpleefGame::new, false),
+                new Rule(uk.co.playerready.pulsegames.games.tntrun.TntRunGame::new, false),
+                new Rule(uk.co.playerready.pulsegames.games.skywars.SkywarsGame::new, false),
+                new Rule(uk.co.playerready.pulsegames.games.luckypillars.LuckyPillarsGame::new, false),
+                new Rule(uk.co.playerready.pulsegames.games.bedwars.BedwarsGame::new, false))) {
+            GameInstance instance = mock(GameInstance.class, RETURNS_DEEP_STUBS);
+            org.junit.jupiter.api.Assertions.assertEquals(rule.survivorsWin(),
+                    rule.game().apply(instance).survivorsWinOnTimeout());
+        }
+    }
+
+    @Test void timeoutSurvivorsAreRankedByScoreAndTiesShareThePlace() {
+        GameInstance instance = mock(GameInstance.class, RETURNS_DEEP_STUBS);
+        Player top = mock(Player.class), second = mock(Player.class), tiedA = mock(Player.class), tiedB = mock(Player.class);
+        List<Player> survivors = List.of(tiedA, top, tiedB, second);
+        when(instance.alivePlayers()).thenReturn(survivors);
+        when(instance.score(top)).thenReturn(90);
+        when(instance.score(second)).thenReturn(60);
+        when(instance.score(tiedA)).thenReturn(30);
+        when(instance.score(tiedB)).thenReturn(30);
+        new MiniGame(instance) { @Override public boolean survivorsWinOnTimeout() { return true; } }.onTimeUp();
+        var order = inOrder(instance);
+        order.verify(instance).recordFinish(top);
+        order.verify(instance).recordFinish(second);
+        order.verify(instance).end(survivors, "time");
+        verify(instance, never()).recordFinish(tiedA);
+        verify(instance, never()).recordFinish(tiedB);
+    }
 }

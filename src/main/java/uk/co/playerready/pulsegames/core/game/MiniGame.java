@@ -170,7 +170,25 @@ public abstract class MiniGame {
 
     /** Co-op objectives must actually be completed; survivors win on time only if declared. */
     public void onTimeUp() {
-        game.end(cooperative() || !survivorsWinOnTimeout() ? List.of() : game.alivePlayers(), "time");
+        if (cooperative() || !survivorsWinOnTimeout()) { game.end(List.of(), "time"); return; }
+        List<Player> survivors = game.alivePlayers();
+        rankSurvivorsByScore(survivors);
+        game.end(survivors, "time");
+    }
+
+    /**
+     * Survivors who all win still need a podium order: best score first (survival seconds, height).
+     * The list stops at the first tie, so tied survivors share the place rather than getting an invented order.
+     */
+    protected void rankSurvivorsByScore(List<Player> survivors) {
+        List<Player> ranked = new java.util.ArrayList<>(survivors);
+        ranked.sort(java.util.Comparator.comparingInt((Player p) -> game.score(p)).reversed());
+        for (int i = 0; i < ranked.size(); i++) {
+            boolean tied = i + 1 < ranked.size() && game.score(ranked.get(i)) == game.score(ranked.get(i + 1))
+                    || i > 0 && game.score(ranked.get(i)) == game.score(ranked.get(i - 1));
+            if (tied) return;
+            game.recordFinish(ranked.get(i));
+        }
     }
 
     // ---- objective card & placements -------------------------------------------------

@@ -220,6 +220,9 @@ public final class VolcanoGame extends MiniGame implements uk.co.playerready.pul
     }
 
     /** Survivors rank by how high they climbed: everyone tops the clock, height breaks the tie. */
+    /** Surviving the clock is the objective here; survivors are ranked by survival time / height. */
+    @Override public boolean survivorsWinOnTimeout() { return true; }
+
     @Override public void onTimeUp() {
         if (rounds != null) { rounds.onTimeUp(); return; }
         List<Player> climbers = new java.util.ArrayList<>(game.alivePlayers());
