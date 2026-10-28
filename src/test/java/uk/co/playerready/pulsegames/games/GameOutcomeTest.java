@@ -43,11 +43,15 @@ class GameOutcomeTest {
         verify(instance).end(List.of(winner), "time");
     }
 
-    @Test void survivalTimeoutStillRewardsSurvivors() {
+    @Test void survivalTimeoutOnlyRewardsSurvivorsWhenTheGameDeclaresIt() {
         GameInstance instance = mock(GameInstance.class, RETURNS_DEEP_STUBS);
         List<Player> survivors = List.of(mock(Player.class));
         when(instance.alivePlayers()).thenReturn(survivors);
         new MiniGame(instance) {}.onTimeUp();
-        verify(instance).end(survivors, "time");
+        verify(instance).end(List.of(), "time");
+        GameInstance declared = mock(GameInstance.class, RETURNS_DEEP_STUBS);
+        when(declared.alivePlayers()).thenReturn(survivors);
+        new MiniGame(declared) { @Override public boolean survivorsWinOnTimeout() { return true; } }.onTimeUp();
+        verify(declared).end(survivors, "time");
     }
 }
