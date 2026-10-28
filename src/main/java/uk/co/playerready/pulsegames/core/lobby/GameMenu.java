@@ -39,9 +39,30 @@ public final class GameMenu implements Listener {
         public Inventory getInventory() { return inventory; }
     }
 
+    /** The last five slots hold Quick Play, challenges, top 3, party and kit buttons. */
+    static final int FOOTER_SLOTS = 5;
+
+    /** Rows that hold every game plus the footer, so the buttons never share a slot with a game. */
+    static int rowsFor(int games) {
+        return Math.max(2, Math.min(6, (games + FOOTER_SLOTS + 8) / 9));
+    }
+
+    /** Games that fit in the menu; past six rows the rest are left out rather than hidden under a button. */
+    static int capacity(int games) {
+        return Math.min(games, rowsFor(games) * 9 - FOOTER_SLOTS);
+    }
+
+    private List<GameType> visibleGames() {
+        List<GameType> all = new ArrayList<>(plugin.registry().all());
+        int shown = capacity(all.size());
+        if (shown < all.size())
+            plugin.getLogger().warning("Game menu is full: " + (all.size() - shown) + " game(s) not listed.");
+        return all.subList(0, shown);
+    }
+
     public void openGames(Player player) {
-        List<GameType> games = new ArrayList<>(plugin.registry().all());
-        int rows = Math.min(6, (games.size() + 8) / 9 + 1);
+        List<GameType> games = visibleGames();
+        int rows = rowsFor(plugin.registry().all().size());
         MenuHolder holder = new MenuHolder(null);
         Inventory inv = Bukkit.createInventory(holder, rows * 9, Text.mm("<dark_gray>Select a game"));
         holder.inventory = inv;
@@ -152,7 +173,7 @@ public final class GameMenu implements Listener {
             plugin.kitSelection().open(player); return;
         }
         if (holder.gameOrNull == null) {
-            List<GameType> games = new ArrayList<>(plugin.registry().all());
+            List<GameType> games = visibleGames();
             int index = event.getSlot();
             if (index >= games.size()) return;
             GameType game = games.get(index);
