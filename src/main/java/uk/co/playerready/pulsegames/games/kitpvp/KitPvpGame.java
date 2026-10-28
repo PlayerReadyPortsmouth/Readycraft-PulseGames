@@ -130,6 +130,9 @@ public final class KitPvpGame extends MiniGame {
 
     private boolean isOitc() { return game.mode().rulesId().equals("oitc"); }
 
+    @Override
+    public int killTarget() { return targetKills(); }
+
     private int targetKills() {
         return game.arena().settings().getInt("target-kills", isOitc() ? 20 : 15);
     }

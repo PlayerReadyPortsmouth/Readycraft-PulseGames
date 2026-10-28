@@ -168,6 +168,9 @@ public abstract class MiniGame {
 
     public int timeLimitSeconds() { return 600; }
 
+    /** Kills needed to win a first-to-N game; 0 when the game has no kill target. */
+    public int killTarget() { return 0; }
+
     /** Seconds players are frozen in place after the start teleport. */
     public int startFreezeSeconds() { return 3; }
 
