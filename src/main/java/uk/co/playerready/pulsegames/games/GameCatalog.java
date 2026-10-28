@@ -4,6 +4,7 @@ import org.bukkit.Material;
 import uk.co.playerready.pulsegames.core.game.GameMode;
 import uk.co.playerready.pulsegames.core.game.GameRegistry;
 import uk.co.playerready.pulsegames.core.game.GameType;
+import uk.co.playerready.pulsegames.core.game.ObjectiveCard;
 import uk.co.playerready.pulsegames.games.avalanche.AvalancheGame;
 import uk.co.playerready.pulsegames.games.bedwars.BedwarsGame;
 import uk.co.playerready.pulsegames.games.blockparty.BlockPartyGame;
@@ -27,6 +28,7 @@ import uk.co.playerready.pulsegames.games.villagerdefense.VillagerDefenseGame;
 import uk.co.playerready.pulsegames.games.volcano.VolcanoGame;
 
 import java.util.List;
+import java.util.Map;
 
 import static uk.co.playerready.pulsegames.core.setup.SetupRequirement.location;
 import static uk.co.playerready.pulsegames.core.setup.SetupRequirement.optional;
@@ -312,5 +314,48 @@ public final class GameCatalog {
                         region("finish", "Sprint finish area"),
                         setting("void-y", "fall level below the mini-game areas")),
                 false));
+        applyObjectiveCards(registry);
+    }
+
+    private static ObjectiveCard card(String title, String subtitle, String tip) {
+        return new ObjectiveCard(title, subtitle, tip);
+    }
+
+    /**
+     * One-line "how to win" cards, kept here so every game gets one without its own class
+     * changing. A game can still override {@code MiniGame.howToPlay()} for mode-specific text.
+     * Tips must stay short (about 36 characters): they are shown in the waiting sidebar.
+     */
+    static final Map<String, ObjectiveCard> CARDS = Map.ofEntries(
+            Map.entry("quake", card("First to the target score wins!", "Pick a weapon, then right-click to fire", "Keep moving - still targets get hit")),
+            Map.entry("dodgeball", card("Hit others, don't get hit!", "Right-click to throw. Three hits and you're out", "Move side to side to dodge")),
+            Map.entry("dropper", card("Fall to the water to win!", "Steer through the obstacles and land in the pool", "Aim for the water, not the blocks")),
+            Map.entry("spleef", card("Last one standing wins!", "Dig the floor out from under everyone else", "Dig under others, not yourself")),
+            Map.entry("tntrun", card("Keep moving - last one standing wins!", "The floor crumbles behind you", "Never stand still")),
+            Map.entry("blockparty", card("Stand on the called colour!", "Check your hotbar, then run to that colour", "Watch the hotbar for the colour")),
+            Map.entry("avalanche", card("Survive the falling blocks!", "Dodge the storm - one hit and you're out", "The edges collapse over time")),
+            Map.entry("volcano", card("Climb higher than the lava!", "The lava keeps rising - last one standing wins", "Keep climbing, never wait")),
+            Map.entry("koth", card("Hold the hill to score!", "Stand on the hill to earn points", "Hold the top and fight for it")),
+            Map.entry("duels", card("Win the 1v1 rounds to win!", "Fight one opponent, best of three", "Stay calm and aim your hits")),
+            Map.entry("kitpvp", card("Reach the kill target first!", "Fight with your loadout - you respawn when beaten", "Respawns are quick, keep fighting")),
+            Map.entry("parkour", card("Reach the finish first!", "Jump through the checkpoints along the way", "Take your time on tricky jumps")),
+            Map.entry("elytra", card("Fly the rings to the finish!", "Glide through every ring and boost with rockets", "Rockets are limited, use them well")),
+            Map.entry("karts", card("Finish the laps first!", "Drive, drift and grab item boxes", "Hold jump to drift round corners")),
+            Map.entry("skywars", card("Be the last one alive!", "Loot your island, bridge out and fight", "Grab armour and blocks first")),
+            Map.entry("bedwars", card("Protect your bed, break theirs!", "No bed means no respawns", "Guard your bed before attacking")),
+            Map.entry("buildbattle", card("Build the best to the theme!", "Build, then vote for the other builds", "Finish before the time runs out")),
+            Map.entry("deathrun", card("Runners race, Death sets the traps!", "Runners reach the finish, Death tries to stop them", "Watch out for traps ahead")),
+            Map.entry("villagerdefense", card("Keep the Mayor alive!", "Beat every wave of zombies together", "Stay close to the Mayor")),
+            Map.entry("readyplayerz", card("Survive every round together!", "Fight zombies, earn points, buy perks", "Stick together - teamwork wins")),
+            Map.entry("luckypillars", card("Be the last one standing!", "Lucky items drop every few seconds", "Use every drop - they get wilder")),
+            Map.entry("prophunt", card("Hiders blend in, seekers find them!", "Hide as a block - or hunt the hiders", "Stay still to stay hidden")),
+            Map.entry("supermarket", card("Fill your shopping list first!", "Grab the items on your list, then check out", "Your list is on the sidebar")),
+            Map.entry("partygames", card("Win mini-rounds for points!", "Quick games - the most points wins", "Every round is a fresh start")));
+
+    static void applyObjectiveCards(GameRegistry registry) {
+        for (GameType type : registry.all()) {
+            ObjectiveCard card = CARDS.get(type.id());
+            if (card != null) type.withCard(card);
+        }
     }
 }

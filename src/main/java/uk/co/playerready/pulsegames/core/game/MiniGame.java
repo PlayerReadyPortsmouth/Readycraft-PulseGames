@@ -157,10 +157,31 @@ public abstract class MiniGame {
         return game.arena().settings().getDouble("void-y", -64);
     }
 
-    /** Survival games reward survivors; co-op objectives must actually be completed. */
+    /**
+     * Do survivors win outright when the clock runs out? Default no: stalling must not pay
+     * the full win reward, so survivors share first place (participation plus placement
+     * bonus only). Override to true where surviving the clock genuinely is the objective.
+     */
+    public boolean survivorsWinOnTimeout() { return false; }
+
+    /** Co-op objectives must actually be completed; survivors win on time only if declared. */
     public void onTimeUp() {
-        game.end(cooperative() ? List.of() : game.alivePlayers(), "time");
+        game.end(cooperative() || !survivorsWinOnTimeout() ? List.of() : game.alivePlayers(), "time");
     }
+
+    // ---- objective card & placements -------------------------------------------------
+
+    /** Title/subtitle/tip card shown at join and at GO. Default comes from {@code GameCatalog}. */
+    public ObjectiveCard howToPlay() { return game.type().card(); }
+
+    /** Short waiting-sidebar tip; defaults to the card's tip. */
+    public String tip() { return howToPlay().tip(); }
+
+    /** Final place (1 = best, ties share) once the round ends; provisional while running. 0 = not playing. */
+    public int placement(Player player) { return game.placement(player); }
+
+    /** Online participants ordered best place first. */
+    public List<Player> placements() { return game.placementOrder(); }
 
     // ---- event hooks -------------------------------------------------------
 
