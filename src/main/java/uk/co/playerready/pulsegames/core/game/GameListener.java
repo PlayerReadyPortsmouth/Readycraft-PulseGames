@@ -479,6 +479,11 @@ public final class GameListener implements Listener {
     public void onInteractEntity(PlayerInteractEntityEvent event) {
         GameInstance instance = instanceOf(event.getPlayer());
         if (instance == null) return;
+        // Ghosts only get their tool hotbar: no riding, trading, leashing or poking armour stands.
+        if (instance.state() == GameState.RUNNING && instance.isSpectator(event.getPlayer())) {
+            event.setCancelled(true);
+            return;
+        }
         if (instance.state() == GameState.RUNNING && instance.isAlive(event.getPlayer())) {
             instance.logic().onInteractEntity(event.getPlayer(), event.getRightClicked());
         }
