@@ -51,6 +51,9 @@ public final class StatsService {
 
     public synchronized int weeklyWins(Player player) { return weekly.wins(player.getUniqueId()); }
 
+    /** The week the live board belongs to, read before {@link #weeklyRollover} replaces it. */
+    public synchronized String weeklyWeek() { return weekly.storedWeek(); }
+
     /** Closes a finished week and returns its top three, or null if the week has not changed. */
     public synchronized java.util.List<WeeklyStats.Entry> weeklyRollover(java.time.LocalDate today) {
         var result = weekly.rollover(today);

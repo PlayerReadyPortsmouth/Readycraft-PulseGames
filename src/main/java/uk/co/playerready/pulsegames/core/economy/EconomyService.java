@@ -47,6 +47,14 @@ public final class EconomyService {
         return data.getInt(key(player) + ".tokens");
     }
 
+    /** Week key of the last weekly leaderboard payout, so a restart between payout and board clear cannot pay twice. */
+    public synchronized String weeklyPaid() { return data.getString("_meta.weekly-paid"); }
+
+    public synchronized void markWeeklyPaid(String week) {
+        data.set("_meta.weekly-paid", week);
+        dirty = true;
+    }
+
     public void addMatchTokens(Player player, int amount, String reason) {
         if (plugin instanceof uk.co.playerready.pulsegames.PulseGamesPlugin games) {
             var instance = games.instances().byPlayer(player);

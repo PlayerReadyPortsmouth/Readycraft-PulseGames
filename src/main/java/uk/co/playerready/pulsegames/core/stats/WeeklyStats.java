@@ -15,7 +15,12 @@ import java.util.UUID;
  * (ISO weeks, Monday start); {@link #rollover} closes a finished week and reports its top three.
  */
 public final class WeeklyStats {
-    public record Entry(UUID player, String name, int wins, String topGame, int topGameWins) { }
+    /** {@code reachedAt} is when the player last gained a win in this view: the earlier one wins a tie. */
+    public record Entry(UUID player, String name, int wins, String topGame, int topGameWins, long reachedAt) {
+        public Entry(UUID player, String name, int wins, String topGame, int topGameWins) {
+            this(player, name, wins, topGame, topGameWins, Long.MAX_VALUE);
+        }
+    }
 
     private final ConfigurationSection root;
 
@@ -26,13 +31,19 @@ public final class WeeklyStats {
     }
 
     public synchronized void recordWin(UUID player, String name, String game) {
+        recordWin(player, name, game, System.currentTimeMillis());
+    }
+
+    synchronized void recordWin(UUID player, String name, String game, long nowMs) {
         String base = "players." + player;
+        root.set(base + ".at", nowMs);
+        root.set(base + ".game-at." + game, nowMs);
         root.set(base + ".name", name);
         root.set(base + ".wins", root.getInt(base + ".wins") + 1);
         root.set(base + ".games." + game, root.getInt(base + ".games." + game) + 1);
     }
 
-    /** Best {@code limit} players by wins, or by wins in {@code game} when it is non-null. Ties by name. */
+    /** Best {@code limit} players by wins, or by wins in {@code game} when it is non-null. Ties go to whoever got there first. */
     public synchronized List<Entry> top(String game, int limit) {
         List<Entry> rows = new ArrayList<>();
         ConfigurationSection players = root.getConfigurationSection("players");
@@ -50,11 +61,16 @@ public final class WeeklyStats {
                 int w = games.getInt(g);
                 if (w > topWins || (w == topWins && topGame != null && g.compareTo(topGame) < 0)) { topGame = g; topWins = w; }
             }
-            rows.add(new Entry(id, p.getString("name", "Player"), wins, topGame, topWins));
+            long reached = p.getLong(game == null ? "at" : "game-at." + game, Long.MAX_VALUE);
+            rows.add(new Entry(id, p.getString("name", "Player"), wins, topGame, topWins, reached));
         }
-        rows.sort(Comparator.comparingInt(Entry::wins).reversed().thenComparing(Entry::name, String.CASE_INSENSITIVE_ORDER));
+        rows.sort(Comparator.comparingInt(Entry::wins).reversed().thenComparingLong(Entry::reachedAt)
+                .thenComparing(Entry::name, String.CASE_INSENSITIVE_ORDER));
         return rows.size() > limit ? new ArrayList<>(rows.subList(0, limit)) : rows;
     }
+
+    /** The ISO week the stored board belongs to, or null before the first run. */
+    public synchronized String storedWeek() { return root.getString("week"); }
 
     public synchronized int wins(UUID player) { return root.getInt("players." + player + ".wins"); }
 

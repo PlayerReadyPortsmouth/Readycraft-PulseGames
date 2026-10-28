@@ -172,8 +172,12 @@ public final class EngagementService {
     }
 
     private void weeklyRollover() {
+        String closing = plugin.stats().weeklyWeek();
         List<WeeklyStats.Entry> winners = plugin.stats().weeklyRollover(LocalDate.now());
         if (winners == null || winners.isEmpty()) return;
+        // A crash after the payout reached disk but before the board was cleared must not pay the week twice.
+        if (closing != null && closing.equals(plugin.economy().weeklyPaid())) { flushWeekly(); return; }
+        plugin.economy().markWeeklyPaid(closing);
         List<Integer> rewards = plugin.getConfig().getIntegerList("leaderboard.weekly-rewards");
         for (int i = 0; i < winners.size() && i < rewards.size(); i++) {
             var w = winners.get(i);
@@ -189,7 +193,14 @@ public final class EngagementService {
             Player online = plugin.getServer().getPlayer(w.player());
             if (online != null) onJoin(online);
         }
-        plugin.stats().flushAsync();
+        flushWeekly();
+    }
+
+    /** Payout, notices and the cleared board go to disk together, payout first, instead of on three timers. */
+    private void flushWeekly() {
+        plugin.economy().flush();
+        flush();
+        plugin.stats().flush();
     }
 
     /** Delivers weekly-reward notices to a player who was offline at the reset. */
