@@ -30,7 +30,8 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         Set<UUID> viewers=Set.of();
         KartPhysics.State motion;
         KartPhysics.Input input = new KartPhysics.Input(0,0);
-        long boostUntil, slowUntil, boxReady, resetReady;
+        final KartBoost boost = new KartBoost();
+        long slowUntil, boxReady, resetReady;
         final KartDrift drift = new KartDrift();
         boolean driftPressed, driftNeedsRelease;
         Item item;
@@ -229,7 +230,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
             }
             if (tick >= kart.spinUntil && kart.bot != null && controlBot(kart)) continue;
             Location from=location(kart.motion);
-            double multiplier=speedMultiplier(tick,kart.boostUntil,kart.slowUntil);
+            double multiplier=speedMultiplier(kart.boost,tick,kart.slowUntil);
             // Karts may pass side by side; rear impacts are resolved after every chassis moves.
             KartPhysics.Input input = kart.input;
             if (tick < kart.spinUntil) {
@@ -245,11 +246,12 @@ public final class PulseKartsGame extends CheckpointRaceGame {
             int previousDriftTier = kart.drift.tier();
             var drift = kart.drift.update(kart.driftPressed, input, kart.motion, tick < kart.spinUntil || tick < kart.slowUntil);
             if (kart.drift.tier() > previousDriftTier && kart.bot == null)
-                player.playSound(player.getLocation(), "minecraft:block.note_block.pling", .6f, kart.drift.tier() == 2 ? 1.7f : 1.2f);
+                player.playSound(player.getLocation(), "minecraft:block.note_block.pling", .6f, DRIFT_PITCH[kart.drift.tier() - 1]);
+            if (kart.drift.tier() > 0 && tick % 2 == 0) driftSparks(kart);
             if (drift.boostTicks() > 0) {
                 if (kart.bot == null) player.playSound(player.getLocation(), "minecraft:entity.firework_rocket.launch", .6f, 1.2f);
-                kart.boostUntil = Math.max(kart.boostUntil, tick + drift.boostTicks());
-                multiplier = speedMultiplier(tick, kart.boostUntil, kart.slowUntil);
+                kart.boost.apply(KartBoost.Source.DRIFT, drift.boostFactor(), tick, drift.boostTicks());
+                multiplier = speedMultiplier(kart.boost, tick, kart.slowUntil);
             }
             KartPhysics.State next=KartPhysics.tick(kart.motion,drift.input(),multiplier,space,kart.style,drift.slipDegrees());
             if (next.speed() < 4 || Math.hypot(next.x()-kart.motion.x(),next.z()-kart.motion.z()) < .08) kart.drift.cancelCharge();
@@ -371,7 +373,18 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         return kart == null || kart.bot == null ? "Waiting for kart" :
                 "Waypoint " + (kart.waypoint + 1) + "/" + botPoints.size() + (kart.bot.recovering() ? " (recovering)" : "");
     }
-    static double speedMultiplier(long tick,long boost,long slow) {return (tick<boost?1.55:1)*(tick<slow?.4:1);}
+    static double speedMultiplier(KartBoost boost,long tick,long slow) {return boost.multiplier(tick)*(tick<slow?.4:1);}
+    private static final float[] DRIFT_PITCH = {1.0f, 1.4f, 1.9f};
+    private static final Color[] DRIFT_COLOUR = {Color.fromRGB(0x3b82f6), Color.fromRGB(0xf97316), Color.fromRGB(0xa855f7)};
+    /** Colour-coded sparks at both rear corners: blue (mini), orange (super), purple (ultra). */
+    private void driftSparks(Kart kart) {
+        Location at = location(kart.motion);
+        double yaw = Math.toRadians(at.getYaw()), fx = -Math.sin(yaw), fz = Math.cos(yaw);
+        var dust = new Particle.DustOptions(DRIFT_COLOUR[kart.drift.tier() - 1], 1.1f);
+        for (int side = -1; side <= 1; side += 2)
+            game.world().spawnParticle(Particle.DUST, at.getX() - fx * .85 - fz * .55 * side, at.getY() + .2,
+                    at.getZ() - fz * .85 + fx * .55 * side, 1, 0.05, 0.05, 0.05, 0, dust);
+    }
     // Only controller-authoritative mounted motion advances the race; walking cannot count.
     @Override public void onMove(Player player,Location from,Location to) {}
     private void collect(Kart kart,Location from,Location to) {
@@ -474,7 +487,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         }
         kart.item=null;showItem(kart);
         switch(used) {
-            case TURBO -> {kart.boostUntil=Math.max(kart.boostUntil,tick+40);kart.driver.playSound(location(kart.motion),"minecraft:entity.firework_rocket.launch",1,1.2f);}
+            case TURBO -> {kart.boost.apply(KartBoost.Source.TURBO,KartBoost.TURBO_FACTOR,tick,40);kart.driver.playSound(location(kart.motion),"minecraft:entity.firework_rocket.launch",1,1.2f);}
             case SHELL -> shell(kart);
             case LIGHTNING -> {
                 if(slow(lightning,60))game.world().strikeLightningEffect(location(lightning.motion));
@@ -511,7 +524,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
     private void reset(Kart kart) {
         kart.drift.reset();kart.driftPressed=false;
         kart.resetTick=tick;kart.spinUntil=0;kart.bumpImmuneUntil=Math.max(kart.bumpImmuneUntil,tick+40);
-        Location target=resetLocation(kart.driver);kart.input=new KartPhysics.Input(0,0);kart.boostUntil=0;kart.slowUntil=0;
+        Location target=resetLocation(kart.driver);kart.input=new KartPhysics.Input(0,0);kart.boost.clear();kart.slowUntil=0;
         Input held = kart.bot == null ? kart.driver.getCurrentInput() : null;
         kart.driftNeedsRelease = held != null && held.isJump();
         if (held != null) kart.input = new KartPhysics.Input(
