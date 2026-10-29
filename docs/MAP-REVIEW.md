@@ -12,6 +12,7 @@ folder. Configuration validation never means the map is visually approved or
 playtested. These records do not publish, enable or block an arena automatically.
 
 ```text
+/pulse maps board
 /pulse maps list [game]
 /pulse maps register <game> <map-id>
 /pulse maps check <game> <map-id>
