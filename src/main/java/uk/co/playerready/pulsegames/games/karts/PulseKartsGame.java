@@ -381,6 +381,22 @@ public final class PulseKartsGame extends CheckpointRaceGame {
     }
     @Override public void onTimeUp() { finishRace("time-race"); }
 
+    /** Mercy: a human has finished, no human is still racing and only bots are left; end after a short grace. */
+    @Override public List<Player> mercyWinners() {
+        if (raceResults == null || resultsPublished || closed) return null;
+        int humans = 0, bots = 0;
+        for (Kart kart : karts.values()) { if (game.isBot(kart.driver)) bots++; else humans++; }
+        boolean humanFinished = raceResults.results().stream().anyMatch(r -> {
+            Player p = game.player(r.player());
+            return p != null && !game.isBot(p);
+        });
+        if (!Mercy.botsOnly(humanFinished, humans, bots)) return null;
+        List<UUID> winnerIds = raceResults.winners();
+        return game.players().stream().filter(p -> winnerIds.contains(p.getUniqueId())).toList();
+    }
+    /** With the 10 second countdown this is the 15 second grace. */
+    @Override public int mercyHoldSeconds() { return 5; }
+
     private void applyBumps(Map<UUID,KartPhysics.State> previous) {
         for (Kart victim : karts.values()) {
             if (tick < victim.bumpImmuneUntil || victim.resetTick == tick || !game.isActive(victim.driver)) continue;

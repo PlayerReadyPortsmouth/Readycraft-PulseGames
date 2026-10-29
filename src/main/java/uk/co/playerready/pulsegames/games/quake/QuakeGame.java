@@ -178,7 +178,7 @@ public final class QuakeGame extends MiniGame implements BotMovement {
     }
     @Override public void onQuit(Player p){clearEffects(p);}
     @Override public void onEliminated(Player p){clearEffects(p);}
-    @Override public void onRespawn(Player p){equip(p);}
+    @Override public void onRespawn(Player p){equip(p);comebackBoost(p);}
     private Cuboid spawnArea() {
         Cuboid configured = game.arena().region("spawn-area");
         if (configured != null) return configured;
@@ -249,6 +249,26 @@ public final class QuakeGame extends MiniGame implements BotMovement {
     }
     private List<Player> side(Player p){var team=game.teamOf(p);return team==null?List.of(p):game.players().stream().filter(team::contains).toList();}
     private int sideScore(Player p){return side(p).stream().mapToInt(game::score).sum();}
+    @Override public List<Player> mercyWinners(){
+        var lead=Mercy.leading(game.players(),p->{var team=game.teamOf(p);return team!=null?team:p.getUniqueId();},this::sideScore);
+        if(lead==null||!Mercy.scoreGap(game.plugin().getConfig(),"quake",lead.best(),lead.second(),target(),
+                game.remainingSeconds(),timeLimitSeconds()))return null;
+        return side(lead.member());
+    }
+    private final Map<UUID,Long> comebackUntil=new HashMap<>();
+    /** 5+ kills behind the leader: a short speed boost on respawn. */
+    private void comebackBoost(Player p){
+        var config=game.plugin().getConfig();
+        int leader=game.topScores().stream().mapToInt(Map.Entry::getValue).max().orElse(0);
+        if(!Comeback.boostDue(config,"quake",game.score(p),leader))return;
+        int ticks=Comeback.boostTicks(config,"quake");
+        p.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.SPEED,ticks,1));
+        comebackUntil.put(p.getUniqueId(),System.currentTimeMillis()+ticks*50L);
+        p.sendActionBar(Text.mm("<green>Comeback boost! <gray>You are a few kills behind, so here is some speed."));
+    }
+    @Override public String comebackLine(Player p){
+        return comebackUntil.getOrDefault(p.getUniqueId(),0L)>System.currentTimeMillis()?"Comeback: speed boost":null;
+    }
     @Override public void onTimeUp(){
         int best=game.players().stream().mapToInt(this::sideScore).max().orElse(0);
         List<Player> leaders=game.players().stream().filter(p->sideScore(p)==best).toList();
@@ -292,7 +312,7 @@ public final class QuakeGame extends MiniGame implements BotMovement {
             for(Weapon w:Weapon.values())p.setCooldown(w.item,0);
             for(Ability a:Ability.values())p.setCooldown(a.item,0);
         }
-        abilities.clear();shields.clear();sprints.clear();originalSpeed.clear();weapons.clear();health.clear();cooldowns.clear();protectedUntil.clear();goals.clear();botReady.clear();botTargets.clear();
+        comebackUntil.clear();abilities.clear();shields.clear();sprints.clear();originalSpeed.clear();weapons.clear();health.clear();cooldowns.clear();protectedUntil.clear();goals.clear();botReady.clear();botTargets.clear();
     }
     @Override
     public String phaseCountdown() { int seconds = game.startCountdownSeconds(); return seconds > 0 ? "Choose loadout: " + seconds + "s" : null; }

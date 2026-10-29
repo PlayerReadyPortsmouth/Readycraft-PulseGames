@@ -35,7 +35,9 @@ public final class ShopCatalogue {
         RANGED("Ranged", Material.BOW),
         POTIONS("Potions", Material.BREWING_STAND),
         UTILITY("Utility", Material.GOLDEN_APPLE),
-        FUNKY("Funky", Material.FIREWORK_STAR);
+        FUNKY("Funky", Material.FIREWORK_STAR),
+        /** Cheap essentials for a team fighting back without a bed; shown only while the comeback is active. */
+        COMEBACK("Comeback", Material.TOTEM_OF_UNDYING);
 
         public final String title;
         public final Material icon;

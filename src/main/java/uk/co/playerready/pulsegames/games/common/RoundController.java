@@ -7,6 +7,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.scheduler.BukkitTask;
 import uk.co.playerready.pulsegames.core.game.GameInstance;
+import uk.co.playerready.pulsegames.core.game.Mercy;
 import uk.co.playerready.pulsegames.core.game.MiniGame;
 import uk.co.playerready.pulsegames.core.util.Text;
 
@@ -142,6 +143,18 @@ public final class RoundController {
             return;
         }
         startNextRound();
+    }
+
+    /**
+     * Mercy: the match winner when the runner-up cannot catch up even by winning every round still to play,
+     * else null. Never between the last round and the end.
+     */
+    public List<Player> mercyWinners() {
+        if (phase == Phase.DONE || finalPause) return null;
+        int roundsLeft = tracker.totalRounds() - tracker.round() + (phase == Phase.ROUND ? 1 : 0);
+        var lead = Mercy.leading(game.players(), Player::getUniqueId, p -> tracker.total(p.getUniqueId()));
+        if (lead == null || !Mercy.roundsUnreachable(lead.best(), lead.second(), roundsLeft, Math.max(2, fieldSize))) return null;
+        return List.of(lead.member());
     }
 
     /** Engine time limit hit: the match is decided on the points banked so far. */

@@ -4,7 +4,9 @@
 #
 # Per item:
 #   id          unique short name
-#   category    blocks | melee | armour | tools | ranged | potions | utility | funky
+#   category    blocks | melee | armour | tools | ranged | potions | utility | funky | comeback
+#               (comeback = cheap essentials, shown only to a team that has no bed and is outnumbered;
+#               it takes the Funky tab's place while it is on. Keep prices about half the normal ones.)
 #   material    Bukkit material name (for armour: the CHESTPLATE; leggings and boots come with it)
 #   amount      how many you get (default 1)
 #   currency    iron | gold | diamond
@@ -84,10 +86,18 @@ items:
   - {id: decoy_dummy, category: funky, material: ARMOR_STAND, currency: iron, cost: 32, name: Decoy Dummy, blurb: "A dummy in your team colours. Enemies chase it instead of you. Lasts 30 seconds.", custom: decoy_dummy, new: true, cooldown: 20, seconds: 30}
   - {id: water_bucket, category: utility, material: WATER_BUCKET, currency: gold, cost: 4, name: Water Bucket, blurb: "Slows down fire and breaks falls.", unique: true}
 
+  # Comeback shelf: half-price essentials for a team without a bed that is outnumbered.
+  - {id: cb_wool, category: comeback, material: WHITE_WOOL, amount: 16, currency: iron, cost: 2, name: Comeback Wool, blurb: "Half price. Build back into the fight.", team-colour: true}
+  - {id: cb_sword_stone, category: comeback, material: STONE_SWORD, currency: iron, cost: 5, name: Comeback Stone Sword, blurb: "Half price. Replaces your wooden sword.", group: sword}
+  - {id: cb_sword_iron, category: comeback, material: IRON_SWORD, currency: gold, cost: 4, name: Comeback Iron Sword, blurb: "Half price. Replaces your old sword.", group: sword}
+  - {id: cb_armour_chain, category: comeback, material: CHAINMAIL_CHESTPLATE, currency: iron, cost: 15, name: Comeback Chainmail Armour, blurb: "Half price. Worn straight away and kept when you respawn.", group: armour, equip: true}
+  - {id: cb_armour_iron, category: comeback, material: IRON_CHESTPLATE, currency: gold, cost: 6, name: Comeback Iron Armour, blurb: "Half price. Worn straight away and kept when you respawn.", group: armour, equip: true}
+
 # Team upgrades: everyone on your team gets them. Each level costs the listed number of diamonds.
 # effect: sharpness (swords) | protection (armour) | haste (dig faster) | forge (iron and gold generators run faster)
 #         | heal_pool (regeneration near your bed) | trap_alarm | trap_slow | trap_fatigue (one-shot traps near your bed;
 #         they re-arm when bought again). At most 9 upgrades fit the shop window.
+
 upgrades:
   - {id: sharpness, effect: sharpness, icon: DIAMOND_SWORD, name: Sharp Swords, blurb: "All your team's swords hit harder.", costs: [8]}
   - {id: protection, effect: protection, icon: DIAMOND_CHESTPLATE, name: Strong Armour, blurb: "All your team's armour protects more.", costs: [5, 10, 20, 30]}
@@ -97,3 +107,4 @@ upgrades:
   - {id: trap_alarm, effect: trap_alarm, icon: BELL, name: Alarm Trap, blurb: "Rings when an enemy sneaks up to your bed, and makes them glow for 10 seconds. Works once.", costs: [1]}
   - {id: trap_slow, effect: trap_slow, icon: COBWEB, name: Slowness Trap, blurb: "Slows the first enemy to reach your bed for 8 seconds. Works once.", costs: [2]}
   - {id: trap_fatigue, effect: trap_fatigue, icon: WOODEN_PICKAXE, name: Tired Hands Trap, blurb: "Makes the first enemy to reach your bed dig slowly for 10 seconds. Works once.", costs: [2]}
+

@@ -79,6 +79,40 @@ end:
   # Seconds to celebrate before players are returned to the lobby.
   celebrate-seconds: 10
 
+# Mercy rules: end a clearly decided match early with a 10 second "Game over" countdown. Winners get full
+# rewards, everyone else the usual participation and placement. The countdown cancels if the trailing side
+# gets back in the game. Villager Defense, ReadyPlayerZ and the other race games have no mercy rule.
+# Owner Aurora / ReadyCraft; review 2026-11-30.
+mercy:
+  enabled: true
+  countdown-seconds: 10
+  bedwars:
+    enabled: true
+    # Every other team has no bed and the leader has this many times their combined living players...
+    ratio: 2.0
+    # ...for this many seconds in a row.
+    hold-seconds: 60
+  # Score games: the leader is this % of the target ahead with less than this % of the clock left.
+  koth: {enabled: true, gap-percent: 60, time-left-percent: 40}
+  kitpvp: {enabled: true, gap-percent: 60, time-left-percent: 40}
+  quake: {enabled: true, gap-percent: 60, time-left-percent: 40}
+  # Rounds mode: the runner-up cannot catch up even by winning every remaining round.
+  dodgeball: {enabled: true}
+  avalanche: {enabled: true}
+  # A human has finished, only bots are still racing: hold-seconds plus the countdown is the 15 second grace.
+  karts: {enabled: true, hold-seconds: 5}
+
+# Comeback help for the side that is behind. Owner Aurora / ReadyCraft; review 2026-11-30.
+comeback:
+  enabled: true
+  # No bed and outnumbered by the biggest opposing team: one free forge tier and a half-price Comeback shop tab.
+  bedwars: {enabled: true}
+  # This many kills behind the leader: a speed boost for a few seconds after respawning.
+  kitpvp: {enabled: true, kills-behind: 5, boost-seconds: 3}
+  quake: {enabled: true, kills-behind: 5, boost-seconds: 3}
+  # The side with fewer players gets one extra throw at each round reset.
+  dodgeball: {enabled: true}
+
 shop:
   # Buying anything priced at or above this asks "are you sure?" first (the 2x booster always asks).
   confirm-at: 500
