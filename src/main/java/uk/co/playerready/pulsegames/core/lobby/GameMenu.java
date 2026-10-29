@@ -33,6 +33,8 @@ public final class GameMenu {
     static final int TOP_SLOT = 47;
     static final int KIT_SLOT = 51;
     static final int LEVEL_SLOT = 52;
+    /** Top row, right of Quick Play: the nav row is full once My level (52) and the pager are in. */
+    static final int RANKED_SLOT = 6;
     /** One row of modes in a 27-slot menu, otherwise four rows in a 54-slot one. */
     static final int SMALL_MODES = 7;
     static final int MAX_MODES = PER_PAGE;
@@ -187,6 +189,10 @@ public final class GameMenu {
         menu.set(LEVEL_SLOT, Buttons.item(Material.EXPERIENCE_BOTTLE, Theme.ACCENT + "My level " + plugin.levels().tag(player),
                 Lore.of().desc("Your XP, level and what you unlock next.").blank().hint("Click to open")),
                 p -> plugin.levelMenu().open(p));
+        if (plugin.ranked() != null && plugin.ranked().enabled())
+            menu.set(RANKED_SLOT, Buttons.item(Material.NETHER_STAR, Theme.MONEY + "<b>Ranked Duels</b>",
+                    Lore.of().desc("Climb the divisions, one against one.").blank().hint("Click to open")),
+                    p -> plugin.rankedMenu().open(p));
         menu.pager(page, () -> { pageState[0]--; menu.refresh(); }, () -> { pageState[0]++; menu.refresh(); });
         menu.close();
         menu.fillEmpty(Material.GRAY_STAINED_GLASS_PANE);

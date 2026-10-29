@@ -40,6 +40,9 @@ public final class DuelMenu {
         }, classic ? "<gray>Classic combat rules" : "<red>Combat provider not ready", "<gray>Choose the discipline next");
         button(s, 15, Material.DIAMOND_SWORD, "<aqua>Modern · 1.9+", p -> disciplines(p, GameMode.CombatStyle.MODERN),
                 "<gray>Modern attack cooldown and combat", "<gray>Regular PvP, Sumo, Crystal or Mace");
+        if (plugin.ranked() != null && plugin.ranked().enabled())
+            button(s, 22, Material.NETHER_STAR, "<gold>Ranked", p -> plugin.rankedMenu().open(p),
+                    "<gray>Rated one against one", "<gray>Divisions, seasons and top 10 boards");
         });
     }
     private void disciplines(Player player, GameMode.CombatStyle style) {

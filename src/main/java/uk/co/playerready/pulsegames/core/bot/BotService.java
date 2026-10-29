@@ -205,6 +205,7 @@ public final class BotService implements AutoCloseable {
 
     public BotDifficulty difficultyFor(GameInstance game, Player opponent) {
         if (game.practice()) return game.practiceDifficulty();
+        if (game.rankedMatch() && game.rankedBotTier() != null) return game.rankedBotTier();
         String selection = game.arena().settings().getString("bot-difficulty",
                 plugin.getConfig().getString("bots.difficulty", "adaptive"));
         if (!"adaptive".equalsIgnoreCase(selection)) return BotDifficulty.parse(selection);

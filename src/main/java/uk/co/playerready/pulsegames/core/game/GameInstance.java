@@ -210,6 +210,20 @@ public final class GameInstance {
     /** Fixed when the round starts; later departures cannot change rewards. */
     public boolean ranked() { return !practice && competitiveEligible; }
     public boolean practice() { return practice; }
+
+    // ---- Ranked Duels pairing (core/ranked) ------------------------------------------------
+    private String rankedKit;
+    private final Set<UUID> rankedAllowed = new LinkedHashSet<>();
+    private uk.co.playerready.pulsegames.core.bot.BotDifficulty rankedBotTier;
+    public boolean rankedMatch() { return rankedKit != null; }
+    public String rankedKit() { return rankedKit; }
+    public uk.co.playerready.pulsegames.core.bot.BotDifficulty rankedBotTier() { return rankedBotTier; }
+    /** Reserves this instance for the ladder: only these players may join; bots (if any) use {@code botTier}. */
+    public void markRanked(String kit, java.util.Collection<UUID> allowed, uk.co.playerready.pulsegames.core.bot.BotDifficulty botTier) {
+        rankedKit = kit;
+        rankedAllowed.addAll(allowed);
+        rankedBotTier = botTier;
+    }
     public uk.co.playerready.pulsegames.core.bot.BotDifficulty practiceDifficulty() { return practiceDifficulty; }
     public int practiceBotTarget() { return practiceBotTarget; }
     public void configurePractice(uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty, int bots) {
@@ -304,6 +318,7 @@ public final class GameInstance {
         boolean bot = plugin.bots() != null && plugin.bots().isBot(player);
         if (!joinable(1) || world == null || participants.contains(player.getUniqueId())) return false;
         if (bot && participants.size() >= maxPlayers()) return false;
+        if (rankedKit != null && !bot && !rankedAllowed.contains(player.getUniqueId())) return false;
         if (!bot && plugin.bots() != null) plugin.bots().beforeHumanJoin(this, player);
         if (bot) botIds.add(player.getUniqueId());
         participants.add(player.getUniqueId());
@@ -441,6 +456,7 @@ public final class GameInstance {
         if (state == GameState.RUNNING && participants.contains(player.getUniqueId())) {
             departed.add(player.getUniqueId());
             if (!bot) humanDeparted = true;
+            if (!bot && plugin.ranked() != null) plugin.ranked().departed(this, player, teleportToLobby);
             names.putIfAbsent(player.getUniqueId(), player.getName());
             if (wasAlive && !outOrder.contains(player.getUniqueId()) && !finishOrder.contains(player.getUniqueId()))
                 outOrder.add(player.getUniqueId());
@@ -965,6 +981,7 @@ public final class GameInstance {
                 plugin.cosmetics().playWinEffect(winner);
             }
         });
+        if (plugin.ranked() != null) plugin.ranked().matchEnded(this, creditedWinners, reason);
         runLogic("onEnd", () -> logic.onEnd(creditedWinners));
         if (endListener != null) {
             try { endListener.accept(creditedWinners); }

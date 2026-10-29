@@ -25,6 +25,7 @@ public final class StatsMenu {
     static final int COSMETICS_SLOT = 5;
     static final int SETTINGS_SLOT = 6;
     static final int LEVEL_SLOT = 1;
+    static final int RANKED_SLOT = 7;
     /** Games per page: rows 2-4, columns 1-7. */
     static final int PER_PAGE = 21;
 
@@ -63,6 +64,12 @@ public final class StatsMenu {
                 Lore.of().line("<white>" + uk.co.playerready.pulsegames.core.progression.XpRules.bar(level, 10)).blank().hint("Click for details")),
                 p -> plugin.levelMenu().open(p));
         menu.set(COSMETICS_SLOT, cosmetics(player));
+        if (plugin.ranked() != null && plugin.ranked().enabled()) {
+            String division = plugin.ranked().bestDivision(player.getUniqueId());
+            menu.set(RANKED_SLOT, Buttons.item(Material.IRON_SWORD, Theme.NAME + "Ranked Duels",
+                    Lore.of().kv("Division", division).blank().hint("Click for ratings and boards")),
+                    p -> plugin.rankedMenu().open(p));
+        }
         menu.set(SETTINGS_SLOT, Buttons.item(Material.COMPARATOR, Theme.ACCENT + "My settings",
                 Lore.of().desc("Party invites and comfort options.").blank().hint("Click to open")),
                 p -> new SettingsMenu(plugin, () -> open(p)).open(p));

@@ -63,6 +63,8 @@ public final class PulseGamesPlugin extends JavaPlugin {
     private uk.co.playerready.pulsegames.core.progression.LevelMenu levelMenu;
     private uk.co.playerready.pulsegames.core.economy.WardrobeMenu wardrobe;
     private uk.co.playerready.pulsegames.core.events.EventService events;
+    private uk.co.playerready.pulsegames.core.ranked.RankedService ranked;
+    private uk.co.playerready.pulsegames.core.ranked.RankedMenu rankedMenu;
 
     @Override
     public void onEnable() {
@@ -111,6 +113,9 @@ public final class PulseGamesPlugin extends JavaPlugin {
         loadCosmeticsFile();
         events = new uk.co.playerready.pulsegames.core.events.EventService(this);
 
+        ranked = new uk.co.playerready.pulsegames.core.ranked.RankedService(this);
+        rankedMenu = new uk.co.playerready.pulsegames.core.ranked.RankedMenu(this);
+
         worlds.purgeLeftovers();
         // A broken arenas/ or kits.yml must not take the rest of the wiring down with
         // it - without commands and listeners the plugin is inert on the whole network.
@@ -132,9 +137,11 @@ public final class PulseGamesPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new uk.co.playerready.pulsegames.core.lobby.LobbyItemListener(lobby), this);
         getServer().getPluginManager().registerEvents(new uk.co.playerready.pulsegames.core.ui.MenuListener(), this);
         getServer().getPluginManager().registerEvents(setup, this);
+        getServer().getPluginManager().registerEvents(new uk.co.playerready.pulsegames.core.ranked.RankedListener(ranked), this);
         new Commands(this);
         lobbyPlacements = new uk.co.playerready.pulsegames.core.lobby.LobbyPlacements(this);
         lobbyPlacements.start();
+        ranked.start();
         bots.start();
         events.start();
         practice.start();
@@ -149,6 +156,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
     public void onDisable() {
         // The flushes below are the only persistence for stats and Pulse Tokens since
         // the last 60s autosave, so nothing above them may abort onDisable.
+        if (ranked != null) ranked.shutdown();
         try {
             if (events != null) events.shutdown();
             if (instances != null) instances.shutdownAll();
@@ -210,6 +218,8 @@ public final class PulseGamesPlugin extends JavaPlugin {
     public PlayerStateService playerState() { return playerState; }
     public SidebarService sidebar() { return sidebar; }
     public StatsService stats() { return stats; }
+    public uk.co.playerready.pulsegames.core.ranked.RankedService ranked() { return ranked; }
+    public uk.co.playerready.pulsegames.core.ranked.RankedMenu rankedMenu() { return rankedMenu; }
     public uk.co.playerready.pulsegames.core.progression.ProgressionService progression() { return progression; }
     public PlayService playService() { return playService; }
     public uk.co.playerready.pulsegames.core.combat.ClassicCombatService combat() { return combat; }

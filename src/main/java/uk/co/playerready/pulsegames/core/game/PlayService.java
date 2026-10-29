@@ -124,6 +124,7 @@ public final class PlayService {
     public void cancelPending(Player player) {
         QueueTicket ticket = pending.get(player.getUniqueId());
         if (ticket != null) release(ticket);
+        if (plugin.ranked() != null) plugin.ranked().leaveQueue(player);
     }
 
     private boolean readyGroup(QueueTicket ticket) {
