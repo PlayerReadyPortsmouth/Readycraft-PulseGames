@@ -10,10 +10,19 @@ final class BedwarsBotPlan {
 
     record Facts(Role role, int gameTime, boolean enemyClose, boolean bedThreatened, boolean nearOwnBed,
                  boolean bedAlive, boolean hasBlocks, boolean hasSword, boolean defenceGap, boolean atBase,
-                 boolean affordableItem, boolean diamondTripWanted, boolean gatherDue) {}
+                 boolean affordableItem, boolean diamondTripWanted, boolean gatherDue, boolean alarm) {
+        Facts(Role role, int gameTime, boolean enemyClose, boolean bedThreatened, boolean nearOwnBed, boolean bedAlive,
+              boolean hasBlocks, boolean hasSword, boolean defenceGap, boolean atBase, boolean affordableItem,
+              boolean diamondTripWanted, boolean gatherDue) {
+            this(role, gameTime, enemyClose, bedThreatened, nearOwnBed, bedAlive, hasBlocks, hasSword, defenceGap, atBase,
+                    affordableItem, diamondTripWanted, gatherDue, false);
+        }
+    }
 
     static Goal decide(Facts f, BedwarsBotConfig cfg) {
         if (f.enemyClose()) return Goal.FIGHT;
+        // Our own alarm trap rang: every bot on the team heads home, wherever it is and whatever its role.
+        if (f.bedAlive() && f.alarm()) return Goal.RESPOND_BED;
         if (f.bedAlive() && f.bedThreatened() && (f.role() == Role.GUARD || f.nearOwnBed())) return Goal.RESPOND_BED;
         if (f.bedAlive() && f.defenceGap() && f.hasBlocks() && (f.role() == Role.GUARD || f.gameTime() < cfg.attackStartSeconds()))
             return Goal.REBUILD;
