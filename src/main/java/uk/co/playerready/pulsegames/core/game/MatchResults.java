@@ -131,6 +131,9 @@ public final class MatchResults {
         if (action.equals("again") && result.practice()) {
             plugin.practice().repeatFromResults(player); return;
         }
+        if (action.equals("again") && plugin.privateMatches().hasSetup(result.match())) {
+            plugin.privateMatches().rematch(player, result.match()); return;
+        }
         if (action.equals("again")) {
             var type = plugin.registry().get(result.game());
             var mode = type == null ? null : type.mode(result.mode());

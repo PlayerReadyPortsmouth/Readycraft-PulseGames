@@ -105,9 +105,14 @@ public final class Commands implements CommandExecutor, TabCompleter {
     }
 
     private void party(Player player, String[] args) {
+        if (args.length > 0 && (args[0].equalsIgnoreCase("private") || args[0].equalsIgnoreCase("spectate"))) {
+            if (args[0].equalsIgnoreCase("private")) plugin.privateMatches().open(player);
+            else plugin.privateMatches().spectate(player);
+            return;
+        }
         if (!plugin.parties().localOnly(player) && plugin.networkPartyCommand(player,args)) return;
         if (args.length == 0) {
-            player.sendMessage(Text.msg("Usage: <yellow>/party <invite|accept|deny|leave|disband|list|chat|invites>"));
+            player.sendMessage(Text.msg("Usage: <yellow>/party <invite|accept|deny|leave|disband|list|chat|invites|private|spectate>"));
             return;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
@@ -326,7 +331,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
             }
             case "party" -> {
                 if (args.length == 1) {
-                    return List.of("invite", "accept", "deny", "leave", "disband", "list", "chat", "invites");
+                    return List.of("invite", "accept", "deny", "leave", "disband", "list", "chat", "invites", "private", "spectate");
                 }
             }
             case "pulse" -> {

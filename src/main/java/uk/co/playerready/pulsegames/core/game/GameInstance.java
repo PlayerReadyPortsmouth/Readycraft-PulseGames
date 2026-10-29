@@ -65,6 +65,9 @@ public final class GameInstance {
     private boolean practice;
     private uk.co.playerready.pulsegames.core.bot.BotDifficulty practiceDifficulty = uk.co.playerready.pulsegames.core.bot.BotDifficulty.NORMAL;
     private int practiceBotTarget;
+    /** Private match: who may join and how bots behave; null for public games. Allowed grows if a late member is admitted. */
+    private uk.co.playerready.pulsegames.core.play.PrivateSetup privateSetup;
+    private final Set<UUID> privateAllowed = new LinkedHashSet<>();
     private final Map<UUID, Integer> roundKills = new HashMap<>(), roundDeaths = new HashMap<>();
     /** Engagement: kill tokens already paid this match (capped), ready votes, and seconds survived. */
     private final Map<UUID, Integer> killTokens = new HashMap<>(), survivedAt = new HashMap<>();
@@ -169,7 +172,11 @@ public final class GameInstance {
         return Math.max(0, cap);
     }
 
-    public int minPlayers() { return Math.max(arena.minPlayers(mode.id()), mode.minPlayers()); }
+    public int minPlayers() {
+        int base = Math.max(arena.minPlayers(mode.id()), mode.minPlayers());
+        return privateSetup == null ? base : uk.co.playerready.pulsegames.core.play.PrivateRules.minPlayers(base,
+                plugin.bots() != null && plugin.bots().canFill(this));
+    }
 
     /**
      * Available team groups, capped by configured slots, spawns and game features.
@@ -233,6 +240,22 @@ public final class GameInstance {
         practiceDifficulty = difficulty == null ? uk.co.playerready.pulsegames.core.bot.BotDifficulty.NORMAL : difficulty;
         practiceBotTarget = Math.max(0, Math.min(63, bots));
     }
+    public boolean isPrivate() { return privateSetup != null; }
+    public uk.co.playerready.pulsegames.core.play.PrivateSetup privateSetup() { return privateSetup; }
+    /** Bots are wanted in this private match (config allows it and the leader left "fill with bots" on). */
+    public boolean privateBotsWanted() {
+        return privateSetup != null && uk.co.playerready.pulsegames.core.play.PrivateRules.botsWanted(
+                plugin.getConfig().getBoolean("private.allow-bots", true), privateSetup.fillBots());
+    }
+    /** The leader's explicit bot difficulty ("easy"... "adaptive"), or null to follow the map and config. */
+    public String privateDifficulty() { return privateSetup == null ? null : privateSetup.level().setting(); }
+    public void configurePrivate(uk.co.playerready.pulsegames.core.play.PrivateSetup setup) {
+        if (state != GameState.LOADING) throw new IllegalStateException("Configure private match before loading the world");
+        privateSetup = setup;
+        privateAllowed.addAll(setup.members());
+    }
+    /** A party member who arrived after the match was made may be admitted too. */
+    public void allowPrivate(UUID id) { if (privateSetup != null) privateAllowed.add(id); }
     public boolean isActive(Player player) {
         return isAlive(player) && !respawning.contains(player.getUniqueId())
                 && player.getGameMode() != org.bukkit.GameMode.SPECTATOR;
@@ -317,6 +340,10 @@ public final class GameInstance {
     public boolean add(Player player) {
         boolean bot = plugin.bots() != null && plugin.bots().isBot(player);
         if (!joinable(1) || world == null || participants.contains(player.getUniqueId())) return false;
+        if (privateSetup != null && !uk.co.playerready.pulsegames.core.play.PrivateRules.admits(privateAllowed, player.getUniqueId(), bot)) {
+            player.sendMessage(Text.msg("<red>That is a private match for a party."));
+            return false;
+        }
         if (bot && participants.size() >= maxPlayers()) return false;
         if (rankedKit != null && !bot && !rankedAllowed.contains(player.getUniqueId())) return false;
         if (!bot && plugin.bots() != null) plugin.bots().beforeHumanJoin(this, player);
@@ -438,13 +465,24 @@ public final class GameInstance {
     }
 
     boolean returnSpectator(Player player) {
+        return watch(player, "You disconnected during the round. You can watch, but your life and rewards are not restored. Use /lobby to return.");
+    }
+
+    /** A party member arriving after the private match was made: a seat while it is filling, otherwise a view. */
+    public boolean admitLate(Player player) {
+        if (privateSetup == null || !privateAllowed.contains(player.getUniqueId()) || isParticipant(player)) return false;
+        if (state == GameState.WAITING || state == GameState.COUNTDOWN) return add(player);
+        return watch(player, "You are watching your party's private match. Use /lobby to leave.");
+    }
+
+    private boolean watch(Player player, String message) {
         if (world == null || state != GameState.RUNNING || isParticipant(player)) return false;
         plugin.playerState().save(player);
         if (!player.teleport(arena.spectator(world))) { plugin.playerState().restore(player); return false; }
         spectators.add(player.getUniqueId());
         plugin.instances().index(player, this);
         player.setGameMode(org.bukkit.GameMode.SPECTATOR);
-        player.sendMessage(Text.msg("<yellow>You disconnected during the round. You can watch, but your life and rewards are not restored. Use /lobby to return."));
+        player.sendMessage(Text.msg("<yellow>" + message));
         return true;
     }
 
@@ -513,7 +551,8 @@ public final class GameInstance {
             case WAITING -> {
                 if (participants.size() >= minPlayers()) {
                     state = GameState.COUNTDOWN;
-                    countdown = Math.max(1, plugin.getConfig().getInt("countdown.lobby-seconds", 30));
+                    countdown = privateSetup != null ? Math.max(1, plugin.getConfig().getInt("private.countdown-seconds", 10))
+                            : Math.max(1, plugin.getConfig().getInt("countdown.lobby-seconds", 30));
                 }
             }
             case COUNTDOWN -> tickCountdown();
@@ -659,6 +698,7 @@ public final class GameInstance {
                     ? "<green>This bot-assisted match counts for competitive records and match token rewards."
                     : "<yellow>Practice match: not enough human players for competitive records or match token rewards.");
         }
+        if (privateSetup != null) broadcast("<gray>" + uk.co.playerready.pulsegames.core.play.PrivateRules.TOKEN_NOTE);
         state = GameState.RUNNING;
         gameTime = 0;
         alive.clear();

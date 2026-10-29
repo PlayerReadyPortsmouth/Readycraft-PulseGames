@@ -57,7 +57,7 @@ public final class QuickPlayService {
         return QueueCounts.tally(plugin.instances().all().stream()
                 .map(g -> new QueueCounts.Row(g.type().id(),
                         g.state() == GameState.WAITING || g.state() == GameState.COUNTDOWN,
-                        g.state() == GameState.RUNNING, g.practice(), g.humanCount()))
+                        g.state() == GameState.RUNNING, g.practice() || g.isPrivate(), g.humanCount()))
                 .toList());
     }
 
@@ -66,7 +66,7 @@ public final class QuickPlayService {
         return QueueCounts.tallyModes(plugin.instances().all().stream()
                 .map(g -> new QueueCounts.ModeRow(g.type().id(), g.mode().id(),
                         g.state() == GameState.WAITING || g.state() == GameState.COUNTDOWN,
-                        g.state() == GameState.RUNNING, g.practice(), g.humanCount()))
+                        g.state() == GameState.RUNNING, g.practice() || g.isPrivate(), g.humanCount()))
                 .toList());
     }
 
@@ -80,7 +80,7 @@ public final class QuickPlayService {
         String featured = featuredId();
         var opens = plugin.instances().all().stream()
                 .filter(g -> (g.state() == GameState.WAITING || g.state() == GameState.COUNTDOWN)
-                        && !g.practice() && g.humanCount() > 0 && g.joinable(1) && playable(g.type())
+                        && !g.practice() && !g.isPrivate() && g.humanCount() > 0 && g.joinable(1) && playable(g.type())
                         && (!g.type().wip() || plugin.gamePublic(g.type()) || plugin.canUseNewFeatures(player)))
                 .map(g -> new QuickPlay.Open(g.type().id(), g.id(), g.humanCount()))
                 .toList();
