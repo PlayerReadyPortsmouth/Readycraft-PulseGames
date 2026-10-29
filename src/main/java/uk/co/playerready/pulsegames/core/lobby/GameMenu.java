@@ -32,6 +32,7 @@ public final class GameMenu {
     static final int CHALLENGES_SLOT = 46;
     static final int TOP_SLOT = 47;
     static final int KIT_SLOT = 51;
+    static final int LEVEL_SLOT = 52;
     /** One row of modes in a 27-slot menu, otherwise four rows in a 54-slot one. */
     static final int SMALL_MODES = 7;
     static final int MAX_MODES = PER_PAGE;
@@ -108,6 +109,7 @@ public final class GameMenu {
             case FormLayout.CHALLENGES -> plugin.engagement().openChallenges(player);
             case FormLayout.TOP -> plugin.engagement().top(player, new String[0]);
             case FormLayout.KIT -> plugin.kitSelection().open(player);
+            case FormLayout.LEVEL -> plugin.levelMenu().open(player);
             default -> { }
         }
     }
@@ -182,6 +184,9 @@ public final class GameMenu {
                 Lore.of().desc("Who is winning this week.").blank().hint("Click to see")),
                 p -> { p.closeInventory(); plugin.engagement().top(p, new String[0]); });
         menu.set(KIT_SLOT, kitButton(), p -> plugin.kitSelection().open(p));
+        menu.set(LEVEL_SLOT, Buttons.item(Material.EXPERIENCE_BOTTLE, Theme.ACCENT + "My level " + plugin.levels().tag(player),
+                Lore.of().desc("Your XP, level and what you unlock next.").blank().hint("Click to open")),
+                p -> plugin.levelMenu().open(p));
         menu.pager(page, () -> { pageState[0]--; menu.refresh(); }, () -> { pageState[0]++; menu.refresh(); });
         menu.close();
         menu.fillEmpty(Material.GRAY_STAINED_GLASS_PANE);

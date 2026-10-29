@@ -58,6 +58,9 @@ public final class PulseGamesPlugin extends JavaPlugin {
     private MapBuilder mapBuilder;
     private uk.co.playerready.pulsegames.core.lobby.QuickPlayService quickPlay;
     private uk.co.playerready.pulsegames.core.progression.EngagementService engagement;
+    private uk.co.playerready.pulsegames.core.progression.LevelService levels;
+    private uk.co.playerready.pulsegames.core.progression.LevelMenu levelMenu;
+    private uk.co.playerready.pulsegames.core.economy.WardrobeMenu wardrobe;
 
     @Override
     public void onEnable() {
@@ -100,6 +103,10 @@ public final class PulseGamesPlugin extends JavaPlugin {
         mapBuilder = new MapBuilder(this);
         quickPlay = new uk.co.playerready.pulsegames.core.lobby.QuickPlayService(this);
         engagement = new uk.co.playerready.pulsegames.core.progression.EngagementService(this);
+        levels = new uk.co.playerready.pulsegames.core.progression.LevelService(this);
+        levelMenu = new uk.co.playerready.pulsegames.core.progression.LevelMenu(this);
+        wardrobe = new uk.co.playerready.pulsegames.core.economy.WardrobeMenu(this);
+        loadCosmeticsFile();
 
         worlds.purgeLeftovers();
         // A broken arenas/ or kits.yml must not take the rest of the wiring down with
@@ -117,6 +124,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
         GameCatalog.registerAll(registry);
 
         getServer().getPluginManager().registerEvents(new GameListener(this), this);
+        getServer().getPluginManager().registerEvents(levels, this);
         getServer().getPluginManager().registerEvents(new uk.co.playerready.pulsegames.core.game.FenceListener(this), this);
         getServer().getPluginManager().registerEvents(new uk.co.playerready.pulsegames.core.lobby.LobbyItemListener(lobby), this);
         getServer().getPluginManager().registerEvents(new uk.co.playerready.pulsegames.core.ui.MenuListener(), this);
@@ -205,6 +213,22 @@ public final class PulseGamesPlugin extends JavaPlugin {
     public MapBuilder mapBuilder() { return mapBuilder; }
     public uk.co.playerready.pulsegames.core.lobby.QuickPlayService quickPlay() { return quickPlay; }
     public uk.co.playerready.pulsegames.core.progression.EngagementService engagement() { return engagement; }
+    public uk.co.playerready.pulsegames.core.progression.LevelService levels() { return levels; }
+    public uk.co.playerready.pulsegames.core.progression.LevelMenu levelMenu() { return levelMenu; }
+    public uk.co.playerready.pulsegames.core.economy.WardrobeMenu wardrobe() { return wardrobe; }
+
+    /** Adds the data-file cosmetics (cosmetics.yml) to the catalogue; bad entries are logged and skipped. */
+    private void loadCosmeticsFile() {
+        try {
+            java.io.File file = new java.io.File(getDataFolder(), "cosmetics.yml");
+            if (!file.exists()) saveResource("cosmetics.yml", false);
+            var yaml = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(file);
+            CosmeticsService.loadExtra(yaml.getConfigurationSection("cosmetics"))
+                    .forEach(problem -> getLogger().warning("cosmetics.yml: " + problem));
+        } catch (RuntimeException ex) {
+            getLogger().warning("cosmetics.yml unreadable, using the built-in cosmetics only: " + ex);
+        }
+    }
     /** Public optional bridge API; called on the server thread by PulseNetwork. */
     public java.util.List<java.util.Map<String, String>> networkQueues() {
         return instances().all().stream()

@@ -273,12 +273,19 @@ public final class SpectatorTools {
             case WOW -> { sound = "minecraft:entity.experience_orb.pickup"; pitch = 1.6f; particle = Particle.END_ROD; count = 20; }
             default -> { sound = "minecraft:block.note_block.chime"; pitch = 1.4f; particle = Particle.NOTE; count = 8; }
         }
+        // An owned, equipped reaction from the wardrobe replaces the default particle and sound.
+        var custom = game.plugin().cosmetics().equippedReaction(player);
         // Per viewer, so "Hide spectator reactions" (Settings) can skip other players' reactions.
         for (Player p : game.everyone()) {
             if (game.isBot(p) || p.getWorld() != at.getWorld()) continue;
             boolean hide = uk.co.playerready.pulsegames.core.settings.PlayerSettings.enabled(
                     p, uk.co.playerready.pulsegames.core.settings.Comfort.HIDE_REACTIONS);
             if (!showsReaction(p.equals(player), hide)) continue;
+            if (custom != null) {
+                if (custom.particle() != null) p.spawnParticle(custom.particle(), at, Math.min(custom.count(), 20), custom.spread(), custom.spread(), custom.spread(), custom.speed());
+                if (custom.sound() != null) p.playSound(at, custom.sound(), custom.volume(), custom.pitch());
+                continue;
+            }
             p.spawnParticle(particle, at, count, 0.4, 0.5, 0.4, 0.05);
             p.playSound(at, sound, 0.7f, pitch);
         }

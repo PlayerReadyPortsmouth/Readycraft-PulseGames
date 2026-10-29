@@ -44,7 +44,7 @@ public final class TokenShopMenu {
         menu.renderer(() -> {
             menu.set(4, balance(player));
             Cosmetic.Category[] categories = Cosmetic.Category.values();
-            int[] slots = {10, 12, 14, 16};
+            int[] slots = {9, 11, 13, 15, 17};
             for (int i = 0; i < categories.length && i < slots.length; i++) {
                 Cosmetic.Category category = categories[i];
                 List<Cosmetic> all = CosmeticsService.byCategory(category);
@@ -119,6 +119,7 @@ public final class TokenShopMenu {
         Lore lore = Lore.of().desc(cosmetic.description()).blank();
         if (equipped) lore.status(Theme.GOOD + "Equipped").hint("Click to take it off");
         else if (owned) lore.status("<yellow>Yours").hint("Click to equip");
+        else if (cosmetic.levelUnlock()) lore.status(Theme.ACCENT + "Unlocked at level " + cosmetic.level()).hint("See /wardrobe");
         else {
             lore.status(Theme.MONEY + COIN + " " + cosmetic.price() + " tokens");
             if (have >= cosmetic.price()) lore.hint("Click to buy");
@@ -138,6 +139,11 @@ public final class TokenShopMenu {
             menu.refresh();
             return;
         }
+        if (cosmetic.levelUnlock()) {
+            player.sendMessage(Text.msg("<red>Reach level " + cosmetic.level() + " to unlock <yellow>" + cosmetic.name() + "<red>."));
+            Theme.sound(player, Theme.Cue.ERROR);
+            return;
+        }
         int have = plugin.economy().tokens(player);
         if (have < cosmetic.price()) { tooPoor(player, cosmetic.price()); menu.refresh(); return; }
         if (!ShopRules.needsConfirm(cosmetic.price(), confirmAt())) { buy(player, category, cosmetic); menu.refresh(); return; }
@@ -151,7 +157,7 @@ public final class TokenShopMenu {
 
     /** Safe to call twice: an item already owned is never charged for again. */
     private void buy(Player player, Cosmetic.Category category, Cosmetic cosmetic) {
-        if (plugin.economy().isUnlocked(player, cosmetic.id())) return;
+        if (plugin.economy().isUnlocked(player, cosmetic.id()) || cosmetic.levelUnlock()) return;
         if (plugin.economy().spend(player, cosmetic.price())) {
             plugin.economy().unlock(player, cosmetic.id());
             plugin.economy().equip(player, category, cosmetic.id());
