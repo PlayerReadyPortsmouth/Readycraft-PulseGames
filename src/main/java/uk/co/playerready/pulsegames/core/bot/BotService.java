@@ -434,7 +434,7 @@ public final class BotService implements AutoCloseable {
                     && game.logic() instanceof uk.co.playerready.pulsegames.games.bedwars.BedwarsGame;
             BotDifficulty.Profile profile = combat.profile(difficulty);
             if (pvp || bedwarsMelee) {
-                if (slot.melee == null) slot.melee = new BotMelee(bot.getUniqueId(), new Random(System.nanoTime() ^ bot.getUniqueId().getLeastSignificantBits()), () -> tick);
+                if (slot.melee == null) slot.melee = new BotMelee(bot.getUniqueId(), meleeRandom(), () -> tick);
                 slot.actor.face(slot.melee.aim(bot.getEyeLocation(), enemy.getEyeLocation(), profile, difficulty == BotDifficulty.EASY));
             } else slot.actor.face(enemy.getEyeLocation());
             if (game.logic() instanceof DodgeballGame dodgeball) {
@@ -506,6 +506,16 @@ public final class BotService implements AutoCloseable {
         navigate(slot, here, goal, difficulty);
     }
 
+
+    /** BotMelee's dice come from this service's injectable source, so tests that inject it are deterministic. */
+    private Random meleeRandom() {
+        java.util.function.IntUnaryOperator source = random;
+        return new Random() {
+            @Override public int nextInt(int bound) { return source.applyAsInt(bound); }
+            @Override public double nextDouble() { return source.applyAsInt(1 << 24) / (double) (1 << 24); }
+            @Override public boolean nextBoolean() { return source.applyAsInt(2) == 1; }
+        };
+    }
 
     private static boolean pvpCore(GameInstance game) {
         return switch (game.type().id()) { case "duels", "kitpvp", "koth" -> true; default -> false; };
