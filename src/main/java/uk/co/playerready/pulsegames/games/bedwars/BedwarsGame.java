@@ -744,6 +744,7 @@ public final class BedwarsGame extends MiniGame {
                 if(enemy!=null) {
                     botStatuses.put(id,"Approaching a public enemy bed objective");
                     if(mineVisibleDefence(bot,enemy,tick)) return null;
+                    goal=hopGoal(bot,team,goal,tick);
                 }
             }
             default -> { botStatuses.put(id,"Collecting actual generator drops"); goal=gen; }
@@ -765,6 +766,7 @@ public final class BedwarsGame extends MiniGame {
         Location flat=new Location(game.world(),next.x()+.5,here.getY(),next.z()+.5);
         if(uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.corridor(here,flat)) return flat;
         Location height=botTraversal.start(game,bot,flat,tick); if(height!=null) { setSneak(bot,false); return height; }
+        Location around=sidestep(bot,here,cell,next,tick); if(around!=null) { setSneak(bot,false); return around; }
         if(uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.safe(here,true)
                 && uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.safe(flat,false)
                 && Math.abs(here.getY()-Math.rint(here.getY()))<.04) {
@@ -778,6 +780,95 @@ public final class BedwarsGame extends MiniGame {
             }
         }
         botStatuses.put(id,"Waiting for materials or a safe route"); return null;
+    }
+
+
+    // ---- bots: island hopping, block stock and obstacle sidestep ----------------------
+    private final uk.co.playerready.pulsegames.core.bot.BotSidestep botSidestep=new uk.co.playerready.pulsegames.core.bot.BotSidestep();
+    private record HopRoute(Location bed,List<BedwarsHopPlanner.Hop> hops,long planned) {}
+    private final Map<java.util.UUID,HopRoute> botRoutes=new HashMap<>();
+    private final Map<java.util.UUID,Long> botNextStock=new HashMap<>();
+
+    /** Where a bot attacking {@code bed} should head next: the next island on a route of bridges that each fit max-gap. */
+    private Location hopGoal(Player bot,GameTeam team,Location bed,long tick) {
+        var id=bot.getUniqueId(); Location here=bot.getLocation(); var cell=cellOf(here);
+        HopRoute route=botRoutes.get(id);
+        if(route==null || !route.bed().equals(bed) || tick-route.planned()>200) {
+            var plan=BedwarsHopPlanner.plan(terrain(),cell,cellOf(bed),islandCells(team),botCfg.bridgeMaxGap());
+            route=new HopRoute(bed,plan==null?null:new ArrayList<>(plan),tick); botRoutes.put(id,route);
+        }
+        Location home=generator(team);
+        if(route.hops()==null) {
+            botStatuses.put(id,"No bridge short enough, defending instead");
+            return home!=null?home:bed;
+        }
+        var hops=route.hops();
+        while(hops.size()>1 && Math.abs(hops.get(0).to().x()+.5-here.getX())<2.5 && Math.abs(hops.get(0).to().z()+.5-here.getZ())<2.5
+                && Math.abs(hops.get(0).to().y()-here.getY())<2.5) hops.remove(0);
+        int have=blockCount(bot.getInventory()), first=BedwarsHopPlanner.blocksNeeded(hops,1);
+        boolean atBase=home!=null && home.getWorld()==bot.getWorld() && here.distanceSquared(home)<=Math.pow(botCfg.spendRadius(),2);
+        if(atBase && have<Math.min(128,BedwarsHopPlanner.blocksNeeded(hops,hops.size())) && tick>=botNextStock.getOrDefault(id,0L)) {
+            botNextStock.put(id,tick+20);
+            buyWool(bot,Math.min(128,BedwarsHopPlanner.blocksNeeded(hops,hops.size())));
+            have=blockCount(bot.getInventory());
+        }
+        if(have<first) {
+            botStatuses.put(id,"Collecting resources for the next bridge");
+            return home!=null?home:bed;
+        }
+        var next=hops.get(0).to();
+        return new Location(game.world(),next.x()+.5,next.y(),next.z()+.5);
+    }
+    /** Team bases (other than ours) and diamond islands as places to land, each as the cell a bot stands in. */
+    private List<BedwarsBridge.Island> islandCells(GameTeam team) {
+        List<BedwarsBridge.Island> islands=new ArrayList<>();
+        for(int i=0;i<64;i++) {
+            if(i==team.index()) continue;
+            Location at; try { at=game.arena().settingLocation("generator"+(i+1),game.world()); } catch(IllegalArgumentException none) { break; }
+            if(at==null) break;
+            standCell(at).ifPresent(c->islands.add(new BedwarsBridge.Island("base"+(islands.size()+1),c)));
+        }
+        for(String raw:game.arena().settings().getStringList("diamond-generators")) {
+            try {
+                Location loc=uk.co.playerready.pulsegames.core.util.LocUtil.parse(raw,game.world());
+                if(loc!=null) standCell(loc).ifPresent(c->islands.add(new BedwarsBridge.Island("mid"+(islands.size()+1),c)));
+            } catch(RuntimeException badLine) { /* skip a malformed line */ }
+        }
+        return islands;
+    }
+    /** The feet cell just above the floor at or under {@code at}; empty when the chunk is unloaded or there is no floor within 6 blocks. */
+    private java.util.Optional<BedwarsBridge.Cell> standCell(Location at) {
+        var world=game.world(); if(!world.isChunkLoaded(at.getBlockX()>>4,at.getBlockZ()>>4)) return java.util.Optional.empty();
+        for(int y=at.getBlockY()+2;y>at.getBlockY()-6;y--)
+            if(world.getBlockAt(at.getBlockX(),y-1,at.getBlockZ()).getType().isSolid() && world.getBlockAt(at.getBlockX(),y,at.getBlockZ()).isPassable())
+                return java.util.Optional.of(new BedwarsBridge.Cell(at.getBlockX(),y,at.getBlockZ()));
+        return java.util.Optional.empty();
+    }
+    private static int blockCount(org.bukkit.inventory.PlayerInventory inv) {
+        int total=0;
+        for(int i=0;i<36;i++) { ItemStack s=inv.getItem(i); if(s!=null && isBlockMaterial(s.getType())) total+=s.getAmount(); }
+        return total;
+    }
+    /** Buy wool, 16 at a time, until the bot holds {@code wanted} blocks or can no longer pay. */
+    private void buyWool(Player bot,int wanted) {
+        var wool=catalogue().byId("wool"); if(wool==null) return;
+        for(int i=0;i<8 && blockCount(bot.getInventory())<wanted;i++)
+            if(buyItem(bot,wool)!=ShopBackend.Result.OK) break;
+    }
+    /** The obstacle ahead is solid, not a gap: step to a free side cell and keep going, remembering the side. */
+    private Location sidestep(Player bot,Location here,BedwarsBridge.Cell cell,BedwarsBridge.Cell next,long tick) {
+        var world=game.world();
+        if(!world.isChunkLoaded(next.x()>>4,next.z()>>4)) return null;
+        int fy=(int)Math.floor(here.getY()+.01);
+        if(world.getBlockAt(next.x(),fy,next.z()).isPassable() && world.getBlockAt(next.x(),fy+1,next.z()).isPassable()) return null;
+        int fx=Integer.signum(next.x()-cell.x()), fz=Integer.signum(next.z()-cell.z());
+        var step=botSidestep.choose(bot.getUniqueId(),fx,fz,tick,(dx,dz)->{
+            Location side=new Location(world,cell.x()+dx+.5,here.getY(),cell.z()+dz+.5);
+            return uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.corridor(here,side);
+        });
+        if(step==null) return null;
+        botStatuses.put(bot.getUniqueId(),"Going round an obstacle");
+        return new Location(world,cell.x()+step.dx()+.5,here.getY(),cell.z()+step.dz()+.5);
     }
 
     private boolean botActive(Player bot) {
@@ -1182,7 +1273,7 @@ public final class BedwarsGame extends MiniGame {
         botTeams.clear(); botTripUntil.clear(); botTripNext.clear(); botGatherUntil.clear(); botGatherNext.clear();
         botTargetUntil.clear(); botFireballReady.clear(); botCanSpend.clear(); bridgeAnchor.clear(); botSneaking.clear();
         defenceCache.clear(); defenceCacheUntil.clear();
-        botBow.clear(); botTraversal.clear(); botNextAction.clear(); botPlaced.clear(); botStatuses.clear();
+        botBow.clear(); botTraversal.clear(); botSidestep.clear(); botRoutes.clear(); botNextStock.clear(); botNextAction.clear(); botPlaced.clear(); botStatuses.clear();
         botMining.clear(); botNextPlace.clear(); shopArmour.clear();
         custom.clear(); forgeEvents.clear();
     }
