@@ -416,6 +416,11 @@ public final class BotService implements AutoCloseable {
                 .filter(p -> game.teamOf(bot) == null || !game.teamOf(bot).contains(p))
                 .filter(p -> bot.canSee(p) && !p.isInvisible() && here.distanceSquared(p.getLocation()) <= 24 * 24 && bot.hasLineOfSight(p))
                 .min(Comparator.comparingDouble(p -> BotPersonality.targetScore(here.distanceSquared(p.getLocation()), p.getUniqueId().equals(slot.opponent)))).orElse(null);
+        if (objectives == null && game.logic() instanceof uk.co.playerready.pulsegames.games.bedwars.BedwarsGame bedwarsFoes) {
+            // Bedwars only: an enemy Decoy Dummy the bot has fallen for, or a Dream Defender / Bed Bug hunting it.
+            LivingEntity foe = bedwarsFoes.botFoe(bot, tick, difficulty);
+            if (foe != null && (enemy == null || here.distanceSquared(foe.getLocation()) < here.distanceSquared(enemy.getLocation()))) enemy = foe;
+        }
         Location goal = null;
         if (enemy == null) { slot.opponent = null; if (slot.melee != null) { bot.setSprinting(false); slot.kit.stopDrawing(); } }
         if (enemy != null) {
@@ -547,7 +552,7 @@ public final class BotService implements AutoCloseable {
             return combat.strafe() ? melee.strafeGoal(here, enemyAt, profile, safe, true) : null;
         }
         slot.kit.stopDrawing();
-        selectSwordIfNeeded(bot);
+        selectSwordIfNeeded(bot, game);
         boolean ready = bot.getAttackCooldown() >= 0.9f;
         boolean hurt = bot.getNoDamageTicks() > bot.getMaximumNoDamageTicks() / 2;
         if (!retreating && distance <= 4 && melee.jump(distance, bot.isOnGround(), ready, hurt, profile)) {
@@ -603,8 +608,10 @@ public final class BotService implements AutoCloseable {
         return false;
     }
 
-    private static void selectSwordIfNeeded(Player bot) {
+    private static void selectSwordIfNeeded(Player bot, GameInstance game) {
         var held = bot.getInventory().getItemInMainHand();
+        // Bedwars: a bot holding the Knockback Stick for a shove keeps it (BedwarsGame puts the sword back).
+        if (held != null && held.getType() == org.bukkit.Material.STICK && game.type().id().equals("bedwars")) return;
         if (held == null || !held.getType().name().endsWith("_SWORD")) selectSword(bot);
     }
 
@@ -668,7 +675,7 @@ public final class BotService implements AutoCloseable {
         }
     }
 
-    static void selectSword(Player bot) {
+    public static void selectSword(Player bot) {
         int bestSlot = -1, bestRank = 0;
         for (int i = 0; i < 9; i++) {
             var item = bot.getInventory().getItem(i);

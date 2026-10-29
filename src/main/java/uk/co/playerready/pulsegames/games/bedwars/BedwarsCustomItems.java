@@ -314,21 +314,101 @@ public final class BedwarsCustomItems {
         cooldowns.clear();
     }
 
-    /** A bot throws a bridge egg or raises a tower from its own inventory. @return true when it did. */
-    boolean botUse(Player bot, Custom c) {
-        if (!cooldowns.ready(bot.getUniqueId(), c.id)) return false;
-        for (int i = 0; i < 36; i++) {
-            if (custom(bot.getInventory().getItem(i)) != c) continue;
-            Outcome outcome = switch (c) {
-                case BRIDGE_EGG -> { bridgeEgg(bot); yield Outcome.CONSUMED; }
-                case POPUP_TOWER -> popUpTower(bot);
-                default -> Outcome.FAILED;
-            };
-            if (outcome != Outcome.CONSUMED) return false;
-            cooldowns.start(bot.getUniqueId(), c.id, cooldownOf(c));
-            takeFrom(bot, i);
-            return true;
+    /** A bot uses a gadget it owns. @return true when it did. */
+    boolean botUse(Player bot, Custom c) { return botUse(bot, c, null, null); }
+
+    /**
+     * A bot uses a gadget from its own inventory by the same route a child does: the item goes to its hand and a real
+     * {@link PlayerInteractEvent} (or {@link BlockPlaceEvent} for a Bounce Pad) is fired, so {@link #onInteract}, the
+     * cooldowns, the engine's rules and any protection plugin apply unchanged. The Grappling Hook has no cast to wait
+     * for, so it shares the pull and the cooldown with the human path.
+     * @param aim where to look (and throw), or null to use the way the bot already faces
+     * @param clicked the block "clicked" for the Honey Trap and Bounce Pad (the ground), else null
+     */
+    boolean botUse(Player bot, Custom c, Location aim, Block clicked) {
+        if (!cooldowns.ready(bot.getUniqueId(), c.id) || recalls.containsKey(bot.getUniqueId())) return false;
+        var inventory = bot.getInventory();
+        int slot = -1;
+        for (int i = 0; i < 36 && slot < 0; i++) if (custom(inventory.getItem(i)) == c) slot = i;
+        if (slot < 0) return false;
+        int hand = inventory.getHeldItemSlot();
+        if (slot >= 9) { // swap it into the hotbar slot that is in hand
+            ItemStack other = inventory.getItem(hand);
+            inventory.setItem(hand, inventory.getItem(slot));
+            inventory.setItem(slot, other);
+        } else { hand = slot; inventory.setHeldItemSlot(hand); }
+        if (c == Custom.KNOCKBACK_STICK) return true; // holding it is the use
+        if (aim != null) face(bot, aim, c == Custom.FREEZE_BALL || c == Custom.SMOKE_BOMB || c == Custom.BED_BUG);
+        if (c == Custom.GRAPPLING_HOOK) return botGrapple(bot, aim);
+        ItemStack stack = inventory.getItem(hand);
+        if (c == Custom.BOUNCE_PAD) return botPlacePad(bot, clicked, stack, hand);
+        var event = new PlayerInteractEvent(bot, clicked == null ? org.bukkit.event.block.Action.RIGHT_CLICK_AIR : org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK,
+                stack, clicked, BlockFace.UP, EquipmentSlot.HAND);
+        game.plugin().getServer().getPluginManager().callEvent(event);
+        return !cooldowns.ready(bot.getUniqueId(), c.id);
+    }
+
+    private void face(Player bot, Location aim, boolean lob) {
+        Vector d = aim.toVector().subtract(bot.getEyeLocation().toVector());
+        double flat = Math.hypot(d.getX(), d.getZ());
+        if (lob) d.setY(d.getY() + flat * 0.05); // a thrown ball drops a little on the way
+        if (flat < 0.01 && Math.abs(d.getY()) < 0.01) return;
+        bot.setRotation((float) Math.toDegrees(Math.atan2(-d.getX(), d.getZ())), (float) Math.toDegrees(-Math.atan2(d.getY(), flat)));
+    }
+
+    private boolean botGrapple(Player bot, Location target) {
+        if (target == null || target.getWorld() != bot.getWorld()) return false;
+        return pull(bot, target); // the rod is unbreakable and kept
+    }
+
+    private boolean botPlacePad(Player bot, Block ground, ItemStack stack, int hand) {
+        if (ground == null) return false;
+        Block at = ground.getRelative(BlockFace.UP);
+        if (!at.getType().isAir() || bedProtected.test(at)) return false;
+        var replaced = at.getState();
+        at.setType(Material.SLIME_BLOCK, false);
+        var event = new BlockPlaceEvent(at, replaced, ground, stack, bot, true, EquipmentSlot.HAND);
+        game.plugin().getServer().getPluginManager().callEvent(event);
+        if (event.isCancelled() || !event.canBuild() || cooldowns.ready(bot.getUniqueId(), Custom.BOUNCE_PAD.id)) {
+            replaced.update(true, false);
+            return false;
         }
+        takeFrom(bot, hand);
+        return true;
+    }
+
+    /** Held and off cooldown, by shop id, plus Invisibility Potion: what a bot could reach for right now. */
+    Set<String> botReady(Player bot) {
+        Set<String> ready = new HashSet<>();
+        if (recalls.containsKey(bot.getUniqueId())) return ready;
+        for (ItemStack item : bot.getInventory().getContents()) {
+            Custom c = custom(item);
+            if (c != null && (c == Custom.KNOCKBACK_STICK || cooldowns.ready(bot.getUniqueId(), c.id))) ready.add(c.id);
+            else if (item != null && item.getType() == Material.POTION && item.getItemMeta() instanceof org.bukkit.inventory.meta.PotionMeta meta
+                    && meta.getCustomEffects().stream().anyMatch(e -> e.getType().equals(PotionEffectType.INVISIBILITY))) ready.add(BedwarsBotFunky.INVISIBILITY);
+        }
+        return ready;
+    }
+
+    /** Test hook: starts a cooldown as a use would. */
+    void startCooldown(UUID player, Custom c) { cooldowns.start(player, c.id, Math.max(1, cooldownOf(c))); }
+
+    /** A hostile thing a bot may fight: another team's decoy, or a defender or bug that is attacking it. */
+    record Foe(LivingEntity entity, boolean decoy, UUID id) {}
+
+    List<Foe> foesOf(Player bot) {
+        List<Foe> foes = new ArrayList<>();
+        GameTeam mine = game.teamOf(bot);
+        for (Summon s : summons) {
+            if (!(s.entity instanceof LivingEntity living) || !s.entity.isValid() || (mine != null && s.team == mine.index())) continue;
+            if (s.kind == Custom.DECOY_DUMMY) foes.add(new Foe(living, true, s.entity.getUniqueId()));
+            else if (s.entity instanceof Mob mob && bot.equals(mob.getTarget())) foes.add(new Foe(living, false, s.entity.getUniqueId()));
+        }
+        return foes;
+    }
+
+    boolean defenderActive(int team) {
+        for (Summon s : summons) if (s.kind == Custom.DREAM_DEFENDER && s.team == team && s.entity.isValid()) return true;
         return false;
     }
 
@@ -367,13 +447,19 @@ public final class BedwarsCustomItems {
         boolean landed = hook.getVelocity().lengthSquared() < 0.04 || hook.getHookedEntity() != null;
         if (!landed) return;
         if (!cooldowns.ready(p.getUniqueId(), Custom.GRAPPLING_HOOK.id)) { tellWait(p, Custom.GRAPPLING_HOOK); return; }
-        Vector pull = hook.getLocation().toVector().subtract(p.getLocation().toVector());
+        pull(p, hook.getLocation());
+    }
+
+    /** Swing the player toward a point and start the cooldown. @return false when it is too near or too far. */
+    private boolean pull(Player p, Location to) {
+        Vector pull = to.toVector().subtract(p.getLocation().toVector());
         double distance = pull.length();
-        if (distance < 1.5 || distance > 40) return;
+        if (distance < 1.5 || distance > 40) return false;
         cooldowns.start(p.getUniqueId(), Custom.GRAPPLING_HOOK.id, cooldownOf(Custom.GRAPPLING_HOOK));
         p.setVelocity(pull.normalize().multiply(Math.min(1.7, 0.4 + distance * 0.06)).add(new Vector(0, 0.35, 0)));
         p.setFallDistance(0);
         p.playSound(p.getLocation(), Sound.ENTITY_FISHING_BOBBER_RETRIEVE, 1f, 0.8f);
+        return true;
     }
 
     private <T extends org.bukkit.entity.ThrowableProjectile> T throwBall(Player p, Custom c, Material look, Class<T> type) {
