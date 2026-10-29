@@ -11,9 +11,16 @@ import uk.co.playerready.pulsegames.core.ui.Lore;
 import uk.co.playerready.pulsegames.core.ui.Menu;
 import uk.co.playerready.pulsegames.core.ui.Paginator;
 import uk.co.playerready.pulsegames.core.ui.Theme;
+import uk.co.playerready.pulsegames.core.ui.forms.FormLayout;
+import uk.co.playerready.pulsegames.core.ui.forms.Forms;
+import uk.co.playerready.pulsegames.core.ui.forms.RefreshDiff;
 import uk.co.playerready.pulsegames.core.util.Text;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.Predicate;
 
 /** Compass-driven GUI built on the shared menu kit: pick a game, then a mode. */
 public final class GameMenu {
@@ -30,6 +37,12 @@ public final class GameMenu {
     static final int MAX_MODES = PER_PAGE;
 
     private final PulseGamesPlugin plugin;
+
+    /** An open chest list that is kept up to date: what it shows, and the counts it last drew. */
+    private record Live(Menu menu, Predicate<String> shown, boolean modes, Map<String, QueueCounts.Count> last) { }
+
+    private final Map<UUID, Live> live = new HashMap<>();
+    private org.bukkit.scheduler.BukkitTask refreshTask;
 
     public GameMenu(PulseGamesPlugin plugin) {
         this.plugin = plugin;
@@ -60,10 +73,89 @@ public final class GameMenu {
     }
 
     public void openGames(Player player) {
+        if (openGamesForm(player)) return;
         Menu menu = new Menu(plugin, player, Theme.title("Games"), 6);
         int[] page = {0};
         menu.renderer(() -> renderGames(menu, player, page));
         menu.open(player);
+        track(player, menu, id -> true, false);
+    }
+
+    // Bedrock forms (static: counts are read when the form opens)
+
+    private boolean openGamesForm(Player player) {
+        if (!Forms.supports(plugin, player)) return false;
+        var counts = plugin.quickPlay().counts();
+        List<FormLayout.GameRow> rows = visibleGames(player).stream().map(g -> {
+            var c = counts.getOrDefault(g.id(), new QueueCounts.Count(0, 0));
+            return new FormLayout.GameRow(g.id(), g.displayName(), c.waiting(), c.playing(), plugin.gameAvailable(g));
+        }).toList();
+        return Forms.list(plugin, player, "Pulse Games", "Pick a game to play, or tap Quick Play!",
+                FormLayout.gameList(rows), target -> onGameTarget(player, target));
+    }
+
+    private void onGameTarget(Player player, String target) {
+        if (!player.isOnline()) return;
+        if (target.startsWith(FormLayout.GAME) || target.startsWith(FormLayout.SOON)) {
+            boolean soon = target.startsWith(FormLayout.SOON);
+            String id = target.substring(soon ? FormLayout.SOON.length() : FormLayout.GAME.length());
+            plugin.registry().all().stream().filter(g -> g.id().equals(id)).findFirst().ifPresent(g -> pick(player, g));
+            return;
+        }
+        switch (target) {
+            case FormLayout.QUICK_PLAY -> plugin.quickPlay().quickPlay(player);
+            case FormLayout.PARTY -> partyHelp(player);
+            case FormLayout.CHALLENGES -> plugin.engagement().openChallenges(player);
+            case FormLayout.TOP -> plugin.engagement().top(player, new String[0]);
+            case FormLayout.KIT -> plugin.kitSelection().open(player);
+            default -> { }
+        }
+    }
+
+    private boolean openModesForm(Player player, GameType game, List<GameMode> modes) {
+        if (!Forms.supports(plugin, player)) return false;
+        var counts = plugin.quickPlay().modeCounts();
+        List<FormLayout.ModeRow> rows = modes.stream().map(m -> {
+            var c = counts.getOrDefault(game.id() + "/" + m.id(), new QueueCounts.Count(0, 0));
+            return new FormLayout.ModeRow(m.id(), m.displayName(), c.waiting(), c.playing());
+        }).toList();
+        return Forms.list(plugin, player, game.displayName(), "Pick a mode to join.", FormLayout.modeList(rows), target -> {
+            if (!player.isOnline()) return;
+            if (target.equals(FormLayout.BACK)) { openGames(player); return; }
+            modes.stream().filter(m -> (FormLayout.MODE + m.id()).equals(target)).findFirst()
+                    .ifPresent(m -> plugin.playService().join(player, game, m));
+        });
+    }
+
+    // Live refresh: one repeating task while any list is open
+
+    private void track(Player player, Menu menu, Predicate<String> shown, boolean modes) {
+        var counts = modes ? plugin.quickPlay().modeCounts() : plugin.quickPlay().counts();
+        live.put(player.getUniqueId(), new Live(menu, shown, modes, RefreshDiff.snapshot(counts, shown)));
+        if (refreshTask == null) {
+            long period = Math.max(10, plugin.getConfig().getLong("ui.refresh-ticks", 40));
+            refreshTask = plugin.getServer().getScheduler().runTaskTimer(plugin, this::refreshOpen, period, period);
+        }
+    }
+
+    private void refreshOpen() {
+        var games = plugin.quickPlay().counts();
+        var modes = plugin.quickPlay().modeCounts();
+        var it = live.entrySet().iterator();
+        while (it.hasNext()) {
+            var e = it.next();
+            Player player = plugin.getServer().getPlayer(e.getKey());
+            Live l = e.getValue();
+            if (player == null || !player.isOnline() || player.getOpenInventory().getTopInventory().getHolder() != l.menu()) {
+                it.remove();
+                continue;
+            }
+            var now = RefreshDiff.snapshot(l.modes() ? modes : games, l.shown());
+            if (!RefreshDiff.changed(l.last(), now)) continue;
+            e.setValue(new Live(l.menu(), l.shown(), l.modes(), now));
+            l.menu().refresh();
+        }
+        if (live.isEmpty() && refreshTask != null) { refreshTask.cancel(); refreshTask = null; }
     }
 
     private void renderGames(Menu menu, Player player, int[] pageState) {
@@ -149,6 +241,7 @@ public final class GameMenu {
     public void openModes(Player player, GameType game) {
         if (game.id().equals("duels")) { plugin.duelMenu().open(player); return; }
         List<GameMode> modes = game.modes().subList(0, Math.min(game.modes().size(), MAX_MODES));
+        if (openModesForm(player, game, modes)) return;
         int rows = modeRows(modes.size());
         Menu menu = new Menu(plugin, player, Theme.title(game.displayName()), rows);
         menu.renderer(() -> {
@@ -167,6 +260,7 @@ public final class GameMenu {
             menu.fillEmpty(Material.GRAY_STAINED_GLASS_PANE);
         });
         menu.open(player);
+        track(player, menu, key -> key.startsWith(game.id() + "/"), true);
     }
 
     private ItemStack modeIcon(GameType game, GameMode mode, QueueCounts.Count count) {
