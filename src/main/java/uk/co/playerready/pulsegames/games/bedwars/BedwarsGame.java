@@ -330,6 +330,8 @@ public final class BedwarsGame extends MiniGame {
         player.openInventory(inv);
     }
 
+    @Override public void onInventoryDrag(Player player, org.bukkit.event.inventory.InventoryDragEvent event) { if (event.getInventory().getHolder() instanceof ShopHolder) event.setCancelled(true); }
+
     @Override
     public void onInventoryClick(Player player, InventoryClickEvent event) {
         if (botPurchaseProbes.contains(player.getUniqueId())) return;

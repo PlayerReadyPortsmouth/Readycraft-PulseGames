@@ -2,32 +2,56 @@ package uk.co.playerready.pulsegames.core.lobby;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class GameMenuLayoutTest {
-    @Test void footerButtonsNeverShareASlotWithAGame() {
-        for (int games = 0; games <= 80; games++) {
-            int rows = GameMenu.rowsFor(games);
-            int size = rows * 9;
-            int shown = GameMenu.capacity(games);
-            assertTrue(shown <= size - GameMenu.FOOTER_SLOTS, games + " games would reach the footer");
-            if (games <= 49) assertEquals(games, shown, "every game up to six rows' worth is listed");
-            else assertEquals(49, shown);
+    @Test void gamesStayInsideTheContentGridAndNeverTouchNavOrBorder() {
+        Set<Integer> seen = new HashSet<>();
+        for (int i = 0; i < GameMenu.PER_PAGE; i++) {
+            int slot = GameMenu.contentSlot(i);
+            assertTrue(slot >= 10 && slot <= 43 && slot % 9 >= 1 && slot % 9 <= 7, "slot " + slot);
+            assertTrue(seen.add(slot));
+        }
+        assertEquals(10, GameMenu.contentSlot(0));
+        assertEquals(43, GameMenu.contentSlot(27));
+    }
+
+    @Test void footerButtonsAvoidTheFixedNavSlots() {
+        Set<Integer> nav = Set.of(45 + 3, 49, 50, 53);
+        for (int slot : new int[]{GameMenu.PARTY_SLOT, GameMenu.CHALLENGES_SLOT, GameMenu.TOP_SLOT, GameMenu.KIT_SLOT, GameMenu.QUICK_PLAY_SLOT})
+            assertFalse(nav.contains(slot), "slot " + slot);
+        assertEquals(4, GameMenu.QUICK_PLAY_SLOT, "Quick Play sits top centre");
+    }
+
+    @Test void modePickerSizesAndSlotsFit() {
+        assertEquals(3, GameMenu.modeRows(4));
+        assertEquals(6, GameMenu.modeRows(8));
+        for (int modes = 1; modes <= GameMenu.MAX_MODES; modes++) {
+            int rows = GameMenu.modeRows(modes);
+            for (int i = 0; i < modes; i++) {
+                int slot = GameMenu.modeSlot(i, rows);
+                assertTrue(slot < rows * 9 - 9, modes + " modes reach the nav row");
+            }
         }
     }
 
-    @Test void todaysCatalogueKeepsItsFourRows() {
-        assertEquals(4, GameMenu.rowsFor(24));
-        assertEquals(5, GameMenu.rowsFor(32), "the footer needs its own slots once games reach slot 31");
+    @Test void unreleasedGamesAreHiddenFromEveryoneButTestersAndAdmins() {
+        assertTrue(GameMenu.listed(true, false));
+        assertFalse(GameMenu.listed(false, false));
+        assertTrue(GameMenu.listed(false, true));
     }
 
-    @Test void modeMenuAlwaysHasRoomForItsModes() {
-        assertEquals(3, GameMenu.modeRows(4), "today's games keep the 27-slot menu");
-        for (int modes = 1; modes <= 40; modes++) {
-            int size = GameMenu.modeRows(modes) * 9;
-            int shown = Math.min(modes, GameMenu.MAX_MODES);
-            assertTrue(GameMenu.modeSlot(shown - 1) < size, modes + " modes would overflow a " + size + "-slot menu");
-        }
-        assertEquals(29, GameMenu.modeSlot(12), "the 13th mode used to land on slot 29 of 27");
+    @Test void stackSizeCueIsWaitingCountBetweenOneAndSixtyFour() {
+        assertEquals(1, GameMenu.cue(0));
+        assertEquals(3, GameMenu.cue(3));
+        assertEquals(64, GameMenu.cue(500));
+    }
+
+    @Test void quietGamesSayTheyAreQuiet() {
+        assertTrue(GameMenu.activity(new QueueCounts.Count(0, 0)).contains("Quiet"));
+        assertTrue(GameMenu.activity(new QueueCounts.Count(2, 1)).contains("2 waiting"));
     }
 }

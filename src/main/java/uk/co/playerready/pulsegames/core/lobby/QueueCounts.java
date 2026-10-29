@@ -24,4 +24,21 @@ public final class QueueCounts {
         }
         return result;
     }
+
+    /** Same as {@link Row} with the mode, for the mode picker. */
+    public record ModeRow(String gameId, String modeId, boolean queueing, boolean running, boolean practice, int humans) { }
+
+    /** Counts per {@code gameId/modeId}. */
+    public static Map<String, Count> tallyModes(List<ModeRow> rows) {
+        Map<String, Count> result = new HashMap<>();
+        for (ModeRow row : rows) {
+            if (row.practice() || row.humans() <= 0 || (!row.queueing() && !row.running())) continue;
+            String key = row.gameId() + "/" + row.modeId();
+            Count old = result.getOrDefault(key, new Count(0, 0));
+            result.put(key, row.queueing()
+                    ? new Count(old.waiting() + row.humans(), old.playing())
+                    : new Count(old.waiting(), old.playing() + row.humans()));
+        }
+        return result;
+    }
 }
