@@ -109,6 +109,43 @@ bots:
   max-per-match: 31
   max-total: 64
 
+# PulseKarts bot driving. Owner: Aurora / ReadyCraft. Review: 2026-11-26.
+# Every value is clamped to a safe range; a missing or zero value uses the default shown.
+karts:
+  bots:
+    # Top speed as a fraction of the kart's physics maximum (12 blocks/s x style speed).
+    speed-fraction:
+      easy: 0.78
+      normal: 0.90
+      hard: 0.98
+    # Target speed (blocks/s) for a bend over 25, 55 and 100 degrees; scaled 0.85 / 1.0 / 1.1 by Easy / Normal / Hard.
+    corner-speeds: [8.0, 5.5, 3.0]
+    # Quiet rubber-banding against the nearest human by race position. Bots behind a human gain up to
+    # max-bonus, bots comfortably ahead lose up to max-penalty (Easy leans to help, Hard to pressure).
+    # The effect ramps from start-blocks to full-blocks. A human further ahead than range-blocks is
+    # not "nearby", so a runaway leader is never throttled. Bots never exceed the physics maximum.
+    rubber-band:
+      enabled: true
+      max-bonus: 0.08
+      max-penalty: 0.08
+      start-blocks: 25
+      full-blocks: 100
+      range-blocks: 150
+    # Racing line: each bot sits up to this many blocks either side of the route (varies by bot and lap).
+    lane-width: 1.5
+    # A kart within this many blocks ahead makes a bot swap to the clear lane to overtake.
+    overtake-range: 6
+    # Longest drift per tier in ticks (20 = 1 s). Mini-turbo needs 20, super 50.
+    drift-max-ticks:
+      easy: 22
+      normal: 40
+      hard: 50
+    # Share of Easy bots that ever try a (mini) drift.
+    easy-drifter-share: 0.25
+    # BALANCE: when true, bots in the back placing tier may roll Star and Bullet for catch-up.
+    # When false they only get them while a human holds one (the old rule).
+    strong-items-when-behind: true
+
 # Trial access for preview games, queue bots and modeled Prop Hunt. UUIDs only.
 # Owner Aurora / ReadyCraft; review 2026-10-25. Empty list grants nobody access.
 features:
