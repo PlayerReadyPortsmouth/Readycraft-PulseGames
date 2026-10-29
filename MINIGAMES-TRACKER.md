@@ -7,6 +7,10 @@ Readable report: [HTML](MINIGAMES-TRACKER.html) · [PDF](MINIGAMES-TRACKER.pdf).
 After editing this source, regenerate both exports with
 `node tools/render-minigames-tracker.mjs --pdf`; see [update instructions](tools/TRACKER-README.md).
 
+## 29 October - Bundle 0.6.0: token shop and menu ports, shared game shops, Bedrock forms, party/stats/settings, map board (candidate)
+
+**Candidate only: merged to `main` and built, not deployed, not played.** `pluginVersion` is **0.6.0**. Bundles draft PRs #49 (token shop on the UI kit, confirms, menu ports), #51 (shared `core/ui/shop` kit: Bedwars, ReadyPlayerZ and Quake loadout), #47 (Bedrock forms for the game list and mode picker, live count refresh), #50 (party menu, `/stats` menu, comfort settings) and #48 (`/pulse maps board`). The bundle also wires #50's "hide spectator reactions" into spectator reactions. Full `build test` is green (992 tests, 0 failures). New config keys: `ui.bedrock-forms` (default true), `ui.refresh-ticks` (default 40), `shop.confirm-at` (default 500). 0.5.0 and 0.4.3 were never deployed, so the next deploy carries 0.4.3 -> 0.6.0. Visual checks: `docs/handoffs/2026-10-29-bundle-0.6.0.md`. Deployment to MinigamesTest needs its own go-ahead and restart approval.
+
 ## 29 October - Bundle 0.5.0: UI kit and game list, Bedwars shop, lobby polish (candidate)
 
 **Candidate only: merged to `main` and built, not deployed, not played.** `pluginVersion` is **0.5.0**. Bundles draft PRs #44 (core/ui kit and 54-slot game list), #45 (Bedwars shop: categories, quick buy, tiers, armour auto-equip, tiered team upgrades, sidebar timers, editable `bedwars-shop.yml`) and #43 (touch-aware "right-click"/"tap" wording via Floodgate, watch menu, join hint, sidebar diffing). Full `build test` is green (956 tests, 0 failures). New config keys: `engagement.join-hint` (default true), `debug.sidebar` (default false). 0.4.3 (karts arcade pack) was never deployed, so this bundle carries it. Visual checks, starting with a real two-team Bedwars match with bots off on Java and Bedrock: `docs/handoffs/2026-10-29-bundle-0.5.0.md`. Deployment to MinigamesTest needs its own go-ahead and restart approval.
