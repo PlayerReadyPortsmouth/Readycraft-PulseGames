@@ -84,6 +84,7 @@ public final class EconomyService {
             data.set(key(player) + ".tokens", tokens(player) + amount);
             dirty = true;
         }
+        if (plugin instanceof uk.co.playerready.pulsegames.PulseGamesPlugin games && games.stats() != null) games.stats().addTokensEarned(player, amount);
         player.sendActionBar(Text.mm("<gold>+" + amount + " ⛀ Tokens <gray>(" + reason + ")"));
         player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.6f, 1.8f);
     }

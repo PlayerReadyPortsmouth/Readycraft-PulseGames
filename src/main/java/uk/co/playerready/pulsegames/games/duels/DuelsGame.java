@@ -70,6 +70,7 @@ public final class DuelsGame extends MiniGame {
 
     @Override
     public void onStart() {
+        if (game.plugin().ranked() != null) { game.plugin().ranked().matchStarted(game); game.plugin().ranked().refreshBadges(game); }
         startRound();
     }
 
@@ -206,6 +207,11 @@ public final class DuelsGame extends MiniGame {
     }
 
     @Override
+    public void onSecond(int gameTime) {
+        if (gameTime % 5 == 0 && game.plugin().ranked() != null) game.plugin().ranked().refreshBadges(game);
+    }
+
+    @Override
     public void onTimeUp() {
         List<Player> players = game.alivePlayers();
         int best = players.stream().mapToInt(p -> roundWins.getOrDefault(p.getUniqueId(), 0)).max().orElse(0);
@@ -225,6 +231,7 @@ public final class DuelsGame extends MiniGame {
     public List<String> sidebar(Player player) {
         List<String> lines = new java.util.ArrayList<>();
         lines.add("<gray>Round: <white>" + round);
+        if (game.rankedMatch()) lines.add("<gold>Ranked match");
         for (Player p : game.players()) {
             lines.add("<gray>" + p.getName() + ": <white>" + roundWins.getOrDefault(p.getUniqueId(), 0));
         }

@@ -49,6 +49,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
     private SidebarService sidebar;
     private StatsService stats;
     private PlayService playService;
+    private uk.co.playerready.pulsegames.core.play.PrivateMatchService privateMatches;
     private ArenaSetupManager setup;
     private uk.co.playerready.pulsegames.core.combat.ClassicCombatService combat;
     private EconomyService economy;
@@ -58,6 +59,13 @@ public final class PulseGamesPlugin extends JavaPlugin {
     private MapBuilder mapBuilder;
     private uk.co.playerready.pulsegames.core.lobby.QuickPlayService quickPlay;
     private uk.co.playerready.pulsegames.core.progression.EngagementService engagement;
+    private uk.co.playerready.pulsegames.core.lobby.LobbyPlacements lobbyPlacements;
+    private uk.co.playerready.pulsegames.core.progression.LevelService levels;
+    private uk.co.playerready.pulsegames.core.progression.LevelMenu levelMenu;
+    private uk.co.playerready.pulsegames.core.economy.WardrobeMenu wardrobe;
+    private uk.co.playerready.pulsegames.core.events.EventService events;
+    private uk.co.playerready.pulsegames.core.ranked.RankedService ranked;
+    private uk.co.playerready.pulsegames.core.ranked.RankedMenu rankedMenu;
 
     @Override
     public void onEnable() {
@@ -90,6 +98,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
         playService = new PlayService(this);
         results = new uk.co.playerready.pulsegames.core.game.MatchResults(this);
         practice = new uk.co.playerready.pulsegames.core.practice.PracticeService(this);
+        privateMatches = new uk.co.playerready.pulsegames.core.play.PrivateMatchService(this);
         maps = new uk.co.playerready.pulsegames.core.maps.MapReviewService(this);
         setup = new ArenaSetupManager(this);
         economy = new EconomyService(this);
@@ -100,6 +109,14 @@ public final class PulseGamesPlugin extends JavaPlugin {
         mapBuilder = new MapBuilder(this);
         quickPlay = new uk.co.playerready.pulsegames.core.lobby.QuickPlayService(this);
         engagement = new uk.co.playerready.pulsegames.core.progression.EngagementService(this);
+        levels = new uk.co.playerready.pulsegames.core.progression.LevelService(this);
+        levelMenu = new uk.co.playerready.pulsegames.core.progression.LevelMenu(this);
+        wardrobe = new uk.co.playerready.pulsegames.core.economy.WardrobeMenu(this);
+        loadCosmeticsFile();
+        events = new uk.co.playerready.pulsegames.core.events.EventService(this);
+
+        ranked = new uk.co.playerready.pulsegames.core.ranked.RankedService(this);
+        rankedMenu = new uk.co.playerready.pulsegames.core.ranked.RankedMenu(this);
 
         worlds.purgeLeftovers();
         // A broken arenas/ or kits.yml must not take the rest of the wiring down with
@@ -117,12 +134,18 @@ public final class PulseGamesPlugin extends JavaPlugin {
         GameCatalog.registerAll(registry);
 
         getServer().getPluginManager().registerEvents(new GameListener(this), this);
+        getServer().getPluginManager().registerEvents(levels, this);
         getServer().getPluginManager().registerEvents(new uk.co.playerready.pulsegames.core.game.FenceListener(this), this);
         getServer().getPluginManager().registerEvents(new uk.co.playerready.pulsegames.core.lobby.LobbyItemListener(lobby), this);
         getServer().getPluginManager().registerEvents(new uk.co.playerready.pulsegames.core.ui.MenuListener(), this);
         getServer().getPluginManager().registerEvents(setup, this);
+        getServer().getPluginManager().registerEvents(new uk.co.playerready.pulsegames.core.ranked.RankedListener(ranked), this);
         new Commands(this);
+        lobbyPlacements = new uk.co.playerready.pulsegames.core.lobby.LobbyPlacements(this);
+        lobbyPlacements.start();
+        ranked.start();
         bots.start();
+        events.start();
         practice.start();
         buildWorlds.start();
         combat = new uk.co.playerready.pulsegames.core.combat.ClassicCombatService(this);
@@ -135,13 +158,17 @@ public final class PulseGamesPlugin extends JavaPlugin {
     public void onDisable() {
         // The flushes below are the only persistence for stats and Pulse Tokens since
         // the last 60s autosave, so nothing above them may abort onDisable.
+        if (ranked != null) ranked.shutdown();
         try {
+            if (events != null) events.shutdown();
             if (instances != null) instances.shutdownAll();
         } catch (Throwable ex) {
             getLogger().severe("Instance shutdown failed: " + ex);
         }
         try { if (content != null) content.close(); }
         catch (RuntimeException ex) { getLogger().log(java.util.logging.Level.SEVERE, "Content shutdown failed", ex); }
+        try { if (lobbyPlacements != null) lobbyPlacements.close(); }
+        catch (RuntimeException ex) { getLogger().log(java.util.logging.Level.SEVERE, "Lobby placements shutdown failed", ex); }
         try { if (bots != null) bots.close(); }
         catch (RuntimeException ex) { getLogger().log(java.util.logging.Level.SEVERE, "Bot shutdown failed", ex); }
         if (diagnostics != null) diagnostics.close();
@@ -193,8 +220,11 @@ public final class PulseGamesPlugin extends JavaPlugin {
     public PlayerStateService playerState() { return playerState; }
     public SidebarService sidebar() { return sidebar; }
     public StatsService stats() { return stats; }
+    public uk.co.playerready.pulsegames.core.ranked.RankedService ranked() { return ranked; }
+    public uk.co.playerready.pulsegames.core.ranked.RankedMenu rankedMenu() { return rankedMenu; }
     public uk.co.playerready.pulsegames.core.progression.ProgressionService progression() { return progression; }
     public PlayService playService() { return playService; }
+    public uk.co.playerready.pulsegames.core.play.PrivateMatchService privateMatches() { return privateMatches; }
     public uk.co.playerready.pulsegames.core.combat.ClassicCombatService combat() { return combat; }
     public ArenaSetupManager setup() { return setup; }
     public uk.co.playerready.pulsegames.core.maps.MapReviewService maps() { return maps; }
@@ -205,20 +235,42 @@ public final class PulseGamesPlugin extends JavaPlugin {
     public MapBuilder mapBuilder() { return mapBuilder; }
     public uk.co.playerready.pulsegames.core.lobby.QuickPlayService quickPlay() { return quickPlay; }
     public uk.co.playerready.pulsegames.core.progression.EngagementService engagement() { return engagement; }
+    public uk.co.playerready.pulsegames.core.lobby.LobbyPlacements lobbyPlacements() { return lobbyPlacements; }
+    public uk.co.playerready.pulsegames.core.progression.LevelService levels() { return levels; }
+    public uk.co.playerready.pulsegames.core.progression.LevelMenu levelMenu() { return levelMenu; }
+    public uk.co.playerready.pulsegames.core.economy.WardrobeMenu wardrobe() { return wardrobe; }
+
+    /** Adds the data-file cosmetics (cosmetics.yml) to the catalogue; bad entries are logged and skipped. */
+    private void loadCosmeticsFile() {
+        try {
+            java.io.File file = new java.io.File(getDataFolder(), "cosmetics.yml");
+            if (!file.exists()) saveResource("cosmetics.yml", false);
+            var yaml = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(file);
+            CosmeticsService.loadExtra(yaml.getConfigurationSection("cosmetics"))
+                    .forEach(problem -> getLogger().warning("cosmetics.yml: " + problem));
+        } catch (RuntimeException ex) {
+            getLogger().warning("cosmetics.yml unreadable, using the built-in cosmetics only: " + ex);
+        }
+    }
+    public uk.co.playerready.pulsegames.core.events.EventService events() { return events; }
     /** Public optional bridge API; called on the server thread by PulseNetwork. */
     public java.util.List<java.util.Map<String, String>> networkQueues() {
-        return instances().all().stream()
+        var rows = new java.util.ArrayList<java.util.Map<String, String>>(instances().all().stream()
                 .filter(g -> (g.state() == uk.co.playerready.pulsegames.core.game.GameState.WAITING
                         || g.state() == uk.co.playerready.pulsegames.core.game.GameState.COUNTDOWN)
-                        && !g.practice() && g.humanCount() > 0 && g.joinable(1) && !g.type().wip() && gameAvailable(g.type()))
+                        && !g.practice() && !g.isPrivate() && g.humanCount() > 0 && g.joinable(1) && !g.type().wip() && gameAvailable(g.type()))
                 .map(g -> java.util.Map.of("id", g.id(), "title", g.type().displayName() + " / " + g.mode().displayName(),
                         "players", Integer.toString(g.players().size()), "maximum", Integer.toString(g.maxPlayers())))
-                .toList();
+                .toList());
+        // A scheduled event shows up as one extra row while sign-up is open (same signed channel, same Join link).
+        if (events != null) rows.addAll(events.networkRows());
+        return rows;
     }
 
     public boolean networkPlayerBusy(org.bukkit.entity.Player player) {
         return instances().byPlayer(player) != null || playService().hasPending(player)
-                || results != null && results.holdsReturn(player);
+                || results != null && results.holdsReturn(player)
+                || events != null && events.holdsPlayer(player);
     }
 
     public void networkPartyState(org.bukkit.entity.Player player, java.util.UUID leader, java.util.List<java.util.UUID> members) {
@@ -240,6 +292,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
     }
 
     public void joinNetworkQueue(org.bukkit.entity.Player player, String instanceId) {
+        if (events != null && events.ownsQueue(instanceId)) { events.join(player); return; }
         playService().joinNetworkQueue(player, instanceId);
     }
 }

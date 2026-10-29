@@ -11,7 +11,12 @@ public final class SkywarsBotInventory {
     static int transfer(Inventory chest, PlayerInventory target) { return transfer(chest,target,slot->true); }
     static int transfer(Inventory chest, PlayerInventory target, java.util.function.IntPredicate mayMoveSlot) {
         int moved = 0;
+        java.util.List<String> names = new java.util.ArrayList<>();
         for (int slot = 0; slot < chest.getSize(); slot++) {
+            ItemStack stack = chest.getItem(slot);
+            names.add(stack == null || SkywarsBotTerrain.air(stack.getType()) ? null : stack.getType().name());
+        }
+        for (int slot : SkywarsTactics.lootOrder(names)) {
             if (!mayMoveSlot.test(slot)) continue;
             ItemStack stack = chest.getItem(slot);
             if (stack == null || SkywarsBotTerrain.air(stack.getType())) continue;

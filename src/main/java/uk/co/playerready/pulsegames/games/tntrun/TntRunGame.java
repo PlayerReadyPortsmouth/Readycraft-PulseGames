@@ -156,6 +156,12 @@ public final class TntRunGame extends MiniGame implements uk.co.playerready.puls
                 && previous.getBlockY() == here.getBlockY()
                 && (previous.getBlockX() != here.getBlockX() || previous.getBlockZ() != here.getBlockZ())
                 && clearCorridor(here, previous)) return previous.clone();
+        var tier = game.plugin() != null && game.plugin().bots() != null
+                ? game.plugin().bots().difficultyFor(game, null) : uk.co.playerready.pulsegames.core.bot.BotDifficulty.NORMAL;
+        if (!TntRunTactics.wanders(tier, bound -> java.util.concurrent.ThreadLocalRandom.current().nextInt(bound))) {
+            Location deep = deepRun(bot, here, tier);
+            if (deep != null) { destinations.put(bot.getUniqueId(), deep.clone()); return deep; }
+        }
         Location best = null;
         double bestScore = -Double.MAX_VALUE;
         // Run a short straight corridor continuously. Stopping at every tile is too slow
@@ -172,6 +178,37 @@ public final class TntRunGame extends MiniGame implements uk.co.playerready.puls
         if (best == null) destinations.remove(bot.getUniqueId());
         else destinations.put(bot.getUniqueId(), best.clone());
         return best;
+    }
+
+    /** A deep search for the first step towards the biggest untouched area, then run on in that line while it holds. */
+    private Location deepRun(Player bot, Location here, uk.co.playerready.pulsegames.core.bot.BotDifficulty tier) {
+        Location step = uk.co.playerready.pulsegames.core.bot.GroundNavigation.nextStepDeep(here,
+                point -> (point.getBlockX() == here.getBlockX() && point.getBlockZ() == here.getBlockZ()) || safeTile(point),
+                point -> TntRunTactics.areaScore(intactWindow(point), (int) (memory.penalty(bot, point) / 3), openNeighbours(point)));
+        if (step == null || step.getBlockY() != here.getBlockY()) return step;
+        int dx = Integer.signum(step.getBlockX() - here.getBlockX()), dz = Integer.signum(step.getBlockZ() - here.getBlockZ());
+        if (dx != 0 && dz != 0 || dx == 0 && dz == 0) return step;
+        Location far = step;
+        for (int more = 1; more < TntRunTactics.corridorLength(tier); more++) {
+            Location next = new Location(step.getWorld(), step.getBlockX() + dx * more + 0.5, step.getY(), step.getBlockZ() + dz * more + 0.5);
+            if (!safeTile(next)) break;
+            far = next;
+        }
+        return far;
+    }
+
+    private int intactWindow(Location centre) {
+        int intact = 0;
+        for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++)
+            if (safeTile(new Location(centre.getWorld(), centre.getBlockX() + x + 0.5, centre.getY(), centre.getBlockZ() + z + 0.5))) intact++;
+        return intact;
+    }
+
+    private int openNeighbours(Location centre) {
+        int open = 0;
+        for (int[] d : new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}})
+            if (safeTile(new Location(centre.getWorld(), centre.getBlockX() + d[0] + 0.5, centre.getY(), centre.getBlockZ() + d[1] + 0.5))) open++;
+        return open;
     }
 
     private boolean safeTile(Location point) {

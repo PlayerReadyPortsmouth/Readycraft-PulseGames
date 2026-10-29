@@ -18,7 +18,15 @@ public final class MatchResults {
     public record Result(String match, String game, String mode, String map, String outcome, String team,
                          int score, int teamScore, int kills, int deaths, int endTokens,
                          boolean competitive, boolean practice, long expiresAt,
-                         int place, int field, List<String> podium, List<String> summary) {
+                         int place, int field, List<String> podium, List<String> summary, String note) {
+        /** Without an end note (the usual case). */
+        public Result(String match, String game, String mode, String map, String outcome, String team,
+                      int score, int teamScore, int kills, int deaths, int endTokens,
+                      boolean competitive, boolean practice, long expiresAt,
+                      int place, int field, List<String> podium, List<String> summary) {
+            this(match, game, mode, map, outcome, team, score, teamScore, kills, deaths, endTokens,
+                    competitive, practice, expiresAt, place, field, podium, summary, "");
+        }
         /** Without a co-op summary. */
         public Result(String match, String game, String mode, String map, String outcome, String team,
                       int score, int teamScore, int kills, int deaths, int endTokens,
@@ -42,12 +50,14 @@ public final class MatchResults {
             return out;
         }
         public List<String> lines() {
-            return List.of(outcome + " • " + game + " / " + mode + " • " + map,
+            List<String> out = new ArrayList<>(List.of(outcome + " • " + game + " / " + mode + " • " + map,
                     "Team: " + team + " | Team score: " + teamScore,
                     "Your score: " + score + " | Kills: " + kills + " | Deaths: " + deaths,
                     "End-of-round tokens: +" + endTokens + " (kill bonuses were paid during play)",
                     competitive ? "Competitive: records and match rewards enabled"
-                            : "Practice / unranked: no competitive records or match rewards");
+                            : "Practice / unranked: no competitive records or match rewards"));
+            if (note != null && !note.isBlank()) out.add(1, note);
+            return List.copyOf(out);
         }
     }
     private final PulseGamesPlugin plugin;
@@ -131,6 +141,9 @@ public final class MatchResults {
         if (action.equals("again") && result.practice()) {
             plugin.practice().repeatFromResults(player); return;
         }
+        if (action.equals("again") && plugin.privateMatches().hasSetup(result.match())) {
+            plugin.privateMatches().rematch(player, result.match()); return;
+        }
         if (action.equals("again")) {
             var type = plugin.registry().get(result.game());
             var mode = type == null ? null : type.mode(result.mode());
@@ -161,6 +174,8 @@ public final class MatchResults {
                 menu.set(4, item(Material.NETHER_STAR, "Squad summary", result.summary()));
             List<String> mine = new ArrayList<>(result.placeLines().stream().filter(l -> l.startsWith("You finished")).toList());
             mine.addAll(result.lines());
+            mine.add(0, plugin.levels() == null ? "" : plugin.levels().tag(player) + " " + player.getName());
+            if (plugin.ranked() != null) mine.addAll(plugin.ranked().resultLines(player));
             menu.set(13, item(Material.PAPER, result.place() > 0
                     ? "You finished " + Placements.ordinal(result.place()) : "Your result", mine));
             menu.set(29, item(Material.LIME_DYE, result.practice() ? "Repeat practice" : "Play again", List.of("Queue the same mode with your party")), p -> act(p, result.match(), "again"));

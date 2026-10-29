@@ -11,7 +11,9 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
+import uk.co.playerready.pulsegames.core.game.Comeback;
 import uk.co.playerready.pulsegames.core.game.GameInstance;
+import uk.co.playerready.pulsegames.core.game.Mercy;
 import uk.co.playerready.pulsegames.core.game.MiniGame;
 import uk.co.playerready.pulsegames.core.team.GameTeam;
 import uk.co.playerready.pulsegames.core.util.Cuboid;
@@ -57,6 +59,8 @@ public final class BedwarsGame extends MiniGame {
     private final BedwarsShopMenu shopMenu = new BedwarsShopMenu(game.plugin(), new Backend());
     private List<Cuboid> bedRegions = List.of();
     private int generatorTier = 1;
+    /** Teams with the free comeback perk right now (no bed, outnumbered); recomputed every second. */
+    private final Set<Integer> comebackTeams = new HashSet<>();
     private final uk.co.playerready.pulsegames.games.skywars.SkywarsBotBow botBow=new uk.co.playerready.pulsegames.games.skywars.SkywarsBotBow();
     private final uk.co.playerready.pulsegames.games.skywars.SkywarsBotTraversal botTraversal=new uk.co.playerready.pulsegames.games.skywars.SkywarsBotTraversal();
     private final Map<java.util.UUID,Long> botNextAction=new HashMap<>();
@@ -170,6 +174,7 @@ public final class BedwarsGame extends MiniGame {
         int goldEvery = generatorTier >= 3 ? 3 : generatorTier == 2 ? 5 : 8;
         int diamondEvery = BedwarsTimers.diamondEvery(generatorTier);
         custom.tick(gameTime);
+        refreshComeback();
         guardBeds();
         if (gameTime % ironEvery == 0) dropAtTeamGenerators(Material.IRON_INGOT);
         if (gameTime % goldEvery == 0) dropAtTeamGenerators(Material.GOLD_INGOT);
@@ -180,6 +185,66 @@ public final class BedwarsGame extends MiniGame {
                 game.world().spawnParticle(org.bukkit.Particle.HAPPY_VILLAGER, loc.clone().add(0, 1, 0), 5, 0.3, 0.5, 0.3);
             }
         }
+    }
+
+    // ---- comeback and mercy ------------------------------------------------------------
+
+    private int aliveCount(GameTeam team) {
+        return (int) team.members().stream().map(game::player).filter(p -> p != null && game.isAlive(p)).count();
+    }
+
+    /** A bedless, outnumbered team gets a free forge tier and the Comeback shop tab; it ends when that stops being true. */
+    private void refreshComeback() {
+        Set<Integer> now = new HashSet<>();
+        if (Comeback.enabled(game.plugin().getConfig(), "bedwars")) {
+            Map<Integer, Integer> alive = new HashMap<>();
+            for (GameTeam team : game.teams()) alive.put(team.index(), aliveCount(team));
+            now = Comeback.bedwarsTeams(bedAlive, alive);
+        }
+        for (GameTeam team : game.teams()) {
+            boolean was = comebackTeams.contains(team.index()), is = now.contains(team.index());
+            if (was == is) continue;
+            String message = is ? "<green><b>COMEBACK!</b> <gray>Your forge is a tier faster and the shop has a <green>Comeback</green> tab with cheap essentials."
+                    : "<gray>Comeback bonus over. Your forge is back to normal.";
+            for (java.util.UUID member : team.members()) {
+                Player mate = game.player(member);
+                if (mate != null) mate.sendMessage(Text.msg(message));
+            }
+        }
+        comebackTeams.clear();
+        comebackTeams.addAll(now);
+    }
+
+    private boolean comebackActive(Player player) {
+        GameTeam team = game.teamOf(player);
+        return team != null && comebackTeams.contains(team.index());
+    }
+
+    @Override
+    public String comebackLine(Player player) { return comebackActive(player) ? "Comeback: faster forge" : null; }
+
+    @Override public int mercyHoldSeconds() { return 60; }
+
+    /** The leading team when every other team has lost its bed and the leader has twice their combined players. */
+    @Override
+    public List<Player> mercyWinners() {
+        GameTeam leader = null;
+        int leaderAlive = 0, othersAlive = 0;
+        for (GameTeam team : game.teams()) {
+            int n = aliveCount(team);
+            if (n > leaderAlive) { leader = team; leaderAlive = n; }
+        }
+        if (leader == null) return null;
+        boolean othersBedless = true;
+        for (GameTeam team : game.teams()) {
+            if (team == leader) continue;
+            othersAlive += aliveCount(team);
+            if (bedAlive.getOrDefault(team.index(), false)) othersBedless = false;
+        }
+        double ratio = game.plugin().getConfig().getDouble("mercy.bedwars.ratio", 2.0);
+        if (!Mercy.bedwars(othersBedless, leaderAlive, othersAlive, ratio)) return null;
+        final GameTeam winner = leader;
+        return game.alivePlayers().stream().filter(winner::contains).toList();
     }
 
     /** Heal pool and traps, checked once a second around each living team's bed. */
@@ -205,7 +270,12 @@ public final class BedwarsGame extends MiniGame {
             if (level(trap, team.index()) <= 0) continue;
             upgradeLevels.get(trap).put(team.index(), 0);
             switch (trap) {
-                case TRAP_ALARM -> intruder.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.GLOWING, 200, 0, false, false));
+                case TRAP_ALARM -> {
+                    intruder.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.GLOWING, 200, 0, false, false));
+                    // Bots on the team hear it too: they all head for the bed (BedwarsBotPlan alarm rule).
+                    Location at = intruder.getLocation();
+                    botTeams.computeIfAbsent(team.index(), i -> new BedwarsBotTeams.TeamState()).alarm(game.gameTime(), at.getX(), at.getY(), at.getZ());
+                }
                 case TRAP_SLOW -> intruder.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.SLOWNESS, 160, 0));
                 default -> intruder.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.MINING_FATIGUE, 200, 0));
             }
@@ -238,7 +308,8 @@ public final class BedwarsGame extends MiniGame {
             Location gen = game.arena().settingLocation("generator" + (team.index() + 1), game.world());
             if (gen == null) continue;
             int event = forgeEvents.merge(material + "/" + team.index(), 1, Integer::sum) - 1;
-            int copies = 1 + ForgeRates.extraDrops(level(ShopCatalogue.Effect.FORGE, team.index()), event);
+            int copies = 1 + ForgeRates.extraDrops(ForgeRates.withComeback(
+                    level(ShopCatalogue.Effect.FORGE, team.index()), comebackTeams.contains(team.index())), event);
             for (int i = 0; i < copies; i++) drop(gen, material);
         }
     }
@@ -406,6 +477,10 @@ public final class BedwarsGame extends MiniGame {
             return game.state() == uk.co.playerready.pulsegames.core.game.GameState.RUNNING && game.isAlive(player);
         }
         @Override public boolean teamUpgradesOn() { return BedwarsGame.this.teamUpgradesOn(); }
+        @Override public boolean comebackShop(Player player) {
+            // A server's older copied bedwars-shop.yml has no Comeback shelf: the forge perk still works, the tab stays hidden.
+            return comebackActive(player) && !catalogue().inCategory(ShopCatalogue.Category.COMEBACK).isEmpty();
+        }
         @Override public Material woolFor(Player player) {
             GameTeam team = game.teamOf(player);
             return team == null ? null : team.palette().wool();
@@ -442,6 +517,10 @@ public final class BedwarsGame extends MiniGame {
     }
 
     private ShopBackend.Result buyItem(Player player, ShopCatalogue.Item entry) {
+        if (entry.category() == ShopCatalogue.Category.COMEBACK && !comebackActive(player)) {
+            player.sendMessage(Text.msg("<gray>Comeback deals are only for teams fighting back without a bed."));
+            return ShopBackend.Result.ALREADY_OWNED;
+        }
         var inventory = player.getInventory();
         var verdict = ShopRules.verdict(catalogue(), entry, BedwarsPurchase.count(inventory, entry.currency()), heldMaterials(player));
         switch (verdict.status()) {
@@ -541,7 +620,9 @@ public final class BedwarsGame extends MiniGame {
     public boolean botCombat(Player bot,org.bukkit.entity.LivingEntity enemy,long tick,
             uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty) {
         // Melee (strafe, aim, sprint, jump) runs in the shared core BotMelee via BotService, limited by botStrafeSafe.
-        if(botActive(bot) && useCombatItem(bot,enemy,tick)) return true;
+        // Decoys, defenders and bugs are only ever fought in melee.
+        if(!(enemy instanceof Player)) return false;
+        if(botActive(bot) && useCombatItem(bot,enemy,tick,tierOf(difficulty))) return true;
         return botBow.combat(game,bot,enemy,tick,difficulty);
     }
 
@@ -554,7 +635,7 @@ public final class BedwarsGame extends MiniGame {
         return at -> { Location feet=at.clone(); feet.setY(y); return uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.safe(feet,true); };
     }
 
-    private boolean useCombatItem(Player bot,org.bukkit.entity.LivingEntity enemy,long tick) {
+    private boolean useCombatItem(Player bot,org.bukkit.entity.LivingEntity enemy,long tick,int tier) {
         if(bot.getWorld()!=enemy.getWorld()) return false;
         var id=bot.getUniqueId(); var inv=bot.getInventory();
         GameTeam team=game.teamOf(bot);
@@ -565,7 +646,7 @@ public final class BedwarsGame extends MiniGame {
         var use=BedwarsBotItems.choose(new BedwarsBotItems.Facts(bot.getHealth(),distance,
                 BedwarsPurchase.count(inv,Material.GOLDEN_APPLE)>0,BedwarsPurchase.count(inv,Material.ENDER_PEARL)>0,
                 BedwarsPurchase.count(inv,Material.FIRE_CHARGE)>0,tick,botFireballReady.getOrDefault(id,0L),safe && bot.hasLineOfSight(enemy)),
-                new BedwarsBotItems.Kit(BedwarsPurchase.count(inv,Material.POTION)>0,BedwarsPurchase.count(inv,Material.EGG)>0,
+                new BedwarsBotItems.Kit(speedPotion(inv),BedwarsPurchase.count(inv,Material.EGG)>0,
                         BedwarsPurchase.count(inv,Material.CHEST)>0),botCfg);
         switch(use) {
             case GOLDEN_APPLE -> {
@@ -594,7 +675,7 @@ public final class BedwarsGame extends MiniGame {
             }
             case BRIDGE_EGG -> { return custom.botUse(bot,BedwarsCustomItems.Custom.BRIDGE_EGG); }
             case POPUP_TOWER -> { return custom.botUse(bot,BedwarsCustomItems.Custom.POPUP_TOWER); }
-            default -> { return false; }
+            default -> { return useGadget(bot,enemy,tick,tier,distance); }
         }
     }
     private static boolean take(Player player,Material material) {
@@ -618,7 +699,7 @@ public final class BedwarsGame extends MiniGame {
         if(tick>=botNextAction.getOrDefault(id,0L)) {
             botNextAction.put(id,tick+20);
             BedwarsBotResources.collect(game,bot);
-            botPurchase(bot,role);
+            botPurchase(bot,role,tierOf(difficulty));
             if(!botMining.containsKey(id)) uk.co.playerready.pulsegames.games.skywars.SkywarsBotInventory.equip(bot.getInventory());
         }
         Location flight=botTraversal.airborne(bot,tick); if(flight!=null) return flight;
@@ -632,10 +713,12 @@ public final class BedwarsGame extends MiniGame {
         Location gen=generator(team);
         Block defence=alive?nextDefence(team,tick):null;
         boolean armed=hasSword(bot,Material.STONE_SWORD) || hasSword(bot,Material.IRON_SWORD) || hasSword(bot,Material.DIAMOND_SWORD);
+        boolean alarm=state.alarmActive(game.gameTime());
+        if(alarm) state.seeThreat(tick,state.alarmX,state.alarmY,state.alarmZ);
         var plan=new BedwarsBotPlan.Facts(role,game.gameTime(),closeEnemy,state.threatened(tick),
                 bedCentre!=null && here.distanceSquared(bedCentre)<=24*24,alive,blocks>=0,armed,defence!=null,
                 gen!=null && here.distanceSquared(gen)<=Math.pow(botCfg.spendRadius(),2),botCanSpend.getOrDefault(id,false),
-                role==BedwarsBotTeams.Role.ATTACK && !closeEnemy && diamondTrip(bot,tick),gatherDue(bot,role,tick));
+                role==BedwarsBotTeams.Role.ATTACK && !closeEnemy && diamondTrip(bot,tick),gatherDue(bot,role,tick),alarm);
         Location goal=null;
         switch(BedwarsBotPlan.decide(plan,botCfg)) {
             case FIGHT -> { botMining.remove(id); goal=combatGoal; }
@@ -667,6 +750,7 @@ public final class BedwarsGame extends MiniGame {
         }
         if(goal==null) goal=gen;
         if(goal==null || goal.getWorld()!=bot.getWorld()) return null;
+        if(!closeEnemy) travelGadget(bot,team,state,role,tick,tierOf(difficulty),goal);
         return moveToward(bot,goal,tick);
     }
 
@@ -740,16 +824,19 @@ public final class BedwarsGame extends MiniGame {
     private boolean hasSword(Player bot,Material material) { return BedwarsPurchase.count(bot.getInventory(),material)>0; }
 
     // ---- bots: shopping ------------------------------------------------------------
-    private BedwarsShopPlan.Loadout loadout(Player bot,BedwarsBotTeams.Role role) {
+    private BedwarsShopPlan.Loadout loadout(Player bot,BedwarsBotTeams.Role role,int tier) {
         var inv=bot.getInventory(); Map<Material,Integer> counts=new java.util.EnumMap<>(Material.class);
         for(Material m:List.of(Material.IRON_INGOT,Material.GOLD_INGOT,Material.DIAMOND,Material.GOLDEN_APPLE,Material.FIRE_CHARGE,
-                Material.ENDER_PEARL,Material.BOW,Material.ARROW,Material.EGG,Material.CHEST,Material.POTION)) counts.put(m,BedwarsPurchase.count(inv,m));
+                Material.ENDER_PEARL,Material.BOW,Material.ARROW,Material.EGG,Material.CHEST,Material.POTION,
+                Material.SHIELD,Material.HONEYCOMB,Material.SLIME_BLOCK,Material.CARVED_PUMPKIN,Material.ARMOR_STAND,Material.PACKED_ICE,
+                Material.GUNPOWDER,Material.SILVERFISH_SPAWN_EGG,Material.SNOWBALL,Material.FIREWORK_ROCKET,Material.MILK_BUCKET,
+                Material.TOTEM_OF_UNDYING)) counts.put(m,BedwarsPurchase.count(inv,m));
         int blocks=0;
         for(int i=0;i<36;i++) { ItemStack s=inv.getItem(i); if(s!=null && isBlockMaterial(s.getType())) blocks+=s.getAmount(); }
         GameTeam team=game.teamOf(bot); int index=team==null?0:team.index();
         Map<ShopCatalogue.Effect,Integer> levels=new java.util.EnumMap<>(ShopCatalogue.Effect.class);
         for(var effect:ShopCatalogue.Effect.values()) levels.put(effect,level(effect,index));
-        return new BedwarsShopPlan.Loadout(counts,heldMaterials(bot),blocks,role,game.gameTime(),teamUpgradesOn(),levels);
+        return new BedwarsShopPlan.Loadout(counts,heldMaterials(bot),blocks,role,game.gameTime(),teamUpgradesOn(),levels,tier,potionEffects(inv));
     }
     private static boolean isBlockMaterial(Material m) { return blockRank(m)>0; }
     private static int blockRank(Material m) {
@@ -763,8 +850,8 @@ public final class BedwarsGame extends MiniGame {
         for(int i=0;i<36;i++) { ItemStack s=inv.getItem(i); if(s!=null && s.getAmount()>0 && blockRank(s.getType())>rank) { best=i; rank=blockRank(s.getType()); } }
         return best;
     }
-    private void botPurchase(Player bot,BedwarsBotTeams.Role role) {
-        var loadout=loadout(bot,role);
+    private void botPurchase(Player bot,BedwarsBotTeams.Role role,int tier) {
+        var loadout=loadout(bot,role,tier);
         var pick=BedwarsShopPlan.next(catalogue(),loadout);
         botCanSpend.put(bot.getUniqueId(),pick!=null);
         if(pick==null || !botActive(bot)) return;
@@ -904,7 +991,194 @@ public final class BedwarsGame extends MiniGame {
         if(slot>=9) { ItemStack displaced=inv.getItem(6); inv.setItem(6,inv.getItem(slot)); inv.setItem(slot,displaced); slot=6; }
         inv.setHeldItemSlot(slot);
     }
+
+    // ---- bots: gadgets (decisions in BedwarsBotFunky, performed through BedwarsCustomItems.botUse) ----------
+    private final java.util.Random botDice=new java.util.Random();
+    private final Map<java.util.UUID,Long> botFunkyNext=new HashMap<>();
+    private final BedwarsBotDecoys botDecoys=new BedwarsBotDecoys();
+
+    private static int tierOf(uk.co.playerready.pulsegames.core.bot.BotDifficulty d) {
+        return d==null?1:switch(d) { case EASY->0; case NORMAL->1; case HARD->2; };
+    }
+    private static boolean speedPotion(org.bukkit.inventory.PlayerInventory inv) {
+        for(ItemStack s:inv.getContents()) if(s!=null && s.getType()==Material.POTION && s.getItemMeta() instanceof org.bukkit.inventory.meta.PotionMeta m
+                && m.getCustomEffects().stream().anyMatch(e->e.getType().equals(org.bukkit.potion.PotionEffectType.SPEED))) return true;
+        return false;
+    }
+    private static Set<String> potionEffects(org.bukkit.inventory.PlayerInventory inv) {
+        Set<String> names=new HashSet<>();
+        for(ItemStack s:inv.getContents()) if(s!=null && s.getType()==Material.POTION && s.getItemMeta() instanceof org.bukkit.inventory.meta.PotionMeta m)
+            for(var e:m.getCustomEffects()) names.add(e.getType().getKey().getKey());
+        return names;
+    }
+
+    /** At most one roll per few ticks per bot; the dice are thrown only when a rule's conditions are met. */
+    private String rollGadget(Player bot,long tick,int tier,java.util.function.BiFunction<Set<String>,java.util.function.IntUnaryOperator,String> pick) {
+        var id=bot.getUniqueId();
+        if(tick<botFunkyNext.getOrDefault(id,0L)) return null;
+        Set<String> ready=custom.botReady(bot); if(ready.isEmpty()) return null;
+        boolean[] rolled={false};
+        String choice=pick.apply(ready,n->{ rolled[0]=true; return botDice.nextInt(n); });
+        if(rolled[0] || choice!=null) botFunkyNext.put(id,tick+BedwarsBotFunky.rollEveryTicks(tier));
+        return choice;
+    }
+
+    @SuppressWarnings("deprecation")
+    private static double maxHealth(Player bot) { return bot.getMaxHealth()<=0?20:bot.getMaxHealth(); }
+
+    private boolean solidAt(int x,int y,int z) {
+        return game.world().isChunkLoaded(x>>4,z>>4) && game.world().getBlockAt(x,y,z).getType().isSolid();
+    }
+    /** No floor within three blocks below this column. */
+    private boolean noFloor(int x,int y,int z) { return !solidAt(x,y-1,z) && !solidAt(x,y-2,z) && !solidAt(x,y-3,z); }
+    private boolean nearEdge(Location at) {
+        int x=at.getBlockX(),y=at.getBlockY(),z=at.getBlockZ();
+        return noFloor(x+1,y,z) || noFloor(x-1,y,z) || noFloor(x,y,z+1) || noFloor(x,y,z-1);
+    }
+    private boolean cornered(Location at) {
+        int x=at.getBlockX(),y=at.getBlockY(),z=at.getBlockZ(),walls=0;
+        for(int[] d:new int[][]{{1,0},{-1,0},{0,1},{0,-1}}) if(solidAt(x+d[0],y,z+d[1]) && solidAt(x+d[0],y+1,z+d[1])) walls++;
+        return walls>=2;
+    }
+    private Location bedCentre(int team) {
+        return team>=0 && team<bedRegions.size() && bedAlive.getOrDefault(team,false)?bedRegions.get(team).center(game.world()):null;
+    }
+    private Location nearestEnemyBed(Location from,GameTeam mine) {
+        Location best=null; double bd=Double.MAX_VALUE;
+        for(int i=0;i<Math.min(bedRegions.size(),64);i++) {
+            if(i==mine.index()) continue; Location c=bedCentre(i); if(c==null) continue;
+            double d=c.distanceSquared(from); if(d<bd) { bd=d; best=c; }
+        }
+        return best;
+    }
+    private double nearestEnemy(Player bot,GameTeam team) {
+        double best=Double.MAX_VALUE;
+        for(Player p:game.alivePlayers()) if(p.getWorld()==bot.getWorld() && !team.contains(p)) best=Math.min(best,p.getLocation().distance(bot.getLocation()));
+        return best==Double.MAX_VALUE?999:best;
+    }
+
+    /** With an enemy in sight: shield, shove, throw, bug, hook. */
+    private boolean useGadget(Player bot,org.bukkit.entity.LivingEntity enemy,long tick,int tier,double distance) {
+        GameTeam team=game.teamOf(bot); if(team==null) return false;
+        boolean edge=nearEdge(enemy.getLocation());
+        // The stick is only worth holding while a shove could send them over; otherwise back to the best sword.
+        if(bot.getInventory().getItemInMainHand().getType()==Material.STICK && !(edge && distance<=3.5))
+            uk.co.playerready.pulsegames.core.bot.BotService.selectSword(bot);
+        String pick=rollGadget(bot,tick,tier,(ready,dice)->{
+            boolean theirBed=false; GameTeam theirs=enemy instanceof Player p?game.teamOf(p):null;
+            if(theirs!=null) { Location c=bedCentre(theirs.index()); theirBed=c!=null && c.distanceSquared(enemy.getLocation())<=12*12; }
+            Location base=generator(team);
+            var facts=new BedwarsBotFunky.Facts(bot.getHealth(),maxHealth(bot),distance,edge,theirBed,cornered(bot.getLocation()),
+                    nearestEnemy(bot,team),base==null||base.getWorld()!=bot.getWorld()?0:base.distance(bot.getLocation()),
+                    bedAlive.getOrDefault(team.index(),false),0,false,false,false,false,false,custom.trapImmune(bot));
+            return BedwarsBotFunky.combat(facts,ready,tier,dice);
+        });
+        if(pick==null) return false;
+        var c=BedwarsCustomItems.Custom.byId(pick); if(c==null) return false;
+        return custom.botUse(bot,c,c==BedwarsCustomItems.Custom.BED_BUG?enemy.getLocation():enemy.getEyeLocation(),null);
+    }
+
+    /** The ground cell on the way in to our bed from the nearest enemy, five blocks out: where traps and decoys go. */
+    private Block approachGround(GameTeam team) {
+        Location bed=bedCentre(team.index()); if(bed==null) return null;
+        Location enemy=nearestEnemyBed(bed,team); if(enemy==null) return null;
+        double dx=enemy.getX()-bed.getX(),dz=enemy.getZ()-bed.getZ();
+        int sx=Math.abs(dx)>=Math.abs(dz)?(int)Math.signum(dx):0,sz=sx==0?(int)Math.signum(dz):0;
+        int x=bed.getBlockX()+sx*5,z=bed.getBlockZ()+sz*5;
+        if(!game.world().isChunkLoaded(x>>4,z>>4)) return null;
+        for(int y=bed.getBlockY()+2;y>=bed.getBlockY()-4;y--) {
+            Block b=game.world().getBlockAt(x,y,z);
+            if(b.getType().isSolid() && b.getRelative(org.bukkit.block.BlockFace.UP).getType().isAir()
+                    && b.getRelative(org.bukkit.block.BlockFace.UP,2).getType().isAir()) return b;
+        }
+        return null;
+    }
+
+    private record Gap(int length,Location landing) {}
+    /** A gap straight ahead on the way to the goal (starting within two blocks, floor again beyond), else null. */
+    private Gap gapAhead(Location here,Location goal) {
+        double dx=goal.getX()-here.getX(),dz=goal.getZ()-here.getZ();
+        if(Math.abs(dx)<1 && Math.abs(dz)<1) return null;
+        int sx=Math.abs(dx)>=Math.abs(dz)?(int)Math.signum(dx):0,sz=sx==0?(int)Math.signum(dz):0;
+        int y=here.getBlockY(),run=0;
+        for(int i=1;i<=24;i++) {
+            int x=here.getBlockX()+sx*i,z=here.getBlockZ()+sz*i;
+            if(!game.world().isChunkLoaded(x>>4,z>>4)) return null;
+            boolean floor=solidAt(x,y-1,z) || solidAt(x,y-2,z);
+            if(!floor) run++;
+            else if(run>0) return new Gap(run,new Location(game.world(),x+.5,y,z+.5));
+            else if(i>=2) return null;
+        }
+        return null;
+    }
+
+    /** Between fights: recall, defender, bed-approach traps, raid prep, gap crossing. */
+    private void travelGadget(Player bot,GameTeam team,BedwarsBotTeams.TeamState state,BedwarsBotTeams.Role role,
+            long tick,int tier,Location goal) {
+        Location here=bot.getLocation(),bed=bedCentre(team.index());
+        Block approach=approachGround(team);
+        Gap gap=goal==null||goal.getWorld()!=bot.getWorld()?null:gapAhead(here,goal);
+        String pick=rollGadget(bot,tick,tier,(ready,dice)->{
+            Location base=generator(team);
+            boolean entering=false;
+            if(role==BedwarsBotTeams.Role.ATTACK) {
+                Location enemy=nearestEnemyBed(here,team);
+                if(enemy!=null) { double d=enemy.distance(here); entering=d>=9 && d<=22; }
+            }
+            boolean atApproach=approach!=null && Math.hypot(approach.getX()+.5-here.getX(),approach.getZ()+.5-here.getZ())<=7 && Math.abs(approach.getY()-here.getY())<=3;
+            var facts=new BedwarsBotFunky.Facts(bot.getHealth(),maxHealth(bot),-1,false,false,false,nearestEnemy(bot,team),
+                    base==null||base.getWorld()!=bot.getWorld()?0:base.distance(here),bed!=null,gap==null?0:gap.length(),
+                    bed!=null && bed.distanceSquared(here)<=8*8,state.threatened(tick) || state.alarmActive(game.gameTime()),atApproach,
+                    custom.defenderActive(team.index()),entering,custom.trapImmune(bot));
+            return BedwarsBotFunky.travel(facts,ready,tier,dice);
+        });
+        if(pick==null) return;
+        if(pick.equals(BedwarsBotFunky.INVISIBILITY)) { drinkInvisibility(bot); return; }
+        var c=BedwarsCustomItems.Custom.byId(pick); if(c==null) return;
+        switch(c) {
+            case HONEY_TRAP,BOUNCE_PAD -> { if(approach!=null) custom.botUse(bot,c,approach.getLocation().add(.5,1,.5),approach); }
+            case DECOY_DUMMY -> { if(approach!=null) custom.botUse(bot,c,approach.getLocation().add(.5,1,.5),null); }
+            case ICE_ROAD,GRAPPLING_HOOK -> { if(gap!=null) custom.botUse(bot,c,gap.landing(),null); }
+            default -> custom.botUse(bot,c);
+        }
+    }
+
+    /** Drink an Invisibility Potion: the ordinary consume event, then the potion's own effects. */
+    private boolean drinkInvisibility(Player bot) {
+        var inv=bot.getInventory();
+        for(int i=0;i<36;i++) {
+            ItemStack s=inv.getItem(i);
+            if(s==null || s.getType()!=Material.POTION || !(s.getItemMeta() instanceof org.bukkit.inventory.meta.PotionMeta m)) continue;
+            if(m.getCustomEffects().stream().noneMatch(e->e.getType().equals(org.bukkit.potion.PotionEffectType.INVISIBILITY))) continue;
+            var event=new org.bukkit.event.player.PlayerItemConsumeEvent(bot,s,org.bukkit.inventory.EquipmentSlot.HAND);
+            game.plugin().getServer().getPluginManager().callEvent(event);
+            if(event.isCancelled()) return false;
+            if(s.getAmount()<=1) inv.setItem(i,null); else s.setAmount(s.getAmount()-1);
+            for(var effect:m.getCustomEffects()) bot.addPotionEffect(effect);
+            bot.swingMainHand(); return true;
+        }
+        return false;
+    }
+
+    /**
+     * The nearest thing besides a player a bot should fight: an enemy Decoy Dummy it has fallen for (for a few seconds,
+     * decided once per bot and decoy, by difficulty), or a Dream Defender or Bed Bug that is hunting it.
+     */
+    public org.bukkit.entity.LivingEntity botFoe(Player bot,long tick,uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty) {
+        if(!botActive(bot)) return null;
+        int tier=tierOf(difficulty); Location here=bot.getLocation();
+        org.bukkit.entity.LivingEntity best=null; double bd=Double.MAX_VALUE;
+        for(var foe:custom.foesOf(bot)) {
+            var e=foe.entity(); if(e.getWorld()!=bot.getWorld() || e.isDead()) continue;
+            double d=e.getLocation().distanceSquared(here);
+            if(d>24*24 || d>=bd || !bot.hasLineOfSight(e)) continue;
+            if(foe.decoy() && !botDecoys.attracts(bot.getUniqueId(),foe.id(),tick,tier,botDice::nextInt)) continue;
+            best=e; bd=d;
+        }
+        return best;
+    }
     @Override public void onCleanup() {
+        botFunkyNext.clear(); botDecoys.forget();
         botTeams.clear(); botTripUntil.clear(); botTripNext.clear(); botGatherUntil.clear(); botGatherNext.clear();
         botTargetUntil.clear(); botFireballReady.clear(); botCanSpend.clear(); bridgeAnchor.clear(); botSneaking.clear();
         defenceCache.clear(); defenceCacheUntil.clear();

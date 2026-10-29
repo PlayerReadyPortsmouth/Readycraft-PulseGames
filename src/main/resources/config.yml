@@ -9,6 +9,22 @@ lobby:
   # Give the game-menu compass on lobby join
   give-menu-item: true
 
+  # Placements made with /pulse lobby ... are saved in plugins/PulseGames/lobby.yml (see docs/LOBBY-PLACEMENTS.md).
+  # Game selector NPC skins: a Minecraft account name per game. Unlisted games use the built-in default
+  # (an MHF head such as MHF_TNT). Example override:
+  #   npcs:
+  #     spleef:
+  #       skin: MHF_Cactus
+  npcs: {}
+  chest:
+    # Random extra tokens on top of economy.daily-bonus when the daily reward chest is opened.
+    extra-min: 5
+    extra-max: 25
+  parkour:
+    # Falling below this height sends a parkour runner back to their last checkpoint.
+    # "auto" = two blocks under the lowest plate.
+    fall-y: auto
+
 ui:
   # Bedrock (Floodgate) players get forms for the game list, mode picker and confirms; false = chest menus for all.
   bedrock-forms: true
@@ -47,9 +63,55 @@ party:
   # Every party message is also logged to the console.
   chat-blocklist: []
 
+# Private matches: /party private (or the Private match button in the party menu). Only the party is admitted,
+# the game never shows in Quick Play or public queues, and results follow the normal competitive rules, so
+# tokens are paid only when most players are people. Duels are not offered here.
+private:
+  enabled: true
+  # Seconds in the waiting lobby once enough people are in.
+  countdown-seconds: 10
+  # Most people (the party) in one private match. Also limited by party.max-size.
+  max-party: 16
+  # Let the leader fill empty seats with bots (they still need bots.enabled and a bot-supported game).
+  allow-bots: true
+
 end:
   # Seconds to celebrate before players are returned to the lobby.
   celebrate-seconds: 10
+
+# Mercy rules: end a clearly decided match early with a 10 second "Game over" countdown. Winners get full
+# rewards, everyone else the usual participation and placement. The countdown cancels if the trailing side
+# gets back in the game. Villager Defense, ReadyPlayerZ and the other race games have no mercy rule.
+# Owner Aurora / ReadyCraft; review 2026-11-30.
+mercy:
+  enabled: true
+  countdown-seconds: 10
+  bedwars:
+    enabled: true
+    # Every other team has no bed and the leader has this many times their combined living players...
+    ratio: 2.0
+    # ...for this many seconds in a row.
+    hold-seconds: 60
+  # Score games: the leader is this % of the target ahead with less than this % of the clock left.
+  koth: {enabled: true, gap-percent: 60, time-left-percent: 40}
+  kitpvp: {enabled: true, gap-percent: 60, time-left-percent: 40}
+  quake: {enabled: true, gap-percent: 60, time-left-percent: 40}
+  # Rounds mode: the runner-up cannot catch up even by winning every remaining round.
+  dodgeball: {enabled: true}
+  avalanche: {enabled: true}
+  # A human has finished, only bots are still racing: hold-seconds plus the countdown is the 15 second grace.
+  karts: {enabled: true, hold-seconds: 5}
+
+# Comeback help for the side that is behind. Owner Aurora / ReadyCraft; review 2026-11-30.
+comeback:
+  enabled: true
+  # No bed and outnumbered by the biggest opposing team: one free forge tier and a half-price Comeback shop tab.
+  bedwars: {enabled: true}
+  # This many kills behind the leader: a speed boost for a few seconds after respawning.
+  kitpvp: {enabled: true, kills-behind: 5, boost-seconds: 3}
+  quake: {enabled: true, kills-behind: 5, boost-seconds: 3}
+  # The side with fewer players gets one extra throw at each round reset.
+  dodgeball: {enabled: true}
 
 shop:
   # Buying anything priced at or above this asks "are you sure?" first (the 2x booster always asks).
@@ -312,6 +374,10 @@ combat:
 # Owner: AurorasChaos; review 2026-11-14; retain as collection/delivery pause until acceptance.
 progression:
   enabled: false
+  # XP levels across every game ([12] prefix, /level, /wardrobe). XP comes from eligible rounds and challenges only.
+  levels-enabled: true
+  # Tell the lobby (never other servers) when someone reaches level 5, 10, 15 ...
+  announce-levels: true
   event-id: "" # Stable event ID; only matches completed during this configured event count.
 
 # Quick Play hotbar item/menu button and the daily featured game.
@@ -335,17 +401,20 @@ challenges:
       type: DISTINCT_GAMES
       target: 3
       reward: 40
+      xp: 40   # XP towards your level (0 for none)
     win-a-round:
       name: "Win a round of anything"
       type: WINS
       target: 1
       reward: 30
+      xp: 30
     survive-avalanche:
       name: "Survive 90 seconds in Avalanche"
       type: SURVIVE_SECONDS
       game: avalanche
       target: 90
       reward: 30
+      xp: 30
 
 # Weekly top-three board (/top): tokens paid at the Monday reset to 1st, 2nd and 3rd.
 leaderboard:
@@ -358,3 +427,91 @@ debug:
 engagement:
   # One action-bar line on join when a daily challenge, the first-win bonus or a featured-game bonus is waiting.
   join-hint: true
+
+# Scheduled events: a featured tournament on private rounds of an existing game (/event).
+# Joining is always opt-in. Events pay tokens at the multiplier below through the normal economy,
+# only when the roster would count as competitive (at least two humans, no bots).
+events:
+  enabled: true
+  timezone: Europe/London
+  # Sign-up opens this many minutes before the start, with a lobby title, sidebar line and chat message.
+  announce-lead-minutes: 5
+  # Fewer humans than this at the start cancels the event politely.
+  min-players: 2
+  # Sign-up cap (2-16).
+  max-players: 16
+  # Bracket only: play a third-place match when there are four or more entrants.
+  third-place-match: true
+  between-rounds-seconds: 15
+  # Hard stop for a single round, then it is decided on placement or score.
+  match-minutes: 10
+  # Seconds of sign-up for /pulse event start.
+  admin-lead-seconds: 60
+  # Show the event as an extra queue row so the proxy announces it with a Join link on other servers.
+  network-announce: true
+  # Lobby sidebar countdown during sign-up.
+  sidebar: true
+  tokens-multiplier: 2.0
+  rewards:
+    participation: 10
+    bracket-match-win: 10
+    # Podium prizes (before the multiplier). Ties share the place.
+    first: 50
+    second: 30
+    third: 20
+    # Points format: points for 1st, 2nd, ... (anyone beyond the list gets the last value).
+    points-table: [10, 7, 5, 3, 2, 1]
+  # Schedule lines: 'every: 60m' (counted from local midnight) or 'at: "HH:mm"' (daily).
+  # A line may fix its own game: {at: "19:30", game: spleef, mode: classic, format: points, rounds: 3, tokens-multiplier: 3.0}.
+  # A line without a game takes the next entry of the rotation below.
+  schedule:
+    - every: 60m
+  games:
+    - {game: duels, mode: classic, format: bracket}
+    - {game: spleef, mode: classic, format: points, rounds: 3}
+    - {game: karts, mode: cup, format: points, rounds: 3}
+    - {game: bedwars, mode: duos, format: bracket}
+    - {game: blockparty, mode: classic, format: points, rounds: 3}
+    - {game: tntrun, mode: classic, format: points, rounds: 3}
+    - {game: dodgeball, mode: teams, format: bracket}
+    - {game: quake, mode: classic, format: points, rounds: 3}
+# Ranked Duels (/ranked): Elo per kit, one against one, humans only unless allow-bots is on.
+# Ratings live in stats.yml under _ranked. New players start at 1000 (K 32 for 10 games, then 20; floor 0).
+ranked:
+  enabled: true
+  # Which Duels kits have a ranked ladder (the discipline ids). Ranked uses modern combat.
+  kits: [classic, sumo, crystal, mace]
+  # When true, a player who finds nobody for bot-after-seconds gets bots chosen by rating band.
+  # Needs bots.enabled, the map's bots-enabled and testing access. Bot games never change a rating.
+  allow-bots: false
+  bot-after-seconds: 15
+  bots:
+    # Tier anchors: the bot tier whose anchor is nearest the player's rating is used.
+    easy-rating: 900
+    normal-rating: 1200
+    hard-rating: 1500
+  # Divisions: name, lowest rating, short badge tag and its colour. The first 5 games show "Unranked".
+  divisions:
+    - {name: Wood, min: 0, tag: WOD, color: "#a97142"}
+    - {name: Stone, min: 900, tag: STN, color: "#9a9a9a"}
+    - {name: Iron, min: 1100, tag: IRN, color: "#d8d8d8"}
+    - {name: Gold, min: 1300, tag: GLD, color: "#ffc835"}
+    - {name: Diamond, min: 1500, tag: DIA, color: "#4be6e6"}
+  matchmaking:
+    # The accepted rating gap starts here and widens every widen-every-seconds, up to max-range.
+    start-range: 100
+    widen-by: 50
+    widen-every-seconds: 10
+    max-range: 400
+  season:
+    # Change id (or let the end date pass) to start a new season: ratings move halfway back to 1000 and
+    # each player's peak division is archived under _ranked.archive in stats.yml.
+    id: "1"
+    ends: "2027-01-31"
+  # A disconnect only counts as a loss if the player has not come back after this long; if they return in
+  # time the match changes nobody's rating.
+  disconnect-grace-seconds: 30
+  # Meeting the same opponent again inside the window shrinks the rating change (second meeting, third and later).
+  repeat-opponent:
+    window-minutes: 10
+    factors: [0.5, 0.25]

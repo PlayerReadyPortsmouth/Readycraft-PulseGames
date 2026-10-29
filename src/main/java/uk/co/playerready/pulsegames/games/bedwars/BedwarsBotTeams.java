@@ -16,6 +16,11 @@ final class BedwarsBotTeams {
         long threatTick = Long.MIN_VALUE / 2;
         double threatX, threatY, threatZ;
         void seeThreat(long tick, double x, double y, double z) { threatTick = tick; threatX = x; threatY = y; threatZ = z; }
+        /** Game second until which our alarm trap's ring counts, and where the intruder was. */
+        int alarmUntil = Integer.MIN_VALUE;
+        double alarmX, alarmY, alarmZ;
+        void alarm(int gameSecond, double x, double y, double z) { alarmUntil = gameSecond + 20; alarmX = x; alarmY = y; alarmZ = z; }
+        boolean alarmActive(int gameSecond) { return gameSecond < alarmUntil; }
         boolean threatened(long tick) { return tick - threatTick < 80; }
         Role role(UUID id) { return roles.getOrDefault(id, Role.GATHER); }
     }

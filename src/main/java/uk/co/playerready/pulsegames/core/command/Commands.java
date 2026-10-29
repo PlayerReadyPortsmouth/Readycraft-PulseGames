@@ -22,7 +22,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
 
     public Commands(PulseGamesPlugin plugin) {
         this.plugin = plugin;
-        for (String name : List.of("play", "party", "lobby", "pulse", "stats", "shop", "pulsekits", "duels", "results", "challenges", "top")) {
+        for (String name : List.of("play", "party", "lobby", "pulse", "stats", "shop", "pulsekits", "duels", "results", "challenges", "top", "level", "wardrobe", "event", "ranked")) {
             var command = plugin.getCommand(name);
             command.setExecutor(this);
             command.setTabCompleter(this);
@@ -54,10 +54,14 @@ public final class Commands implements CommandExecutor, TabCompleter {
             case "stats" -> stats(player, args);
             case "challenges" -> plugin.engagement().openChallenges(player);
             case "top" -> plugin.engagement().top(player, args);
+            case "event" -> plugin.events().command(player, args);
             case "results" -> plugin.results().command(player,args);
             case "duels" -> plugin.duelMenu().open(player);
+            case "ranked" -> plugin.rankedMenu().command(player, args);
             case "pulsekits" -> plugin.kitSelection().open(player);
             case "shop" -> plugin.tokenShop().openMain(player);
+            case "level" -> plugin.levelMenu().open(player);
+            case "wardrobe" -> plugin.wardrobe().open(player);
             case "pulse" -> admin(player, args);
         }
         return true;
@@ -101,9 +105,14 @@ public final class Commands implements CommandExecutor, TabCompleter {
     }
 
     private void party(Player player, String[] args) {
+        if (args.length > 0 && (args[0].equalsIgnoreCase("private") || args[0].equalsIgnoreCase("spectate"))) {
+            if (args[0].equalsIgnoreCase("private")) plugin.privateMatches().open(player);
+            else plugin.privateMatches().spectate(player);
+            return;
+        }
         if (!plugin.parties().localOnly(player) && plugin.networkPartyCommand(player,args)) return;
         if (args.length == 0) {
-            player.sendMessage(Text.msg("Usage: <yellow>/party <invite|accept|deny|leave|disband|list|chat|invites>"));
+            player.sendMessage(Text.msg("Usage: <yellow>/party <invite|accept|deny|leave|disband|list|chat|invites|private|spectate>"));
             return;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
@@ -203,11 +212,12 @@ public final class Commands implements CommandExecutor, TabCompleter {
 
     private void admin(Player player, String[] args) {
         if (args.length == 0) {
-            player.sendMessage(Text.msg("Usage: <yellow>/pulse <setup|shape|build|blueprints|bots|diagnose|maps|world|games|list|arenas|start|end|setlobby|reload>"));
+            player.sendMessage(Text.msg("Usage: <yellow>/pulse <setup|shape|build|blueprints|bots|diagnose|maps|lobby|world|games|list|arenas|start|end|setlobby|reload>"));
             return;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
             case "results" -> plugin.results().command(player, java.util.Arrays.copyOfRange(args, 1, args.length));
+            case "event" -> plugin.events().admin(player, java.util.Arrays.copyOfRange(args, 1, args.length));
             case "practice" -> plugin.practice().handle(player, java.util.Arrays.copyOfRange(args, 1, args.length));
             case "setup" -> plugin.setup().handle(player, java.util.Arrays.copyOfRange(args, 1, args.length));
             case "shape" -> {
@@ -283,11 +293,14 @@ public final class Commands implements CommandExecutor, TabCompleter {
                 plugin.lobby().setLobby(player.getLocation());
                 player.sendMessage(Text.msg("Main lobby set to your location."));
             }
+            case "lobby" -> plugin.lobbyPlacements().handle(player, java.util.Arrays.copyOfRange(args, 1, args.length));
             case "reload" -> {
                 plugin.reloadConfig();
                 plugin.arenas().load();
                 plugin.kits().load();
-                player.sendMessage(Text.msg("Config, arenas and kits reloaded."));
+                plugin.lobbyPlacements().reload();
+                plugin.events().load();
+                player.sendMessage(Text.msg("Config, arenas, kits and lobby placements reloaded."));
             }
             default -> player.sendMessage(Text.msg("<red>Unknown subcommand."));
         }
@@ -309,9 +322,16 @@ public final class Commands implements CommandExecutor, TabCompleter {
                     }
                 }
             }
+            case "event" -> {
+                if (args.length == 1) return List.of("join", "leave", "bracket", "results");
+            }
+            case "ranked" -> {
+                if (args.length == 1) return List.of("queue", "leave", "history");
+                if (args.length == 2 && args[0].equalsIgnoreCase("queue")) return plugin.ranked().kits();
+            }
             case "party" -> {
                 if (args.length == 1) {
-                    return List.of("invite", "accept", "deny", "leave", "disband", "list", "chat", "invites");
+                    return List.of("invite", "accept", "deny", "leave", "disband", "list", "chat", "invites", "private", "spectate");
                 }
             }
             case "pulse" -> {
@@ -330,6 +350,16 @@ public final class Commands implements CommandExecutor, TabCompleter {
                         choices = java.util.Arrays.stream(uk.co.playerready.pulsegames.core.maps.MapReviewStore.Outcome.values()).map(outcome -> outcome.name().toLowerCase(Locale.ROOT)).toList();
                     String prefix = args[args.length - 1].toLowerCase(Locale.ROOT);
                     return choices.stream().filter(choice -> choice.toLowerCase(Locale.ROOT).startsWith(prefix)).limit(64).toList();
+                }
+                if (args.length >= 2 && args[0].equalsIgnoreCase("event")) {
+                    if (!sender.hasPermission("pulsegames.admin")) return List.of();
+                    String prefix = args[args.length - 1].toLowerCase(Locale.ROOT);
+                    List<String> choices = args.length == 2 ? List.of("start", "cancel", "list")
+                            : args.length == 3 && args[1].equalsIgnoreCase("start") ? plugin.registry().all().stream().map(GameType::id).toList()
+                            : args.length == 4 && args[1].equalsIgnoreCase("start") && plugin.registry().get(args[2]) != null
+                                ? plugin.registry().get(args[2]).modes().stream().map(GameMode::id).toList()
+                            : args.length == 5 && args[1].equalsIgnoreCase("start") ? List.of("bracket", "points") : List.of();
+                    return choices.stream().filter(choice -> choice.startsWith(prefix)).limit(64).toList();
                 }
                 if (args.length >= 2 && args[0].equalsIgnoreCase("practice")) {
                     if (!sender.hasPermission("pulsegames.admin")) return List.of();
@@ -355,8 +385,9 @@ public final class Commands implements CommandExecutor, TabCompleter {
                     }
                     return List.of();
                 }
+                if (args.length >= 2 && args[0].equalsIgnoreCase("lobby")) return plugin.lobbyPlacements().tab(sender, args);
                 if (args.length == 1) {
-                    return List.of("setup", "shape", "build", "blueprints", "bots", "diagnose", "maps", "practice", "results", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
+                    return List.of("lobby", "setup", "shape", "build", "blueprints", "bots", "diagnose", "maps", "practice", "event", "results", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
                 }
                 if (args.length == 3 && args[0].equalsIgnoreCase("world")) return List.of("void", "normal");
                 if (args.length == 2 && args[0].equalsIgnoreCase("build")) {

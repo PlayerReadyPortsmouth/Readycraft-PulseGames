@@ -56,7 +56,13 @@ public final class BedwarsShopMenu implements TabbedShop.Source {
     @Override public List<Tab> tabs(Player player) {
         List<Tab> tabs = new ArrayList<>();
         // The quick-buy row is always on screen, so it has no tab of its own: that frees a slot for Funky.
-        for (Category c : Category.values()) if (c != Category.QUICK_BUY) tabs.add(Tab.of(c.name(), c.icon, c.title));
+        // The tab row holds nine. While a team is on a comeback its cheap shelf takes the place of the novelty Funky shelf.
+        boolean comeback = backend.comebackShop(player);
+        for (Category c : Category.values()) {
+            if (c == Category.QUICK_BUY || c == Category.COMEBACK) continue;
+            if (c == Category.FUNKY && comeback) tabs.add(Tab.of(Category.COMEBACK.name(), Category.COMEBACK.icon, Category.COMEBACK.title));
+            else tabs.add(Tab.of(c.name(), c.icon, c.title));
+        }
         if (backend.teamUpgradesOn() && !backend.catalogue().upgrades().isEmpty())
             tabs.add(new Tab(TEAM, Material.BEACON, "Team Upgrades", true, null, null));
         return tabs;

@@ -11,7 +11,7 @@ commands:
     usage: /play <game> [mode]
   party:
     description: Manage your party.
-    usage: /party <invite|accept|deny|leave|disband|list|chat|invites> [player|message]
+    usage: /party <invite|accept|deny|leave|disband|list|chat|invites|private|spectate> [player|message]
     aliases: [p]
   lobby:
     description: Return to the main lobby.
@@ -20,12 +20,20 @@ commands:
     description: View your minigame stats.
   duels:
     description: Choose combat style, discipline, team size and your Duels kit.
+  ranked:
+    description: Ranked Duels ratings, divisions, boards and queue.
+    usage: /ranked [queue <kit>|leave|history]
   pulsekits:
     description: Choose your next KitPvP loadout.
     aliases: [kits]
   shop:
     description: Open the token shop.
     aliases: [tokens, cosmetics]
+  level:
+    description: See your level, XP and next unlock.
+    aliases: [xp, levels]
+  wardrobe:
+    description: Browse your cosmetics and what you can unlock or buy.
   challenges:
     description: View competitive minigame challenges and cosmetic rewards.
     usage: /challenges
@@ -36,9 +44,13 @@ commands:
   results:
     description: View your latest match and choose what to do next.
     usage: /results [again|games|return]
+  event:
+    description: Tournaments - see the next ones, join, watch the bracket or see the last results.
+    usage: /event [join|leave|bracket|results]
+    aliases: [tournament]
   pulse:
     description: PulseGames admin commands.
-    usage: /pulse <setup|maps|practice|bots|list|start|end|setlobby|reload>
+    usage: /pulse <setup|maps|practice|event|bots|list|start|end|setlobby|reload>
     permission: pulsegames.admin
 
 permissions:

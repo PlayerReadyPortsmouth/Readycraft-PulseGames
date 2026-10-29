@@ -37,7 +37,7 @@ public final class PlayService {
 
     public void joinNetworkQueue(Player player, String instanceId) {
         GameInstance instance = plugin.instances().all().stream().filter(g -> g.id().equals(instanceId)).findFirst().orElse(null);
-        if (instance == null || instance.practice() || !instance.joinable(1)) {
+        if (instance == null || instance.practice() || instance.isPrivate() || !instance.joinable(1)) {
             player.sendMessage(Text.msg("<red>That queue has closed. Use /queues to choose another."));
             return;
         }
@@ -59,12 +59,17 @@ public final class PlayService {
         if (party == null || !party.isLeader(leader) || !party.onlineMembers().stream()
                 .map(Player::getUniqueId).collect(java.util.stream.Collectors.toSet()).equals(requested)) return false;
         GameInstance destination = plugin.instances().all().stream().filter(g -> g.id().equals(instanceId)).findFirst().orElse(null);
-        if (destination == null || destination.practice() || destination.world() == null
+        if (destination == null || destination.practice() || destination.isPrivate() || destination.world() == null
                 || !destination.joinable(members.size()) || admitting(destination)) return false;
         join(leader, destination.type(), destination.mode(), destination);
         boolean admitted = members.stream().allMatch(p -> plugin.instances().byPlayer(p) == destination && destination.isParticipant(p));
         if (!admitted) members.forEach(this::cancelPending);
         return admitted;
+    }
+
+    /** Admits the leader's whole party into the private instance made for them (all or nothing, like any queue). */
+    public void joinPrivate(Player leader, GameInstance instance) {
+        join(leader, instance.type(), instance.mode(), instance);
     }
 
     private void join(Player player, GameType type, GameMode mode, GameInstance preferred) {
@@ -124,6 +129,7 @@ public final class PlayService {
     public void cancelPending(Player player) {
         QueueTicket ticket = pending.get(player.getUniqueId());
         if (ticket != null) release(ticket);
+        if (plugin.ranked() != null) plugin.ranked().leaveQueue(player);
     }
 
     private boolean readyGroup(QueueTicket ticket) {

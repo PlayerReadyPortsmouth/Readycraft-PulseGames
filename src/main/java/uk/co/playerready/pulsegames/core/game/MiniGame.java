@@ -211,6 +211,20 @@ public abstract class MiniGame {
         }
     }
 
+    // ---- mercy and comeback ------------------------------------------------------------
+
+    /**
+     * Mercy end: the winners if the match is clearly decided right now, else null. Polled once a second while
+     * running; see {@link Mercy}. A signal that clears during the countdown cancels it.
+     */
+    public List<Player> mercyWinners() { return null; }
+
+    /** Seconds the signal must hold before the visible countdown starts (config {@code mercy.<game>.hold-seconds} wins). */
+    public int mercyHoldSeconds() { return 0; }
+
+    /** A sidebar line while a comeback perk is active for this player, else null. */
+    public String comebackLine(Player player) { return null; }
+
     // ---- objective card & placements -------------------------------------------------
 
     /** Title/subtitle/tip card shown at join and at GO. Default comes from {@code GameCatalog}. */

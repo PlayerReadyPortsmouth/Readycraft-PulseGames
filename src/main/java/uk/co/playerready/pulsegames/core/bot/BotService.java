@@ -8,6 +8,8 @@ import uk.co.playerready.pulsegames.core.game.GameInstance;
 import uk.co.playerready.pulsegames.core.game.GameMode;
 import uk.co.playerready.pulsegames.core.game.GameState;
 import uk.co.playerready.pulsegames.games.dodgeball.DodgeballGame;
+import uk.co.playerready.pulsegames.games.dodgeball.DodgeballTactics;
+import org.bukkit.util.Vector;
 
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
@@ -34,6 +36,8 @@ public final class BotService implements AutoCloseable {
         BotDifficulty difficulty = BotDifficulty.NORMAL;
         boolean stalled;
         BotMelee melee;
+        Location enemyPrev, dodgeGoal;
+        long enemyPrevTick, dodgeUntil, dodgeRollAt;
         final BotKitUse kit;
         Slot(GameInstance game, BotActor actor, java.util.function.Consumer<Player> eatEffects) { this.game = game; this.actor = actor; this.kit = new BotKitUse(eatEffects); }
     }
@@ -110,10 +114,21 @@ public final class BotService implements AutoCloseable {
             var latest = plugin.arenas().byId(game.type().id(), arena.id());
             if (latest != null) arena = latest;
         }
-        return arena.settings().getBoolean("bots-enabled", false);
+        boolean explicit = game.privateSetup() != null && game.privateSetup().explicitBots();
+        return uk.co.playerready.pulsegames.core.play.PrivateRules.mapAllowsBots(arena.settings().getBoolean("bots-enabled", false), explicit);
+    }
+
+    /** Bots can fill this match now: allowed, supported, and the bot provider has not failed. */
+    public boolean canFill(GameInstance game) { return !failed && eligible(game); }
+
+    /** The leader's explicit private-match difficulty, else the map override, else the server setting. */
+    private String difficultySetting(GameInstance game) {
+        String chosen = game.privateDifficulty();
+        return chosen != null ? chosen : game.arena().settings().getString("bot-difficulty", plugin.getConfig().getString("bots.difficulty", "adaptive"));
     }
 
     private String blockedReason(GameInstance game) {
+        if (game.isPrivate() && !game.privateBotsWanted()) return "off for this private match";
         if (!plugin.getConfig().getBoolean("bots.enabled", false)) return "disabled";
         if (!mapBotsEnabled(game)) return "disabled on this map";
         if (!supports(game.type().id(), game.mode().rulesId())) return "unsupported mode";
@@ -132,7 +147,7 @@ public final class BotService implements AutoCloseable {
     public boolean eligible(GameInstance game) { return blockedReason(game) == null; }
 
     private int waitSeconds(GameInstance game) {
-        return game.practice() ? 2 : Math.max(1, plugin.getConfig().getInt("bots.wait-seconds", 30));
+        return game.practice() || game.isPrivate() ? 2 : Math.max(1, plugin.getConfig().getInt("bots.wait-seconds", 30));
     }
 
     private int desiredBots(GameInstance game) {
@@ -162,7 +177,7 @@ public final class BotService implements AutoCloseable {
         if (game.practice()) return game.practiceDifficulty().ordinal() + 1;
         String key = game.type().id() + ":" + game.mode().id();
         if (!isBot(player)) return (skills == null ? BotDifficulty.NORMAL : skills.difficulty(player.getUniqueId(), key)).ordinal() + 1;
-        String selection = game.arena().settings().getString("bot-difficulty", plugin.getConfig().getString("bots.difficulty", "adaptive"));
+        String selection = difficultySetting(game);
         if (!"adaptive".equalsIgnoreCase(selection)) return BotDifficulty.parse(selection).ordinal() + 1;
         var humanLevels = game.players().stream().filter(p -> !isBot(p))
                 .map(p -> skills == null ? BotDifficulty.NORMAL : skills.difficulty(p.getUniqueId(), key)).sorted().toList();
@@ -180,7 +195,7 @@ public final class BotService implements AutoCloseable {
         String detail;
         if(slot.game.practice()) detail="Fixed practice difficulty; this round does not train adaptive history.";
         else {
-            String selection=slot.game.arena().settings().getString("bot-difficulty",plugin.getConfig().getString("bots.difficulty","adaptive"));
+            String selection=difficultySetting(slot.game);
             Player target=slot.game.players().stream().filter(p->!isBot(p) && p.getName().equals(slot.target)).findFirst().orElse(null);
             if(!"adaptive".equalsIgnoreCase(selection)) detail="Fixed difficulty override: "+selection;
             else if(target==null || skills==null) detail="Adaptive group difficulty; no visible human target selected.";
@@ -205,8 +220,8 @@ public final class BotService implements AutoCloseable {
 
     public BotDifficulty difficultyFor(GameInstance game, Player opponent) {
         if (game.practice()) return game.practiceDifficulty();
-        String selection = game.arena().settings().getString("bot-difficulty",
-                plugin.getConfig().getString("bots.difficulty", "adaptive"));
+        if (game.rankedMatch() && game.rankedBotTier() != null) return game.rankedBotTier();
+        String selection = difficultySetting(game);
         if (!"adaptive".equalsIgnoreCase(selection)) return BotDifficulty.parse(selection);
         SkillRound round = skillRounds.get(game);
         if (round == null) return BotDifficulty.NORMAL;
@@ -416,6 +431,12 @@ public final class BotService implements AutoCloseable {
                 .filter(p -> game.teamOf(bot) == null || !game.teamOf(bot).contains(p))
                 .filter(p -> bot.canSee(p) && !p.isInvisible() && here.distanceSquared(p.getLocation()) <= 24 * 24 && bot.hasLineOfSight(p))
                 .min(Comparator.comparingDouble(p -> BotPersonality.targetScore(here.distanceSquared(p.getLocation()), p.getUniqueId().equals(slot.opponent)))).orElse(null);
+        if (objectives == null && game.logic() instanceof uk.co.playerready.pulsegames.games.bedwars.BedwarsGame bedwarsFoes) {
+            // Bedwars only: an enemy Decoy Dummy the bot has fallen for, or a Dream Defender / Bed Bug hunting it.
+            LivingEntity foe = bedwarsFoes.botFoe(bot, tick, difficulty);
+            if (foe != null && (enemy == null || here.distanceSquared(foe.getLocation()) < here.distanceSquared(enemy.getLocation()))) enemy = foe;
+        }
+        if (objectives != null && enemy != null) enemy = coopTarget(slot, objectives, bot, here, enemy);
         Location goal = null;
         if (enemy == null) { slot.opponent = null; if (slot.melee != null) { bot.setSprinting(false); slot.kit.stopDrawing(); } }
         if (enemy != null) {
@@ -433,18 +454,14 @@ public final class BotService implements AutoCloseable {
             boolean bedwarsMelee = enemy instanceof Player
                     && game.logic() instanceof uk.co.playerready.pulsegames.games.bedwars.BedwarsGame;
             BotDifficulty.Profile profile = combat.profile(difficulty);
-            if (pvp || bedwarsMelee) {
+            boolean skywarsMelee = enemy instanceof Player
+                    && game.logic() instanceof uk.co.playerready.pulsegames.games.skywars.SkywarsGame;
+            if (pvp || bedwarsMelee || skywarsMelee) {
                 if (slot.melee == null) slot.melee = new BotMelee(bot.getUniqueId(), meleeRandom(), () -> tick);
                 slot.actor.face(slot.melee.aim(bot.getEyeLocation(), enemy.getEyeLocation(), profile, difficulty == BotDifficulty.EASY));
             } else slot.actor.face(enemy.getEyeLocation());
             if (game.logic() instanceof DodgeballGame dodgeball) {
-                if (distance < 22 * 22 && tick >= slot.nextAttack) {
-                    // Real throws use the game's cooldown and projectile/hit rules.
-                    dodgeball.throwBall(bot);
-                    slot.nextAttack = tick + difficulty.throwTicks + random.applyAsInt(16);
-                }
-                if (distance > 9 * 9) goal = enemy.getLocation();
-                else if (distance > 0.01 && distance < 4 * 4) goal = here.clone().add(here.toVector().subtract(enemy.getLocation().toVector()).normalize().multiply(3));
+                goal = dodgeballCombat(slot, game, dodgeball, bot, enemy, here, distance, difficulty, profile);
             } else {
                 boolean handled = tick < slot.reactAt;
                 if (!handled) handled = game.logic() instanceof uk.co.playerready.pulsegames.games.kitpvp.KitPvpGame kit
@@ -457,6 +474,11 @@ public final class BotService implements AutoCloseable {
                     handled = bed.botCombat(bot, enemy, tick, difficulty);
                 if (!handled && pvp) goal = pvpCombat(slot, game, bot, (Player) enemy, here, distance, difficulty, profile,
                         standable(here), true);
+                else if (!handled && skywarsMelee)
+                    goal = pvpCombat(slot, game, bot, (Player) enemy, here, distance, difficulty, profile,
+                            uk.co.playerready.pulsegames.games.skywars.SkywarsTactics.strafeSafe(here), true);
+                else if (!handled && objectives != null)
+                    goal = coopCombat(slot, game, bot, enemy, objectives, here, distance, difficulty, profile);
                 else if (!handled && bedwarsMelee)
                     // Item use (apples, pearls, fireballs) stays in BedwarsGame.botCombat, so the core kit is off here.
                     goal = pvpCombat(slot, game, bot, (Player) enemy, here, distance, difficulty, profile,
@@ -485,7 +507,7 @@ public final class BotService implements AutoCloseable {
             if (goal == null) goal = game.arena().spawn((int) ((tick / 100 + bot.getEntityId()) % Math.max(1, game.arena().spawnCount())), game.world());
         }
         if (game.logic() instanceof uk.co.playerready.pulsegames.games.skywars.SkywarsGame skywars) {
-            goal = skywars.botObjective(bot, goal, tick, difficulty);
+            goal = skywars.botObjective(bot, goal, tick, difficulty, enemy != null);
             slot.objective = skywars.botStatus(bot);
             if (goal == null && enemy != null && here.distanceSquared(enemy.getLocation()) <= 2.8 * 2.8)
                 slot.objective = "Fighting a visible opponent at melee range";
@@ -547,7 +569,7 @@ public final class BotService implements AutoCloseable {
             return combat.strafe() ? melee.strafeGoal(here, enemyAt, profile, safe, true) : null;
         }
         slot.kit.stopDrawing();
-        selectSwordIfNeeded(bot);
+        selectSwordIfNeeded(bot, game);
         boolean ready = bot.getAttackCooldown() >= 0.9f;
         boolean hurt = bot.getNoDamageTicks() > bot.getMaximumNoDamageTicks() / 2;
         if (!retreating && distance <= 4 && melee.jump(distance, bot.isOnGround(), ready, hurt, profile)) {
@@ -585,6 +607,127 @@ public final class BotService implements AutoCloseable {
         return strafe != null ? strafe : distance > 2.3 ? enemyAt : null;
     }
 
+    /** Throws with lead and aim error, steps out of the way of balls that will reach it, and holds a sensible range. */
+    private Location dodgeballCombat(Slot slot, GameInstance game, DodgeballGame dodgeball, Player bot, LivingEntity enemy,
+                                     Location here, double distanceSquared, BotDifficulty difficulty, BotDifficulty.Profile profile) {
+        double distance = Math.sqrt(distanceSquared);
+        Location at = enemy.getLocation();
+        double[] velocity = {0, 0, 0};
+        if (slot.enemyPrev != null && slot.enemyPrev.getWorld() == at.getWorld() && tick > slot.enemyPrevTick && tick - slot.enemyPrevTick <= 20) {
+            double dt = tick - slot.enemyPrevTick;
+            double vx = (at.getX() - slot.enemyPrev.getX()) / dt, vz = (at.getZ() - slot.enemyPrev.getZ()) / dt;
+            if (Math.hypot(vx, vz) <= 0.6) velocity = new double[]{vx, 0, vz};
+        }
+        slot.enemyPrev = at.clone(); slot.enemyPrevTick = tick;
+        Location eye = bot.getEyeLocation();
+        if (distance < 22 && tick >= slot.nextAttack) {
+            double[] from = {eye.getX(), eye.getY(), eye.getZ()};
+            double[] aim = DodgeballTactics.withAimError(from, DodgeballTactics.leadAim(from,
+                    new double[]{at.getX(), at.getY() + 1.1, at.getZ()}, velocity), profile, random);
+            slot.actor.face(new Location(at.getWorld(), aim[0], aim[1], aim[2]));
+            // Real throws use the game's cooldown and projectile/hit rules.
+            dodgeball.throwBall(bot);
+            slot.nextAttack = tick + difficulty.throwTicks + random.applyAsInt(16);
+        }
+        java.util.function.Predicate<Location> safe = standable(here);
+        if (tick < slot.dodgeUntil && slot.dodgeGoal != null) { slot.objective = "Dodging a throw"; return slot.dodgeGoal; }
+        if (tick >= slot.dodgeRollAt) {
+            for (var ball : dodgeball.liveBalls()) {
+                if (!ball.isValid() || ball.getWorld() != here.getWorld() || ball.getShooter() == bot) continue;
+                if (ball.getShooter() instanceof Player thrower && game.teamOf(bot) != null && game.teamOf(bot).contains(thrower)) continue;
+                Location b = ball.getLocation();
+                var v = ball.getVelocity();
+                int side = DodgeballTactics.incoming(new double[]{b.getX(), b.getY(), b.getZ()}, new double[]{v.getX(), v.getY(), v.getZ()},
+                        new double[]{here.getX(), here.getY(), here.getZ()});
+                if (side == 0) continue;
+                slot.dodgeRollAt = tick + 10;
+                if (!DodgeballTactics.reacts(difficulty, random)) break;
+                double[] step = DodgeballTactics.sidestep(new double[]{here.getX(), here.getY(), here.getZ()},
+                        new double[]{v.getX(), v.getY(), v.getZ()}, side);
+                Location target = new Location(here.getWorld(), step[0], here.getY(), step[1]);
+                if (!safe.test(target)) target = new Location(here.getWorld(), 2 * here.getX() - step[0], here.getY(), 2 * here.getZ() - step[1]);
+                if (!safe.test(target)) break;
+                slot.dodgeGoal = target; slot.dodgeUntil = tick + 10; slot.objective = "Dodging a throw";
+                return target;
+            }
+        }
+        int allies = 1, enemies = 0;
+        for (Player other : game.alivePlayers()) {
+            if (other.equals(bot) || !game.isActive(other)) continue;
+            if (game.teamOf(bot) != null && game.teamOf(bot).contains(other)) allies++; else enemies++;
+        }
+        int range = DodgeballTactics.range(distance, DodgeballTactics.holdRange(allies, enemies));
+        Vector toward = at.toVector().subtract(here.toVector()).setY(0);
+        if (toward.lengthSquared() < 0.01) return null;
+        toward.normalize();
+        if (range != 0) {
+            Location moved = here.clone().add(toward.multiply(3 * range));
+            return safe.test(moved) ? moved : null;
+        }
+        // Holding range: keep moving sideways, switching side every couple of seconds, never standing as a target.
+        double sideSign = ((tick / 40 + bot.getUniqueId().hashCode()) & 1) == 0 ? 1 : -1;
+        Location strafe = here.clone().add(new Vector(-toward.getZ(), 0, toward.getX()).multiply(2.5 * sideSign));
+        if (safe.test(strafe)) return strafe;
+        strafe = here.clone().add(new Vector(-toward.getZ(), 0, toward.getX()).multiply(-2.5 * sideSign));
+        return safe.test(strafe) ? strafe : null;
+    }
+
+    /** The mob nearest the objective first, re-picked among the same visible candidates the generic choice used. */
+    private LivingEntity coopTarget(Slot slot, BotObjectives objectives, Player bot, Location here, LivingEntity chosen) {
+        List<LivingEntity> mobs = objectives.botEnemies().stream().map(e -> (LivingEntity) e)
+                .filter(e -> e.isValid() && !e.isDead() && e.getWorld().equals(here.getWorld()))
+                .filter(e -> here.distanceSquared(e.getLocation()) <= 24 * 24 && bot.hasLineOfSight(e)).toList();
+        if (mobs.isEmpty()) return chosen;
+        double[][] points = new double[mobs.size()][];
+        int current = -1;
+        for (int i = 0; i < points.length; i++) {
+            Location at = mobs.get(i).getLocation();
+            points[i] = new double[]{at.getX(), at.getZ()};
+            if (mobs.get(i).getUniqueId().equals(slot.opponent)) current = i;
+        }
+        Location guard = objectives.botGuardPoint(bot);
+        int index = CoopTactics.pickTarget(guard == null ? null : new double[]{guard.getX(), guard.getZ()},
+                here.getX(), here.getZ(), points, current);
+        return index < 0 ? chosen : mobs.get(index);
+    }
+
+    /** Co-op melee: swing with the tier's aim error, kite when low, hold the lane instead of chasing far mobs. */
+    private Location coopCombat(Slot slot, GameInstance game, Player bot, LivingEntity enemy, BotObjectives objectives,
+                                Location here, double distanceSquared, BotDifficulty difficulty, BotDifficulty.Profile profile) {
+        if (slot.melee == null) slot.melee = new BotMelee(bot.getUniqueId(), meleeRandom(), () -> tick);
+        BotMelee melee = slot.melee;
+        double distance = Math.sqrt(distanceSquared);
+        Location enemyAt = enemy.getLocation(), guard = objectives.botGuardPoint(bot);
+        java.util.function.Predicate<Location> safe = standable(here);
+        selectSword(bot);
+        boolean kite = combat.retreat() && CoopTactics.shouldKite(healthFraction(bot), profile.retreatHealth(), distance);
+        if (!kite && distance <= 2.8 && tick >= slot.nextAttack) {
+            if (random.applyAsInt(100) < profile.hitChance()) {
+                bot.swingMainHand();
+                if (game.mode().combatStyle() != GameMode.CombatStyle.MODERN || bot.getAttackCooldown() >= 0.9f)
+                    bot.attack(enemy);
+            } else {
+                slot.actor.face(melee.missPoint(bot.getEyeLocation(), enemy.getEyeLocation()));
+                bot.swingMainHand();
+            }
+            slot.nextAttack = tick + profile.meleeDelay() + random.applyAsInt(9);
+        }
+        if (kite) {
+            slot.objective = "Backing off to cover the objective";
+            Location away = melee.retreatGoal(here, enemyAt, safe);
+            if (away != null) return away;
+            if (guard != null) return guard;
+        }
+        if (CoopTactics.shouldHold(guard == null ? null : new double[]{guard.getX(), guard.getZ()}, enemyAt.getX(), enemyAt.getZ())
+                && guard != null) {
+            slot.objective = "Holding the lane";
+            return guard;
+        }
+        if (distance > 3.5 || !combat.strafe()) return distance > 2.3 ? enemyAt : null;
+        Location strafe = melee.strafeGoal(here, enemyAt, profile, safe, false);
+        return strafe != null ? strafe : distance > 2.3 ? enemyAt : null;
+    }
+
     /** Apples, bow, pearls. Returns true when the bot spent this think on one of them. */
     private boolean kitUse(Slot slot, GameInstance game, Player bot, Player enemy, Location here, double distance,
                            boolean retreating, BotDifficulty difficulty, BotDifficulty.Profile profile,
@@ -603,8 +746,10 @@ public final class BotService implements AutoCloseable {
         return false;
     }
 
-    private static void selectSwordIfNeeded(Player bot) {
+    private static void selectSwordIfNeeded(Player bot, GameInstance game) {
         var held = bot.getInventory().getItemInMainHand();
+        // Bedwars: a bot holding the Knockback Stick for a shove keeps it (BedwarsGame puts the sword back).
+        if (held != null && held.getType() == org.bukkit.Material.STICK && game.type().id().equals("bedwars")) return;
         if (held == null || !held.getType().name().endsWith("_SWORD")) selectSword(bot);
     }
 
@@ -668,7 +813,7 @@ public final class BotService implements AutoCloseable {
         }
     }
 
-    static void selectSword(Player bot) {
+    public static void selectSword(Player bot) {
         int bestSlot = -1, bestRank = 0;
         for (int i = 0; i < 9; i++) {
             var item = bot.getInventory().getItem(i);

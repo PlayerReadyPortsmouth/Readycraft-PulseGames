@@ -35,6 +35,7 @@ public final class EngagementService {
     private final YamlConfiguration data;
     private final ChallengeStore challenges;
     private final StreakStore streaks;
+    private final LevelStore levelStore;
     private boolean dirty;
 
     public EngagementService(PulseGamesPlugin plugin) {
@@ -43,6 +44,7 @@ public final class EngagementService {
         this.data = YamlConfiguration.loadConfiguration(file);
         this.challenges = new ChallengeStore(section("challenges"));
         this.streaks = new StreakStore(section("streaks"));
+        this.levelStore = new LevelStore(section("levels"));
         plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin, this::flush, 20L * 60, 20L * 60);
         plugin.getServer().getScheduler().runTaskTimer(plugin, this::weeklyRollover, 100L, 20L * 600);
     }
@@ -51,6 +53,12 @@ public final class EngagementService {
         var s = data.getConfigurationSection(name);
         return s != null ? s : data.createSection(name);
     }
+
+    /** The XP store (levels live in engagement.yml with challenges and streaks). */
+    LevelStore levelStore() { return levelStore; }
+
+    /** Marks engagement.yml for the next autosave. */
+    synchronized void markDirty() { dirty = true; }
 
     private List<ChallengeDef> defs() {
         if (!plugin.getConfig().getBoolean("challenges.enabled", true)) return List.of();
@@ -71,8 +79,11 @@ public final class EngagementService {
         }
         for (ChallengeDef def : done) {
             plugin.economy().addTokens(player, def.reward(), "challenge: " + def.name());
-            player.sendMessage(Text.msg("<green><b>Challenge complete!</b> <gray>" + def.name() + " <gold>+" + def.reward() + " tokens"));
+            player.sendMessage(Text.msg("<green><b>Challenge complete!</b> <gray>" + def.name() + " <gold>+" + def.reward() + " tokens"
+                    + (def.xp() > 0 ? " <aqua>+" + def.xp() + " XP" : "")));
+            if (def.xp() > 0 && plugin.levels() != null) plugin.levels().award(player, def.xp(), "challenge: " + def.name());
         }
+        if (plugin.levels() != null) plugin.levels().matchEnded(game, player, won);
         if (won) {
             int streak;
             boolean first;

@@ -24,6 +24,7 @@ public final class PartyMenu {
     static final int INVITE_SLOT = 20;
     static final int INVITES_SLOT = 22;
     static final int LEAVE_SLOT = 24;
+    static final int PRIVATE_SLOT = 31;
     static final int PER_PAGE = 28;
 
     private final PulseGamesPlugin plugin;
@@ -78,6 +79,12 @@ public final class PartyMenu {
                             (full ? Theme.TEXT : Theme.GOOD) + "<b>Invite a friend</b>",
                             full ? Lore.of().desc("Your party is full.") : Lore.of().desc("Pick someone who is in the lobby.").blank().hint("Click to choose")),
                     full ? null : p -> new InvitePicker(menu, 0).open(p));
+        }
+        if (leader && plugin.privateMatches().enabled()) {
+            menu.set(PRIVATE_SLOT, Buttons.glow(Buttons.item(Material.ENDER_CHEST, Theme.ACCENT + "<b>Private match</b>",
+                    Lore.of().desc("Pick a game and map and play with just your party. Bots can fill in.").blank()
+                            .desc("Private matches pay tokens only when most players are people.").blank().hint("Click to set one up"))),
+                    p -> plugin.privateMatches().open(p));
         }
         boolean on = plugin.parties().acceptsInvites(player);
         menu.set(INVITES_SLOT, Buttons.item(on ? Material.LIME_CONCRETE : Material.RED_CONCRETE, Theme.NAME + "Party invites",

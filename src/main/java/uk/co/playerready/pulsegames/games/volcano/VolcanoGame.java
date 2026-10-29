@@ -9,6 +9,7 @@ import uk.co.playerready.pulsegames.core.game.GameInstance;
 import uk.co.playerready.pulsegames.core.game.MiniGame;
 import uk.co.playerready.pulsegames.core.util.Cuboid;
 import uk.co.playerready.pulsegames.core.util.Text;
+import uk.co.playerready.pulsegames.games.common.HazardBotTactics;
 import uk.co.playerready.pulsegames.games.common.HazardFeedback;
 import uk.co.playerready.pulsegames.games.common.RegionSnapshot;
 import uk.co.playerready.pulsegames.games.common.RoundController;
@@ -193,16 +194,23 @@ public final class VolcanoGame extends MiniGame implements uk.co.playerready.pul
         if (area == null || !bot.getWorld().equals(game.world())) return null;
         memory.remember(bot);
         Location here = bot.getLocation();
-        var rocks = game.world().getNearbyEntities(here, 12, 24, 12).stream()
+        // Falling rocks in the air and the smoke column of the next one are public; no line of sight needed.
+        var rocks = new java.util.ArrayList<Location>(game.world().getNearbyEntities(here, 14, 28, 14).stream()
                 .filter(e -> e instanceof org.bukkit.entity.FallingBlock && e.isValid())
-                .filter(e -> e.getLocation().getY() > here.getY() - 1 && bot.hasLineOfSight(e))
-                .limit(128).map(e -> e.getLocation()).toList();
-        return memory.nextStep(bot, area::contains,
-                p -> p.getY() * 12 - memory.penalty(bot, p) - rocks.stream().mapToDouble(rock -> {
-                    double dx = p.getX() - rock.getX(), dz = p.getZ() - rock.getZ();
-                    return 100.0 / Math.max(0.25, dx * dx + dz * dz);
-                }).sum());
+                .filter(e -> e.getLocation().getY() > here.getY() - 1)
+                .limit(128).map(e -> e.getLocation()).toList());
+        if (pendingRock != null) rocks.add(new Location(pendingRock.getWorld(), pendingRock.getX(), here.getY() + 6, pendingRock.getZ()));
+        double lava = lavaY;
+        boolean imminent = nextRiseAt - gameSeconds() <= 1;
+        // Climb harder the closer the lava is; never step onto a cell the next rise will swallow.
+        double weight = HazardBotTactics.climbWeight(here.getY() - lava);
+        return memory.nextStepDeep(bot, area::contains,
+                p -> p.getY() * weight - memory.penalty(bot, p) - HazardBotTactics.lavaCost(p.getY(), lava, imminent)
+                        - rocks.stream().mapToDouble(rock -> HazardBotTactics.fallingDanger(
+                                p.getX() - rock.getX(), p.getZ() - rock.getZ(), rock.getY() - p.getY())).sum());
     }
+
+    private int gameSeconds() { return rounds != null ? rounds.roundElapsed() : game.gameTime(); }
     @Override public void onCleanup() {
         closed = true; floodGeneration++; flooding = false; memory.clear(); hideBar();
         if (rounds != null) rounds.close();

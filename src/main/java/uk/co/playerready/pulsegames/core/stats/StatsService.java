@@ -15,6 +15,8 @@ public final class StatsService {
     private YamlConfiguration data;
     private boolean dirty;
     private final WeeklyStats weekly;
+    private final WeeklyCounters weeklyCounters;
+    private final uk.co.playerready.pulsegames.core.ranked.RankedStore ranked;
 
     public StatsService(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -22,6 +24,11 @@ public final class StatsService {
         this.data = YamlConfiguration.loadConfiguration(file);
         var weeklySection = data.getConfigurationSection("_weekly");
         this.weekly = new WeeklyStats(weeklySection != null ? weeklySection : data.createSection("_weekly"));
+        var countersSection = data.getConfigurationSection("_weeklyStats");
+        this.weeklyCounters = new WeeklyCounters(countersSection != null ? countersSection : data.createSection("_weeklyStats"));
+        var rankedSection = data.getConfigurationSection("_ranked");
+        this.ranked = new uk.co.playerready.pulsegames.core.ranked.RankedStore(
+                rankedSection != null ? rankedSection : data.createSection("_ranked"), this, () -> dirty = true);
         plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin, this::flush, 20L * 60, 20L * 60);
     }
 
@@ -35,15 +42,44 @@ public final class StatsService {
         synchronized (this) {
             data.set(path, data.getInt(path) + 1);
             if (key.equals("wins")) weekly.recordWin(player.getUniqueId(), player.getName(), game);
+            data.set("_names." + player.getUniqueId(), player.getName());
+            if (key.equals("wins") || key.equals("kills"))
+                weeklyCounters.add(java.time.LocalDate.now(), player.getUniqueId(), player.getName(), game, key, 1);
             dirty = true;
         }
     }
+
+    /** Ranked Duels ratings, kept in the same stats.yml. */
+    public uk.co.playerready.pulsegames.core.ranked.RankedStore ranked() { return ranked; }
 
     public void addWin(Player player, String game) { bump(player, game, "wins"); }
     public void addLoss(Player player, String game) { bump(player, game, "losses"); }
     public void addDraw(Player player, String game) { bump(player, game, "draws"); }
     public void addKill(Player player, String game) { bump(player, game, "kills"); }
     public void addPlayed(Player player, String game) { bump(player, game, "played"); }
+
+    /** Tokens earned, for the network tokens boards (all-time and this week). Bots and NPCs never count. */
+    public void addTokensEarned(Player player, int amount) {
+        if (player.hasMetadata("NPC") || amount <= 0) return;
+        String path = player.getUniqueId() + "." + WeeklyCounters.NETWORK + ".tokens";
+        synchronized (this) {
+            data.set(path, data.getInt(path) + amount);
+            data.set("_names." + player.getUniqueId(), player.getName());
+            weeklyCounters.add(java.time.LocalDate.now(), player.getUniqueId(), player.getName(), WeeklyCounters.NETWORK, "tokens", amount);
+            dirty = true;
+        }
+    }
+
+    /** Lobby board rows: this week's (resets on ISO week rollover) or all-time; game null means the whole network. */
+    public synchronized java.util.List<WeeklyCounters.Row> topStat(boolean weeklyWindow, String game, String stat, int limit) {
+        if (weeklyWindow) return weeklyCounters.top(java.time.LocalDate.now(), game, stat, limit);
+        return WeeklyCounters.rank(data, data.getConfigurationSection("_names"), game, stat, limit);
+    }
+
+    /** Fastest times for one timed run (value is ms). */
+    public synchronized java.util.List<WeeklyCounters.Row> topTimes(String game, String map, int limit) {
+        return WeeklyCounters.fastest(data, data.getConfigurationSection("_names"), game, map, limit);
+    }
 
     public synchronized java.util.List<WeeklyStats.Entry> topWeekly(String game, int limit) { return weekly.top(game, limit); }
 
@@ -77,6 +113,7 @@ public final class StatsService {
             long old = data.getLong(path, -1L);
             if (old > 0 && old <= ms) return false;
             data.set(path, ms);
+            data.set("_names." + player.getUniqueId(), player.getName());
             dirty = true;
             return true;
         }

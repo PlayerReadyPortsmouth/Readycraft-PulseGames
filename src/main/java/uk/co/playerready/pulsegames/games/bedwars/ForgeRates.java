@@ -14,4 +14,9 @@ final class ForgeRates {
         int l = Math.max(0, Math.min(level, MAX_LEVEL));
         return (eventIndex + 1) * l / 2 - eventIndex * l / 2;
     }
+
+    /** One free forge tier for a team on a comeback, never beyond the top tier. */
+    static int withComeback(int level, boolean comeback) {
+        return Math.min(MAX_LEVEL, Math.max(0, level) + (comeback ? 1 : 0));
+    }
 }

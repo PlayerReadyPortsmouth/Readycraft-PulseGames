@@ -1,0 +1,413 @@
+# Extra PulseGames cosmetics (data, not code). The thirteen original items live in the plugin.
+# Every effect is vanilla only: one particle burst and/or one sound.
+#
+# Each entry:
+#   slot:        trail | kill_effect | win_effect | emote (spectator reactions) | kit
+#   name, icon (a vanilla Material), description
+#   price:       tokens to buy it, OR
+#   level:       the player level that unlocks it for free (a multiple of 5, up to 100, one item per level)
+#                (use exactly one of price and level)
+#   effect:      particle (no data-carrying particles), count (1-60), spread, speed, height, sound
+#                (a minecraft: key), volume (0-1), pitch (0.5-2)
+# A broken entry is skipped with a warning in the console; the others still load.
+# Delete this file to get the latest list back after an update.
+cosmetics:
+  tr-bubbles:
+    slot: trail
+    name: "Bubble Trail"
+    icon: HEART_OF_THE_SEA
+    level: 5
+    description: "Pop pop pop as you wander"
+    effect:
+      particle: BUBBLE_POP
+      count: 4
+      spread: 0.2
+      speed: 0.02
+      height: 0.2
+  ke-confetti:
+    slot: kill_effect
+    name: "Confetti Pop"
+    icon: FIREWORK_STAR
+    level: 10
+    description: "A burst of confetti where they fell"
+    effect:
+      particle: FIREWORK
+      count: 25
+      spread: 0.5
+      speed: 0.1
+      height: 1.0
+      sound: "minecraft:entity.firework_rocket.twinkle"
+      volume: 0.6
+      pitch: 1.2
+  em-sparkle:
+    slot: emote
+    name: "Sparkle Reaction"
+    icon: AMETHYST_SHARD
+    level: 15
+    description: "Your reactions sparkle"
+    effect:
+      particle: END_ROD
+      count: 18
+      spread: 0.5
+      speed: 0.05
+      height: 1.2
+      sound: "minecraft:block.amethyst_block.chime"
+      volume: 0.7
+      pitch: 1.3
+  we-golden-glow:
+    slot: win_effect
+    name: "Golden Glow"
+    icon: GOLD_BLOCK
+    level: 20
+    description: "Golden shimmer around the winner"
+    effect:
+      particle: WAX_ON
+      count: 30
+      spread: 0.8
+      speed: 0.1
+      height: 1.0
+      sound: "minecraft:block.beacon.activate"
+      volume: 0.5
+      pitch: 1.4
+  tr-snow:
+    slot: trail
+    name: "Snowfall Trail"
+    icon: SNOWBALL
+    level: 25
+    description: "A little snow follows you"
+    effect:
+      particle: SNOWFLAKE
+      count: 6
+      spread: 0.25
+      speed: 0.01
+      height: 0.6
+  ke-soul:
+    slot: kill_effect
+    name: "Soul Burst"
+    icon: SOUL_LANTERN
+    level: 30
+    description: "A friendly ghost drifts up"
+    effect:
+      particle: SOUL
+      count: 12
+      spread: 0.4
+      speed: 0.05
+      height: 1.0
+      sound: "minecraft:entity.allay.item_given"
+      volume: 0.6
+      pitch: 1.2
+  em-flame:
+    slot: emote
+    name: "Flame Cheer"
+    icon: BLAZE_ROD
+    level: 35
+    description: "Cheer with a little fire"
+    effect:
+      particle: SMALL_FLAME
+      count: 16
+      spread: 0.4
+      speed: 0.05
+      height: 1.2
+      sound: "minecraft:entity.blaze.shoot"
+      volume: 0.3
+      pitch: 1.6
+  we-blossom:
+    slot: win_effect
+    name: "Blossom Burst"
+    icon: CHERRY_SAPLING
+    level: 40
+    description: "Pink petals fall on the winner"
+    effect:
+      particle: CHERRY_LEAVES
+      count: 30
+      spread: 1.0
+      speed: 0.02
+      height: 2.0
+      sound: "minecraft:block.cherry_leaves.break"
+      volume: 0.8
+      pitch: 1.2
+  tr-ember:
+    slot: trail
+    name: "Ember Trail"
+    icon: MAGMA_CREAM
+    level: 45
+    description: "Tiny embers glow behind you"
+    effect:
+      particle: SMALL_FLAME
+      count: 3
+      spread: 0.2
+      speed: 0.01
+      height: 0.1
+  ke-sparks:
+    slot: kill_effect
+    name: "Spark Strike"
+    icon: LIGHTNING_ROD
+    level: 50
+    description: "Blue sparks fly"
+    effect:
+      particle: ELECTRIC_SPARK
+      count: 20
+      spread: 0.5
+      speed: 0.1
+      height: 1.0
+      sound: "minecraft:block.copper.hit"
+      volume: 0.6
+      pitch: 1.4
+  em-applause:
+    slot: emote
+    name: "Applause"
+    icon: HAY_BLOCK
+    level: 55
+    description: "A happy village cheer"
+    effect:
+      particle: HAPPY_VILLAGER
+      count: 10
+      spread: 0.5
+      speed: 0.0
+      height: 1.2
+      sound: "minecraft:entity.villager.celebrate"
+      volume: 0.7
+      pitch: 1.0
+  we-aurora:
+    slot: win_effect
+    name: "Aurora Veil"
+    icon: ENDER_EYE
+    level: 60
+    description: "Shimmering lights surround the winner"
+    effect:
+      particle: REVERSE_PORTAL
+      count: 40
+      spread: 0.9
+      speed: 0.1
+      height: 1.0
+      sound: "minecraft:block.respawn_anchor.charge"
+      volume: 0.4
+      pitch: 1.5
+  tr-spores:
+    slot: trail
+    name: "Spore Trail"
+    icon: SPORE_BLOSSOM
+    level: 65
+    description: "Floating green specks"
+    effect:
+      particle: SPORE_BLOSSOM_AIR
+      count: 5
+      spread: 0.3
+      speed: 0.01
+      height: 0.8
+  ke-portal:
+    slot: kill_effect
+    name: "Portal Pop"
+    icon: OBSIDIAN
+    level: 70
+    description: "Purple swirls where they fell"
+    effect:
+      particle: PORTAL
+      count: 30
+      spread: 0.4
+      speed: 0.5
+      height: 1.0
+      sound: "minecraft:block.portal.trigger"
+      volume: 0.2
+      pitch: 1.8
+  em-magic:
+    slot: emote
+    name: "Magic Reaction"
+    icon: ENCHANTED_BOOK
+    level: 75
+    description: "Glowing glyphs rise up"
+    effect:
+      particle: ENCHANT
+      count: 25
+      spread: 0.5
+      speed: 0.8
+      height: 1.5
+      sound: "minecraft:block.enchantment_table.use"
+      volume: 0.6
+      pitch: 1.3
+  we-starfall:
+    slot: win_effect
+    name: "Starfall"
+    icon: NETHER_STAR
+    level: 80
+    description: "Stars rain down on the winner"
+    effect:
+      particle: END_ROD
+      count: 45
+      spread: 1.0
+      speed: 0.05
+      height: 2.5
+      sound: "minecraft:entity.player.levelup"
+      volume: 0.6
+      pitch: 1.4
+  tr-cloud:
+    slot: trail
+    name: "Cloud Walker"
+    icon: WHITE_WOOL
+    level: 85
+    description: "Walk on little clouds"
+    effect:
+      particle: CLOUD
+      count: 4
+      spread: 0.2
+      speed: 0.01
+      height: 0.1
+  ke-glow:
+    slot: kill_effect
+    name: "Glow Splat"
+    icon: GLOW_INK_SAC
+    level: 90
+    description: "A glowing splat"
+    effect:
+      particle: GLOW_SQUID_INK
+      count: 25
+      spread: 0.4
+      speed: 0.05
+      height: 1.0
+      sound: "minecraft:entity.glow_squid.squirt"
+      volume: 0.5
+      pitch: 1.2
+  em-roar:
+    slot: emote
+    name: "Mighty Roar"
+    icon: DRAGON_EGG
+    level: 95
+    description: "A big, friendly roar"
+    effect:
+      particle: DRAGON_BREATH
+      count: 18
+      spread: 0.6
+      speed: 0.02
+      height: 1.2
+      sound: "minecraft:entity.ender_dragon.growl"
+      volume: 0.3
+      pitch: 1.6
+  we-legend:
+    slot: win_effect
+    name: "Legend Parade"
+    icon: TOTEM_OF_UNDYING
+    level: 100
+    description: "The grandest finish of all"
+    effect:
+      particle: TOTEM_OF_UNDYING
+      count: 50
+      spread: 0.9
+      speed: 0.2
+      height: 1.5
+      sound: "minecraft:ui.toast.challenge_complete"
+      volume: 0.8
+      pitch: 1.0
+  tr-lava:
+    slot: trail
+    name: "Lava Drip Trail"
+    icon: LAVA_BUCKET
+    price: 350
+    description: "Glowing drips follow you"
+    effect:
+      particle: DRIPPING_LAVA
+      count: 3
+      spread: 0.2
+      speed: 0.0
+      height: 0.8
+  tr-honey:
+    slot: trail
+    name: "Honey Trail"
+    icon: HONEYCOMB
+    price: 250
+    description: "Sticky golden drips"
+    effect:
+      particle: DRIPPING_HONEY
+      count: 3
+      spread: 0.2
+      speed: 0.0
+      height: 0.8
+  ke-poof:
+    slot: kill_effect
+    name: "Poof"
+    icon: WHITE_DYE
+    price: 200
+    description: "Gone in a puff of cloud"
+    effect:
+      particle: CLOUD
+      count: 20
+      spread: 0.4
+      speed: 0.05
+      height: 1.0
+      sound: "minecraft:entity.chicken.egg"
+      volume: 0.6
+      pitch: 1.5
+  ke-slash:
+    slot: kill_effect
+    name: "Sword Slash"
+    icon: IRON_SWORD
+    price: 300
+    description: "A big swish"
+    effect:
+      particle: SWEEP_ATTACK
+      count: 3
+      spread: 0.6
+      speed: 0.0
+      height: 1.0
+      sound: "minecraft:entity.player.attack.sweep"
+      volume: 0.6
+      pitch: 1.2
+  we-sparklers:
+    slot: win_effect
+    name: "Sparkler Shower"
+    icon: GLOWSTONE_DUST
+    price: 400
+    description: "Sparklers for the winner"
+    effect:
+      particle: FIREWORK
+      count: 35
+      spread: 0.9
+      speed: 0.1
+      height: 1.5
+      sound: "minecraft:entity.firework_rocket.twinkle"
+      volume: 0.7
+      pitch: 1.1
+  we-bubble-party:
+    slot: win_effect
+    name: "Bubble Party"
+    icon: PUFFERFISH
+    price: 350
+    description: "Bubbles everywhere"
+    effect:
+      particle: BUBBLE_POP
+      count: 40
+      spread: 1.0
+      speed: 0.05
+      height: 1.5
+      sound: "minecraft:entity.puffer_fish.blow_up"
+      volume: 0.5
+      pitch: 1.3
+  em-giggle:
+    slot: emote
+    name: "Giggle"
+    icon: COOKIE
+    price: 200
+    description: "A happy little giggle"
+    effect:
+      particle: HAPPY_VILLAGER
+      count: 8
+      spread: 0.4
+      speed: 0.0
+      height: 1.2
+      sound: "minecraft:entity.cat.ambient"
+      volume: 0.6
+      pitch: 1.6
+  em-sunshine:
+    slot: emote
+    name: "Sunshine"
+    icon: SUNFLOWER
+    price: 250
+    description: "Warm golden sparkles"
+    effect:
+      particle: WAX_ON
+      count: 16
+      spread: 0.5
+      speed: 0.05
+      height: 1.2
+      sound: "minecraft:block.note_block.bell"
+      volume: 0.6
+      pitch: 1.4

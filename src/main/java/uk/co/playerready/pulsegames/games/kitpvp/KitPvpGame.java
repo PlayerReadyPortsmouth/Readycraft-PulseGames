@@ -15,7 +15,9 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.inventory.ItemStack;
+import uk.co.playerready.pulsegames.core.game.Comeback;
 import uk.co.playerready.pulsegames.core.game.GameInstance;
+import uk.co.playerready.pulsegames.core.game.Mercy;
 import uk.co.playerready.pulsegames.core.game.MiniGame;
 import uk.co.playerready.pulsegames.core.kit.Kit;
 import uk.co.playerready.pulsegames.core.util.Text;
@@ -123,7 +125,7 @@ public final class KitPvpGame extends MiniGame {
         if (player.getUniqueId().equals(bountyHolder)) { player.setGlowing(false); bountyHolder = null; }
     }
     @Override public void onCleanup() {
-        nextBotAttack.clear(); drawingBow.clear(); protection.clear(); streaks.clear(); bounties.clear();
+        nextBotAttack.clear(); drawingBow.clear(); comebackUntil.clear(); protection.clear(); streaks.clear(); bounties.clear();
         clearBounty();
     }
     @Override public void onEnd(List<Player> winners) { clearBounty(); }
@@ -178,6 +180,7 @@ public final class KitPvpGame extends MiniGame {
         nextBotAttack.remove(player.getUniqueId());
         drawingBow.remove(player.getUniqueId());
         equip(player);
+        comebackBoost(player);
         protection.protect(player.getUniqueId(), SPAWN_PROTECTION_SECONDS);
         player.sendActionBar(Text.mm("<aqua>Spawn protected for " + (int) SPAWN_PROTECTION_SECONDS + "s"));
         if (player.getUniqueId().equals(bountyHolder)) player.setGlowing(true);
@@ -270,6 +273,35 @@ public final class KitPvpGame extends MiniGame {
         Player old = game.player(bountyHolder);
         if (old != null) old.setGlowing(false);
         bountyHolder = null;
+    }
+
+    @Override
+    public List<Player> mercyWinners() {
+        var lead = Mercy.leading(game.players(), p -> {
+            var team = game.teamOf(p);
+            return team != null ? team : p.getUniqueId();
+        }, this::sideScore);
+        if (lead == null || !Mercy.scoreGap(game.plugin().getConfig(), "kitpvp", lead.best(), lead.second(),
+                targetKills(), game.remainingSeconds(), timeLimitSeconds())) return null;
+        return sideMembers(lead.member());
+    }
+
+    private final Map<UUID, Long> comebackUntil = new HashMap<>();
+
+    /** 5+ kills behind the leader: a short speed boost on respawn. */
+    private void comebackBoost(Player player) {
+        var config = game.plugin().getConfig();
+        int leader = game.topScores().stream().mapToInt(Map.Entry::getValue).max().orElse(0);
+        if (!Comeback.boostDue(config, "kitpvp", game.score(player), leader)) return;
+        int ticks = Comeback.boostTicks(config, "kitpvp");
+        player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, ticks, 1));
+        comebackUntil.put(player.getUniqueId(), System.currentTimeMillis() + ticks * 50L);
+        player.sendActionBar(Text.mm("<green>Comeback boost! <gray>You are a few kills behind, so here is some speed."));
+    }
+
+    @Override
+    public String comebackLine(Player player) {
+        return comebackUntil.getOrDefault(player.getUniqueId(), 0L) > System.currentTimeMillis() ? "Comeback: speed boost" : null;
     }
 
     @Override

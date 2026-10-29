@@ -32,6 +32,9 @@ public final class GameMenu {
     static final int CHALLENGES_SLOT = 46;
     static final int TOP_SLOT = 47;
     static final int KIT_SLOT = 51;
+    static final int LEVEL_SLOT = 52;
+    /** Top row, right of Quick Play: the nav row is full once My level (52) and the pager are in. */
+    static final int RANKED_SLOT = 6;
     /** One row of modes in a 27-slot menu, otherwise four rows in a 54-slot one. */
     static final int SMALL_MODES = 7;
     static final int MAX_MODES = PER_PAGE;
@@ -108,6 +111,7 @@ public final class GameMenu {
             case FormLayout.CHALLENGES -> plugin.engagement().openChallenges(player);
             case FormLayout.TOP -> plugin.engagement().top(player, new String[0]);
             case FormLayout.KIT -> plugin.kitSelection().open(player);
+            case FormLayout.LEVEL -> plugin.levelMenu().open(player);
             default -> { }
         }
     }
@@ -182,6 +186,13 @@ public final class GameMenu {
                 Lore.of().desc("Who is winning this week.").blank().hint("Click to see")),
                 p -> { p.closeInventory(); plugin.engagement().top(p, new String[0]); });
         menu.set(KIT_SLOT, kitButton(), p -> plugin.kitSelection().open(p));
+        menu.set(LEVEL_SLOT, Buttons.item(Material.EXPERIENCE_BOTTLE, Theme.ACCENT + "My level " + plugin.levels().tag(player),
+                Lore.of().desc("Your XP, level and what you unlock next.").blank().hint("Click to open")),
+                p -> plugin.levelMenu().open(p));
+        if (plugin.ranked() != null && plugin.ranked().enabled())
+            menu.set(RANKED_SLOT, Buttons.item(Material.NETHER_STAR, Theme.MONEY + "<b>Ranked Duels</b>",
+                    Lore.of().desc("Climb the divisions, one against one.").blank().hint("Click to open")),
+                    p -> plugin.rankedMenu().open(p));
         menu.pager(page, () -> { pageState[0]--; menu.refresh(); }, () -> { pageState[0]++; menu.refresh(); });
         menu.close();
         menu.fillEmpty(Material.GRAY_STAINED_GLASS_PANE);
@@ -218,7 +229,7 @@ public final class GameMenu {
         return Theme.HINT + "Quiet right now";
     }
 
-    private void pick(Player player, GameType game) {
+    void pick(Player player, GameType game) {
         if (!plugin.gameAvailable(game)) {
             Theme.sound(player, Theme.Cue.ERROR);
             player.sendMessage(Text.msg("<red>" + game.displayName() + " is coming soon!"));
@@ -236,6 +247,13 @@ public final class GameMenu {
         player.sendMessage(Text.msg("<yellow>/party invite [name]</yellow> — invite a friend (network-wide when PulseNetwork is active)"));
         player.sendMessage(Text.msg("<yellow>/party accept</yellow>, <yellow>/party list</yellow>, <yellow>/party leave</yellow>"));
         player.sendMessage(Text.msg("Your party leader selects the game. Parties may face each other in solo modes."));
+        if (plugin.privateMatches().enabled()) {
+            player.sendMessage(Text.msg("<yellow>/party private</yellow> — play with just your party. <yellow>/party spectate</yellow> — watch it if you joined late."));
+            Forms.list(plugin, player, "Party", "Play with just your party.", List.of(
+                    new FormLayout.Button("Private match\nPick a game and map for your party", "private"),
+                    new FormLayout.Button("Back", FormLayout.BACK)),
+                    target -> { if (target.equals("private")) plugin.privateMatches().open(player); else openGames(player); });
+        }
     }
 
     public void openModes(Player player, GameType game) {

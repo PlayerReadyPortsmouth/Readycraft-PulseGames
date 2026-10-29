@@ -56,6 +56,8 @@ public final class GameInstance {
     private int lastStartAnnouncement = -1;
     private long emptySince;
     private int logicFailures;
+    private final Mercy.Timer mercyTimer = new Mercy.Timer();
+    private boolean endedByMercy;
 
     private final Set<UUID> participants = new LinkedHashSet<>();
     private final Set<UUID> botIds = new LinkedHashSet<>();
@@ -65,6 +67,9 @@ public final class GameInstance {
     private boolean practice;
     private uk.co.playerready.pulsegames.core.bot.BotDifficulty practiceDifficulty = uk.co.playerready.pulsegames.core.bot.BotDifficulty.NORMAL;
     private int practiceBotTarget;
+    /** Private match: who may join and how bots behave; null for public games. Allowed grows if a late member is admitted. */
+    private uk.co.playerready.pulsegames.core.play.PrivateSetup privateSetup;
+    private final Set<UUID> privateAllowed = new LinkedHashSet<>();
     private final Map<UUID, Integer> roundKills = new HashMap<>(), roundDeaths = new HashMap<>();
     /** Engagement: kill tokens already paid this match (capped), ready votes, and seconds survived. */
     private final Map<UUID, Integer> killTokens = new HashMap<>(), survivedAt = new HashMap<>();
@@ -84,6 +89,9 @@ public final class GameInstance {
     private final Map<UUID, String> names = new HashMap<>();
     private Map<UUID, Integer> finalPlacements;
     private final SpectatorTools spectatorTools = new SpectatorTools(this);
+    /** Scheduled events: told who won when the round ends, and optionally fixes the teams. */
+    private java.util.function.Consumer<List<Player>> endListener;
+    private List<List<UUID>> presetTeams;
 
     public GameInstance(PulseGamesPlugin plugin, GameType type, GameMode mode, Arena arena) {
         this.plugin = plugin;
@@ -131,6 +139,24 @@ public final class GameInstance {
     public boolean frozen() { return startCountdownSeconds() > 0; }
     public SpectatorTools spectatorTools() { return spectatorTools; }
 
+    /** Called once with the credited winners as the round ends (scheduled events). */
+    public void onRoundEnd(java.util.function.Consumer<List<Player>> listener) { this.endListener = listener; }
+
+    /** Fixed team rosters for this round instead of the automatic allocation (scheduled events). */
+    public void presetTeams(List<List<UUID>> teams) { this.presetTeams = teams; }
+
+    /** Lets a bystander watch a running round with the usual spectator tools. */
+    public boolean watch(Player player) {
+        if (world == null || state != GameState.RUNNING || isParticipant(player) || plugin.instances().byPlayer(player) != null) return false;
+        plugin.playerState().save(player);
+        if (!player.teleport(arena.spectator(world))) { plugin.playerState().restore(player); return false; }
+        spectators.add(player.getUniqueId());
+        plugin.instances().index(player, this);
+        spectatorTools.enter(player);
+        spectatorTools.refreshMenus();
+        return true;
+    }
+
     /** Same deadline as movement/combat protection; round upwards so zero means unlocked. */
     public int startCountdownSeconds() {
         if (state != GameState.RUNNING) return 0;
@@ -148,7 +174,11 @@ public final class GameInstance {
         return Math.max(0, cap);
     }
 
-    public int minPlayers() { return Math.max(arena.minPlayers(mode.id()), mode.minPlayers()); }
+    public int minPlayers() {
+        int base = Math.max(arena.minPlayers(mode.id()), mode.minPlayers());
+        return privateSetup == null ? base : uk.co.playerready.pulsegames.core.play.PrivateRules.minPlayers(base,
+                plugin.bots() != null && plugin.bots().canFill(this));
+    }
 
     /**
      * Available team groups, capped by configured slots, spawns and game features.
@@ -189,6 +219,20 @@ public final class GameInstance {
     /** Fixed when the round starts; later departures cannot change rewards. */
     public boolean ranked() { return !practice && competitiveEligible; }
     public boolean practice() { return practice; }
+
+    // ---- Ranked Duels pairing (core/ranked) ------------------------------------------------
+    private String rankedKit;
+    private final Set<UUID> rankedAllowed = new LinkedHashSet<>();
+    private uk.co.playerready.pulsegames.core.bot.BotDifficulty rankedBotTier;
+    public boolean rankedMatch() { return rankedKit != null; }
+    public String rankedKit() { return rankedKit; }
+    public uk.co.playerready.pulsegames.core.bot.BotDifficulty rankedBotTier() { return rankedBotTier; }
+    /** Reserves this instance for the ladder: only these players may join; bots (if any) use {@code botTier}. */
+    public void markRanked(String kit, java.util.Collection<UUID> allowed, uk.co.playerready.pulsegames.core.bot.BotDifficulty botTier) {
+        rankedKit = kit;
+        rankedAllowed.addAll(allowed);
+        rankedBotTier = botTier;
+    }
     public uk.co.playerready.pulsegames.core.bot.BotDifficulty practiceDifficulty() { return practiceDifficulty; }
     public int practiceBotTarget() { return practiceBotTarget; }
     public void configurePractice(uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty, int bots) {
@@ -198,6 +242,22 @@ public final class GameInstance {
         practiceDifficulty = difficulty == null ? uk.co.playerready.pulsegames.core.bot.BotDifficulty.NORMAL : difficulty;
         practiceBotTarget = Math.max(0, Math.min(63, bots));
     }
+    public boolean isPrivate() { return privateSetup != null; }
+    public uk.co.playerready.pulsegames.core.play.PrivateSetup privateSetup() { return privateSetup; }
+    /** Bots are wanted in this private match (config allows it and the leader left "fill with bots" on). */
+    public boolean privateBotsWanted() {
+        return privateSetup != null && uk.co.playerready.pulsegames.core.play.PrivateRules.botsWanted(
+                plugin.getConfig().getBoolean("private.allow-bots", true), privateSetup.fillBots());
+    }
+    /** The leader's explicit bot difficulty ("easy"... "adaptive"), or null to follow the map and config. */
+    public String privateDifficulty() { return privateSetup == null ? null : privateSetup.level().setting(); }
+    public void configurePrivate(uk.co.playerready.pulsegames.core.play.PrivateSetup setup) {
+        if (state != GameState.LOADING) throw new IllegalStateException("Configure private match before loading the world");
+        privateSetup = setup;
+        privateAllowed.addAll(setup.members());
+    }
+    /** A party member who arrived after the match was made may be admitted too. */
+    public void allowPrivate(UUID id) { if (privateSetup != null) privateAllowed.add(id); }
     public boolean isActive(Player player) {
         return isAlive(player) && !respawning.contains(player.getUniqueId())
                 && player.getGameMode() != org.bukkit.GameMode.SPECTATOR;
@@ -266,6 +326,12 @@ public final class GameInstance {
         return placements().keySet().stream().map(this::player).filter(java.util.Objects::nonNull).toList();
     }
 
+    /** Podium names carry the level prefix, like the lobby nametag. */
+    private String podiumName(UUID id) {
+        Player p = player(id);
+        return p != null && plugin.levels() != null && !isBot(p) ? plugin.levels().tag(p) + " " + p.getName() : nameOf(id);
+    }
+
     private String nameOf(UUID id) {
         Player p = player(id);
         return p != null ? p.getName() : names.getOrDefault(id, "Player");
@@ -276,7 +342,12 @@ public final class GameInstance {
     public boolean add(Player player) {
         boolean bot = plugin.bots() != null && plugin.bots().isBot(player);
         if (!joinable(1) || world == null || participants.contains(player.getUniqueId())) return false;
+        if (privateSetup != null && !uk.co.playerready.pulsegames.core.play.PrivateRules.admits(privateAllowed, player.getUniqueId(), bot)) {
+            player.sendMessage(Text.msg("<red>That is a private match for a party."));
+            return false;
+        }
         if (bot && participants.size() >= maxPlayers()) return false;
+        if (rankedKit != null && !bot && !rankedAllowed.contains(player.getUniqueId())) return false;
         if (!bot && plugin.bots() != null) plugin.bots().beforeHumanJoin(this, player);
         if (bot) botIds.add(player.getUniqueId());
         participants.add(player.getUniqueId());
@@ -341,6 +412,9 @@ public final class GameInstance {
     }
 
     /** Seconds this player survived: when they went out, or the whole round if still alive. */
+    /** Kills this player scored in the current round (for XP). */
+    public int roundKillCount(Player player) { return roundKills.getOrDefault(player.getUniqueId(), 0); }
+
     public int survivedSeconds(Player player) {
         return survivedAt.getOrDefault(player.getUniqueId(), gameTime);
     }
@@ -393,13 +467,24 @@ public final class GameInstance {
     }
 
     boolean returnSpectator(Player player) {
+        return watch(player, "You disconnected during the round. You can watch, but your life and rewards are not restored. Use /lobby to return.");
+    }
+
+    /** A party member arriving after the private match was made: a seat while it is filling, otherwise a view. */
+    public boolean admitLate(Player player) {
+        if (privateSetup == null || !privateAllowed.contains(player.getUniqueId()) || isParticipant(player)) return false;
+        if (state == GameState.WAITING || state == GameState.COUNTDOWN) return add(player);
+        return watch(player, "You are watching your party's private match. Use /lobby to leave.");
+    }
+
+    private boolean watch(Player player, String message) {
         if (world == null || state != GameState.RUNNING || isParticipant(player)) return false;
         plugin.playerState().save(player);
         if (!player.teleport(arena.spectator(world))) { plugin.playerState().restore(player); return false; }
         spectators.add(player.getUniqueId());
         plugin.instances().index(player, this);
         player.setGameMode(org.bukkit.GameMode.SPECTATOR);
-        player.sendMessage(Text.msg("<yellow>You disconnected during the round. You can watch, but your life and rewards are not restored. Use /lobby to return."));
+        player.sendMessage(Text.msg("<yellow>" + message));
         return true;
     }
 
@@ -411,6 +496,7 @@ public final class GameInstance {
         if (state == GameState.RUNNING && participants.contains(player.getUniqueId())) {
             departed.add(player.getUniqueId());
             if (!bot) humanDeparted = true;
+            if (!bot && plugin.ranked() != null) plugin.ranked().departed(this, player, teleportToLobby);
             names.putIfAbsent(player.getUniqueId(), player.getName());
             if (wasAlive && !outOrder.contains(player.getUniqueId()) && !finishOrder.contains(player.getUniqueId()))
                 outOrder.add(player.getUniqueId());
@@ -467,7 +553,8 @@ public final class GameInstance {
             case WAITING -> {
                 if (participants.size() >= minPlayers()) {
                     state = GameState.COUNTDOWN;
-                    countdown = Math.max(1, plugin.getConfig().getInt("countdown.lobby-seconds", 30));
+                    countdown = privateSetup != null ? Math.max(1, plugin.getConfig().getInt("private.countdown-seconds", 10))
+                            : Math.max(1, plugin.getConfig().getInt("countdown.lobby-seconds", 30));
                 }
             }
             case COUNTDOWN -> tickCountdown();
@@ -477,6 +564,7 @@ public final class GameInstance {
                 if (state == GameState.RUNNING && gameTime >= logic.timeLimitSeconds()) {
                     runLogic("onTimeUp", logic::onTimeUp);
                 }
+                if (state == GameState.RUNNING) runLogic("mercy", this::mercyStep);
             }
             case ENDING -> {
                 if (--countdown <= 0) cleanup();
@@ -485,6 +573,37 @@ public final class GameInstance {
         }
         if (state == GameState.WAITING || state == GameState.COUNTDOWN || state == GameState.RUNNING) {
             updateSidebars();
+        }
+    }
+
+    /** Once a second: poll the game's "decided" signal and run the hold, countdown, cancel and end. */
+    private void mercyStep() {
+        if (!Mercy.enabled(plugin.getConfig(), type.id())) return;
+        List<Player> winners = logic.mercyWinners();
+        boolean decided = winners != null && !winners.isEmpty();
+        int hold = Mercy.holdSeconds(plugin.getConfig(), type.id(), logic.mercyHoldSeconds());
+        Mercy.Step step = mercyTimer.tick(decided, hold, Mercy.countdownSeconds(plugin.getConfig()));
+        switch (step.phase()) {
+            case START, COUNT -> {
+                GameTeam team = teamOf(winners.get(0));
+                String who = team != null ? team.coloredName() : winners.get(0).getName();
+                String headline = Mercy.headline("<white>" + who + "<white>", team != null || winners.size() > 1);
+                for (Player p : everyone()) {
+                    if (isBot(p)) continue;
+                    Text.title(p, "<gold><b>" + headline, "<gray>Ending in " + step.secondsLeft() + "s");
+                    p.playSound(p.getLocation(), "minecraft:block.note_block.hat", 0.5f, 1.2f);
+                }
+                if (step.phase() == Mercy.Phase.START) note("mercy-start", "decided, countdown " + step.secondsLeft());
+            }
+            case CANCEL -> {
+                broadcast("<yellow>Back in the game! The comeback is on.");
+                note("mercy-cancel", "signal cleared");
+            }
+            case FIRE -> {
+                endedByMercy = true;
+                end(winners, "mercy");
+            }
+            default -> { }
         }
     }
 
@@ -586,7 +705,13 @@ public final class GameInstance {
         if (mode.isTeams()) {
             teams.clear();
             try {
-                teams.addAll(TeamAllocator.allocate(players(), mode.teamSize(), teamCount(), plugin.parties(),
+                if (presetTeams != null) {
+                    for (List<UUID> roster : presetTeams) {
+                        GameTeam team = new GameTeam(teams.size());
+                        players().stream().filter(p -> roster.contains(p.getUniqueId())).forEach(team::add);
+                        if (!team.members().isEmpty()) teams.add(team);
+                    }
+                } else teams.addAll(TeamAllocator.allocate(players(), mode.teamSize(), teamCount(), plugin.parties(),
                         player -> plugin.bots() == null ? 2 : plugin.bots().teamStrength(this, player)));
             } catch (IllegalArgumentException noPacking) {
                 state = GameState.WAITING;
@@ -607,6 +732,7 @@ public final class GameInstance {
                     ? "<green>This bot-assisted match counts for competitive records and match token rewards."
                     : "<yellow>Practice match: not enough human players for competitive records or match token rewards.");
         }
+        if (privateSetup != null) broadcast("<gray>" + uk.co.playerready.pulsegames.core.play.PrivateRules.TOKEN_NOTE);
         state = GameState.RUNNING;
         gameTime = 0;
         alive.clear();
@@ -677,6 +803,8 @@ public final class GameInstance {
         if (preparation > 0) lines.add("<yellow>Starting in: " + preparation + "s");
         if (phase != null && !phase.isBlank()) lines.add("<yellow>" + phase);
         lines.add("<gray>Match left: <white>" + Text.time(remainingSeconds()));
+        String comeback = logic.comebackLine(player);
+        if (comeback != null) lines.add("<green>" + comeback);
         List<String> custom = logic.sidebar(player);
         if (custom.isEmpty()) lines.add("<gray>Alive: <white>" + alive.size());
         else {
@@ -848,7 +976,7 @@ public final class GameInstance {
         creditedWinners.forEach(w -> winnerIds.add(w.getUniqueId()));
         finalPlacements = coop ? Map.of() : Placements.compute(field(), finishOrder, winnerIds, alive, outOrder);
         int fieldSize = field().size();
-        List<String> podium = Placements.podium(finalPlacements, this::nameOf);
+        List<String> podium = Placements.podium(finalPlacements, this::podiumName);
         boolean anyWinner = !creditedWinners.isEmpty();
         boolean decided = anyWinner || !reason.equals("forced");
         int minField = plugin.getConfig().getInt("economy.placement-min-players", 4);
@@ -862,6 +990,7 @@ public final class GameInstance {
         List<String> summaryPlain = summaryLines.stream().map(Text::plain).toList();
         broadcast("<gold><b>Round over!</b></gold> <gray>" + (coop ? (anyWinner ? "The squad pulled it off." : "The squad's run has ended.")
                 : anyWinner ? "Winner(s): <yellow>" + winnerNames : "No single winner this time."));
+        if (endedByMercy) broadcast("<gray>" + Mercy.NOTE + ".");
         for (Player p : everyone()) {
             if (isBot(p)) { p.setGameMode(org.bukkit.GameMode.SPECTATOR); continue; }
             int balanceBefore = plugin.economy().tokens(p);
@@ -890,9 +1019,12 @@ public final class GameInstance {
                 else Text.title(p, "<aqua><b>Well played!", "<gray>" + line);
                 // A draw or timeout with no declared winner is not a loss.
                 // A co-op round nobody won is a genuine loss; a forced stop is neither.
-                if (isParticipant(p) && !"forced".equals(reason)) {
-                    if (anyWinner || coop) plugin.stats().addLoss(p, type.id());
-                    else plugin.stats().addDraw(p, type.id());
+                if (isParticipant(p)) {
+                    switch (Mercy.statForNonWinner("forced".equals(reason), anyWinner, coop)) {
+                        case LOSS -> plugin.stats().addLoss(p, type.id());
+                        case DRAW -> plugin.stats().addDraw(p, type.id());
+                        default -> { }
+                    }
                 }
             }
             summaryLines.forEach(line -> p.sendMessage(Text.msg(line)));
@@ -918,7 +1050,7 @@ public final class GameInstance {
                 plugin.results().publishLate(gone, new MatchResults.Result(id, type.id(), mode.id(), arena.displayName(),
                         Placements.outcome(true, false, anyWinner, coop, gonePlace, fieldSize),
                         "Solo", 0, 0, roundKills.getOrDefault(gid, 0), roundDeaths.getOrDefault(gid, 0), 0, false, practice,
-                        System.currentTimeMillis() + 600_000L, gonePlace, fieldSize, podium, summaryPlain));
+                        System.currentTimeMillis() + 600_000L, gonePlace, fieldSize, podium, summaryPlain, endNote()));
             }
         }
         // Celebration: fireworks rain on the creditedWinners until cleanup.
@@ -929,7 +1061,12 @@ public final class GameInstance {
                 plugin.cosmetics().playWinEffect(winner);
             }
         });
+        if (plugin.ranked() != null) plugin.ranked().matchEnded(this, creditedWinners, reason);
         runLogic("onEnd", () -> logic.onEnd(creditedWinners));
+        if (endListener != null) {
+            try { endListener.accept(creditedWinners); }
+            catch (RuntimeException ex) { note("end-listener-failed", ex.getClass().getSimpleName()); }
+        }
     }
 
     private MatchResults.Result resultFor(Player p, List<Player> creditedWinners, int balanceBefore, int place,
@@ -942,8 +1079,10 @@ public final class GameInstance {
                 team == null ? "Solo" : "Team " + (team.index() + 1), score(p), teamScore,
                 roundKills.getOrDefault(p.getUniqueId(), 0), roundDeaths.getOrDefault(p.getUniqueId(), 0),
                 Math.max(0, plugin.economy().tokens(p) - balanceBefore), ranked() && isParticipant(p), practice,
-                System.currentTimeMillis() + 600_000L, place, fieldSize, podium, summary);
+                System.currentTimeMillis() + 600_000L, place, fieldSize, podium, summary, endNote());
     }
+
+    private String endNote() { return endedByMercy ? Mercy.NOTE : ""; }
 
     /** The logic's co-op end screen, or null (a failing hook must never stop a round from ending). */
     private MiniGame.EndSummary coopSummary(List<Player> winners) {

@@ -27,6 +27,17 @@ public final class SurfaceMemory {
     }
     public Location nextStep(Player bot, java.util.function.Predicate<Location> allowed,
                              java.util.function.ToDoubleFunction<Location> score) {
+        return nextStep(bot, allowed, score, false);
+    }
+
+    /** As {@link #nextStep}, searching six cells deep so the bot routes round holes and up stairs. */
+    public Location nextStepDeep(Player bot, java.util.function.Predicate<Location> allowed,
+                                 java.util.function.ToDoubleFunction<Location> score) {
+        return nextStep(bot, allowed, score, true);
+    }
+
+    private Location nextStep(Player bot, java.util.function.Predicate<Location> allowed,
+                              java.util.function.ToDoubleFunction<Location> score, boolean deep) {
         var here = bot.getLocation();
         var previous = destinations.get(bot.getUniqueId());
         // A player can stand on the edge of the next block while their centre is over air.
@@ -35,7 +46,7 @@ public final class SurfaceMemory {
                 && here.distanceSquared(previous) < 4
                 && (!Cell.at(here).equals(Cell.at(previous)) || !GroundNavigation.walkable(here))
                 && allowed.test(previous) && GroundNavigation.walkable(previous)) return previous.clone();
-        var next = GroundNavigation.nextStep(here, allowed, score);
+        var next = deep ? GroundNavigation.nextStepDeep(here, allowed, score) : GroundNavigation.nextStep(here, allowed, score);
         if (next == null) destinations.remove(bot.getUniqueId());
         else destinations.put(bot.getUniqueId(), next.clone());
         return next;
