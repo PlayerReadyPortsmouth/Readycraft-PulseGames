@@ -381,3 +381,51 @@ debug:
 engagement:
   # One action-bar line on join when a daily challenge, the first-win bonus or a featured-game bonus is waiting.
   join-hint: true
+
+# Scheduled events: a featured tournament on private rounds of an existing game (/event).
+# Joining is always opt-in. Events pay tokens at the multiplier below through the normal economy,
+# only when the roster would count as competitive (at least two humans, no bots).
+events:
+  enabled: true
+  timezone: Europe/London
+  # Sign-up opens this many minutes before the start, with a lobby title, sidebar line and chat message.
+  announce-lead-minutes: 5
+  # Fewer humans than this at the start cancels the event politely.
+  min-players: 2
+  # Sign-up cap (2-16).
+  max-players: 16
+  # Bracket only: play a third-place match when there are four or more entrants.
+  third-place-match: true
+  between-rounds-seconds: 15
+  # Hard stop for a single round, then it is decided on placement or score.
+  match-minutes: 10
+  # Seconds of sign-up for /pulse event start.
+  admin-lead-seconds: 60
+  # Show the event as an extra queue row so the proxy announces it with a Join link on other servers.
+  network-announce: true
+  # Lobby sidebar countdown during sign-up.
+  sidebar: true
+  tokens-multiplier: 2.0
+  rewards:
+    participation: 10
+    bracket-match-win: 10
+    # Podium prizes (before the multiplier). Ties share the place.
+    first: 50
+    second: 30
+    third: 20
+    # Points format: points for 1st, 2nd, ... (anyone beyond the list gets the last value).
+    points-table: [10, 7, 5, 3, 2, 1]
+  # Schedule lines: 'every: 60m' (counted from local midnight) or 'at: "HH:mm"' (daily).
+  # A line may fix its own game: {at: "19:30", game: spleef, mode: classic, format: points, rounds: 3, tokens-multiplier: 3.0}.
+  # A line without a game takes the next entry of the rotation below.
+  schedule:
+    - every: 60m
+  games:
+    - {game: duels, mode: classic, format: bracket}
+    - {game: spleef, mode: classic, format: points, rounds: 3}
+    - {game: karts, mode: cup, format: points, rounds: 3}
+    - {game: bedwars, mode: duos, format: bracket}
+    - {game: blockparty, mode: classic, format: points, rounds: 3}
+    - {game: tntrun, mode: classic, format: points, rounds: 3}
+    - {game: dodgeball, mode: teams, format: bracket}
+    - {game: quake, mode: classic, format: points, rounds: 3}

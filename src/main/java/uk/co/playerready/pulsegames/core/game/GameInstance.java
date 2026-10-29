@@ -84,6 +84,9 @@ public final class GameInstance {
     private final Map<UUID, String> names = new HashMap<>();
     private Map<UUID, Integer> finalPlacements;
     private final SpectatorTools spectatorTools = new SpectatorTools(this);
+    /** Scheduled events: told who won when the round ends, and optionally fixes the teams. */
+    private java.util.function.Consumer<List<Player>> endListener;
+    private List<List<UUID>> presetTeams;
 
     public GameInstance(PulseGamesPlugin plugin, GameType type, GameMode mode, Arena arena) {
         this.plugin = plugin;
@@ -130,6 +133,24 @@ public final class GameInstance {
     public List<GameTeam> teams() { return teams; }
     public boolean frozen() { return startCountdownSeconds() > 0; }
     public SpectatorTools spectatorTools() { return spectatorTools; }
+
+    /** Called once with the credited winners as the round ends (scheduled events). */
+    public void onRoundEnd(java.util.function.Consumer<List<Player>> listener) { this.endListener = listener; }
+
+    /** Fixed team rosters for this round instead of the automatic allocation (scheduled events). */
+    public void presetTeams(List<List<UUID>> teams) { this.presetTeams = teams; }
+
+    /** Lets a bystander watch a running round with the usual spectator tools. */
+    public boolean watch(Player player) {
+        if (world == null || state != GameState.RUNNING || isParticipant(player) || plugin.instances().byPlayer(player) != null) return false;
+        plugin.playerState().save(player);
+        if (!player.teleport(arena.spectator(world))) { plugin.playerState().restore(player); return false; }
+        spectators.add(player.getUniqueId());
+        plugin.instances().index(player, this);
+        spectatorTools.enter(player);
+        spectatorTools.refreshMenus();
+        return true;
+    }
 
     /** Same deadline as movement/combat protection; round upwards so zero means unlocked. */
     public int startCountdownSeconds() {
@@ -595,7 +616,13 @@ public final class GameInstance {
         if (mode.isTeams()) {
             teams.clear();
             try {
-                teams.addAll(TeamAllocator.allocate(players(), mode.teamSize(), teamCount(), plugin.parties(),
+                if (presetTeams != null) {
+                    for (List<UUID> roster : presetTeams) {
+                        GameTeam team = new GameTeam(teams.size());
+                        players().stream().filter(p -> roster.contains(p.getUniqueId())).forEach(team::add);
+                        if (!team.members().isEmpty()) teams.add(team);
+                    }
+                } else teams.addAll(TeamAllocator.allocate(players(), mode.teamSize(), teamCount(), plugin.parties(),
                         player -> plugin.bots() == null ? 2 : plugin.bots().teamStrength(this, player)));
             } catch (IllegalArgumentException noPacking) {
                 state = GameState.WAITING;
@@ -939,6 +966,10 @@ public final class GameInstance {
             }
         });
         runLogic("onEnd", () -> logic.onEnd(creditedWinners));
+        if (endListener != null) {
+            try { endListener.accept(creditedWinners); }
+            catch (RuntimeException ex) { note("end-listener-failed", ex.getClass().getSimpleName()); }
+        }
     }
 
     private MatchResults.Result resultFor(Player p, List<Player> creditedWinners, int balanceBefore, int place,
