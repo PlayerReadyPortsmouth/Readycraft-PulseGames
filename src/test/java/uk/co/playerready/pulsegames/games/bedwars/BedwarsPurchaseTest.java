@@ -43,4 +43,20 @@ class BedwarsPurchaseTest {
         var named=new Bag(); var iron=item(Material.IRON_INGOT,64); when(iron.hasItemMeta()).thenReturn(true); named.slots.put(0,iron);
         assertFalse(BedwarsPurchase.buy(named.inventory,Material.IRON_INGOT,4,item(Material.WHITE_WOOL,16)));
     }
+    @Test void betterSwordReplacesTheLowerOneInTheSamePurchaseAndFailureKeepsIt() {
+        var bag=new Bag(); bag.slots.put(0,item(Material.WOODEN_SWORD,1)); bag.slots.put(1,item(Material.IRON_INGOT,10));
+        assertTrue(BedwarsPurchase.buy(bag.inventory,Material.IRON_INGOT,10,item(Material.STONE_SWORD,1),Set.of(Material.WOODEN_SWORD)));
+        assertEquals(0,BedwarsPurchase.count(bag.inventory,Material.WOODEN_SWORD));
+        assertEquals(1,BedwarsPurchase.count(bag.inventory,Material.STONE_SWORD));
+        var poor=new Bag(); poor.slots.put(0,item(Material.WOODEN_SWORD,1)); poor.slots.put(1,item(Material.IRON_INGOT,9));
+        assertFalse(BedwarsPurchase.buy(poor.inventory,Material.IRON_INGOT,10,item(Material.STONE_SWORD,1),Set.of(Material.WOODEN_SWORD)));
+        assertEquals(1,BedwarsPurchase.count(poor.inventory,Material.WOODEN_SWORD));
+    }
+    @Test void chargeTakesOnlyThePriceForWornPurchases() {
+        var bag=new Bag(); bag.slots.put(0,item(Material.IRON_INGOT,40));
+        assertTrue(BedwarsPurchase.charge(bag.inventory,Material.IRON_INGOT,30));
+        assertEquals(10,BedwarsPurchase.count(bag.inventory,Material.IRON_INGOT));
+        assertFalse(BedwarsPurchase.charge(bag.inventory,Material.IRON_INGOT,30));
+        assertEquals(10,BedwarsPurchase.count(bag.inventory,Material.IRON_INGOT));
+    }
 }
