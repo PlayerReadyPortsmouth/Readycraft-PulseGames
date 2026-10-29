@@ -187,6 +187,22 @@ public final class VillagerDefenseGame extends MiniGame implements BotObjectives
         return mayor != null && !mayor.isDead() ? mayor.getLocation() : null;
     }
 
+    /** Each bot holds its own lane on an arc round the Mayor, facing the nearest zombie, clear of any human. */
+    @Override
+    public Location botGuardPoint(Player bot) {
+        Location mayorAt = botGuardPoint();
+        if (mayorAt == null || bot.getWorld() != mayorAt.getWorld()) return mayorAt;
+        var bots = game.alivePlayers().stream().filter(game::isBot).map(Player::getUniqueId).sorted().toList();
+        Location zombie = botEnemies().stream().map(org.bukkit.entity.Entity::getLocation).filter(l -> l.getWorld() == mayorAt.getWorld())
+                .min(java.util.Comparator.comparingDouble(l -> l.distanceSquared(mayorAt))).orElse(null);
+        double[][] humans = game.alivePlayers().stream().filter(p -> !game.isBot(p) && p.getWorld() == mayorAt.getWorld())
+                .map(p -> new double[]{p.getLocation().getX(), p.getLocation().getZ()}).toArray(double[][]::new);
+        double[] spot = uk.co.playerready.pulsegames.core.bot.CoopTactics.lanePoint(
+                new double[]{mayorAt.getX(), mayorAt.getZ()}, Math.max(0, bots.indexOf(bot.getUniqueId())), bots.size(), 3.5,
+                zombie == null ? null : new double[]{zombie.getX(), zombie.getZ()}, humans);
+        return new Location(mayorAt.getWorld(), spot[0], mayorAt.getY(), spot[1]);
+    }
+
     @Override
     public boolean cooperative() { return true; }
 

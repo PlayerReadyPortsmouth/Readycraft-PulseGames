@@ -90,6 +90,53 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
     private final Map<UUID, Long> botNextPower = new HashMap<>();
     private final Map<UUID, Long> botLocalSearchUntil = new HashMap<>();
     private final Set<UUID> botPaletteChosen = new HashSet<>();
+    private final Map<UUID, PropHuntTactics.SearchLedger> botLedgers = new HashMap<>();
+    private final Map<UUID, Long> botNextThreat = new HashMap<>();
+    private final Map<UUID, Long> botRelockBy = new HashMap<>();
+    private long botNow;
+
+    private PropHuntTactics.SearchLedger botLedger(UUID id) {
+        return botLedgers.computeIfAbsent(id, ignored -> new PropHuntTactics.SearchLedger());
+    }
+
+    /** A taunt or other public noise: hunters within 30 blocks go and look at that part of the map. */
+    private void botHear(Location source) {
+        Location cue = source.clone();
+        cue.setX(Math.floor(cue.getX() / 4) * 4 + 2);
+        cue.setZ(Math.floor(cue.getZ() / 4) * 4 + 2);
+        for (UUID seekerId : seekers) {
+            Player seeker = game.player(seekerId);
+            if (seeker == null || !game.isBot(seeker) || seeker.getWorld() != source.getWorld()
+                    || seeker.getLocation().distanceSquared(source) > 30 * 30) continue;
+            botLedger(seekerId).hear(cue.getX(), cue.getZ(), botNow);
+            botGoals.put(seekerId, cue.clone());
+            botNextAction.put(seekerId, botNow + 60);
+        }
+    }
+
+    /** A locked bot prop watches the nearest hunter: freeze, slip away, or (nervously) bolt. */
+    private boolean botReact(Player bot, long tick, uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty) {
+        UUID id = bot.getUniqueId();
+        if (hidePhase > 0 || tick < botNextThreat.getOrDefault(id, 0L)) return false;
+        botNextThreat.put(id, tick + 20);
+        Player hunter = seekers.stream().map(game::player).filter(p -> p != null && game.isActive(p) && p.getWorld() == bot.getWorld())
+                .min(java.util.Comparator.comparingDouble(p -> p.getLocation().distanceSquared(bot.getLocation()))).orElse(null);
+        if (hunter == null) return false;
+        double distance = hunter.getLocation().distance(bot.getLocation());
+        var reaction = PropHuntTactics.react(distance, visibleProp(hunter, bot.getLocation().add(0, 1, 0)),
+                difficulty, bound -> ThreadLocalRandom.current().nextInt(bound));
+        if (reaction == PropHuntTactics.Reaction.STAY) return false;
+        toggleLock(bot);
+        if (locked.containsKey(id)) return false; // could not unlock; stay put
+        double[] run = PropHuntTactics.escapePoint(bot.getLocation().getX(), bot.getLocation().getZ(),
+                hunter.getLocation().getX(), hunter.getLocation().getZ(), bound -> ThreadLocalRandom.current().nextInt(bound));
+        Location goal = new Location(bot.getWorld(), Math.floor(run[0]) + .5, bot.getLocation().getY(), Math.floor(run[1]) + .5);
+        botGoals.put(id, goal);
+        botRelockBy.put(id, tick + 160);
+        botNextAction.put(id, tick + 160);
+        if (reaction == PropHuntTactics.Reaction.PANIC && powerReady(bot, "Sprint") && canUsePower(bot, true)) sprint(bot);
+        return true;
+    }
 
     @Override public Location botDestination(Player bot) {
         if (seekers.contains(bot.getUniqueId()) && hidePhase > 0 || locked.containsKey(bot.getUniqueId())) return null;
@@ -100,9 +147,15 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
     @Override public void botTick(Player bot, long tick, uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty) {
         if (game.frozen() || game.state() != GameState.RUNNING || !game.isActive(bot)) return;
         UUID id = bot.getUniqueId();
+        botNow = tick;
         botAbilities(bot, tick);
         if (seekers.contains(id)) {
             if (hidePhase > 0) { botGoals.remove(id); return; }
+            var ledger = botLedger(id);
+            Location look = bot.getLocation();
+            ledger.check(look.getX(), look.getZ(), tick);
+            var ahead = look.getDirection();
+            ledger.check(look.getX() + ahead.getX() * 3, look.getZ() + ahead.getZ() * 3, tick);
             PropBotMemory memory = botMemories.computeIfAbsent(id, ignored -> new PropBotMemory());
             for (UUID hiderId : hiders) {
                 Player hider = game.player(hiderId);
@@ -136,7 +189,16 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
                 return;
             }
         } else if (hiders.contains(id)) {
-            if (locked.containsKey(id)) { botGoals.remove(id); return; }
+            if (locked.containsKey(id)) { botGoals.remove(id); botReact(bot, tick, difficulty); return; }
+            Long relockBy = botRelockBy.get(id);
+            if (relockBy != null && hidePhase == 0 && blockProps && bot.isOnGround()) {
+                Location run = botGoals.get(id);
+                if (tick >= relockBy || run == null || run.getWorld() != bot.getWorld() || run.distanceSquared(bot.getLocation()) <= 4) {
+                    botRelockBy.remove(id);
+                    toggleLock(bot);
+                    if (locked.containsKey(id)) { botGoals.remove(id); return; }
+                }
+            }
             // Use the same lock validation as humans; navigation never teleports into a hiding space.
             if (hidePhase <= 5 && blockProps && bot.isOnGround()) {
                 toggleLock(bot);
@@ -159,21 +221,41 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
                 && tick < botNextAction.getOrDefault(id, 0L)) return;
         botNextAction.put(id, tick + 100);
         if (hiders.contains(id)) {
-            var spots = uk.co.playerready.pulsegames.core.bot.BotNavigationHints.points(game, "bot-hide-points");
-            if (!spots.isEmpty()) {
-                botGoals.put(id, spots.get(ThreadLocalRandom.current().nextInt(spots.size()))); return;
+            var spots = new ArrayList<>(uk.co.playerready.pulsegames.core.bot.BotNavigationHints.points(game, "bot-hide-points"));
+            var rng = ThreadLocalRandom.current();
+            for (int attempt = 0; attempt < 10 && spots.size() < 16; attempt++) {
+                Location candidate = bot.getLocation().add(rng.nextInt(-10, 11), 0, rng.nextInt(-10, 11));
+                candidate.setX(candidate.getBlockX() + .5); candidate.setZ(candidate.getBlockZ() + .5);
+                if (PropSpace.clear(candidate, 1.8) && PropSpace.supported(candidate)) spots.add(candidate);
             }
-        } else if (tick >= botLocalSearchUntil.getOrDefault(id, 0L) && game.plugin().bots() != null) {
-            Location patrol = game.plugin().bots().patrolDestination(game, bot);
-            if (patrol != null) { botGoals.put(id, patrol); return; }
-        }
-        // Explore loaded, supported cells only. Unreachable choices time out through the navigator.
-        var random = ThreadLocalRandom.current();
-        for (int attempt = 0; attempt < 12; attempt++) {
-            Location candidate = bot.getLocation().add(random.nextInt(-6, 7), 0, random.nextInt(-6, 7));
-            candidate.setX(candidate.getBlockX() + .5); candidate.setZ(candidate.getBlockZ() + .5);
-            if (PropSpace.clear(candidate, 1.8) && PropSpace.supported(candidate)) {
-                botGoals.put(id, candidate); return;
+            if (!spots.isEmpty()) {
+                // Far from the hunters' start, spread out from the other props, not the same corner every time.
+                Location start = seekers.stream().map(game::player).filter(Objects::nonNull).map(Player::getLocation).findFirst().orElse(null);
+                double[][] taken = hiders.stream().filter(other -> !other.equals(id)).map(game::player).filter(Objects::nonNull)
+                    .map(other -> new double[]{other.getLocation().getX(), other.getLocation().getZ()}).toArray(double[][]::new);
+                int pick = PropHuntTactics.pickHideSpot(spots.stream().map(l -> new double[]{l.getX(), l.getZ()}).toArray(double[][]::new),
+                    start == null ? null : new double[]{start.getX(), start.getZ()}, taken, rng::nextInt);
+                if (pick >= 0) { botGoals.put(id, spots.get(pick)); botNextAction.put(id, tick + 300); return; }
+            }
+        } else if (seekers.contains(id) && tick >= botLocalSearchUntil.getOrDefault(id, 0L)) {
+            // Sweep: prefer spots not looked at lately, the last noise first. Map patrol points join the candidates.
+            var random = ThreadLocalRandom.current();
+            var candidates = new ArrayList<Location>();
+            if (game.plugin().bots() != null) {
+                Location patrol = game.plugin().bots().patrolDestination(game, bot);
+                if (patrol != null) candidates.add(patrol);
+            }
+            for (int attempt = 0; attempt < 24 && candidates.size() < 14; attempt++) {
+                Location candidate = bot.getLocation().add(random.nextInt(-14, 15), 0, random.nextInt(-14, 15));
+                candidate.setX(candidate.getBlockX() + .5); candidate.setZ(candidate.getBlockZ() + .5);
+                if (PropSpace.clear(candidate, 1.8) && PropSpace.supported(candidate)) candidates.add(candidate);
+            }
+            double[] next = botLedger(id).next(bot.getLocation().getX(), bot.getLocation().getZ(),
+                candidates.stream().map(l -> new double[]{l.getX(), l.getZ()}).toArray(double[][]::new), tick, random::nextInt);
+            if (next != null) {
+                Location goal2 = candidates.stream().filter(l -> l.getX() == next[0] && l.getZ() == next[1]).findFirst()
+                    .orElseGet(() -> new Location(bot.getWorld(), next[0], bot.getLocation().getY(), next[1]));
+                botGoals.put(id, goal2); return;
             }
         }
         botGoals.remove(id);
@@ -446,6 +528,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
                         cue.setX(Math.floor(cue.getX() / 4) * 4 + 2);
                         cue.setZ(Math.floor(cue.getZ() / 4) * 4 + 2);
                         botGoals.put(seekerId, cue);
+                        botLedger(seekerId).hear(cue.getX(), cue.getZ(), botNow);
                     }
                 }
                 game.world().spawnParticle(org.bukkit.Particle.NOTE,
@@ -755,6 +838,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
             event.setCancelled(true);
             Player player = event.getPlayer();
             game.world().playSound(player.getLocation(), Sound.ENTITY_CHICKEN_AMBIENT, 2f, 1f);
+            botHear(player.getLocation());
             player.sendActionBar(Text.mm("<yellow>Bok bok... was that wise?"));
         }
     }
@@ -861,7 +945,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
         for (Player player : game.everyone()) {
             if (player.getOpenInventory().getTopInventory().getHolder() instanceof PaletteMenu) player.closeInventory();
         }
-        originalHiders.clear(); botNextPower.clear(); botLocalSearchUntil.clear(); botPaletteChosen.clear(); botGoals.clear(); botMemories.clear(); botNextAction.clear(); choices.clear(); nextBlockHit.clear(); routedBlockHits.clear(); nextLock.clear(); cooldowns.clear(); locked.clear();
+        originalHiders.clear(); botNextPower.clear(); botLocalSearchUntil.clear(); botPaletteChosen.clear(); botGoals.clear(); botMemories.clear(); botLedgers.clear(); botNextThreat.clear(); botRelockBy.clear(); botNextAction.clear(); choices.clear(); nextBlockHit.clear(); routedBlockHits.clear(); nextLock.clear(); cooldowns.clear(); locked.clear();
         if (failure != null) throw failure;
     }
 

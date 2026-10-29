@@ -51,6 +51,12 @@ public final class SkywarsGame extends MiniGame {
     private final java.util.Map<java.util.UUID, Long> botNextLoot = new java.util.HashMap<>();
     private final java.util.Map<java.util.UUID, Long> botNextBridge = new java.util.HashMap<>();
     private final java.util.Map<java.util.UUID, Integer> botBridged = new java.util.HashMap<>();
+    private final java.util.Map<java.util.UUID, List<Block>> botChests = new java.util.HashMap<>();
+    private final java.util.Map<java.util.UUID, Long> botNextScan = new java.util.HashMap<>();
+    private final java.util.Map<java.util.UUID, Location> botChestAt = new java.util.HashMap<>();
+    private final java.util.Map<java.util.UUID, Long> botChestSince = new java.util.HashMap<>();
+    private final java.util.Map<java.util.UUID, Set<Location>> botGaveUp = new java.util.HashMap<>();
+    private final java.util.Map<java.util.UUID, Long> botNextPearl = new java.util.HashMap<>();
     private final java.util.Map<java.util.UUID, String> botStatuses = new java.util.HashMap<>();
 
     public SkywarsGame(GameInstance game) {
@@ -110,13 +116,45 @@ public final class SkywarsGame extends MiniGame {
     }
 
     public boolean botCombat(Player bot,org.bukkit.entity.LivingEntity enemy,long tick,
-            uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty) { return botBow.combat(game,bot,enemy,tick,difficulty); }
+            uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty) {
+        if (pearlEscape(bot,enemy,tick,difficulty)) return true;
+        return botBow.combat(game,bot,enemy,tick,difficulty);
+    }
+
+    /** Hurt with an enemy on top of us: throw a real pearl at our own spawn island (never at the enemy). */
+    private boolean pearlEscape(Player bot,org.bukkit.entity.LivingEntity enemy,long tick,
+            uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty) {
+        var id=bot.getUniqueId();
+        int slot=bot.getInventory().first(Material.ENDER_PEARL);
+        double health=Math.min(1,bot.getHealth()/Math.max(1,bot.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue()));
+        if (slot<0 || tick<botNextPearl.getOrDefault(id,0L) || bot.getWorld()!=enemy.getWorld()
+                || !SkywarsTactics.shouldPearlEscape(health,bot.getLocation().distance(enemy.getLocation()),true,difficulty)) return false;
+        Location home=game.spawnFor(bot);
+        if (home==null || home.getWorld()!=bot.getWorld() || home.distanceSquared(bot.getLocation())<8*8
+                || home.distanceSquared(bot.getLocation())>40*40) return false;
+        botNextPearl.put(id,tick+200);
+        var aim=home.toVector().add(new org.bukkit.util.Vector(0,1,0)).subtract(bot.getEyeLocation().toVector());
+        aim.setY(aim.getY()+Math.sqrt(aim.lengthSquared())*.06);
+        var pearl=bot.launchProjectile(org.bukkit.entity.EnderPearl.class,aim.normalize().multiply(1.5));
+        if (!pearl.isValid()) return false;
+        var stack=bot.getInventory().getItem(slot);
+        if (stack!=null) { if (stack.getAmount()<=1) bot.getInventory().setItem(slot,null); else stack.setAmount(stack.getAmount()-1); }
+        bot.swingMainHand();
+        botStatuses.put(id,"Pearling back to the home island");
+        return true;
+    }
 
     public String botStatus(Player bot) { return botStatuses.getOrDefault(bot.getUniqueId(), "Preparing to loot"); }
 
     /** Called after ordinary visible-enemy selection; null means stop, never use an unvalidated fallback. */
     public Location botObjective(Player bot, Location proposedGoal, long tick,
             uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty) {
+        return botObjective(bot, proposedGoal, tick, difficulty, true);
+    }
+
+    /** {@code engaged} is true while a visible opponent is being fought; otherwise the bot plans its own errand. */
+    public Location botObjective(Player bot, Location proposedGoal, long tick,
+            uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty, boolean engaged) {
         if (game.state() != uk.co.playerready.pulsegames.core.game.GameState.RUNNING || game.frozen()
                 || !game.isActive(bot) || !game.isBot(bot) || bot.getWorld() != game.world()) return null;
         var id = bot.getUniqueId();
@@ -129,6 +167,7 @@ public final class SkywarsGame extends MiniGame {
         if(airborne!=null) return airborne;
         if (!bot.isOnGround()) { botStatuses.put(id,"Waiting for safe footing"); return null; }
         Location here=bot.getLocation();
+        if (!engaged) proposedGoal=errand(bot,here,tick);
         Location step=SkywarsBotTerrain.step(here,proposedGoal);
         if (step==null) { botStatuses.put(id,"No nearby objective"); return null; }
         if (SkywarsBotTerrain.corridor(here,step)) { botStatuses.put(id,"Walking on supported terrain"); return step; }
@@ -143,6 +182,58 @@ public final class SkywarsGame extends MiniGame {
             botStatuses.put(id,"Bridging with inventory blocks"); return step;
         }
         return null;
+    }
+
+    /** Nothing in view: loot the nearest chest, then bridge to the best-kitted player, and never idle on spawn. */
+    private Location errand(Player bot,Location here,long tick) {
+        var id=bot.getUniqueId();
+        Set<Location> visited=botLooted.computeIfAbsent(id,ignored->new HashSet<>());
+        List<Block> chests=botChests.computeIfAbsent(id,ignored->new java.util.ArrayList<>());
+        if (tick>=botNextScan.getOrDefault(id,0L)) {
+            botNextScan.put(id,tick+100);
+            chests.clear();
+            int cx=here.getBlockX()>>4,cz=here.getBlockZ()>>4;
+            for(int x=cx-2;x<=cx+2;x++) for(int z=cz-2;z<=cz+2;z++) {
+                if(!game.world().isChunkLoaded(x,z)) continue;
+                for(var state:game.world().getChunkAt(x,z).getTileEntities(b->b.getType()==Material.CHEST || b.getType()==Material.TRAPPED_CHEST,false))
+                    chests.add(state.getBlock());
+            }
+        }
+        double[][] spots=new double[chests.size()][];
+        boolean[] looted=new boolean[spots.length];
+        for(int i=0;i<spots.length;i++) {
+            Location at=chests.get(i).getLocation();
+            spots[i]=new double[]{at.getX()+.5,at.getY(),at.getZ()+.5};
+            looted[i]=visited.contains(at) || botGaveUp.getOrDefault(id,Set.of()).contains(at);
+        }
+        int chest=SkywarsTactics.nearestChest(here.getX(),here.getY(),here.getZ(),spots,looted);
+        if (chest>=0) {
+            Location at=chests.get(chest).getLocation();
+            Long since=botChestSince.get(id);
+            if (since==null || !at.equals(botChestAt.get(id))) { botChestAt.put(id,at); botChestSince.put(id,tick); }
+            else if (tick-since>400) { botGaveUp.computeIfAbsent(id,ignored->new HashSet<>()).add(at); botChestSince.remove(id); }
+            botStatuses.put(id,"Heading for a chest");
+            return new Location(game.world(),spots[chest][0],here.getY(),spots[chest][2]);
+        }
+        List<Player> others=game.alivePlayers().stream().filter(p->!p.equals(bot) && game.isActive(p) && p.getWorld()==bot.getWorld()
+                && (game.teamOf(bot)==null || !game.teamOf(bot).contains(p))).toList();
+        double[][] players=new double[others.size()][];
+        for(int i=0;i<players.length;i++) {
+            Location at=others.get(i).getLocation();
+            var inv=others.get(i).getInventory();
+            int gear=SkywarsBotInventory.rank(inv.getHelmet())+SkywarsBotInventory.rank(inv.getChestplate())
+                    +SkywarsBotInventory.rank(inv.getLeggings())+SkywarsBotInventory.rank(inv.getBoots())
+                    +SkywarsBotInventory.rank(inv.getItemInMainHand());
+            players[i]=new double[]{at.getX(),at.getZ(),gear};
+        }
+        int target=SkywarsTactics.richestTarget(here.getX(),here.getZ(),players);
+        if (SkywarsTactics.plan(false,target>=0)==SkywarsTactics.Plan.BRIDGE) {
+            botStatuses.put(id,"Heading for a rival");
+            return others.get(target).getLocation();
+        }
+        double[] offset=SkywarsTactics.wanderOffset(bound->ThreadLocalRandom.current().nextInt(bound));
+        botStatuses.put(id,"Pacing the island");
+        return here.clone().add(offset[0],0,offset[1]);
     }
 
     private void lootNearby(Player bot) {
@@ -229,6 +320,7 @@ public final class SkywarsGame extends MiniGame {
 
     @Override public void onCleanup() {
         botTraversal.clear(); botBow.clear(); botLooted.clear(); botNextLoot.clear(); botNextBridge.clear(); botBridged.clear(); botStatuses.clear();
+        botChests.clear(); botNextScan.clear(); botChestAt.clear(); botChestSince.clear(); botGaveUp.clear(); botNextPearl.clear();
     }
 
     @Override

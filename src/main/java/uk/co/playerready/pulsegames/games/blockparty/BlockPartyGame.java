@@ -217,11 +217,43 @@ public final class BlockPartyGame extends MiniGame implements uk.co.playerready.
         });
     }
 
+    private final java.util.Map<java.util.UUID, BlockPartyTactics.Plan> botPlans = new java.util.HashMap<>();
+    private long botNow;
+
+    /** One reaction/misread decision per bot per call, started the first think of the STAND phase. */
+    @Override
+    public void botTick(Player bot, long tick, uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty) {
+        botNow = tick;
+        if (phase != Phase.STAND || floor == null) return;
+        var plan = botPlans.get(bot.getUniqueId());
+        if (plan == null || plan.round() != round)
+            botPlans.put(bot.getUniqueId(), BlockPartyTactics.plan(tick, round, difficulty, isHardcore(), callSeconds * 20,
+                    bound -> ThreadLocalRandom.current().nextInt(bound)));
+    }
+
     @Override
     public org.bukkit.Location botDestination(Player bot) {
         if (floor == null || target == null || phase == Phase.SHUFFLE) return null;
+        var plan = botPlans.get(bot.getUniqueId());
+        boolean wrong = false;
+        if (plan != null && plan.round() == round && phase == Phase.STAND) {
+            var step = BlockPartyTactics.step(plan, botNow - plan.start());
+            if (step == BlockPartyTactics.Step.WAIT) return null;
+            wrong = step == BlockPartyTactics.Step.WRONG;
+        }
+        if (wrong) {
+            // A misread: the nearest floor of some other colour. The shared checks still decide what is standable.
+            var other = nearestTile(bot, m -> m != target && java.util.Arrays.asList(colors()).contains(m));
+            if (other != null) return other;
+        }
         var cached = botGoals.get(bot.getUniqueId());
         if (cached != null) return cached.clone();
+        var best = nearestTile(bot, m -> m == target);
+        if (best != null) botGoals.put(bot.getUniqueId(), best.clone());
+        return best;
+    }
+
+    private org.bukkit.Location nearestTile(Player bot, java.util.function.Predicate<Material> wanted) {
         var here = bot.getLocation();
         org.bukkit.Location best = null;
         double distance = Double.MAX_VALUE;
@@ -230,7 +262,7 @@ public final class BlockPartyGame extends MiniGame implements uk.co.playerready.
         // The validated floor is bounded to 4096 cells; don't miss a fair distant patch.
         for (int x = floor.minX(); x <= floor.maxX(); x++) {
             for (int z = floor.minZ(); z <= floor.maxZ(); z++) {
-                if (game.world().getBlockAt(x, y, z).getType() != target
+                if (!wanted.test(game.world().getBlockAt(x, y, z).getType())
                         || !game.world().getBlockAt(x, y + 1, z).isPassable()
                         || !game.world().getBlockAt(x, y + 2, z).isPassable()) continue;
                 var point = new org.bukkit.Location(game.world(), x + 0.5, y + 1, z + 0.5);
@@ -240,11 +272,10 @@ public final class BlockPartyGame extends MiniGame implements uk.co.playerready.
                 if (candidate < distance) { best = point; distance = candidate; }
             }
         }
-        if (best != null) botGoals.put(bot.getUniqueId(), best.clone());
         return best;
     }
 
-    @Override public void onCleanup() { botGoals.clear(); }
+    @Override public void onCleanup() { botGoals.clear(); botPlans.clear(); }
     @Override public MiniGame.Cue eliminationSound() {
         return uk.co.playerready.pulsegames.games.common.HazardFeedback.LOUD_ELIMINATION;
     }

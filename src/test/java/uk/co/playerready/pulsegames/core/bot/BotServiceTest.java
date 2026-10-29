@@ -272,6 +272,7 @@ class BotServiceTest {
 
     BotActor activeCoop(org.bukkit.entity.Zombie zombie, Location guard) {
         bots = new BotService(plugin, provider, bound -> 0);
+        bots.walkable = at -> true;
         when(game.type().id()).thenReturn("villagerdefense");
         when(game.mode().id()).thenReturn("easy");
         BotActor actor = mock(BotActor.class);
@@ -281,6 +282,7 @@ class BotServiceTest {
         when(provider.create(anyString(), any())).thenReturn(actor);
         when(bot.getLocation()).thenReturn(new Location(world, 0, 70, 0));
         when(bot.getWorld()).thenReturn(world);
+        when(bot.getHealth()).thenReturn(20.0);
         when(bot.getInventory()).thenReturn(mock(org.bukkit.inventory.PlayerInventory.class));
         when(bot.hasLineOfSight(any(org.bukkit.entity.Entity.class))).thenReturn(true);
         MiniGame logic = mock(MiniGame.class, withSettings().extraInterfaces(BotObjectives.class));
@@ -293,6 +295,7 @@ class BotServiceTest {
         if (zombie != null) {
             when(zombie.getUniqueId()).thenReturn(UUID.randomUUID());
             when(zombie.isValid()).thenReturn(true);
+            when(zombie.getName()).thenReturn("Zombie");
             when(zombie.getWorld()).thenReturn(world);
             when(zombie.getLocation()).thenReturn(new Location(world, 2, 70, 0));
             when(zombie.getEyeLocation()).thenReturn(new Location(world, 2, 71, 0));

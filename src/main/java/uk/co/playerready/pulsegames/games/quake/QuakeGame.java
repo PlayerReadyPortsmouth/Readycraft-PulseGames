@@ -222,7 +222,7 @@ public final class QuakeGame extends MiniGame implements BotMovement {
         double ideal=weapon==Weapon.RAILGUN?14:weapon==Weapon.BLASTER?11:7;
         boolean retreat=health.getOrDefault(bot.getUniqueId(),100)<=40 || distance<ideal-2;
         double forward=retreat?-4:distance>ideal+3?4:0;
-        double side=((tick/40+bot.getUniqueId().hashCode())&1)==0?3:-3;
+        double side=QuakeTactics.strafe(tick,bot.getUniqueId().getLeastSignificantBits()^bot.getUniqueId().getMostSignificantBits(),botTier.profile());
         Vector lateral=new Vector(-towards.getZ(),0,towards.getX());
         Cuboid area=spawnArea();
         for(double strafe:new double[]{side,-side,0}) {
@@ -276,8 +276,10 @@ public final class QuakeGame extends MiniGame implements BotMovement {
         game.end(best>0&&unique?leaders:List.of(),"quake-time");
     }
     @Override public Location botDestination(Player bot){return goals.get(bot.getUniqueId());}
+    private BotDifficulty botTier=BotDifficulty.NORMAL;
     @Override public void botTick(Player bot,long tick,BotDifficulty difficulty){
         if(!active(bot))return;
+        botTier=difficulty;
         Player target=game.alivePlayers().stream().filter(p->enemy(bot,p)&&bot.hasLineOfSight(p))
                 .filter(p->p.getLocation().distanceSquared(bot.getLocation())<=32*32)
                 .min(Comparator.comparingDouble(p->p.getLocation().distanceSquared(bot.getLocation())
@@ -291,8 +293,9 @@ public final class QuakeGame extends MiniGame implements BotMovement {
         if(tick<next)return;
         botReady.put(bot.getUniqueId(),tick+Math.max(8,difficulty.projectileDelayTicks()));
         Location aim=bot.getEyeLocation();aim.setDirection(target.getEyeLocation().toVector().subtract(aim.toVector()));
-        double spread=(100-difficulty.accuracyPercent())*.4;var random=ThreadLocalRandom.current();
-        bot.setRotation(aim.getYaw()+(float)(random.nextDouble()*2-1)*(float)spread,aim.getPitch());fire(bot);
+        double spread=QuakeTactics.yawError(difficulty.profile());var random=ThreadLocalRandom.current();
+        bot.setRotation(aim.getYaw()+(float)QuakeTactics.error(spread,random.nextDouble()*2-1),
+                aim.getPitch()+(float)QuakeTactics.error(spread*.5,random.nextDouble()*2-1));fire(bot);
         if(health.getOrDefault(bot.getUniqueId(),100)<=60)ability(bot,Ability.SHIELD);
         if(random.nextInt(3)==0 && goals.get(bot.getUniqueId()).distanceSquared(bot.getLocation())>1) {
             // Jump may accompany evasion; forward dash while aiming at an enemy would undo retreat.
