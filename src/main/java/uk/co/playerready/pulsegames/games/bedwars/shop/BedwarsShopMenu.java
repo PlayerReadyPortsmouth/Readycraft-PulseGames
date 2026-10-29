@@ -9,7 +9,9 @@ import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import uk.co.playerready.pulsegames.core.ui.Confirm;
 import uk.co.playerready.pulsegames.core.ui.Lore;
+import uk.co.playerready.pulsegames.core.ui.Theme;
 import uk.co.playerready.pulsegames.core.ui.shop.ShopFeedback;
 import uk.co.playerready.pulsegames.core.ui.shop.ShopFeedback.Outcome;
 import uk.co.playerready.pulsegames.core.ui.shop.ShopRules.Status;
@@ -53,11 +55,8 @@ public final class BedwarsShopMenu implements TabbedShop.Source {
 
     @Override public List<Tab> tabs(Player player) {
         List<Tab> tabs = new ArrayList<>();
-        for (Category c : Category.values()) {
-            tabs.add(c == Category.QUICK_BUY
-                    ? new Tab(c.name(), c.icon, c.title, false, "Pick a shelf above", "Tap a shelf at the top to see more things to buy.")
-                    : Tab.of(c.name(), c.icon, c.title));
-        }
+        // The quick-buy row is always on screen, so it has no tab of its own: that frees a slot for Funky.
+        for (Category c : Category.values()) if (c != Category.QUICK_BUY) tabs.add(Tab.of(c.name(), c.icon, c.title));
         if (backend.teamUpgradesOn() && !backend.catalogue().upgrades().isEmpty())
             tabs.add(new Tab(TEAM, Material.BEACON, "Team Upgrades", true, null, null));
         return tabs;
@@ -71,7 +70,6 @@ public final class BedwarsShopMenu implements TabbedShop.Source {
     @Override public List<Entry> entries(Player player, Tab tab) {
         ShopCatalogue catalogue = backend.catalogue();
         if (TEAM.equals(tab.id())) return catalogue.upgrades().stream().map(u -> upgradeEntry(player, u)).toList();
-        if (tab.id().equals(Category.QUICK_BUY.name())) return List.of();
         Set<Material> held = held(player);
         return catalogue.inCategory(Category.valueOf(tab.id())).stream().map(i -> itemEntry(player, i, held)).toList();
     }
@@ -89,19 +87,35 @@ public final class BedwarsShopMenu implements TabbedShop.Source {
         int have = count(player, item.currency());
         Verdict verdict = ShopRules.verdict(backend.catalogue(), item, have, held);
         String title = (item.amount() > 1 ? item.amount() + "x " : "") + item.name();
-        ItemStack stack = ShopTiles.offer(base(player, item), new ShopTiles.Offer(title, item.blurb(), item.cost(),
+        String blurb = item.isNew() ? "NEW! " + item.blurb() : item.blurb();
+        ItemStack stack = ShopTiles.offer(base(player, item), new ShopTiles.Offer(title, blurb, item.cost(),
                 n -> ShopRules.currencyName(item.currency(), n), have, verdict));
         return new Entry(stack, p -> {
-            Outcome outcome = switch (backend.buy(p, item)) {
-                case OK -> Outcome.OK;
-                case NEED_MORE -> Outcome.NEED_MORE;
-                case NO_ROOM -> Outcome.NO_ROOM;
-                case ALREADY_OWNED -> Outcome.OWNED;
-            };
-            int shortfall = ShopRules.afford(count(p, item.currency()), item.cost()).shortfall();
-            ShopFeedback.play(p, outcome, shortfall, ShopRules.currencyName(item.currency(), shortfall), item.name());
+            if (verdict.buyable() && needsConfirm(item.cost(), confirmAt())) {
+                Confirm.ask(plugin, p, "Buy " + item.name() + "?", List.of(Theme.NAME + item.name(),
+                        Theme.TEXT + "Price: " + Theme.MONEY + item.cost() + " " + ShopRules.currencyName(item.currency(), item.cost())),
+                        true, who -> { buyNow(who, item); shop.open(who, item.category().name()); }, who -> shop.open(who, item.category().name()));
+                return;
+            }
+            buyNow(p, item);
         });
     }
+
+    private void buyNow(Player p, Item item) {
+        Outcome outcome = switch (backend.buy(p, item)) {
+            case OK -> Outcome.OK;
+            case NEED_MORE -> Outcome.NEED_MORE;
+            case NO_ROOM -> Outcome.NO_ROOM;
+            case ALREADY_OWNED -> Outcome.OWNED;
+        };
+        int shortfall = ShopRules.afford(count(p, item.currency()), item.cost()).shortfall();
+        ShopFeedback.play(p, outcome, shortfall, ShopRules.currencyName(item.currency(), shortfall), item.name());
+    }
+
+    /** The same "shop.confirm-at" price the token shop uses: at or above it, ask first. */
+    static boolean needsConfirm(int price, int confirmAt) { return price >= confirmAt; }
+
+    private int confirmAt() { return plugin.getConfig().getInt("shop.confirm-at", 500); }
 
     private Entry upgradeEntry(Player player, Upgrade upgrade) {
         int level = backend.upgradeLevel(player, upgrade);

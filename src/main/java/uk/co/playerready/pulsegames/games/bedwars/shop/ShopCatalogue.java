@@ -24,6 +24,7 @@ import java.util.Set;
 public final class ShopCatalogue {
     public static final int PAGE_CAPACITY = 18;
     public static final int QUICK_CAPACITY = 8;
+    public static final int MAX_UPGRADES = 9;
 
     public enum Category {
         QUICK_BUY("Quick Buy", Material.NETHER_STAR),
@@ -33,7 +34,8 @@ public final class ShopCatalogue {
         TOOLS("Tools", Material.IRON_PICKAXE),
         RANGED("Ranged", Material.BOW),
         POTIONS("Potions", Material.BREWING_STAND),
-        UTILITY("Utility", Material.GOLDEN_APPLE);
+        UTILITY("Utility", Material.GOLDEN_APPLE),
+        FUNKY("Funky", Material.FIREWORK_STAR);
 
         public final String title;
         public final Material icon;
@@ -44,9 +46,13 @@ public final class ShopCatalogue {
 
     public record Item(String id, Category category, Material material, int amount, Material currency, int cost,
                        String name, String blurb, String group, int tier, boolean equip, boolean teamColour,
-                       boolean unique, boolean quickBuy, PotionSpec potion) {}
+                       boolean unique, boolean quickBuy, PotionSpec potion, String custom, boolean isNew,
+                       int cooldown, int seconds) {}
 
-    public enum Effect { SHARPNESS, PROTECTION, HASTE }
+    public enum Effect {
+        SHARPNESS, PROTECTION, HASTE, FORGE, HEAL_POOL, TRAP_ALARM, TRAP_SLOW, TRAP_FATIGUE;
+        public boolean isTrap() { return name().startsWith("TRAP_"); }
+    }
 
     /** Each entry of {@code costs} is the diamond price of that level. */
     public record Upgrade(String id, Effect effect, Material icon, String name, String blurb, List<Integer> costs) {
@@ -71,6 +77,11 @@ public final class ShopCatalogue {
     }
 
     public List<Item> quickBuy() { return items.stream().filter(Item::quickBuy).toList(); }
+
+    public Item byId(String id) {
+        for (Item item : items) if (item.id().equals(id)) return item;
+        return null;
+    }
 
     public Item byMaterial(Material material) {
         for (Item item : items) if (item.material() == material) return item;
@@ -130,6 +141,9 @@ public final class ShopCatalogue {
                 tier = chain.indexOf(material);
                 if (tier < 0) throw new IllegalArgumentException("item " + id + " is not in group " + group);
             }
+            String custom = row.opt("custom");
+            if (custom != null && !uk.co.playerready.pulsegames.games.bedwars.BedwarsCustomItems.IDS.contains(custom))
+                throw new IllegalArgumentException("item " + id + " uses unknown custom behaviour " + custom);
             boolean equip = row.bool("equip");
             if (equip && !material.name().endsWith("_CHESTPLATE"))
                 throw new IllegalArgumentException("item " + id + ": equip items must be a chestplate");
@@ -140,7 +154,8 @@ public final class ShopCatalogue {
             }
             items.add(new Item(id, category, material, amount, currency(row.str("currency"), id), cost,
                     row.str("name"), row.opt("blurb") == null ? "" : row.opt("blurb"), group, tier, equip,
-                    row.bool("team-colour"), row.bool("unique"), row.bool("quick-buy"), potion));
+                    row.bool("team-colour"), row.bool("unique"), row.bool("quick-buy"), potion,
+                    custom, row.bool("new"), Math.max(0, row.integer("cooldown", 0)), Math.max(0, row.integer("seconds", 0))));
         }
         if (items.isEmpty()) throw new IllegalArgumentException("no items");
         Map<Category, Integer> perCategory = new EnumMap<>(Category.class);
@@ -167,7 +182,7 @@ public final class ShopCatalogue {
             upgrades.add(new Upgrade(id, effect, material(row.str("icon"), "upgrade " + id), row.str("name"),
                     row.opt("blurb") == null ? "" : row.opt("blurb"), List.copyOf(costs)));
         }
-        if (upgrades.size() > 7) throw new IllegalArgumentException("at most 7 team upgrades");
+        if (upgrades.size() > MAX_UPGRADES) throw new IllegalArgumentException("at most " + MAX_UPGRADES + " team upgrades");
         return new ShopCatalogue(items, upgrades, groups);
     }
 
