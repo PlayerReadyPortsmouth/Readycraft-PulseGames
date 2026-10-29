@@ -58,12 +58,23 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void chat(AsyncChatEvent event) {
         if (compatibility != null && compatibility.hasAdvancedChat()) return;
+        // The viewer set is the privacy proof for the relay, so decide now, before local delivery empties it.
+        boolean publicAudience = LocalChatDelivery.isPublic(event.getPlayer(), event.viewers(), Bukkit.getOnlinePlayers());
+        // Local system delivery: this plugin is the final consumer at MONITOR, so it may consume the viewer set. Each
+        // original viewer (console included, so the log line appears exactly once) gets the rendered line as an unsigned
+        // system message and the signed packet is not also sent. Mutes, filters and channels have already trimmed it.
+        if (getConfig().getBoolean("chat.local-system-delivery")) {
+            var viewers = event.viewers();
+            LocalChatDelivery.deliver(viewers, event.renderer(), event.getPlayer(), event.getPlayer().displayName(), event.message(),
+                    getConfig().getString("chat.local-format", LocalChatDelivery.DEFAULT_FORMAT));
+            viewers.clear();
+        }
         // Reading after dispatch also respects cancellation/restricted viewers by later handlers.
         getServer().getScheduler().runTask(this, () -> {
             Player player = event.getPlayer(); UUID id = player.getUniqueId();
             if (event.isCancelled() || !player.isOnline() || player.getMetadata("vanished").stream().anyMatch(org.bukkit.metadata.MetadataValue::asBoolean)) return;
             // A private/local-radius/staff channel must never accidentally become public.
-            if (!event.viewers().contains(player) || !event.viewers().containsAll(Bukkit.getOnlinePlayers())) return;
+            if (!publicAudience) return;
             if (event.renderer() != null && event.renderer().getClass().getName().contains("CityChatListener")) return;
             String body = Wire.plain(PlainTextComponentSerializer.plainText().serialize(event.message()));
             if (body.isBlank() || body.length() > 512) return;

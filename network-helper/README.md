@@ -2,7 +2,7 @@
 
 ## Cross-server parties — prepared draft, not deployed
 
-PulseNetwork **0.1.5** credits **AurorasChaos (on behalf of Player Ready)**. The current draft adds proxy-owned `/party` (also `/networkparty`) invitations, acceptance, list, leave, disband and private party chat. Invitations expire after 60 seconds; parties hold up to eight online players. Java has a clickable invitation; Bedrock can type `/party accept` or `/party deny`. Leaving the proxy removes a member and promotes another leader if needed. Backend transfers preserve membership; proxy restarts do not preserve parties yet.
+PulseNetwork **0.1.6** credits **AurorasChaos (on behalf of Player Ready)**. The current draft adds proxy-owned `/party` (also `/networkparty`) invitations, acceptance, list, leave, disband and private party chat. Invitations expire after 60 seconds; parties hold up to eight online players. Java has a clickable invitation; Bedrock can type `/party accept` or `/party deny`. Leaving the proxy removes a member and promotes another leader if needed. Backend transfers preserve membership; proxy restarts do not preserve parties yet.
 
 The leader selects an advertised game through `/queues` or `/joinqueue <id>`. Every party member transfers with their **own** saved origin. The destination receives one authenticated group admission only after everyone arrives. Transfer failure or timeout cancels the group and returns transferred members where possible; late successful transfers also return. The destination rejects conflicting local parties rather than overwriting them. A leader acknowledgement completes the whole proxy request atomically. Game capacity, team packing, preview access and admission remain PulseGames decisions.
 
@@ -67,6 +67,21 @@ Nothing logs player lists, names from the roster or secrets; a failed update log
 - [ ] Ordering on a 1.21.2+ client matches expectations (flip `tab.list-order-higher-first` if not); older client sorts by name without errors.
 - [ ] Excluded or non-allowlisted server leaves the backend's own list untouched; no EssentialsX conflict.
 - [ ] Proxy load acceptable with a full roster; logs contain no player lists or secrets.
+
+## Local chat delivery (`chat.local-system-delivery`)
+
+Symptom: players on the same backend cannot see each other's ordinary chat, while messages relayed from another server show fine. Since 1.19 player chat is signed with the Microsoft account key. Behind Velocity (and for Floodgate/Bedrock players, who cannot sign) clients can drop or hide player-chat packets whose signature chain does not validate. The proxy's relayed global chat arrives as unsigned system messages, so it is unaffected.
+
+Paper key (`config.yml`, default `false`; turn it on per backend):
+
+| Key | Default | Meaning |
+|---|---|---|
+| `chat.local-system-delivery` | `false` | Deliver local chat to each viewer as an unsigned system message. |
+| `chat.local-format` | `<name>: <message>` | Only used if the event's own renderer fails. `<name>` and `<message>` are literal substitutions; nothing is parsed as MiniMessage. |
+
+What it changes: in the existing final (MONITOR, non-cancelled) chat handler, after the global relay decision has been taken from the viewer set, the helper renders the line for each original viewer with the event's own renderer (so AdvancedChat, Essentials and similar formatting is kept), sends it with `sendMessage(Component)`, then clears the event's viewers so the signed packet is not also sent. Mutes, filters and channel/radius plugins have already trimmed the viewers, and no viewer is ever added. The console is one of the viewers and receives its single line the same way, so the log shows each message once. The global relay does not depend on the viewers afterwards: it uses the decision recorded before they were cleared. Modifying the viewers at MONITOR is deliberate: this plugin is the final consumer and nothing else should act on the event after it. Events handled by AdvancedChat's own rebroadcast are skipped, as for the relay.
+
+Known limitation: clients lose the per-message report option and hover, and the message has no "secure chat" indicator. Cancellation by a later MONITOR listener no longer stops delivery.
 
 ## Original baseline
 
