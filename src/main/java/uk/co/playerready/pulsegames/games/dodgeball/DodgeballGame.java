@@ -110,6 +110,9 @@ public final class DodgeballGame extends MiniGame {
         }
         game.broadcast("Use your blaze rod to throw! Three hits and you're out.");
     }
+    /** Balls in the air, for bots reading incoming throws the way a player watches them come. */
+    public List<Snowball> liveBalls() { return List.copyOf(balls.values()); }
+
     /** Shared human/bot action. Aim with the player's look direction before calling. */
     public boolean throwBall(Player player) {
         if (game.state() != GameState.RUNNING || game.frozen() || !game.isActive(player)

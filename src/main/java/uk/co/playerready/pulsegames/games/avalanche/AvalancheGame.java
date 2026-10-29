@@ -8,6 +8,7 @@ import uk.co.playerready.pulsegames.core.game.GameInstance;
 import uk.co.playerready.pulsegames.core.game.MiniGame;
 import uk.co.playerready.pulsegames.core.util.Cuboid;
 import uk.co.playerready.pulsegames.core.util.Text;
+import uk.co.playerready.pulsegames.games.common.HazardBotTactics;
 import uk.co.playerready.pulsegames.games.common.HazardFeedback;
 import uk.co.playerready.pulsegames.games.common.RegionSnapshot;
 import uk.co.playerready.pulsegames.games.common.RoundController;
@@ -250,21 +251,28 @@ public final class AvalancheGame extends MiniGame implements uk.co.playerready.p
     public Location botDestination(Player bot) {
         if (area == null || !bot.getWorld().equals(game.world())) return null;
         Location here = bot.getLocation();
-        // Only currently visible falling entities, never the random next-wave positions.
-        var threats = bot.getWorld().getNearbyEntities(here, 12, 24, 12).stream()
+        // Falling blocks in the air are public (and telegraphed by their landing markers): no line of sight needed,
+        // a player looks up. Only blocks above this spot's height matter.
+        var threats = bot.getWorld().getNearbyEntities(here, 14, 28, 14).stream()
                 .filter(entity -> entity instanceof org.bukkit.entity.FallingBlock && entity.isValid())
-                .filter(entity -> entity.getLocation().getY() > here.getY() - 1 && bot.hasLineOfSight(entity))
+                .filter(entity -> entity.getLocation().getY() > here.getY() - 1)
                 .limit(128).map(entity -> entity.getLocation()).toList();
         Cuboid target = game.arena().settings().getBoolean("shrinking", true) ? nextArea() : area;
         if (threats.isEmpty() && target.containsColumn(here)) return null;
-        return uk.co.playerready.pulsegames.core.bot.GroundNavigation.nextStep(here, original::containsColumn,
+        return uk.co.playerready.pulsegames.core.bot.GroundNavigation.nextStepDeep(here, original::containsColumn,
                 point -> {
                     double dxEdge = Math.max(0, Math.max(target.minX() + .5 - point.getX(), point.getX() - target.maxX() - .5));
                     double dzEdge = Math.max(0, Math.max(target.minZ() + .5 - point.getZ(), point.getZ() - target.maxZ() - .5));
-                    return -1000 * (dxEdge + dzEdge) + threats.stream().mapToDouble(threat -> {
-                    double dx = point.getX() - threat.getX(), dz = point.getZ() - threat.getZ();
-                    return -100.0 / Math.max(0.25, dx * dx + dz * dz);
-                }).sum(); });
+                    double danger = threats.stream().mapToDouble(threat -> HazardBotTactics.fallingDanger(
+                            point.getX() - threat.getX(), point.getZ() - threat.getZ(), threat.getY() - point.getY())).sum();
+                    return -1000 * (dxEdge + dzEdge) - danger + HazardBotTactics.openness(openCells(point)); });
+    }
+
+    private int openCells(Location point) {
+        int open = 0;
+        for (int[] d : new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}})
+            if (area.containsColumn(point.clone().add(d[0], 0, d[1]))) open++;
+        return open;
     }
 
     @Override

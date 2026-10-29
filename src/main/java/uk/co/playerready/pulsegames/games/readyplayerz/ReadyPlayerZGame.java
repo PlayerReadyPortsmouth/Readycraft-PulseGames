@@ -819,7 +819,20 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
             : humans.filter(p -> p.getWorld() == bot.getWorld())
                 .min(java.util.Comparator.comparingDouble(p -> p.getLocation().distanceSquared(bot.getLocation())))
                 .orElse(null);
-        return human != null ? human.getLocation() : game.arena().spawn(0, game.world());
+        if (human == null) return game.arena().spawn(0, game.world());
+        if (bot == null) return human.getLocation();
+        // Stand beside the human, in a lane of our own, never on top of them or blocking their line.
+        var squad = game.alivePlayers().stream().filter(game::isBot).map(Player::getUniqueId).sorted().toList();
+        Location nearestZombie = botEnemies().stream().map(org.bukkit.entity.Entity::getLocation)
+            .filter(l -> l.getWorld() == human.getWorld())
+            .min(java.util.Comparator.comparingDouble(l -> l.distanceSquared(human.getLocation()))).orElse(null);
+        double[][] humansAt = activeSquad().stream().filter(p -> !game.isBot(p) && p.getWorld() == human.getWorld())
+            .map(p -> new double[]{p.getLocation().getX(), p.getLocation().getZ()}).toArray(double[][]::new);
+        double[] spot = uk.co.playerready.pulsegames.core.bot.CoopTactics.lanePoint(
+            new double[]{human.getLocation().getX(), human.getLocation().getZ()},
+            Math.max(0, squad.indexOf(bot.getUniqueId())), squad.size(), 4.5,
+            nearestZombie == null ? null : new double[]{nearestZombie.getX(), nearestZombie.getZ()}, humansAt);
+        return new Location(human.getWorld(), spot[0], human.getLocation().getY(), spot[1]);
     }
 
     private Player downedHuman() {

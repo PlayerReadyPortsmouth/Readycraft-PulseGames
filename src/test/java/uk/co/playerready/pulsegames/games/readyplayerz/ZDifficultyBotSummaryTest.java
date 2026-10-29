@@ -68,8 +68,9 @@ class ZDifficultyBotSummaryTest {
         when(game.alivePlayers()).thenReturn(List.of(botA, botB, west, east));
         var logic = new ReadyPlayerZGame(game);
         logic.progression = mock(ZMapProgression.class);
-        assertSame(westAt, logic.botGuardPoint(botA));
-        assertSame(eastAt, logic.botGuardPoint(botB));
+        // Each bot stands in a lane beside its own nearest human, not on top of them.
+        assertTrue(logic.botGuardPoint(botA).distance(westAt) <= 5);
+        assertTrue(logic.botGuardPoint(botB).distance(eastAt) <= 5);
         assertSame(westAt, logic.botGuardPoint(), "the no-argument hook still means the first standing human");
     }
     @Test void overrunSummaryIsWellPlayedNotGameOver() {
