@@ -203,7 +203,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
 
     private void admin(Player player, String[] args) {
         if (args.length == 0) {
-            player.sendMessage(Text.msg("Usage: <yellow>/pulse <setup|shape|build|blueprints|bots|diagnose|maps|world|games|list|arenas|start|end|setlobby|reload>"));
+            player.sendMessage(Text.msg("Usage: <yellow>/pulse <setup|shape|build|blueprints|bots|diagnose|maps|lobby|world|games|list|arenas|start|end|setlobby|reload>"));
             return;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
@@ -283,11 +283,13 @@ public final class Commands implements CommandExecutor, TabCompleter {
                 plugin.lobby().setLobby(player.getLocation());
                 player.sendMessage(Text.msg("Main lobby set to your location."));
             }
+            case "lobby" -> plugin.lobbyPlacements().handle(player, java.util.Arrays.copyOfRange(args, 1, args.length));
             case "reload" -> {
                 plugin.reloadConfig();
                 plugin.arenas().load();
                 plugin.kits().load();
-                player.sendMessage(Text.msg("Config, arenas and kits reloaded."));
+                plugin.lobbyPlacements().reload();
+                player.sendMessage(Text.msg("Config, arenas, kits and lobby placements reloaded."));
             }
             default -> player.sendMessage(Text.msg("<red>Unknown subcommand."));
         }
@@ -355,8 +357,9 @@ public final class Commands implements CommandExecutor, TabCompleter {
                     }
                     return List.of();
                 }
+                if (args.length >= 2 && args[0].equalsIgnoreCase("lobby")) return plugin.lobbyPlacements().tab(sender, args);
                 if (args.length == 1) {
-                    return List.of("setup", "shape", "build", "blueprints", "bots", "diagnose", "maps", "practice", "results", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
+                    return List.of("lobby", "setup", "shape", "build", "blueprints", "bots", "diagnose", "maps", "practice", "results", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
                 }
                 if (args.length == 3 && args[0].equalsIgnoreCase("world")) return List.of("void", "normal");
                 if (args.length == 2 && args[0].equalsIgnoreCase("build")) {

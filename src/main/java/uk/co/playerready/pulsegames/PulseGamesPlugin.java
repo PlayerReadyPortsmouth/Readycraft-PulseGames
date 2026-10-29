@@ -58,6 +58,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
     private MapBuilder mapBuilder;
     private uk.co.playerready.pulsegames.core.lobby.QuickPlayService quickPlay;
     private uk.co.playerready.pulsegames.core.progression.EngagementService engagement;
+    private uk.co.playerready.pulsegames.core.lobby.LobbyPlacements lobbyPlacements;
 
     @Override
     public void onEnable() {
@@ -122,6 +123,8 @@ public final class PulseGamesPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new uk.co.playerready.pulsegames.core.ui.MenuListener(), this);
         getServer().getPluginManager().registerEvents(setup, this);
         new Commands(this);
+        lobbyPlacements = new uk.co.playerready.pulsegames.core.lobby.LobbyPlacements(this);
+        lobbyPlacements.start();
         bots.start();
         practice.start();
         buildWorlds.start();
@@ -142,6 +145,8 @@ public final class PulseGamesPlugin extends JavaPlugin {
         }
         try { if (content != null) content.close(); }
         catch (RuntimeException ex) { getLogger().log(java.util.logging.Level.SEVERE, "Content shutdown failed", ex); }
+        try { if (lobbyPlacements != null) lobbyPlacements.close(); }
+        catch (RuntimeException ex) { getLogger().log(java.util.logging.Level.SEVERE, "Lobby placements shutdown failed", ex); }
         try { if (bots != null) bots.close(); }
         catch (RuntimeException ex) { getLogger().log(java.util.logging.Level.SEVERE, "Bot shutdown failed", ex); }
         if (diagnostics != null) diagnostics.close();
@@ -205,6 +210,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
     public MapBuilder mapBuilder() { return mapBuilder; }
     public uk.co.playerready.pulsegames.core.lobby.QuickPlayService quickPlay() { return quickPlay; }
     public uk.co.playerready.pulsegames.core.progression.EngagementService engagement() { return engagement; }
+    public uk.co.playerready.pulsegames.core.lobby.LobbyPlacements lobbyPlacements() { return lobbyPlacements; }
     /** Public optional bridge API; called on the server thread by PulseNetwork. */
     public java.util.List<java.util.Map<String, String>> networkQueues() {
         return instances().all().stream()

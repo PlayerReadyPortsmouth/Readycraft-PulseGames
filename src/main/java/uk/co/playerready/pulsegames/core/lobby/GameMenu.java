@@ -218,7 +218,7 @@ public final class GameMenu {
         return Theme.HINT + "Quiet right now";
     }
 
-    private void pick(Player player, GameType game) {
+    void pick(Player player, GameType game) {
         if (!plugin.gameAvailable(game)) {
             Theme.sound(player, Theme.Cue.ERROR);
             player.sendMessage(Text.msg("<red>" + game.displayName() + " is coming soon!"));
