@@ -70,6 +70,13 @@ public final class KothGame extends MiniGame {
                 + " Two sides on the hill = <red>contested</red>, nobody scores.");
     }
 
+    /** The hill that currently scores: the active rotating hill1..N, else "hill" (or a lone hill1). Null before the map is read. */
+    public Cuboid botHill() {
+        if (hill != null) return hill;
+        Cuboid single = game.arena().region("hill");
+        return single != null ? single : game.arena().region("hill1");
+    }
+
     /** hill1..N in numeric order when the map defines more than one; otherwise nothing (single "hill"). */
     private List<Cuboid> hillRegions() {
         var numbered = new ArrayList<Map.Entry<Integer, Cuboid>>();

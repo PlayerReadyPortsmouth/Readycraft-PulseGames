@@ -17,7 +17,7 @@ import java.util.logging.Logger;
 
 /** Separate, bounded practice calibration; never writes ranked player statistics. */
 public final class AdaptiveBotSkillStore {
-    private static final int WINDOW = 40, PRIOR = 8, MIN_SAMPLES = 6;
+    private static final int WINDOW = 40, PRIOR = 8, MIN_SAMPLES = 3;
     private record Outcome(boolean won, double expected) {}
     private final File file;
     private final Logger logger;
@@ -46,8 +46,9 @@ public final class AdaptiveBotSkillStore {
         double expected = outcomes == null ? 0 : outcomes.stream().mapToDouble(Outcome::expected).sum();
         double residual = outcomes == null ? 0 : outcomes.stream().mapToDouble(o -> ((o.won ? 1.0 : 0.0) - o.expected)
                         / Math.max(0.1, Math.sqrt(o.expected * (1 - o.expected)))).sum() / (samples + PRIOR);
-        if (samples < MIN_SAMPLES) return new Calibration(BotDifficulty.NORMAL, samples, wins, expected, residual,
-                "Cold start: " + samples + "/" + MIN_SAMPLES + " eligible rounds; no skill conclusion yet.");
+        // A child's first rounds in a mode get the gentlest bots; three results are enough to place them.
+        if (samples < MIN_SAMPLES) return new Calibration(BotDifficulty.EASY, samples, wins, expected, residual,
+                "Cold start: " + samples + "/" + MIN_SAMPLES + " eligible rounds; gentle opponents until there is a result to go on.");
         BotDifficulty difficulty = residual <= -0.25 ? BotDifficulty.EASY : residual >= 0.25 ? BotDifficulty.HARD : BotDifficulty.NORMAL;
         String reason = switch (difficulty) {
             case EASY -> "Results below expected chance: allow more reaction time and less accurate attacks.";

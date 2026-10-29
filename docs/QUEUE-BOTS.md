@@ -57,8 +57,11 @@ Spleef action cadence; Quake selection, retreat and safe spawn areas on both cli
 | TNT Run | classic | continuous routes across surviving floor; no double-jump controller yet |
 | Volcano | classic, eruption | climb reachable ground, avoid lava and visible falling rocks |
 
-Other modes stay human-only. In particular, no racing, building, Crystal/Mace Duels,
-parkour or TNT Run Double Jump bot controller is claimed. The table describes the
+Modes not in the table stay human-only. In particular, no building, parkour or
+TNT Run Double Jump bot controller is claimed. (Karts, Crystal and Mace Duels
+bot controllers exist and are supported modes.) PvP bots in Duels classic/op/sumo, KitPvP and
+KOTH share one humanlike combat core (strafing, aim error, sprint, jumps, kit use,
+retreat, sumo edge awareness) tuned under `bots.combat.*`. The table describes the
 prepared source, not the deployed server; consult the tracker for live status. Bots do not discover hidden players,
 attack through walls, teleport out of stuck paths, or receive custom damage.
 Decision work runs four times per second, with difficulty-based navigation intervals
@@ -110,7 +113,7 @@ fixed until changed; updating the jar does not silently rewrite arena configurat
 
 `adaptive` uses separate per-player/per-mode results in `bot-skill.yml`, from
 completed human and bot-assisted rounds. Existing competitive totals mix variants,
-so they are not imported. New profiles start at Normal. At least six completed
+so they are not imported. New profiles start at Easy for their first rounds in a mode. At least three completed
 rounds are required, with an eight-result neutral prior and the latest 40 results
 retained. Results are normalised by the expected chance of winning (team count or
 FFA roster; co-op and Prop Hunt use an initial 50% baseline). This is a first-pass
@@ -206,7 +209,7 @@ both clients. More Duels presets and shop inventory are separate follow-ups.
 5. Prop Hunt: test both roles and Infection, visible motion versus stationary cover, heartbeat search, locking and viewer packs on both clients.
 6. End/leave concurrent rounds and confirm NPCs, visuals and instance worlds are cleaned up.
 
-This candidate is not deployed. Crystal/Mace, racing and building
+This candidate is not deployed. Building and parkour
 controllers remain future work; maps and player acceptance are still needed for the
 existing controllers too.
 
