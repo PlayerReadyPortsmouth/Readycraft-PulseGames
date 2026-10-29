@@ -46,7 +46,7 @@ Haste, Forge; gatherer Protection, Sharpness, Forge, Haste. Traps need tier 1 an
 | Smoke Bomb | enemy 6-12 blocks away (after Freeze Ball) | 15 / 40 / 75 |
 | Knockback Stick | enemy within 3.5 and next to a drop; sword restored afterwards | 40 / 70 / 100 |
 | Shield Wall | health 50% or less, enemy within 8 | 30 / 60 / 90 |
-| Rocket Boots | health 6 or less, enemy within 24 and bot boxed in on 2+ sides | 0 / 50 / 85 |
+| Rocket Boots | health 6 or less, enemy in view and bot boxed in on 2+ sides | 0 / 50 / 85 |
 | Bed Bug | enemy 5-16 away and within 12 of its own team's bed | 0 / 40 / 80 |
 | Grappling Hook | enemy 10-24 away (chase), or a 3-18 block gap ahead on the way to the target | 0 / 35 / 70 |
 | Ice Road | a 2-8 block gap ahead, floor beyond | 0 / 40 / 70 |
