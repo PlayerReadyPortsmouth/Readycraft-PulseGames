@@ -82,7 +82,7 @@ public final class SpleefGame extends MiniGame implements uk.co.playerready.puls
         for (Player player : isRounds() ? rounds.contestants() : game.alivePlayers()) {
             if (isSplegg()) {
                 ItemStack launcher = new ItemStack(Material.GOLDEN_HOE);
-                launcher.editMeta(meta -> meta.displayName(Text.mm("<gold><b>Splegg Launcher</b> <gray>(right-click)")));
+                launcher.editMeta(meta -> meta.displayName(Text.mm("<gold><b>Splegg Launcher</b> <gray>("+uk.co.playerready.pulsegames.core.util.PlatformDetector.useVerb(player)+")")));
                 player.getInventory().setItem(0, launcher);
             } else {
                 ItemStack shovel = new ItemStack(Material.DIAMOND_SHOVEL);

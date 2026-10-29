@@ -335,9 +335,9 @@ public final class GameInstance {
 
     private void giveLeaveItem(Player player) {
         ItemStack bed = new ItemStack(Material.RED_BED);
-        bed.editMeta(meta -> meta.displayName(Text.mm("<red>Leave game <gray>(right-click)")));
+        bed.editMeta(meta -> meta.displayName(Text.mm("<red>Leave game <gray>(" + uk.co.playerready.pulsegames.core.util.PlatformDetector.useVerb(player) + ")")));
         player.getInventory().setItem(8, bed);
-        player.getInventory().setItem(4, ReadyVote.item());
+        player.getInventory().setItem(4, ReadyVote.item(player));
     }
 
     /** Seconds this player survived: when they went out, or the whole round if still alive. */
@@ -773,6 +773,7 @@ public final class GameInstance {
         }
         plugin.playerState().reset(player);
         spectatorTools.enter(player);
+        spectatorTools.refreshMenus();
         player.teleport(arena.spectator(world));
         int outPlace = placement(player);
         Text.title(player, "<yellow><b>You're out!", "<gray>" + (outPlace > 0 ? "You're in " + Placements.ordinal(outPlace)

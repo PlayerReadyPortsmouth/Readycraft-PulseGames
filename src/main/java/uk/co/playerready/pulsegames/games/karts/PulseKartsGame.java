@@ -152,7 +152,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         game.alivePlayers().forEach(this::giveKart);
         game.alivePlayers().stream().filter(p -> !game.isBot(p)).forEach(this::openStyleMenu);
         game.broadcast("<aqua>Choose your kart style during the 15-second grid countdown. Balanced is selected by default.");
-        game.broadcast("<yellow>Accelerate forwards, brake/reverse backwards, steer left/right. Hold jump while steering to drift; release for a charged boost. Right-click uses your item; compass resets your kart.");
+        game.broadcast("<yellow>Accelerate forwards, brake/reverse backwards, steer left/right. Hold jump while steering to drift; release for a charged boost. Use your item to fire it; compass resets your kart.");
         game.runRepeating(1,1,()->{
             try { drive(); }
             catch(RuntimeException | LinkageError failure) {
@@ -232,7 +232,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
             kart.selectionClosed = false;
             karts.put(player.getUniqueId(),kart);
             player.getInventory().clear();
-            ItemStack reset=new ItemStack(Material.COMPASS);reset.editMeta(m->m.displayName(Text.mm("<yellow>Reset kart <gray>(right-click)")));
+            ItemStack reset=new ItemStack(Material.COMPASS);reset.editMeta(m->m.displayName(Text.mm("<yellow>Reset kart <gray>("+uk.co.playerready.pulsegames.core.util.PlatformDetector.useVerb(player)+")")));
             player.getInventory().setItem(8,reset);
             if (!game.isBot(player)) player.getInventory().setItem(4,menuItem(Material.MINECART,"<aqua>Choose kart style",List.of("<gray>Choose before the race starts")));
         } catch(RuntimeException | LinkageError failure) {
@@ -692,7 +692,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
     private void showItem(Kart kart) {
         if(kart.item==null){kart.driver.getInventory().setItem(0,null);return;}
         ItemStack item=new ItemStack(icon(kart.item),kart.item==Item.TRIPLE_SHELL ? Math.max(1,kart.uses) : 1);
-        item.editMeta(m->m.displayName(Text.mm("<aqua>"+kart.item.label+" <gray>(right-click)")));
+        item.editMeta(m->m.displayName(Text.mm("<aqua>"+kart.item.label+" <gray>("+uk.co.playerready.pulsegames.core.util.PlatformDetector.useVerb(kart.driver)+")")));
         kart.driver.getInventory().setItem(0,item);
         notice(kart, "<aqua>Power-up: "+kart.item.label);
     }

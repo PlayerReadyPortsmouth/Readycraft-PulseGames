@@ -103,7 +103,7 @@ public final class BedwarsGame extends MiniGame {
         }
         player.getInventory().setItem(0, sword);
         ItemStack shop = new ItemStack(Material.EMERALD);
-        shop.editMeta(meta -> meta.displayName(Text.mm("<green><b>Item Shop</b> <gray>(right-click)")));
+        shop.editMeta(meta -> meta.displayName(Text.mm("<green><b>Item Shop</b> <gray>("+uk.co.playerready.pulsegames.core.util.PlatformDetector.useVerb(player)+")")));
         player.getInventory().setItem(8, shop);
         // Team-colored leather armor.
         org.bukkit.Color color = TEAM_COLORS[teamIndex % TEAM_COLORS.length];

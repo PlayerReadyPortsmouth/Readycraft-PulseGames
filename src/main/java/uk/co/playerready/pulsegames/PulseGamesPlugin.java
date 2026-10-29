@@ -80,6 +80,12 @@ public final class PulseGamesPlugin extends JavaPlugin {
         kitSelection = new uk.co.playerready.pulsegames.core.kit.KitSelectionMenu(this);
         playerState = new PlayerStateService();
         sidebar = new SidebarService();
+        if (getConfig().getBoolean("debug.sidebar", false)) {
+            getServer().getScheduler().runTaskTimer(this, () -> {
+                String line = sidebar.drainStats();
+                if (line != null) getLogger().info(line);
+            }, 20L, 20L);
+        }
         stats = new StatsService(this);
         playService = new PlayService(this);
         results = new uk.co.playerready.pulsegames.core.game.MatchResults(this);

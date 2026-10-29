@@ -541,6 +541,12 @@ public final class GameListener implements Listener {
         if (instance != null) instance.logic().onInventoryDrag(player, event);
     }
 
+    /** The watch menu is a plain chest: no drag may move items in or out of it. */
+    @EventHandler
+    public void onWatchMenuDrag(org.bukkit.event.inventory.InventoryDragEvent event) {
+        if (event.getView().getTopInventory().getHolder() instanceof SpectatorTools.MenuHolder) event.setCancelled(true);
+    }
+
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
