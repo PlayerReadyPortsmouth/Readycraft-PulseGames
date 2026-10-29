@@ -108,6 +108,141 @@ bots:
   # Bots sit alongside humans within map capacity. Humans reclaim waiting seats; hard caps also apply.
   max-per-match: 31
   max-total: 64
+  # Human-like PvP combat for Duels (classic/op/sumo), KitPvP and KOTH bots. Every key is optional.
+  combat:
+    # Sprint while closing and on the first hit, released for one think after each hit (w-tap).
+    # Sprint knockback on a Citizens NPC is unverified in-game: switch off if bots feel wrong.
+    sprint: true
+    # Circle the opponent in melee range instead of standing still (short, ledge-checked steps).
+    strafe: true
+    # Eat golden apples, shoot a bow from 8+ blocks, throw ender pearls from the kit (never beyond what the kit holds).
+    kit-use: true
+    # Back off and eat below tiers.<tier>.retreat-health, only while holding a golden apple.
+    retreat: true
+    # Per tier overrides of the shipped defaults (easy / normal / hard); shown here at their defaults.
+    # melee-delay-ticks / hit-chance / path-interval-ticks apply to the shared PvP core only.
+    tiers:
+      easy:
+        melee-delay-ticks: 28      # ticks between swings
+        hit-chance: 45             # percent of swings that connect (a miss still swings)
+        projectile-delay-ticks: 40 # ticks between arrows
+        path-interval-ticks: 30
+        aim-error-degrees: 6.0     # how far off the bot looks; re-sampled every 1.5-3 s
+        strafe-bias: 0.35          # 0..1 how often a strafe cycle circles rather than holds
+        sprint-chance: 0.40
+        jump-crit-chance: 0.0      # jump-crit and jump-reset; 0 = never jumps
+        reaction-jitter-ticks: 5   # 0..5 extra reaction time on each engagement
+        retreat-health: 0.20       # fraction of max health
+      normal:
+        melee-delay-ticks: 14
+        hit-chance: 80
+        projectile-delay-ticks: 20
+        path-interval-ticks: 20
+        aim-error-degrees: 3.0
+        strafe-bias: 0.70
+        sprint-chance: 0.75
+        jump-crit-chance: 0.25
+        reaction-jitter-ticks: 4
+        retreat-health: 0.30
+      hard:
+        melee-delay-ticks: 10
+        hit-chance: 95
+        projectile-delay-ticks: 12
+        path-interval-ticks: 10
+        aim-error-degrees: 0.5
+        strafe-bias: 0.90
+        sprint-chance: 1.0
+        jump-crit-chance: 0.60
+        reaction-jitter-ticks: 2
+        retreat-health: 0.30
+
+# Bedwars bot behaviour (only matters when bots.enabled and the arena allows bots). All values optional; defaults shown.
+# Owner Aurora / ReadyCraft; review 2026-11-26.
+bedwars:
+  bots:
+    pace:
+      # How many cells ahead a bot aims while walking. 1 = old step-by-step feel; 3 = continuous.
+      look-ahead-cells: 3
+    bridge:
+      # Ticks between placed bridge blocks (bots think every 5 ticks, so 5 is one block per think).
+      place-ticks: 5
+      # Sneak while placing at an edge, like a player bridging.
+      sneak: true
+      # Longest void gap, in cells, a bot will plan a bridge across when choosing a bed.
+      max-gap: 24
+    roles:
+      # One guard per team (a lone bot guards only for solo-guard-seconds); the rest gather, then attack.
+      attack-start-seconds: 150
+      solo-guard-seconds: 90
+      # Attackers may leave for diamonds from this game time.
+      mid-game-seconds: 300
+    resources:
+      diamond-trip-seconds: 40
+      diamonds-wanted: 4
+      # Attackers low on iron and gold return to the team generator this often, for gather-hold-seconds.
+      gather-interval-seconds: 60
+      gather-hold-seconds: 12
+      # Bots buy only within this many blocks of their generator (except wool when nearly out).
+      spend-radius: 14
+    defence:
+      # Rings of blocks around the bed (1-3). Rebuilt when broken.
+      layers: 2
+      guard-radius: 6
+      # An enemy this close to the bed makes the guard (and nearby teammates) run to it.
+      alert-radius: 16
+      place-ticks: 10
+      # Most blocks one bot will place on defence over a match (bridging is not counted).
+      block-cap: 192
+    attack:
+      # How often a bot re-chooses which enemy bed to go for.
+      reassess-seconds: 15
+    fireball:
+      enabled: true
+      min-range: 3
+      max-range: 9
+      cooldown-ticks: 60
+    pearl:
+      # Throw an ender pearl towards home at or below this many health points (20 = full).
+      escape-health: 6.0
+    # Eat a golden apple at or below this many health points.
+    apple-health: 10.0
+
+# PulseKarts bot driving. Owner: Aurora / ReadyCraft. Review: 2026-11-26.
+# Every value is clamped to a safe range; a missing or zero value uses the default shown.
+karts:
+  bots:
+    # Top speed as a fraction of the kart's physics maximum (12 blocks/s x style speed).
+    speed-fraction:
+      easy: 0.78
+      normal: 0.90
+      hard: 0.98
+    # Target speed (blocks/s) for a bend over 25, 55 and 100 degrees; scaled 0.85 / 1.0 / 1.1 by Easy / Normal / Hard.
+    corner-speeds: [8.0, 5.5, 3.0]
+    # Quiet rubber-banding against the nearest human by race position. Bots behind a human gain up to
+    # max-bonus, bots comfortably ahead lose up to max-penalty (Easy leans to help, Hard to pressure).
+    # The effect ramps from start-blocks to full-blocks. A human further ahead than range-blocks is
+    # not "nearby", so a runaway leader is never throttled. Bots never exceed the physics maximum.
+    rubber-band:
+      enabled: true
+      max-bonus: 0.08
+      max-penalty: 0.08
+      start-blocks: 25
+      full-blocks: 100
+      range-blocks: 150
+    # Racing line: each bot sits up to this many blocks either side of the route (varies by bot and lap).
+    lane-width: 1.5
+    # A kart within this many blocks ahead makes a bot swap to the clear lane to overtake.
+    overtake-range: 6
+    # Longest drift per tier in ticks (20 = 1 s). Mini-turbo needs 20, super 50.
+    drift-max-ticks:
+      easy: 22
+      normal: 40
+      hard: 50
+    # Share of Easy bots that ever try a (mini) drift.
+    easy-drifter-share: 0.25
+    # BALANCE: when true, bots in the back placing tier may roll Star and Bullet for catch-up.
+    # When false they only get them while a human holds one (the old rule).
+    strong-items-when-behind: true
 
 # Trial access for preview games, queue bots and modeled Prop Hunt. UUIDs only.
 # Owner Aurora / ReadyCraft; review 2026-10-25. Empty list grants nobody access.

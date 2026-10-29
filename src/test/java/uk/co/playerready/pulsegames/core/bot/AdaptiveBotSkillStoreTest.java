@@ -33,15 +33,19 @@ class AdaptiveBotSkillStoreTest {
         assertEquals(calibration.difficulty(),store.difficulty(player,mode));
     }
 
-    @Test void coldStartAndSmallSamplesStayNormal() {
+    @Test void firstRoundsInAModeAreEasyAndThreeResultsEndColdStart() {
         var store = store();
-        assertEquals(BotDifficulty.NORMAL, store.difficulty(player, mode));
-        for (int i = 0; i < 5; i++) store.record(player, mode, true, .5);
-        assertEquals(BotDifficulty.NORMAL, store.difficulty(player, mode));
+        assertEquals(BotDifficulty.EASY, store.difficulty(player, mode));
+        for (int i = 0; i < 2; i++) store.record(player, mode, true, .5);
+        assertEquals(BotDifficulty.EASY, store.difficulty(player, mode), "still cold after two results");
         store.record(player, mode, true, .5);
-        assertEquals(BotDifficulty.HARD, store.difficulty(player, mode));
-        assertEquals(BotDifficulty.NORMAL, store.difficulty(player, "duels:classic"));
-        assertEquals(BotDifficulty.NORMAL, store.difficulty(UUID.randomUUID(), mode));
+        assertEquals(BotDifficulty.HARD, store.difficulty(player, mode), "three wins place the player");
+        assertEquals(BotDifficulty.EASY, store.difficulty(player, "duels:classic"), "each mode starts cold");
+        assertEquals(BotDifficulty.EASY, store.difficulty(UUID.randomUUID(), mode));
+        var mixed = UUID.randomUUID();
+        store.record(mixed, mode, true, .5); store.record(mixed, mode, false, .5); store.record(mixed, mode, false, .5);
+        assertEquals(BotDifficulty.NORMAL, store.difficulty(mixed, mode));
+        assertTrue(store.calibration(UUID.randomUUID(), mode).reason().contains("0/3"));
     }
 
     @Test void fairFfaWinRateRemainsNormalAndPersistentLossesBecomeEasy() {
@@ -78,11 +82,11 @@ class AdaptiveBotSkillStoreTest {
             store.record(player, mode, true, 1.1);
             store.record(player, "../invalid", true, .5);
         }
-        assertEquals(BotDifficulty.NORMAL, store.difficulty(player, mode));
+        assertEquals(BotDifficulty.EASY, store.difficulty(player, mode));
     }
 
     @Test void invalidPersistedRowsDoNotBecomeSamples() throws Exception {
         Files.writeString(directory.resolve("bot-skill.yml"), "players:\n  " + player + ":\n    kitpvp:oitc:\n      - won: yesplease\n        expected: 0.5\n      - won: true\n        expected: .NaN\n  invalid-uuid:\n    kitpvp:oitc: []\n");
-        assertEquals(BotDifficulty.NORMAL, store().difficulty(player, mode));
+        assertEquals(BotDifficulty.EASY, store().difficulty(player, mode));
     }
 }

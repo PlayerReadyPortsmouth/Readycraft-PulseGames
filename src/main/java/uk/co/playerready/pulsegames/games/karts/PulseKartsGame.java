@@ -65,7 +65,8 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         boolean selectionClosed = true;
         KartBotDriver bot;
         int waypoint;
-        long nextItemTick;
+        long nextItemTick, itemSince, paceTick = -100;
+        double pace = 1;
         long spinUntil, bumpImmuneUntil, resetTick = -1;
         KartStyle style = KartStyle.BALANCED;
         Kart(Player driver, ArmorStand seat, AutoCloseable visual, KartPhysics.State motion) {
@@ -133,6 +134,8 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         super.onStart();
         initialiseResults(game.alivePlayers());
         space=KartPhysics.world(game.world());
+        try { tuning = new KartBotTuning(game.plugin().getConfig().getConfigurationSection("karts.bots")); }
+        catch (RuntimeException ignored) { tuning = KartBotTuning.DEFAULT; }
         arcade=KartArcadeConfig.load(game.arena().settings().getValues(false),game.arena().regions());
         itemBoxes=arcade.itemBoxes().isEmpty() ? game.arena().regionsByPrefix("itembox") : List.of();
         if (!arcade.itemBoxes().isEmpty()) {
@@ -403,6 +406,34 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         }
     }
     /** Bots submit the same bounded throttle/steering input as human drivers. */
+    private KartBotTuning tuning = KartBotTuning.DEFAULT;
+    private double gateSpacing;
+    /** Mean distance between consecutive gates: turns checkpoint progress into blocks for the pace gap. */
+    private double gateSpacing() {
+        if (gateSpacing > 0) return gateSpacing;
+        var centres = new ArrayList<Location>();
+        checkpoints.forEach(c -> centres.add(c.center(game.world())));
+        centres.add(finish.center(game.world()));
+        double sum = 0;
+        for (int i = 1; i < centres.size(); i++) sum += Math.hypot(centres.get(i).getX()-centres.get(i-1).getX(), centres.get(i).getZ()-centres.get(i-1).getZ());
+        return gateSpacing = centres.size() < 2 || sum < 10 ? 60 : sum / (centres.size() - 1);
+    }
+    /** Rubber-band pace for a bot against the nearest human by race position; refreshed twice a second. */
+    private double paceFor(Kart kart, BotDifficulty difficulty) {
+        if (tick - kart.paceTick < 10) return kart.pace;
+        kart.paceTick = tick;
+        var own = placingEntry(kart);
+        double best = Double.NaN;
+        for (Kart other : karts.values()) {
+            if (other.bot != null || !game.isActive(other.driver)) continue;
+            var theirs = placingEntry(other);
+            double gap = (own.progress() - theirs.progress()) * gateSpacing()
+                    + (finite(theirs.distanceToGate()) - finite(own.distanceToGate()));
+            if (Double.isNaN(best) || Math.abs(gap) < Math.abs(best)) best = gap;
+        }
+        return kart.pace = tuning.pace(best, !Double.isNaN(best), difficulty);
+    }
+    private static double finite(double distance) { return distance == Double.MAX_VALUE ? 0 : distance; }
     private boolean controlBot(Kart kart) {
         Location here = location(kart.motion);
         Location target = botPoints.get(kart.waypoint);
@@ -422,10 +453,11 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         // A human's bullet is the same driver steering their kart; real bots keep their own.
         KartBotDriver pilot = kart.bot != null ? kart.bot : kart.autopilot;
         BotDifficulty difficulty = kart.bot != null ? game.plugin().bots().difficultyFor(game, null) : BotDifficulty.HARD;
-        double scale = bullet ? KartBullet.SPEED_SCALE : 1 + (kart.boost.multiplier(tick) - 1) * .6;
+        double scale = bullet ? KartBullet.SPEED_SCALE : kart.boost.multiplier(tick);
         var decision = pilot.update(kart.motion, point(target), point(following), difficulty, space,
                 karts.values().stream().filter(other -> other != kart).map(other -> other.motion).toList(), kart.style,
-                new KartBotDriver.Context(scale, nearJump(kart), kart.air.flying()));
+                new KartBotDriver.Context(scale, nearJump(kart), kart.air.flying(),
+                        kart.bot != null ? paceFor(kart, difficulty) : 1, lapOf(kart), tuning));
         if (decision.reset()) { reset(kart); return true; }
         kart.input = decision.input();
         kart.driftPressed = decision.drift() && !bullet;
@@ -434,15 +466,23 @@ public final class PulseKartsGame extends CheckpointRaceGame {
             boolean use = switch (kart.item) {
                 case TURBO -> decision.useTurboSafe();
                 case SHELL, TRIPLE_SHELL -> tick >= kart.nextShellTick && shellTargetAhead(kart);
-                case LIGHTNING -> lightningTarget(kart) != null;
-                case BANANA -> opponentBehind(kart);
+                case LIGHTNING -> lightningTarget(kart) != null && humanAhead(kart);
+                // Hold a banana for a corner, where followers cut through; spend it anyway if it has waited long.
+                case BANANA -> opponentBehind(kart) && (decision.cornerAhead() || tick - kart.itemSince > 300);
                 case SHIELD -> tick >= kart.shieldUntil;
                 case STAR, BULLET -> true;
             };
             if (use) useItem(kart);
-            kart.nextItemTick = tick + switch (difficulty) { case EASY -> 40; case NORMAL -> 20; case HARD -> 10; };
+            kart.nextItemTick = tick + Math.round(kart.bot.personality().itemTempo()
+                    * switch (difficulty) { case EASY -> 40; case NORMAL -> 20; case HARD -> 10; });
         }
         return false;
+    }
+    private int lapOf(Kart kart) { Progress p = progress.get(kart.driver.getUniqueId()); return p == null ? 1 : p.lap; }
+    /** Lightning is a catch-up tool against people: only worth firing when a human is placed ahead. */
+    private boolean humanAhead(Kart kart) {
+        int own = progressValue(kart.driver.getUniqueId());
+        return karts.values().stream().anyMatch(o -> o.bot == null && game.isActive(o.driver) && progressValue(o.driver.getUniqueId()) > own);
     }
     private boolean nearJump(Kart kart) {
         for (Cuboid jump : arcade.jumps()) if (KartPads.near(jump, kart.motion.x(), kart.motion.y(), kart.motion.z(), 8)) return true;
@@ -608,7 +648,9 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         var tier = KartItemBalance.tier(KartPlacing.place(kart.driver.getUniqueId(), entries), Math.max(1, entries.size()));
         Set<Item> unavailable = EnumSet.noneOf(Item.class);
         if (botPoints.isEmpty()) unavailable.add(Item.BULLET);
-        if (kart.bot != null) for (Item strong : List.of(Item.STAR, Item.BULLET))
+        // Balance flag: with karts.bots.strong-items-when-behind, bots in the back tier may roll Star and Bullet.
+        boolean catchUp = tuning.strongItemsWhenBehind && tier == KartItemBalance.Tier.BACK;
+        if (kart.bot != null && !catchUp) for (Item strong : List.of(Item.STAR, Item.BULLET))
             if (karts.values().stream().noneMatch(k -> k.bot == null && k.item == strong)) unavailable.add(strong);
         return KartItemBalance.choose(kart.style, ThreadLocalRandom.current().nextInt(), tier, unavailable);
     }
@@ -620,7 +662,7 @@ public final class PulseKartsGame extends CheckpointRaceGame {
         showRouletteIcon(kart, 0);
     }
     private void giveItem(Kart kart, Item item) {
-        kart.item = item; kart.uses = item == Item.TRIPLE_SHELL ? 3 : 1;
+        kart.itemSince = tick; kart.item = item; kart.uses = item == Item.TRIPLE_SHELL ? 3 : 1;
         showItem(kart);
     }
     private void showRouletteIcon(Kart kart, int elapsed) {

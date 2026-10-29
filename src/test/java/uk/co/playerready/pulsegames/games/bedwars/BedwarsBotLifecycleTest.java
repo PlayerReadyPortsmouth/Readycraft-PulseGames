@@ -22,6 +22,7 @@ class BedwarsBotLifecycleTest {
         @SuppressWarnings("unchecked") Fixture() throws Exception {
             when(game.world()).thenReturn(world); when(game.isBot(bot)).thenReturn(true); when(game.teamOf(bot)).thenReturn(new GameTeam(1));
             when(bot.getUniqueId()).thenReturn(UUID.randomUUID()); when(bot.getEyeLocation()).thenReturn(new Location(world,.5,65.62,.5));
+            when(bot.getInventory()).thenReturn(mock(org.bukkit.inventory.PlayerInventory.class));
             when(world.isChunkLoaded(anyInt(),anyInt())).thenReturn(true);
             when(bed.getType()).thenAnswer(i->type.get()); when(bed.getLocation()).thenReturn(new Location(world,0,64,2));
             when(bed.getBreakSpeed(bot)).thenReturn(.1f);

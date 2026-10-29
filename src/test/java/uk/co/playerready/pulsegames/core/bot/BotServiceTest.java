@@ -399,4 +399,144 @@ class BotServiceTest {
         bots.onRoundEnd(game,List.of(human),"last-standing");
         verifyNoInteractions(store);
     }
+
+    // ---- PvP combat core (duels / kitpvp / koth) ----
+    org.bukkit.inventory.PlayerInventory pvpInventory;
+    BotActor pvp(double targetZ, String difficulty, java.util.function.IntUnaryOperator rnd) {
+        bots = new BotService(plugin, provider, rnd);
+        bots.walkable = feet -> true; // no server registries in unit tests; terrain checks are covered in GroundNavigationTest
+        bots.eatEffects = bot -> bot.addPotionEffect(null);
+        when(world.getBlockAt(anyInt(), anyInt(), anyInt())).thenAnswer(call -> {
+            org.bukkit.block.Block block = mock(org.bukkit.block.Block.class);
+            org.bukkit.Material type = (int) call.getArgument(1) == 79 ? org.bukkit.Material.STONE : org.bukkit.Material.AIR;
+            when(block.getType()).thenReturn(type); when(block.isPassable()).thenReturn(type == org.bukkit.Material.AIR);
+            return block;
+        });
+        BotActor actor = mock(BotActor.class);
+        Player bot = player("Fighter");
+        when(actor.player()).thenReturn(bot); when(actor.valid()).thenReturn(true);
+        when(provider.create(anyString(), any())).thenReturn(actor);
+        pvpInventory = mock(org.bukkit.inventory.PlayerInventory.class);
+        when(pvpInventory.first(any(org.bukkit.Material.class))).thenReturn(-1);
+        when(bot.getInventory()).thenReturn(pvpInventory);
+        when(bot.getWorld()).thenReturn(world);
+        when(bot.getLocation()).thenReturn(new Location(world, 0.5, 80, 0.5));
+        when(bot.getEyeLocation()).thenReturn(new Location(world, 0.5, 81.6, 0.5));
+        when(bot.getHealth()).thenReturn(20.0); when(bot.getAttackCooldown()).thenReturn(1f);
+        when(bot.getMaximumNoDamageTicks()).thenReturn(20); when(bot.isOnGround()).thenReturn(true);
+        when(bot.canSee(human)).thenReturn(true); when(bot.hasLineOfSight(human)).thenReturn(true);
+        when(human.getWorld()).thenReturn(world);
+        when(human.getLocation()).thenReturn(new Location(world, 0.5, 80, targetZ));
+        when(human.getEyeLocation()).thenReturn(new Location(world, 0.5, 81.6, targetZ));
+        MiniGame logic = mock(MiniGame.class);
+        when(logic.acceptsDeath(bot)).thenReturn(true); when(logic.voidY()).thenReturn(0.0);
+        when(game.logic()).thenReturn(logic);
+        when(game.arena().settings().getString(eq("bot-difficulty"), anyString())).thenReturn(difficulty);
+        bots.reconcile(game); bots.reconcile(game);
+        when(game.state()).thenReturn(GameState.RUNNING);
+        when(game.isActive(bot)).thenReturn(true); when(game.isActive(human)).thenReturn(true);
+        when(game.alivePlayers()).thenReturn(List.of(bot, human));
+        return actor;
+    }
+
+    @Test void aMissStillSwingsAtAnOffsetAndNeverLandsADamagingHit() {
+        BotActor actor = pvp(2.5, "hard", bound -> bound - 1); // every roll is the worst: always a miss
+        for (int i = 0; i < 12; i++) bots.think();
+        verify(actor.player(), atLeastOnce()).swingMainHand();
+        verify(actor.player(), never()).attack(any());
+        verify(actor, atLeastOnce()).face(argThat(at -> Math.abs(at.getX() - 0.5) >= 0.9));
+    }
+
+    @Test void meleeRangeBotsStrafeInsteadOfStandingStill() {
+        BotActor actor = pvp(2.5, "normal", bound -> 0);
+        for (int i = 0; i < 6; i++) bots.think();
+        verify(actor, atLeastOnce()).navigate(argThat(goal -> Math.abs(goal.getX() - 0.5) >= 1.5));
+        verify(actor.player(), atLeastOnce()).attack(human);
+    }
+
+    @Test void strafeCanBeSwitchedOffAndThenTheBotJustTradesBlows() {
+        config.set("bots.combat.strafe", false);
+        BotActor actor = pvp(2.0, "normal", bound -> 0);
+        for (int i = 0; i < 6; i++) bots.think();
+        verify(actor, never()).navigate(any());
+    }
+
+    @Test void sprintsOnTheHitAndTheSwitchTurnsItOff() {
+        BotActor actor = pvp(2.0, "hard", bound -> 0);
+        for (int i = 0; i < 6; i++) bots.think();
+        verify(actor.player(), atLeastOnce()).setSprinting(true);
+        config.set("bots.combat.sprint", false);
+        BotActor off = pvp(2.0, "hard", bound -> 0);
+        for (int i = 0; i < 6; i++) bots.think();
+        verify(off.player(), never()).setSprinting(true);
+    }
+
+    @Test void picksTheSwordWhenSlotZeroIsNotOne() {
+        BotActor actor = pvp(2.0, "normal", bound -> 0);
+        var sword = mock(org.bukkit.inventory.ItemStack.class);
+        when(sword.getType()).thenReturn(org.bukkit.Material.IRON_SWORD);
+        when(pvpInventory.getItem(3)).thenReturn(sword);
+        for (int i = 0; i < 4; i++) bots.think();
+        verify(pvpInventory, atLeastOnce()).setHeldItemSlot(3);
+    }
+
+    @Test void hurtBotEatsAGoldenAppleBeforeReEngaging() {
+        BotActor actor = pvp(3.0, "normal", bound -> 0);
+        Player bot = actor.player();
+        var server = mock(org.bukkit.Server.class);
+        when(bot.getServer()).thenReturn(server); when(server.getPluginManager()).thenReturn(mock(org.bukkit.plugin.PluginManager.class));
+        var apple = mock(org.bukkit.inventory.ItemStack.class);
+        when(apple.getType()).thenReturn(org.bukkit.Material.GOLDEN_APPLE); when(apple.getAmount()).thenReturn(3);
+        when(pvpInventory.first(org.bukkit.Material.GOLDEN_APPLE)).thenReturn(2);
+        when(pvpInventory.getItem(2)).thenReturn(apple);
+        when(bot.getHealth()).thenReturn(5.0);
+        for (int i = 0; i < 4; i++) bots.think();
+        verify(apple).setAmount(2);
+        verify(bot).addPotionEffect(null); // the (stubbed) golden apple effects ran once
+        verify(bot, never()).attack(any());
+    }
+
+    @Test void archerShootsFromRangeAndCountsTheArrow() {
+        BotActor actor = pvp(11.0, "normal", bound -> 0);
+        Player bot = actor.player();
+        var server = mock(org.bukkit.Server.class);
+        when(bot.getServer()).thenReturn(server); when(server.getPluginManager()).thenReturn(mock(org.bukkit.plugin.PluginManager.class));
+        var bow = mock(org.bukkit.inventory.ItemStack.class); var ammo = mock(org.bukkit.inventory.ItemStack.class);
+        when(bow.getType()).thenReturn(org.bukkit.Material.BOW); when(ammo.getType()).thenReturn(org.bukkit.Material.ARROW);
+        when(ammo.getAmount()).thenReturn(16);
+        when(pvpInventory.first(org.bukkit.Material.BOW)).thenReturn(1); when(pvpInventory.first(org.bukkit.Material.ARROW)).thenReturn(9);
+        when(pvpInventory.getItem(1)).thenReturn(bow); when(pvpInventory.getItem(9)).thenReturn(ammo);
+        var arrow = mock(org.bukkit.entity.Arrow.class); when(arrow.isValid()).thenReturn(true);
+        when(bot.launchProjectile(eq(org.bukkit.entity.Arrow.class), any())).thenReturn(arrow);
+        for (int i = 0; i < 3; i++) bots.think();
+        verify(bot, never()).launchProjectile(eq(org.bukkit.entity.Arrow.class), any());
+        for (int i = 0; i < 8; i++) bots.think();
+        verify(bot, atLeastOnce()).launchProjectile(eq(org.bukkit.entity.Arrow.class), any());
+        verify(ammo, atLeastOnce()).setAmount(15);
+        verify(bot, never()).attack(any());
+    }
+
+    BotActor kothScene(double enemyX, double enemyZ) {
+        BotActor actor = pvp(5.0, "normal", bound -> 0);
+        when(game.type().id()).thenReturn("koth"); when(game.mode().id()).thenReturn("solo");
+        var koth = mock(uk.co.playerready.pulsegames.games.koth.KothGame.class);
+        when(koth.acceptsDeath(actor.player())).thenReturn(true); when(koth.voidY()).thenReturn(0.0);
+        when(koth.botHill()).thenReturn(new uk.co.playerready.pulsegames.core.util.Cuboid(10, 80, 10, 15, 85, 15));
+        when(game.logic()).thenReturn(koth);
+        when(human.getLocation()).thenReturn(new Location(world, enemyX, 80, enemyZ));
+        when(human.getEyeLocation()).thenReturn(new Location(world, enemyX, 81.6, enemyZ));
+        return actor;
+    }
+
+    @Test void kothBotHeadsForTheActiveHillRatherThanChasingADistantRival() {
+        BotActor actor = kothScene(0.5, 7.0);
+        for (int i = 0; i < 4; i++) bots.think();
+        verify(actor, atLeastOnce()).navigate(argThat(goal -> goal.getX() >= 10 && goal.getX() <= 16 && goal.getZ() >= 10 && goal.getZ() <= 16));
+    }
+
+    @Test void kothBotFightsARivalWhoStandsOnTheHill() {
+        BotActor actor = kothScene(12.5, 12.5);
+        for (int i = 0; i < 4; i++) bots.think();
+        verify(actor, atLeastOnce()).navigate(argThat(goal -> Math.abs(goal.getX() - 12.5) < 3.1 && Math.abs(goal.getZ() - 12.5) < 3.1));
+    }
 }

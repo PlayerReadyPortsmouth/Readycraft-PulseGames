@@ -84,4 +84,19 @@ class KitPvpBotTest {
         when(game.mode().rulesId()).thenReturn("ffa");
         assertFalse(logic.botCombat(bot, target, 200, BotDifficulty.HARD));
     }
+    @Test void ffaLeavesInventoryAndAmmunitionAloneForTheSharedCore() {
+        when(game.mode().rulesId()).thenReturn("ffa");
+        assertFalse(logic.botCombat(bot, target, 0, BotDifficulty.NORMAL));
+        verifyNoInteractions(inventory);
+        verify(bot, never()).launchProjectile(eq(Arrow.class), any());
+    }
+    @Test void oitcStillClosesToTheWoodenSwordInsideMeleeRange() {
+        when(target.getLocation()).thenReturn(new Location(world, 1.5, 10, 0));
+        ItemStack sword = mock(ItemStack.class);
+        when(sword.getType()).thenReturn(Material.WOODEN_SWORD);
+        when(inventory.getItem(0)).thenReturn(sword);
+        logic.botCombat(bot, target, 0, BotDifficulty.NORMAL);
+        verify(inventory).setHeldItemSlot(0);
+        verify(bot, never()).launchProjectile(eq(Arrow.class), any());
+    }
 }

@@ -22,6 +22,35 @@ public final class SkywarsBotTerrain {
         else centre.add(0,0,Math.signum(dz));
         return centre;
     }
+    /**
+     * Continuous walking: up to {@code cells} cardinal cells ahead along the dominant axis, every hop proven by
+     * {@link #corridor}. Unlike {@link #step} it only recentres across the walking line, never along it, so a
+     * bot that is mid-block keeps going instead of turning back. Null when not even the first hop is walkable.
+     */
+    public static Location run(Location here, Location goal, int cells) {
+        if (here == null || goal == null || here.getWorld() == null || here.getWorld() != goal.getWorld() || cells < 1) return null;
+        double dx = goal.getX() - here.getX(), dz = goal.getZ() - here.getZ();
+        if (!Double.isFinite(dx) || !Double.isFinite(dz) || dx*dx+dz*dz < .04) return null;
+        boolean alongX = Math.abs(dx) >= Math.abs(dz);
+        double across = alongX ? here.getZ() : here.getX(), acrossCentre = Math.floor(across) + .5;
+        if (Math.abs(across - acrossCentre) > .2) {
+            Location centre = here.clone();
+            if (alongX) centre.setZ(acrossCentre); else centre.setX(acrossCentre);
+            return corridor(here, centre) ? centre : null;
+        }
+        double sign = Math.signum(alongX ? dx : dz), goalAlong = alongX ? goal.getX() : goal.getZ();
+        double base = Math.floor(alongX ? here.getX() : here.getZ());
+        Location previous = here, best = null;
+        for (int k = 1; k <= cells; k++) {
+            double along = base + sign * k + .5;
+            if (sign * (goalAlong - along) < -.5) break; // do not run past the goal
+            Location next = here.clone();
+            if (alongX) { next.setX(along); next.setZ(acrossCentre); } else { next.setZ(along); next.setX(acrossCentre); }
+            if (!corridor(previous, next)) break;
+            best = next; previous = next;
+        }
+        return best;
+    }
     public static boolean corridor(Location from, Location to) {
         if (from == null || to == null || from.getWorld() != to.getWorld() || from.distanceSquared(to) > 4
                 || Math.abs(from.getY()-to.getY()) > .04) return false;

@@ -33,7 +33,9 @@ public final class BotService implements AutoCloseable {
         String objective = "Waiting for the round", target = "", route = "", state = "WAITING", reason = "";
         BotDifficulty difficulty = BotDifficulty.NORMAL;
         boolean stalled;
-        Slot(GameInstance game, BotActor actor) { this.game = game; this.actor = actor; }
+        BotMelee melee;
+        final BotKitUse kit;
+        Slot(GameInstance game, BotActor actor, java.util.function.Consumer<Player> eatEffects) { this.game = game; this.actor = actor; this.kit = new BotKitUse(eatEffects); }
     }
     private final PulseGamesPlugin plugin;
     private final Map<UUID, Slot> slots = new LinkedHashMap<>();
@@ -45,6 +47,10 @@ public final class BotService implements AutoCloseable {
     private boolean failed;
     private int sequence;
     private long tick;
+    /** Seams for unit tests, which have no server registries. */
+    java.util.function.Predicate<Location> walkable = GroundNavigation::walkable;
+    java.util.function.Consumer<Player> eatEffects = BotKitUse::goldenAppleEffects;
+    private BotCombatSettings combat = BotCombatSettings.defaults();
     private java.util.function.IntUnaryOperator random = bound -> ThreadLocalRandom.current().nextInt(bound);
 
     public BotService(PulseGamesPlugin plugin) {
@@ -259,7 +265,7 @@ public final class BotService implements AutoCloseable {
             try {
                 BotActor actor = provider.create(BotNames.at(sequence++), game.arena().lobby(game.world()));
                 UUID id = actor.player().getUniqueId();
-                slots.put(id, new Slot(game, actor));
+                slots.put(id, new Slot(game, actor, bot -> eatEffects.accept(bot)));
                 if (!game.add(actor.player())) { destroy(id); break; }
             } catch (RuntimeException failure) {
                 plugin.getLogger().log(java.util.logging.Level.WARNING, "Could not fill game with bots", failure);
@@ -306,6 +312,7 @@ public final class BotService implements AutoCloseable {
 
     void think() {
         tick += 5;
+        combat = BotCombatSettings.read(plugin.getConfig());
         if (!plugin.getConfig().getBoolean("bots.enabled", false) && !slots.isEmpty()) {
             for (GameInstance game : slots.values().stream().map(s -> s.game).distinct().toList()) {
                 game.forceEnd();
@@ -410,18 +417,26 @@ public final class BotService implements AutoCloseable {
                 .filter(p -> bot.canSee(p) && !p.isInvisible() && here.distanceSquared(p.getLocation()) <= 24 * 24 && bot.hasLineOfSight(p))
                 .min(Comparator.comparingDouble(p -> BotPersonality.targetScore(here.distanceSquared(p.getLocation()), p.getUniqueId().equals(slot.opponent)))).orElse(null);
         Location goal = null;
-        if (enemy == null) slot.opponent = null;
+        if (enemy == null) { slot.opponent = null; if (slot.melee != null) { bot.setSprinting(false); slot.kit.stopDrawing(); } }
         if (enemy != null) {
             difficulty = difficultyFor(game, enemy instanceof Player target ? target : null);
             slot.difficulty = difficulty; slot.target = enemy.getName();
             if (!enemy.getUniqueId().equals(slot.opponent)) {
                 slot.opponent = enemy.getUniqueId();
-                slot.reactAt = tick + BotPersonality.reactionTicks(difficulty, random.applyAsInt(6));
+                slot.reactAt = tick + BotPersonality.reactionTicks(difficulty, random.applyAsInt(combat.profile(difficulty).reactionJitter() + 1));
                 slot.nextAttack = Math.max(slot.nextAttack, slot.reactAt);
             }
             slot.objective = "Engaging a visible opponent"; slot.route = "";
             double distance = here.distanceSquared(enemy.getLocation());
-            slot.actor.face(enemy.getEyeLocation());
+            boolean pvp = objectives == null && enemy instanceof Player && pvpCore(game);
+            // Bedwars uses the shared melee too, but only ever strafes onto island-safe tiles (BedwarsGame.botStrafeSafe).
+            boolean bedwarsMelee = enemy instanceof Player
+                    && game.logic() instanceof uk.co.playerready.pulsegames.games.bedwars.BedwarsGame;
+            BotDifficulty.Profile profile = combat.profile(difficulty);
+            if (pvp || bedwarsMelee) {
+                if (slot.melee == null) slot.melee = new BotMelee(bot.getUniqueId(), meleeRandom(), () -> tick);
+                slot.actor.face(slot.melee.aim(bot.getEyeLocation(), enemy.getEyeLocation(), profile, difficulty == BotDifficulty.EASY));
+            } else slot.actor.face(enemy.getEyeLocation());
             if (game.logic() instanceof DodgeballGame dodgeball) {
                 if (distance < 22 * 22 && tick >= slot.nextAttack) {
                     // Real throws use the game's cooldown and projectile/hit rules.
@@ -440,21 +455,29 @@ public final class BotService implements AutoCloseable {
                     handled = sky.botCombat(bot, enemy, tick, difficulty);
                 if (!handled && game.logic() instanceof uk.co.playerready.pulsegames.games.bedwars.BedwarsGame bed)
                     handled = bed.botCombat(bot, enemy, tick, difficulty);
-                if (!handled && distance <= 2.8 * 2.8 && tick >= slot.nextAttack) {
-                    if (random.applyAsInt(100) < difficulty.accuracy) {
-                        if (objectives != null || game.type().id().equals("skywars") || game.type().id().equals("bedwars")) selectSword(bot);
-                        bot.swingMainHand();
-                        if (game.mode().combatStyle() != GameMode.CombatStyle.MODERN || bot.getAttackCooldown() >= 0.9f)
-                            bot.attack(enemy);
+                if (!handled && pvp) goal = pvpCombat(slot, game, bot, (Player) enemy, here, distance, difficulty, profile,
+                        standable(here), true);
+                else if (!handled && bedwarsMelee)
+                    // Item use (apples, pearls, fireballs) stays in BedwarsGame.botCombat, so the core kit is off here.
+                    goal = pvpCombat(slot, game, bot, (Player) enemy, here, distance, difficulty, profile,
+                            uk.co.playerready.pulsegames.games.bedwars.BedwarsGame.botStrafeSafe(here), false);
+                else {
+                    if (!handled && distance <= 2.8 * 2.8 && tick >= slot.nextAttack) {
+                        if (random.applyAsInt(100) < difficulty.accuracy) {
+                            if (objectives != null || game.type().id().equals("skywars") || game.type().id().equals("bedwars")) selectSword(bot);
+                            bot.swingMainHand();
+                            if (game.mode().combatStyle() != GameMode.CombatStyle.MODERN || bot.getAttackCooldown() >= 0.9f)
+                                bot.attack(enemy);
+                        }
+                        slot.nextAttack = tick + difficulty.meleeTicks + random.applyAsInt(9);
                     }
-                    slot.nextAttack = tick + difficulty.meleeTicks + random.applyAsInt(9);
+                    if (distance > 2.3 * 2.3) goal = enemy.getLocation();
                 }
-                if (distance > 2.3 * 2.3) goal = enemy.getLocation();
             }
         }
-        if (game.type().id().equals("koth") && (enemy == null || here.distanceSquared(enemy.getLocation()) > 6 * 6)) {
-            var hill = game.arena().region("hill");
-            if (hill != null) { goal = hill.center(game.world()); slot.objective = "Capturing the hill"; }
+        if (game.logic() instanceof uk.co.playerready.pulsegames.games.koth.KothGame koth) {
+            var hill = koth.botHill();
+            if (hill != null) goal = kothGoal(slot, game, bot, enemy, here, goal, hill);
         }
         if (goal == null && enemy == null) {
             slot.objective = objectives != null ? "Guarding the objective" : "Patrolling";
@@ -481,6 +504,121 @@ public final class BotService implements AutoCloseable {
             slot.objective = duels.botStatus(bot);
         }
         navigate(slot, here, goal, difficulty);
+    }
+
+
+    /** BotMelee's dice come from this service's injectable source, so tests that inject it are deterministic. */
+    private Random meleeRandom() {
+        java.util.function.IntUnaryOperator source = random;
+        return new Random() {
+            @Override public int nextInt(int bound) { return source.applyAsInt(bound); }
+            @Override public double nextDouble() { return source.applyAsInt(1 << 24) / (double) (1 << 24); }
+            @Override public boolean nextBoolean() { return source.applyAsInt(2) == 1; }
+        };
+    }
+
+    private static boolean pvpCore(GameInstance game) {
+        return switch (game.type().id()) { case "duels", "kitpvp", "koth" -> true; default -> false; };
+    }
+
+    @SuppressWarnings("deprecation")
+    private static double healthFraction(Player bot) {
+        double max = bot.getMaxHealth() <= 0 ? 20 : bot.getMaxHealth();
+        return Math.min(1, bot.getHealth() / max);
+    }
+
+    /** Safe to stand on: solid, harmless ground at the bot's own level (so never a ledge, void or hazard). */
+    private java.util.function.Predicate<Location> standable(Location level) {
+        int y = level.getBlockY();
+        return at -> { Location feet = at.clone(); feet.setY(y); return walkable.test(feet); };
+    }
+
+    /** The shared PvP core: strafe, kit, sprint, jump, retreat and sumo edge. Returns the movement goal. */
+    private Location pvpCombat(Slot slot, GameInstance game, Player bot, Player enemy, Location here,
+                               double distanceSquared, BotDifficulty difficulty, BotDifficulty.Profile profile,
+                               java.util.function.Predicate<Location> safe, boolean coreKit) {
+        BotMelee melee = slot.melee;
+        double distance = Math.sqrt(distanceSquared);
+        Location enemyAt = enemy.getLocation();
+        boolean sumo = game.type().id().equals("duels") && game.mode().rulesId().equals("sumo");
+        boolean retreating = combat.retreat() && melee.retreating(healthFraction(bot), slot.kit.canHeal(bot), profile);
+        if (coreKit && combat.kitUse() && kitUse(slot, game, bot, enemy, here, distance, retreating, difficulty, profile, safe)) {
+            slot.objective = slot.kit.drawing() ? "Shooting from range" : "Using the kit";
+            return combat.strafe() ? melee.strafeGoal(here, enemyAt, profile, safe, true) : null;
+        }
+        slot.kit.stopDrawing();
+        selectSwordIfNeeded(bot);
+        boolean ready = bot.getAttackCooldown() >= 0.9f;
+        boolean hurt = bot.getNoDamageTicks() > bot.getMaximumNoDamageTicks() / 2;
+        if (!retreating && distance <= 4 && melee.jump(distance, bot.isOnGround(), ready, hurt, profile)) {
+            bot.setJumping(true);
+            game.runLater(2, () -> bot.setJumping(false));
+            // A crit needs the hit on the way down, so hold the swing for the top of the jump.
+            if (!hurt) slot.nextAttack = Math.max(slot.nextAttack, tick + 10);
+        }
+        if (!retreating && distance <= 2.8 && tick >= slot.nextAttack) {
+            if (combat.sprint()) bot.setSprinting(melee.sprint(distance, true, profile));
+            if (random.applyAsInt(100) < profile.hitChance()) {
+                bot.swingMainHand();
+                if (game.mode().combatStyle() != GameMode.CombatStyle.MODERN || bot.getAttackCooldown() >= 0.9f) {
+                    bot.attack(enemy);
+                    melee.afterHit();
+                }
+            } else {
+                // A miss still swings, at a point beside the target, instead of freezing for a second.
+                slot.actor.face(melee.missPoint(bot.getEyeLocation(), enemy.getEyeLocation()));
+                bot.swingMainHand();
+            }
+            slot.nextAttack = tick + profile.meleeDelay() + random.applyAsInt(9);
+        } else if (combat.sprint()) bot.setSprinting(melee.sprint(retreating ? 99 : distance, false, profile));
+        if (retreating) {
+            slot.objective = "Backing off to heal";
+            Location away = melee.retreatGoal(here, enemyAt, safe);
+            if (away != null) return away;
+        }
+        if (sumo) {
+            Location edge = melee.sumoGoal(here, enemyAt, standable(here));
+            if (edge != null) return edge;
+        }
+        if (distance > 3.5 || !combat.strafe()) return distance > 2.3 ? enemyAt : null;
+        Location strafe = melee.strafeGoal(here, enemyAt, profile, safe, false);
+        return strafe != null ? strafe : distance > 2.3 ? enemyAt : null;
+    }
+
+    /** Apples, bow, pearls. Returns true when the bot spent this think on one of them. */
+    private boolean kitUse(Slot slot, GameInstance game, Player bot, Player enemy, Location here, double distance,
+                           boolean retreating, BotDifficulty difficulty, BotDifficulty.Profile profile,
+                           java.util.function.Predicate<Location> safe) {
+        if (game.type().id().equals("kitpvp") && game.mode().rulesId().equals("oitc")) return false;
+        boolean hurt = bot.getHealth() < 16;
+        if (hurt && (retreating || distance > 5) && slot.kit.eat(bot, tick)) return true;
+        if (difficulty != BotDifficulty.EASY && slot.kit.canPearl(bot) && bot.hasLineOfSight(enemy)) {
+            boolean cornered = retreating && slot.melee.retreatGoal(here, enemy.getLocation(), safe) == null;
+            if ((distance > 16 || cornered) && slot.kit.pearl(bot, enemy.getEyeLocation(), distance, tick)) return true;
+        }
+        if (!retreating && distance >= 8 && distance <= 24 && bot.hasLineOfSight(enemy) && slot.kit.canShoot(bot)) {
+            Location aimed = slot.melee.aim(bot.getEyeLocation(), enemy.getEyeLocation(), profile, difficulty == BotDifficulty.EASY);
+            return slot.kit.shoot(bot, aimed, distance, tick, profile.projectileDelay());
+        }
+        return false;
+    }
+
+    private static void selectSwordIfNeeded(Player bot) {
+        var held = bot.getInventory().getItemInMainHand();
+        if (held == null || !held.getType().name().endsWith("_SWORD")) selectSword(bot);
+    }
+
+    /** Hold the (current) hill from this bot's own spot. Hunters in team games go after rivals; holders only fight on or beside it. */
+    private Location kothGoal(Slot slot, GameInstance game, Player bot, LivingEntity enemy, Location here, Location goal,
+                              uk.co.playerready.pulsegames.core.util.Cuboid hill) {
+        Location spot = BotMelee.spreadPoint(hill, game.world(), bot.getUniqueId());
+        boolean hunter = game.mode().isTeams() && BotPersonality.aggression(bot.getUniqueId()) >= 0.5;
+        if (enemy == null) { slot.objective = "Capturing the hill"; return spot; }
+        double distance = here.distance(enemy.getLocation());
+        boolean contested = hill.contains(enemy.getLocation());
+        if (contested || distance <= (hunter ? 12 : 4)) return goal;
+        slot.objective = "Capturing the hill";
+        return spot;
     }
 
     /** Optional ordered map hints, only used when the controller has no immediate objective. */
@@ -519,12 +657,14 @@ public final class BotService implements AutoCloseable {
         if (goal == null || here.distanceSquared(goal) < (precise ? 0.04 : 1)) {
             slot.actor.stopNavigation();
             slot.destination = null;
-        } else if (tick >= slot.nextPath && (slot.destination == null || slot.destination.distanceSquared(goal) > (precise ? 0.01 : 2) || tick % 100 == 0)) {
+        } else if (BotPace.mayIssue(skywars, tick, slot.nextPath, skywars && BotPace.arrived(here, slot.destination))
+                && (slot.destination == null || slot.destination.distanceSquared(goal) > (precise ? 0.01 : 2) || tick % 100 == 0)) {
             if (skywars || slot.game.logic() instanceof BotMovement movement && movement.straightNavigation()) slot.actor.navigateStraight(goal);
             else slot.actor.navigate(goal);
             slot.destination = goal.clone();
             slot.nextPath = tick + (slot.game.logic() instanceof BotMovement movement
-                    ? Math.max(5, movement.navigationIntervalTicks(difficulty)) : difficulty.pathTicks + random.applyAsInt(6));
+                    ? Math.max(5, movement.navigationIntervalTicks(difficulty))
+                    : BotPace.interval(skywars, difficulty.pathTicks, random.applyAsInt(6)));
         }
     }
 

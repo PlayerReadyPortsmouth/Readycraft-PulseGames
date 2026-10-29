@@ -53,6 +53,8 @@ items:
 
   - {id: golden_apple, category: utility, material: GOLDEN_APPLE, currency: gold, cost: 3, name: Golden Apple, blurb: "Eat it to heal and get a short boost.", quick-buy: true}
   - {id: tnt, category: utility, material: TNT, currency: gold, cost: 8, name: TNT, blurb: "Blast open a bed defence. Careful where you place it!", quick-buy: true}
+  - {id: fireball, category: utility, material: FIRE_CHARGE, currency: iron, cost: 40, name: Fireball, blurb: "Right-click to throw it. It knocks players back and blasts weak blocks. Beds shrug it off: only mining breaks a bed."}
+  - {id: ender_pearl, category: utility, material: ENDER_PEARL, currency: diamond, cost: 4, name: Ender Pearl, blurb: "Throw it to teleport to where it lands."}
   - {id: water_bucket, category: utility, material: WATER_BUCKET, currency: gold, cost: 4, name: Water Bucket, blurb: "Slows down fire and breaks falls.", unique: true}
 
 # Team upgrades: everyone on your team gets them. Each level costs the listed number of diamonds.

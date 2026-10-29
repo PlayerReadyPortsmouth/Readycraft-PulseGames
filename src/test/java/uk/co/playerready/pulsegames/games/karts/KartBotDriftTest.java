@@ -73,4 +73,22 @@ class KartBotDriftTest {
   assertEquals(0,drift.update(d.drift(),d.input(),start(),false).boostTicks());
   bot.reset();assertEquals(0,bot.stuckTicks());
  }
+ /** Holds a steady bend ahead of the kart, as a long sweeper does, and reports the longest drift. */
+ int longestDrift(KartBotDriver bot,BotDifficulty level,boolean moveTarget) {
+  var drift=new KartDrift();var state=new KartPhysics.State(0,0,0,0,8,0,true);int run=0,best=0;
+  KartBotDriver.Point target=null;
+  for(int tick=0;tick<160;tick++) {
+   double yaw=Math.toRadians(state.yaw()+55);
+   if(target==null||(moveTarget&&tick%10==0)||!moveTarget&&tick%40==0)
+    target=new KartBotDriver.Point(state.x()-Math.sin(yaw)*16,0,state.z()+Math.cos(yaw)*16);
+   double next=Math.toRadians(state.yaw()+110);
+   var following=new KartBotDriver.Point(target.x()-Math.sin(next)*16,0,target.z()+Math.cos(next)*16);
+   var d=bot.update(state,target,following,level,floor,List.of());
+   run=d.drift()?run+1:0;best=Math.max(best,run);
+   var c=drift.update(d.drift(),d.input(),state,false);
+   state=KartPhysics.tick(state,c.input(),c.boostTicks()>0?c.boostFactor():1,floor,KartStyle.BALANCED,c.slipDegrees());
+  }
+  return best;
+ }
+ @Test void normalHoldsALongDriftAndASteadyBendDoesNotCancelItWhenTheTargetMoves() {}
 }
