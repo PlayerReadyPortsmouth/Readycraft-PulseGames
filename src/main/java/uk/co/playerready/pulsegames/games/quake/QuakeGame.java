@@ -74,7 +74,7 @@ public final class QuakeGame extends MiniGame implements BotMovement {
             protectedUntil.put(p.getUniqueId(),clock.getAsLong()+(startFreezeSeconds()+2)*1_000_000_000L);
             if(!game.isBot(p)) game.runLater(1,()->{if(game.state()==GameState.RUNNING && game.isActive(p))open(p);});
         }
-        game.broadcast("<aqua>Quake! Choose a weapon and two abilities. First side to "+target()+" kills wins. Right-click your weapon or ability items.");
+        game.broadcast("<aqua>Quake! Choose a weapon and two abilities. First side to "+target()+" kills wins. Use your weapon or ability items.");
     }
     private static ItemStack item(Material material,String name){
         ItemStack item=new ItemStack(material);item.editMeta(m->m.displayName(Text.mm(name)));return item;
@@ -83,7 +83,7 @@ public final class QuakeGame extends MiniGame implements BotMovement {
         clearEffects(p);p.getInventory().clear();health.put(p.getUniqueId(),100);
         protectedUntil.put(p.getUniqueId(),clock.getAsLong()+2_000_000_000L);
         Weapon weapon=weapons.getOrDefault(p.getUniqueId(),Weapon.RAILGUN);
-        p.getInventory().setItem(0,item(weapon.item,"<aqua>"+weapon.label+" · right-click to fire"));
+        p.getInventory().setItem(0,item(weapon.item,"<aqua>"+weapon.label+" · "+uk.co.playerready.pulsegames.core.util.PlatformDetector.useVerb(p)+" to fire"));
         equipAbilities(p);
         p.getInventory().setItem(4,item(Material.COMPASS,"<yellow>Choose loadout · during spawn protection"));
         p.getInventory().setHeldItemSlot(0);
@@ -113,7 +113,7 @@ public final class QuakeGame extends MiniGame implements BotMovement {
         if(slot==31){p.closeInventory();return;}
         for(int i=0;i<Weapon.values().length;i++)if(slot==2+i*2){
             Weapon chosen=Weapon.values()[i];weapons.put(p.getUniqueId(),chosen);
-            p.getInventory().setItem(0,item(chosen.item,"<aqua>"+chosen.label+" · right-click to fire"));open(p);return;
+            p.getInventory().setItem(0,item(chosen.item,"<aqua>"+chosen.label+" · "+uk.co.playerready.pulsegames.core.util.PlatformDetector.useVerb(p)+" to fire"));open(p);return;
         }
         for(int i=0;i<Ability.values().length;i++)for(int target=0;target<2;target++)if(slot==10+target*9+i*2){
             Ability chosen=Ability.values()[i];List<Ability> current=new ArrayList<>(abilities(p));

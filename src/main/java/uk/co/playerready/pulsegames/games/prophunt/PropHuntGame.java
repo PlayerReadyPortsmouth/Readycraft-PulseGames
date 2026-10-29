@@ -370,7 +370,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
                             giveControl(player, 3, Material.BARRIER, "Clear your decoys");
                             giveControl(player, 5, Material.FEATHER, "Escape sprint");
                         }
-                        player.sendMessage(Text.msg("<yellow>Choose a disguise during hiding time. Right-click the slime ball to lock to the block grid or move again."));
+                        player.sendMessage(Text.msg("<yellow>Choose a disguise during hiding time. "+uk.co.playerready.pulsegames.core.util.PlatformDetector.useVerbCapital(player)+" the slime ball to lock to the block grid or move again."));
                         if (!game.isBot(player)) game.runLater(1, () -> openPalette(player));
                     }
                 } else {
@@ -381,7 +381,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
                     disguiseName = disguise.name().toLowerCase().replace('_', ' ');
                 }
                 ItemStack taunt = new ItemStack(Material.NOTE_BLOCK);
-                taunt.editMeta(meta -> meta.displayName(Text.mm("<yellow><b>Taunt</b> <gray>(right-click... if you dare)")));
+                taunt.editMeta(meta -> meta.displayName(Text.mm("<yellow><b>Taunt</b> <gray>("+uk.co.playerready.pulsegames.core.util.PlatformDetector.useVerb(player)+"... if you dare)")));
                 player.getInventory().setItem(4, taunt);
                 Text.title(player, "<green><b>HIDER", "<gray>Disguise: " + disguiseName);
             }
@@ -456,7 +456,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
 
     private void giveControl(Player player, int slot, Material material, String name) {
         ItemStack item = new ItemStack(material);
-        item.editMeta(meta -> meta.displayName(Text.mm("<yellow>" + name + " <gray>(right-click)")));
+        item.editMeta(meta -> meta.displayName(Text.mm("<yellow>" + name + " <gray>("+uk.co.playerready.pulsegames.core.util.PlatformDetector.useVerb(player)+")")));
         player.getInventory().setItem(slot, item);
     }
 
@@ -549,7 +549,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
         if (!player.teleport(standing)) { player.sendActionBar(Text.mm("<yellow>Lock cancelled; your disguise is still moving.")); return; }
         locked.put(id, new Locked(snapCell(standing), standing));
         player.setVelocity(new org.bukkit.util.Vector());
-        player.sendActionBar(Text.mm("<green>Locked as " + option.name() + ". <gray>Right-click again to move."));
+        player.sendActionBar(Text.mm("<green>Locked as " + option.name() + ". <gray>"+uk.co.playerready.pulsegames.core.util.PlatformDetector.useVerbCapital(player)+" again to move."));
     }
 
     /**
@@ -581,7 +581,7 @@ public final class PropHuntGame extends MiniGame implements uk.co.playerready.pu
         try { AutoCloseable rig = visuals.remove(id); if (rig != null) rig.close(); }
         catch (Exception e) { stopForPropFailure(new IllegalStateException("Could not hide the prop rig", e)); return true; }
         player.sendBlockChange(cell.getLocation(), blocks.air());
-        player.sendActionBar(Text.mm("<green>Locked as " + option.name() + ". <gray>Right-click again to move."));
+        player.sendActionBar(Text.mm("<green>Locked as " + option.name() + ". <gray>"+uk.co.playerready.pulsegames.core.util.PlatformDetector.useVerbCapital(player)+" again to move."));
         return true;
     }
 

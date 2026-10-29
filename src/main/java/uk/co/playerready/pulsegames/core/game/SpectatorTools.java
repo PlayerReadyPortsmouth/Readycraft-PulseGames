@@ -1,6 +1,7 @@
 package uk.co.playerready.pulsegames.core.game;
 
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
@@ -11,6 +12,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.persistence.PersistentDataType;
 import uk.co.playerready.pulsegames.PulseGamesPlugin;
+import uk.co.playerready.pulsegames.core.team.GameTeam;
+import uk.co.playerready.pulsegames.core.util.PlatformDetector;
 import uk.co.playerready.pulsegames.core.util.Text;
 
 import java.util.ArrayList;
@@ -55,6 +58,7 @@ public final class SpectatorTools {
     /** Teleport menu holder; targets are indexed by inventory slot. */
     public static final class MenuHolder implements InventoryHolder {
         final List<UUID> targets = new ArrayList<>();
+        UUID leader;
         Inventory inventory;
         @Override public Inventory getInventory() { return inventory; }
     }
@@ -165,37 +169,96 @@ public final class SpectatorTools {
     }
 
     void openWatchMenu(Player player) {
-        List<Player> targets = game.alivePlayers().stream().limit(MAX_HEADS).toList();
+        List<WatchList.Candidate> targets = candidates(player);
         if (targets.isEmpty()) {
             player.sendMessage(Text.msg("<gray>Nobody is left to watch."));
             return;
         }
         MenuHolder holder = new MenuHolder();
-        int rows = Math.min(6, (targets.size() + 8) / 9);
+        // Fixed size for this opening so refreshes can redraw in place; the list only ever shrinks.
+        int rows = Math.min(6, (Math.min(targets.size(), MAX_HEADS) + 8) / 9 + 1);
         holder.inventory = game.plugin().getServer().createInventory(holder, rows * 9, Text.mm("<dark_gray>Watch a player"));
-        for (Player target : targets) {
-            ItemStack head = new ItemStack(Material.PLAYER_HEAD);
-            head.editMeta(SkullMeta.class, meta -> {
-                meta.setOwningPlayer(target);
-                meta.displayName(Component.text(target.getName()));
-                meta.lore(List.of(Text.mm("<gray>Tap to fly to them")));
-            });
-            holder.inventory.setItem(holder.targets.size(), head);
-            holder.targets.add(target.getUniqueId());
-        }
+        render(holder, player);
         player.openInventory(holder.inventory);
     }
 
-    void menuClick(Player player, MenuHolder holder, int slot) {
-        if (slot < 0 || slot >= holder.targets.size() || !game.isSpectator(player)) return;
-        Player target = game.player(holder.targets.get(slot));
-        player.closeInventory();
-        if (target == null || !game.isAlive(target) || target.getWorld() != player.getWorld()) {
-            player.sendMessage(Text.msg("<gray>That player is out of the round."));
-            return;
+    /** Players still in the round, with the viewer's party and teammates marked as close. */
+    private List<WatchList.Candidate> candidates(Player viewer) {
+        var party = game.plugin().parties().partyOf(viewer);
+        GameTeam team = game.teamOf(viewer);
+        List<WatchList.Candidate> out = new ArrayList<>();
+        for (Player p : game.alivePlayers()) {
+            if (p.equals(viewer)) continue;
+            boolean close = (party != null && party.contains(p.getUniqueId())) || (team != null && team.contains(p));
+            double max = p.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH) == null ? 0
+                    : p.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue();
+            out.add(new WatchList.Candidate(p.getUniqueId(), p.getName(), close, game.score(p), p.getHealth(), max));
         }
-        player.teleport(target.getLocation().add(0, 2, 0));
-        player.sendActionBar(Text.mm("<aqua>Watching <white>" + target.getName()));
+        return out;
+    }
+
+    /** Redraws the whole menu in place, so a refresh never closes or re-opens it under a child's finger. */
+    private void render(MenuHolder holder, Player viewer) {
+        List<WatchList.Candidate> all = candidates(viewer);
+        List<WatchList.Candidate> shown = WatchList.order(all, Math.min(MAX_HEADS, holder.inventory.getSize() - 9));
+        holder.inventory.clear();
+        holder.targets.clear();
+        for (WatchList.Candidate c : shown) {
+            Player target = game.player(c.id());
+            if (target == null) continue;
+            ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+            head.editMeta(SkullMeta.class, meta -> {
+                meta.setOwningPlayer(target);
+                meta.displayName(Component.text(c.name()).decoration(TextDecoration.ITALIC, false));
+                List<Component> lore = new ArrayList<>();
+                if (c.close()) lore.add(Text.mm("<green>On your team").decoration(TextDecoration.ITALIC, false));
+                String stats = WatchList.stats(c);
+                if (!stats.isEmpty()) lore.add(Text.mm("<gray>" + stats).decoration(TextDecoration.ITALIC, false));
+                lore.add(Text.mm("<gray>" + PlatformDetector.useVerbCapital(viewer) + " to fly to them").decoration(TextDecoration.ITALIC, false));
+                meta.lore(lore);
+            });
+            holder.inventory.setItem(holder.targets.size(), head);
+            holder.targets.add(c.id());
+        }
+        WatchList.Candidate leader = WatchList.leader(all);
+        holder.leader = leader == null ? null : leader.id();
+        if (leader != null) {
+            ItemStack star = new ItemStack(Material.NETHER_STAR);
+            star.editMeta(meta -> {
+                meta.displayName(Text.mm("<gold><b>Follow the leader").decoration(TextDecoration.ITALIC, false));
+                meta.lore(List.of(Text.mm("<gray>" + leader.name() + " is in front with " + leader.score())
+                        .decoration(TextDecoration.ITALIC, false)));
+            });
+            holder.inventory.setItem(holder.inventory.getSize() - 5, star);
+        }
+    }
+
+    /** Someone went out: redraw every open watch menu so nobody can pick a player who has gone. */
+    void refreshMenus() {
+        for (Player viewer : game.everyone()) {
+            if (viewer.getOpenInventory().getTopInventory().getHolder() instanceof MenuHolder holder
+                    && holder.inventory != null) render(holder, viewer);
+        }
+    }
+
+    void menuClick(Player player, MenuHolder holder, int slot) {
+        if (!game.isSpectator(player)) return;
+        UUID wanted;
+        if (slot >= 0 && slot < holder.targets.size()) wanted = holder.targets.get(slot);
+        else if (slot == holder.inventory.getSize() - 5 && holder.leader != null) wanted = holder.leader;
+        else return;
+        // Next tick: closing or teleporting inside the click event can drop the item on Bedrock.
+        game.plugin().getServer().getScheduler().runTask(game.plugin(), () -> {
+            if (!player.isOnline() || !game.isSpectator(player)) return;
+            Player target = game.player(wanted);
+            player.closeInventory();
+            if (target == null || !game.isAlive(target) || target.getWorld() != player.getWorld()) {
+                player.sendMessage(Text.msg("<gray>That player is out of the round."));
+                return;
+            }
+            player.teleport(target.getLocation().add(0, 2, 0));
+            player.sendActionBar(Text.mm("<aqua>Watching <white>" + target.getName()));
+        });
     }
 
     /** Rate limit shared by all emotes: one every {@link #EMOTE_COOLDOWN_MS} per player. */

@@ -10,6 +10,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import uk.co.playerready.pulsegames.core.util.LocUtil;
+import uk.co.playerready.pulsegames.core.util.PlatformDetector;
 import uk.co.playerready.pulsegames.core.util.Text;
 
 public final class LobbyService {
@@ -86,16 +87,17 @@ public final class LobbyService {
                 player.getInventory().setItem(slot, null);
             }
         }
+        String verb = PlatformDetector.useVerb(player);
         ItemStack compass = new ItemStack(Material.COMPASS);
-        compass.editMeta(meta -> meta.displayName(Text.mm("<gradient:#ff5f6d:#ffc371><b>Game Menu</b></gradient> <gray>(right-click)")));
+        compass.editMeta(meta -> meta.displayName(Text.mm("<gradient:#ff5f6d:#ffc371><b>Game Menu</b></gradient> <gray>(" + verb + ")")));
         compass.editMeta(meta -> meta.getPersistentDataContainer().set(controlKey, PersistentDataType.STRING, "games"));
         giveMenuSlot(player, 4, compass);
         ItemStack shop = new ItemStack(Material.SUNFLOWER);
-        shop.editMeta(meta -> meta.displayName(Text.mm("<gold><b>Token Shop</b> <gray>(right-click)")));
+        shop.editMeta(meta -> meta.displayName(Text.mm("<gold><b>Token Shop</b> <gray>(" + verb + ")")));
         shop.editMeta(meta -> meta.getPersistentDataContainer().set(controlKey, PersistentDataType.STRING, "shop"));
         giveMenuSlot(player, 6, shop);
         ItemStack quick = new ItemStack(Material.ENDER_EYE);
-        quick.editMeta(meta -> meta.displayName(Text.mm("<green><b>Quick Play</b> <gray>(right-click)")));
+        quick.editMeta(meta -> meta.displayName(Text.mm("<green><b>Quick Play</b> <gray>(" + verb + ")")));
         quick.editMeta(meta -> meta.getPersistentDataContainer().set(controlKey, PersistentDataType.STRING, "quickplay"));
         giveMenuSlot(player, 2, quick);
     }

@@ -1,0 +1,63 @@
+# Bedwars item shop. Copied to plugins/PulseGames/bedwars-shop.yml on first run.
+# Edit the copy to tune prices and items; it is re-read at the start of every Bedwars match.
+# If the file has a mistake the server logs a warning and uses the built-in copy instead.
+#
+# Per item:
+#   id          unique short name
+#   category    blocks | melee | armour | tools | ranged | potions | utility
+#   material    Bukkit material name (for armour: the CHESTPLATE; leggings and boots come with it)
+#   amount      how many you get (default 1)
+#   currency    iron | gold | diamond
+#   cost        price in that currency
+#   name/blurb  what the child sees (keep it short and friendly)
+#   group       optional tier chain from "groups" below; buying a higher tier replaces the lower one
+#   equip       true = worn straight away and kept after respawning (armour)
+#   team-colour true = wool in the buyer's team colour
+#   unique      true = you can only hold one
+#   quick-buy   true = appears in the quick-buy row (at most 8)
+#   potion      optional { effect: speed, seconds: 45, level: 2 }
+# A category page holds at most 18 items.
+
+groups:
+  sword: [WOODEN_SWORD, STONE_SWORD, IRON_SWORD, DIAMOND_SWORD]
+  pickaxe: [WOODEN_PICKAXE, IRON_PICKAXE, DIAMOND_PICKAXE]
+  axe: [WOODEN_AXE, STONE_AXE, IRON_AXE]
+  armour: [LEATHER_CHESTPLATE, CHAINMAIL_CHESTPLATE, IRON_CHESTPLATE, DIAMOND_CHESTPLATE]
+
+items:
+  - {id: wool, category: blocks, material: WHITE_WOOL, amount: 16, currency: iron, cost: 4, name: Wool, blurb: "Build bridges and walls in your team colour.", team-colour: true, quick-buy: true}
+  - {id: planks, category: blocks, material: OAK_PLANKS, amount: 16, currency: gold, cost: 4, name: Wood Planks, blurb: "Strong blocks that are harder to break."}
+  - {id: end_stone, category: blocks, material: END_STONE, amount: 12, currency: iron, cost: 24, name: End Stone, blurb: "Tough blocks to guard your bed."}
+
+  - {id: sword_stone, category: melee, material: STONE_SWORD, currency: iron, cost: 10, name: Stone Sword, blurb: "Replaces your wooden sword.", group: sword, quick-buy: true}
+  - {id: sword_iron, category: melee, material: IRON_SWORD, currency: gold, cost: 7, name: Iron Sword, blurb: "A stronger sword. Replaces your old one.", group: sword, quick-buy: true}
+  - {id: sword_diamond, category: melee, material: DIAMOND_SWORD, currency: diamond, cost: 4, name: Diamond Sword, blurb: "The strongest sword. Replaces your old one.", group: sword}
+
+  - {id: armour_chain, category: armour, material: CHAINMAIL_CHESTPLATE, currency: iron, cost: 30, name: Chainmail Armour, blurb: "Chestplate, leggings and boots. You wear it straight away and keep it when you respawn.", group: armour, equip: true, quick-buy: true}
+  - {id: armour_iron, category: armour, material: IRON_CHESTPLATE, currency: gold, cost: 12, name: Iron Armour, blurb: "Chestplate, leggings and boots. You wear it straight away and keep it when you respawn.", group: armour, equip: true}
+  - {id: armour_diamond, category: armour, material: DIAMOND_CHESTPLATE, currency: diamond, cost: 6, name: Diamond Armour, blurb: "Chestplate, leggings and boots. You wear it straight away and keep it when you respawn.", group: armour, equip: true}
+
+  - {id: shears, category: tools, material: SHEARS, currency: iron, cost: 20, name: Shears, blurb: "Cut through wool fast.", unique: true}
+  - {id: pickaxe_wood, category: tools, material: WOODEN_PICKAXE, currency: iron, cost: 10, name: Wooden Pickaxe, blurb: "Dig faster.", group: pickaxe}
+  - {id: pickaxe_iron, category: tools, material: IRON_PICKAXE, currency: iron, cost: 25, name: Iron Pickaxe, blurb: "Dig even faster. Replaces your old pickaxe.", group: pickaxe, quick-buy: true}
+  - {id: pickaxe_diamond, category: tools, material: DIAMOND_PICKAXE, currency: gold, cost: 12, name: Diamond Pickaxe, blurb: "The fastest pickaxe. Replaces your old one.", group: pickaxe}
+  - {id: axe_wood, category: tools, material: WOODEN_AXE, currency: iron, cost: 10, name: Wooden Axe, blurb: "Chop wooden blocks faster.", group: axe}
+  - {id: axe_stone, category: tools, material: STONE_AXE, currency: iron, cost: 20, name: Stone Axe, blurb: "Chop faster. Replaces your old axe.", group: axe}
+  - {id: axe_iron, category: tools, material: IRON_AXE, currency: gold, cost: 6, name: Iron Axe, blurb: "The fastest axe. Replaces your old one.", group: axe}
+
+  - {id: bow, category: ranged, material: BOW, currency: gold, cost: 12, name: Bow, blurb: "Shoot from a distance. You need arrows.", unique: true, quick-buy: true}
+  - {id: arrows, category: ranged, material: ARROW, amount: 6, currency: gold, cost: 2, name: Arrows, blurb: "Ammunition for your bow."}
+
+  - {id: potion_speed, category: potions, material: POTION, currency: gold, cost: 2, name: Speed Potion, blurb: "Run faster for 45 seconds.", potion: {effect: speed, seconds: 45, level: 2}}
+  - {id: potion_jump, category: potions, material: POTION, currency: gold, cost: 2, name: Jump Potion, blurb: "Jump higher for 45 seconds.", potion: {effect: jump_boost, seconds: 45, level: 4}}
+
+  - {id: golden_apple, category: utility, material: GOLDEN_APPLE, currency: gold, cost: 3, name: Golden Apple, blurb: "Eat it to heal and get a short boost.", quick-buy: true}
+  - {id: tnt, category: utility, material: TNT, currency: gold, cost: 8, name: TNT, blurb: "Blast open a bed defence. Careful where you place it!", quick-buy: true}
+  - {id: water_bucket, category: utility, material: WATER_BUCKET, currency: gold, cost: 4, name: Water Bucket, blurb: "Slows down fire and breaks falls.", unique: true}
+
+# Team upgrades: everyone on your team gets them. Each level costs the listed number of diamonds.
+# effect: sharpness (swords) | protection (armour) | haste (dig faster)
+upgrades:
+  - {id: sharpness, effect: sharpness, icon: DIAMOND_SWORD, name: Sharp Swords, blurb: "All your team's swords hit harder.", costs: [8]}
+  - {id: protection, effect: protection, icon: DIAMOND_CHESTPLATE, name: Strong Armour, blurb: "All your team's armour protects more.", costs: [8, 16]}
+  - {id: haste, effect: haste, icon: GOLDEN_PICKAXE, name: Maniac Miner, blurb: "Your whole team digs faster.", costs: [4, 8]}

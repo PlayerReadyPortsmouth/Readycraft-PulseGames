@@ -1,11 +1,15 @@
 # Minigames development and play-test tracker
 
-Last updated: 28 October 2026. Owner: Aurora. Agents should update this file as
+Last updated: 29 October 2026. Owner: Aurora. Agents should update this file as
 work and player feedback arrive; keep it in the PulseGames repository.
 
 Readable report: [HTML](MINIGAMES-TRACKER.html) · [PDF](MINIGAMES-TRACKER.pdf).
 After editing this source, regenerate both exports with
 `node tools/render-minigames-tracker.mjs --pdf`; see [update instructions](tools/TRACKER-README.md).
+
+## 29 October - Bundle 0.5.0: UI kit and game list, Bedwars shop, lobby polish (candidate)
+
+**Candidate only: merged to `main` and built, not deployed, not played.** `pluginVersion` is **0.5.0**. Bundles draft PRs #44 (core/ui kit and 54-slot game list), #45 (Bedwars shop: categories, quick buy, tiers, armour auto-equip, tiered team upgrades, sidebar timers, editable `bedwars-shop.yml`) and #43 (touch-aware "right-click"/"tap" wording via Floodgate, watch menu, join hint, sidebar diffing). Full `build test` is green (956 tests, 0 failures). New config keys: `engagement.join-hint` (default true), `debug.sidebar` (default false). 0.4.3 (karts arcade pack) was never deployed, so this bundle carries it. Visual checks, starting with a real two-team Bedwars match with bots off on Java and Bedrock: `docs/handoffs/2026-10-29-bundle-0.5.0.md`. Deployment to MinigamesTest needs its own go-ahead and restart approval.
 
 ## 28 October - Bug-hunt fixes 0.4.2 (candidate)
 

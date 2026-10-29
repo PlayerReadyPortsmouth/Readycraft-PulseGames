@@ -170,7 +170,7 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
     void equipBase(Player player) {
         player.getInventory().setItem(0, new ItemStack(Material.WOODEN_SWORD));
         ItemStack shop = new ItemStack(Material.EMERALD);
-        shop.editMeta(meta -> meta.displayName(Text.mm("<green><b>Supply Shop</b> <gray>(right-click)")));
+        shop.editMeta(meta -> meta.displayName(Text.mm("<green><b>Supply Shop</b> <gray>("+uk.co.playerready.pulsegames.core.util.PlatformDetector.useVerb(player)+")")));
         player.getInventory().setItem(8, shop);
         player.getInventory().setChestplate(new ItemStack(Material.LEATHER_CHESTPLATE));
     }

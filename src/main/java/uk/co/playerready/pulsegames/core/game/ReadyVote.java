@@ -13,10 +13,10 @@ import java.util.UUID;
 public final class ReadyVote {
     private ReadyVote() { }
 
-    public static ItemStack item() {
+    public static ItemStack item(org.bukkit.entity.Player viewer) {
         ItemStack lime = new ItemStack(Material.LIME_DYE);
         lime.editMeta(meta -> {
-            meta.displayName(Text.mm("<green><b>I'm ready!</b> <gray>(right-click)"));
+            meta.displayName(Text.mm("<green><b>I'm ready!</b> <gray>(" + uk.co.playerready.pulsegames.core.util.PlatformDetector.useVerb(viewer) + ")"));
             meta.lore(java.util.List.of(Component.text("Start early when everyone is ready")));
         });
         return lime;

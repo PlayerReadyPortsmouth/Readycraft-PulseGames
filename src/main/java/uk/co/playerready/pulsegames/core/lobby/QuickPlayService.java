@@ -61,6 +61,15 @@ public final class QuickPlayService {
                 .toList());
     }
 
+    /** Live counts per {@code gameId/modeId}. */
+    public Map<String, QueueCounts.Count> modeCounts() {
+        return QueueCounts.tallyModes(plugin.instances().all().stream()
+                .map(g -> new QueueCounts.ModeRow(g.type().id(), g.mode().id(),
+                        g.state() == GameState.WAITING || g.state() == GameState.COUNTDOWN,
+                        g.state() == GameState.RUNNING, g.practice(), g.humanCount()))
+                .toList());
+    }
+
     public void quickPlay(Player player) {
         if (!plugin.getConfig().getBoolean("quickplay.enabled", true)) {
             player.sendMessage(Text.msg("<red>Quick Play is not enabled.")); return;

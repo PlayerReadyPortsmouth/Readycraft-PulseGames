@@ -191,7 +191,7 @@ public final class EngagementService {
                 dirty = true;
             }
             Player online = plugin.getServer().getPlayer(w.player());
-            if (online != null) onJoin(online);
+            if (online != null) deliverNotices(online);
         }
         flushWeekly();
     }
@@ -203,8 +203,20 @@ public final class EngagementService {
         plugin.stats().flush();
     }
 
-    /** Delivers weekly-reward notices to a player who was offline at the reset. */
+    /** Join: weekly-reward notices, then one gentle action-bar nudge if something is waiting. */
     public void onJoin(Player player) {
+        deliverNotices(player);
+        if (!plugin.getConfig().getBoolean("engagement.join-hint", true)) return;
+        // A moment later, so the lobby teleport and join messages do not wipe the action bar.
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (!player.isOnline()) return;
+            String line = joinHint(player);
+            if (line != null) player.sendActionBar(Text.mm(line));
+        }, 40L);
+    }
+
+    /** Delivers weekly-reward notices to a player who was offline at the reset. */
+    private void deliverNotices(Player player) {
         List<String> notices;
         synchronized (this) {
             notices = data.getStringList("notices." + player.getUniqueId());
@@ -213,6 +225,26 @@ public final class EngagementService {
             dirty = true;
         }
         notices.forEach(n -> player.sendMessage(Text.msg("<gold>" + n)));
+    }
+
+    private String joinHint(Player player) {
+        LocalDate today = LocalDate.now();
+        boolean challengeWaiting = false;
+        boolean firstWinWaiting;
+        synchronized (this) {
+            for (ChallengeDef def : defs()) {
+                if (!challenges.done(player.getUniqueId(), today, def)) { challengeWaiting = true; break; }
+            }
+            firstWinWaiting = !streaks.firstWinClaimed(player.getUniqueId(), today);
+        }
+        String featured = null;
+        double multiplier = 1;
+        var quick = plugin.quickPlay();
+        if (quick != null && plugin.getConfig().getBoolean("quickplay.enabled", true)) {
+            GameType type = plugin.registry().get(quick.featuredId());
+            if (type != null && quick.multiplier() > 1) { featured = type.displayName(); multiplier = quick.multiplier(); }
+        }
+        return JoinHint.line(featured, multiplier, challengeWaiting, firstWinWaiting);
     }
 
     private static ItemStack icon(Material material, String name, String... lore) {

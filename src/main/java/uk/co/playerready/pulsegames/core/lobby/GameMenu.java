@@ -1,25 +1,33 @@
 package uk.co.playerready.pulsegames.core.lobby;
 
-import net.kyori.adventure.text.Component;
-import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
-import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import uk.co.playerready.pulsegames.PulseGamesPlugin;
 import uk.co.playerready.pulsegames.core.game.GameMode;
 import uk.co.playerready.pulsegames.core.game.GameType;
+import uk.co.playerready.pulsegames.core.ui.Buttons;
+import uk.co.playerready.pulsegames.core.ui.Lore;
+import uk.co.playerready.pulsegames.core.ui.Menu;
+import uk.co.playerready.pulsegames.core.ui.Paginator;
+import uk.co.playerready.pulsegames.core.ui.Theme;
 import uk.co.playerready.pulsegames.core.util.Text;
 
-import java.util.ArrayList;
 import java.util.List;
 
-/** Compass-driven GUI: pick a game, then a mode. */
-public final class GameMenu implements Listener {
+/** Compass-driven GUI built on the shared menu kit: pick a game, then a mode. */
+public final class GameMenu {
+
+    /** Games per page: rows 1-4, columns 1-7 of the 54-slot menu. */
+    static final int PER_PAGE = 28;
+    static final int QUICK_PLAY_SLOT = 4;
+    static final int PARTY_SLOT = 45;
+    static final int CHALLENGES_SLOT = 46;
+    static final int TOP_SLOT = 47;
+    static final int KIT_SLOT = 51;
+    /** One row of modes in a 27-slot menu, otherwise four rows in a 54-slot one. */
+    static final int SMALL_MODES = 7;
+    static final int MAX_MODES = PER_PAGE;
 
     private final PulseGamesPlugin plugin;
 
@@ -27,190 +35,147 @@ public final class GameMenu implements Listener {
         this.plugin = plugin;
     }
 
-    private static final class MenuHolder implements InventoryHolder {
-        final GameType gameOrNull; // null = top-level game list
-        Inventory inventory;
+    /** Content slot for the nth item: rows 1-4, columns 1-7 (leaves the border and the nav row free). */
+    static int contentSlot(int index) { return 10 + (index / 7) * 9 + index % 7; }
 
-        MenuHolder(GameType gameOrNull) {
-            this.gameOrNull = gameOrNull;
-        }
+    /** Unreleased games are only listed for testers and admins; everyone else never sees them. */
+    static boolean listed(boolean available, boolean seesUnreleased) { return available || seesUnreleased; }
 
-        @Override
-        public Inventory getInventory() { return inventory; }
+    /** Mode picker rows: one row of modes fits a 27-slot menu, more needs the full 54. */
+    static int modeRows(int modes) { return modes <= SMALL_MODES ? 3 : 6; }
+
+    /** Mode slot: row 1 (27 slots) or the same content grid as the game list (54 slots). */
+    static int modeSlot(int index, int rows) { return rows == 3 ? 10 + index : contentSlot(index); }
+
+    /** Stack size cue: how many are waiting, 1-64, and a plain single item when quiet. */
+    static int cue(int waiting) { return Math.max(1, Math.min(64, waiting)); }
+
+    private boolean seesUnreleased(Player player) {
+        return player.hasPermission("pulsegames.admin") || plugin.canUseNewFeatures(player);
     }
 
-    /** The last five slots hold Quick Play, challenges, top 3, party and kit buttons. */
-    static final int FOOTER_SLOTS = 5;
-
-    /** Rows that hold every game plus the footer, so the buttons never share a slot with a game. */
-    static int rowsFor(int games) {
-        return Math.max(2, Math.min(6, (games + FOOTER_SLOTS + 8) / 9));
-    }
-
-    /** Games that fit in the menu; past six rows the rest are left out rather than hidden under a button. */
-    static int capacity(int games) {
-        return Math.min(games, rowsFor(games) * 9 - FOOTER_SLOTS);
-    }
-
-    /** Mode buttons sit six to a row starting at slot 11, leaving the border columns free. */
-    static int modeSlot(int index) { return 11 + (index / 6) * 9 + index % 6; }
-
-    /** Modes that fit: four rows of six, so a long mode list is trimmed rather than overflowing the inventory. */
-    static final int MAX_MODES = 24;
-
-    /** Rows for the mode menu: a header row, the mode rows, and a bottom border; never fewer than the old 27 slots. */
-    static int modeRows(int modes) {
-        return Math.max(3, Math.min(6, modeSlot(Math.max(0, Math.min(modes, MAX_MODES) - 1)) / 9 + 2));
-    }
-
-    private List<GameType> visibleGames() {
-        List<GameType> all = new ArrayList<>(plugin.registry().all());
-        int shown = capacity(all.size());
-        if (shown < all.size())
-            plugin.getLogger().warning("Game menu is full: " + (all.size() - shown) + " game(s) not listed.");
-        return all.subList(0, shown);
+    private List<GameType> visibleGames(Player player) {
+        boolean privileged = seesUnreleased(player);
+        return plugin.registry().all().stream().filter(g -> listed(plugin.gameAvailable(g), privileged)).toList();
     }
 
     public void openGames(Player player) {
-        List<GameType> games = visibleGames();
-        int rows = rowsFor(plugin.registry().all().size());
-        MenuHolder holder = new MenuHolder(null);
-        Inventory inv = Bukkit.createInventory(holder, rows * 9, Text.mm("<dark_gray>Select a game"));
-        holder.inventory = inv;
-        int slot = 0;
-        var counts = plugin.quickPlay().counts();
-        String featured = plugin.quickPlay().featuredId();
-        for (GameType game : games) {
-            ItemStack item = new ItemStack(game.icon());
-            item.editMeta(meta -> {
-                meta.displayName(Text.mm("<yellow><b>" + game.displayName() + (!plugin.gameAvailable(game) ? " <red>(soon)" : "")));
-                List<Component> lore = new ArrayList<>();
-                lore.add(Text.mm("<gray>" + game.description()));
-                lore.add(Text.mm(""));
-                String tag = uk.co.playerready.pulsegames.games.GameTags.of(game.id());
-                if (tag != null) lore.add(Text.mm("<aqua>" + tag));
-                var count = counts.getOrDefault(game.id(), new QueueCounts.Count(0, 0));
-                lore.add(Text.mm("<gray>Now: <white>" + count.waiting() + " waiting / " + count.playing() + " playing"));
-                if (game.id().equals(featured))
-                    lore.add(Text.mm("<gold>Featured today: x" + plugin.quickPlay().multiplier() + " tokens"));
-                lore.add(Text.mm("<gray>Modes: <white>" + game.modes().size()));
-                lore.add(Text.mm(!plugin.gameAvailable(game) ? "<red>Coming soon!" : "<green>Click to play!"));
-                meta.lore(lore);
-            });
-            inv.setItem(slot++, item);
-        }
-        addKitButton(holder, inv);
-        ItemStack party = new ItemStack(Material.PLAYER_HEAD);
-        party.editMeta(meta -> {
-            meta.displayName(Text.mm("<aqua>Play with a party"));
-            meta.lore(List.of(Text.mm("<gray>Invite friends with /party invite [name]"),
-                    Text.mm("<gray>Your leader queues everyone together"),
-                    Text.mm("<yellow>Click for party commands")));
-        });
-        inv.setItem(inv.getSize() - 2, party);
-        inv.setItem(inv.getSize() - 3, button(Material.GOLDEN_HELMET, "<gold><b>Weekly top 3</b>", "Who is winning this week"));
-        inv.setItem(inv.getSize() - 4, button(Material.WRITABLE_BOOK, "<yellow><b>Daily challenges</b>", "Earn bonus tokens"));
-        inv.setItem(inv.getSize() - 5, button(Material.ENDER_EYE, "<green><b>Quick Play</b>", "Join the busiest game now"));
-        player.openInventory(inv);
+        Menu menu = new Menu(plugin, player, Theme.title("Games"), 6);
+        int[] page = {0};
+        menu.renderer(() -> renderGames(menu, player, page));
+        menu.open(player);
     }
 
-    private ItemStack button(Material material, String name, String lore) {
-        ItemStack item = new ItemStack(material);
-        item.editMeta(meta -> { meta.displayName(Text.mm(name)); meta.lore(List.of(Text.mm("<gray>" + lore), Text.mm("<yellow>Click!"))); });
-        return item;
+    private void renderGames(Menu menu, Player player, int[] pageState) {
+        var counts = plugin.quickPlay().counts();
+        String featured = plugin.quickPlay().featuredId();
+        var page = Paginator.page(visibleGames(player), PER_PAGE, pageState[0]);
+        pageState[0] = page.page();
+
+        for (int i = 0; i < page.items().size(); i++) {
+            GameType game = page.items().get(i);
+            menu.set(contentSlot(i), gameIcon(game, counts.getOrDefault(game.id(), new QueueCounts.Count(0, 0)),
+                    game.id().equals(featured)), p -> pick(p, game));
+        }
+        menu.set(QUICK_PLAY_SLOT, Buttons.glow(Buttons.item(Material.ENDER_EYE, Theme.GOOD + "<b>Quick Play</b>",
+                Lore.of().desc("Jump into the busiest game that is starting now.").blank().hint("Click to play"))),
+                p -> { p.closeInventory(); plugin.quickPlay().quickPlay(p); });
+        menu.set(PARTY_SLOT, Buttons.item(Material.PLAYER_HEAD, Theme.ACCENT + "Play with a party",
+                Lore.of().desc("Invite friends and your leader queues everyone together.").blank().hint("Click for party help")),
+                p -> { p.closeInventory(); partyHelp(p); });
+        menu.set(CHALLENGES_SLOT, Buttons.item(Material.WRITABLE_BOOK, Theme.NAME + "Daily challenges</b>",
+                Lore.of().desc("Earn bonus tokens.").blank().hint("Click to see them")),
+                p -> { p.closeInventory(); plugin.engagement().openChallenges(p); });
+        menu.set(TOP_SLOT, Buttons.item(Material.GOLDEN_HELMET, Theme.MONEY + "<b>Weekly top 3</b>",
+                Lore.of().desc("Who is winning this week.").blank().hint("Click to see")),
+                p -> { p.closeInventory(); plugin.engagement().top(p, new String[0]); });
+        menu.set(KIT_SLOT, kitButton(), p -> plugin.kitSelection().open(p));
+        menu.pager(page, () -> { pageState[0]--; menu.refresh(); }, () -> { pageState[0]++; menu.refresh(); });
+        menu.close();
+        menu.fillEmpty(Material.GRAY_STAINED_GLASS_PANE);
+    }
+
+    private ItemStack kitButton() {
+        return Buttons.item(Material.CHEST, Theme.ACCENT + "KitPvP loadout",
+                Lore.of().desc("Choose your default or an owned kit. It applies at your next KitPvP spawn.")
+                        .blank().hint("Click to choose"));
+    }
+
+    private ItemStack gameIcon(GameType game, QueueCounts.Count count, boolean featured) {
+        if (!plugin.gameAvailable(game)) {
+            // Testers and admins only: grey and clearly not playable yet.
+            return Buttons.item(Material.GRAY_DYE, Theme.TEXT + game.displayName() + " <dark_gray>(soon)",
+                    Lore.of().desc(game.description()).blank().status("<red>Coming soon!"));
+        }
+        Lore lore = Lore.of().desc(game.description()).blank();
+        String tag = uk.co.playerready.pulsegames.games.GameTags.of(game.id());
+        if (tag != null) lore.status(Theme.ACCENT + tag);
+        lore.kv("Modes", String.valueOf(game.modes().size()));
+        lore.status(activity(count));
+        if (featured) lore.status(Theme.MONEY + "Featured today: x" + plugin.quickPlay().multiplier() + " tokens");
+        lore.blank().hint(game.modes().size() == 1 ? "Click to play" : "Click to choose a mode");
+        String name = Theme.NAME + game.displayName() + "</b>"
+                + (count.waiting() > 0 ? " " + Theme.GOOD + "· " + count.waiting() + " waiting" : "");
+        ItemStack icon = Buttons.count(Buttons.item(game.icon(), name, lore), cue(count.waiting()));
+        return featured ? Buttons.glow(icon) : icon;
+    }
+
+    static String activity(QueueCounts.Count count) {
+        if (count.waiting() > 0) return Theme.GOOD + "● " + count.waiting() + " waiting · " + count.playing() + " playing";
+        if (count.playing() > 0) return Theme.TEXT + "● " + count.playing() + " playing";
+        return Theme.HINT + "Quiet right now";
+    }
+
+    private void pick(Player player, GameType game) {
+        if (!plugin.gameAvailable(game)) {
+            Theme.sound(player, Theme.Cue.ERROR);
+            player.sendMessage(Text.msg("<red>" + game.displayName() + " is coming soon!"));
+            return;
+        }
+        if (game.modes().size() == 1) {
+            player.closeInventory();
+            plugin.playService().join(player, game, game.defaultMode());
+        } else {
+            openModes(player, game);
+        }
+    }
+
+    private void partyHelp(Player player) {
+        player.sendMessage(Text.msg("<yellow>/party invite [name]</yellow> — invite a friend (network-wide when PulseNetwork is active)"));
+        player.sendMessage(Text.msg("<yellow>/party accept</yellow>, <yellow>/party list</yellow>, <yellow>/party leave</yellow>"));
+        player.sendMessage(Text.msg("Your party leader selects the game. Parties may face each other in solo modes."));
     }
 
     public void openModes(Player player, GameType game) {
         if (game.id().equals("duels")) { plugin.duelMenu().open(player); return; }
-        MenuHolder holder = new MenuHolder(game);
-        Inventory inv = Bukkit.createInventory(holder, modeRows(game.modes().size()) * 9, Text.mm("<dark_gray>" + game.displayName() + ": pick a mode"));
-        holder.inventory = inv;
-        int index = 0;
-        for (GameMode mode : game.modes().subList(0, Math.min(game.modes().size(), MAX_MODES))) {
-            ItemStack item = new ItemStack(Material.PAPER);
-            item.editMeta(meta -> {
-                meta.displayName(Text.mm("<yellow><b>" + mode.displayName()));
-                meta.lore(List.of(
-                        Text.mm("<gray>Players: <white>" + mode.minPlayers() + "-" + mode.maxPlayers()),
-                        Text.mm(mode.isTeams() ? "<gray>Teams of <white>" + mode.teamSize() : "<gray>Free for all"),
-                        Text.mm("<green>Click to queue!")));
-            });
-            inv.setItem(modeSlot(index++), item);
-        }
-        addKitButton(holder, inv);
-        player.openInventory(inv);
-    }
-
-    private void addKitButton(MenuHolder holder, Inventory inv) {
-        if (holder.gameOrNull != null && !holder.gameOrNull.id().equals("kitpvp")) return;
-        var kits = new ItemStack(Material.CHEST);
-        kits.editMeta(meta -> { meta.displayName(Text.mm("<aqua>Choose KitPvP loadout"));
-            meta.lore(List.of(Text.mm("<gray>Select your default or owned kit"), Text.mm("<gray>Applies at your next KitPvP spawn"))); });
-        inv.setItem(holder.gameOrNull == null ? inv.getSize() - 1 : 4, kits);
-    }
-
-    @EventHandler
-    public void onDrag(org.bukkit.event.inventory.InventoryDragEvent event) {
-        if (event.getView().getTopInventory().getHolder() instanceof MenuHolder) event.setCancelled(true);
-    }
-
-    @EventHandler
-    public void onClick(InventoryClickEvent event) {
-        if (!(event.getInventory().getHolder() instanceof MenuHolder holder)) return;
-        event.setCancelled(true);
-        if (!(event.getWhoClicked() instanceof Player player)) return;
-        // Slots in the player's own inventory share the click event; without this a click
-        // on your own hotbar queues you into whichever game sits in the matching menu slot.
-        if (event.getClickedInventory() != event.getInventory()) return;
-        ItemStack clicked = event.getCurrentItem();
-        if (clicked == null || clicked.getType() == Material.AIR) return;
-
-        if (holder.gameOrNull == null) {
-            int fromEnd = event.getInventory().getSize() - event.getSlot();
-            if (fromEnd == 3) { player.closeInventory(); plugin.engagement().top(player, new String[0]); return; }
-            if (fromEnd == 4) { player.closeInventory(); plugin.engagement().openChallenges(player); return; }
-            if (fromEnd == 5) { player.closeInventory(); plugin.quickPlay().quickPlay(player); return; }
-        }
-        if (holder.gameOrNull == null && event.getSlot() == event.getInventory().getSize() - 2) {
-            player.closeInventory();
-            player.sendMessage(Text.msg("<yellow>/party invite [name]</yellow> — invite a friend (network-wide when PulseNetwork is active)"));
-            player.sendMessage(Text.msg("<yellow>/party accept</yellow>, <yellow>/party list</yellow>, <yellow>/party leave</yellow>"));
-            player.sendMessage(Text.msg("Your party leader selects the game. Parties may face each other in solo modes."));
-            return;
-        }
-        if ((holder.gameOrNull == null && event.getSlot() == event.getInventory().getSize() - 1)
-                || (holder.gameOrNull != null && holder.gameOrNull.id().equals("kitpvp") && event.getSlot() == 4)) {
-            plugin.kitSelection().open(player); return;
-        }
-        if (holder.gameOrNull == null) {
-            List<GameType> games = visibleGames();
-            int index = event.getSlot();
-            if (index >= games.size()) return;
-            GameType game = games.get(index);
-            if (!plugin.gameAvailable(game)) {
-                player.sendMessage(Text.msg("<red>" + game.displayName() + " is coming soon!"));
-                return;
+        List<GameMode> modes = game.modes().subList(0, Math.min(game.modes().size(), MAX_MODES));
+        int rows = modeRows(modes.size());
+        Menu menu = new Menu(plugin, player, Theme.title(game.displayName()), rows);
+        menu.renderer(() -> {
+            var counts = plugin.quickPlay().modeCounts();
+            for (int i = 0; i < modes.size(); i++) {
+                GameMode mode = modes.get(i);
+                var count = counts.getOrDefault(game.id() + "/" + mode.id(), new QueueCounts.Count(0, 0));
+                menu.set(modeSlot(i, rows), modeIcon(game, mode, count), p -> {
+                    p.closeInventory();
+                    plugin.playService().join(p, game, mode);
+                });
             }
-            if (game.modes().size() == 1) {
-                player.closeInventory();
-                plugin.playService().join(player, game, game.defaultMode());
-            } else {
-                openModes(player, game);
-            }
-        } else {
-            int modeIndex = modeIndexFromSlot(event.getSlot());
-            if (modeIndex < 0 || modeIndex >= holder.gameOrNull.modes().size()) return;
-            GameMode mode = holder.gameOrNull.modes().get(modeIndex);
-            player.closeInventory();
-            plugin.playService().join(player, holder.gameOrNull, mode);
-        }
+            if (game.id().equals("kitpvp")) menu.set(rows == 3 ? 4 : 49, kitButton(), p -> plugin.kitSelection().open(p));
+            menu.back(p -> openGames(p));
+            menu.close();
+            menu.fillEmpty(Material.GRAY_STAINED_GLASS_PANE);
+        });
+        menu.open(player);
     }
 
-    private int modeIndexFromSlot(int slot) {
-        // Mirrors openModes layout: slots 11..16, then 20..25 ...
-        int row = slot / 9;
-        int col = slot % 9;
-        if (col < 2 || col > 7 || row < 1) return -1;
-        return (row - 1) * 6 + (col - 2);
+    private ItemStack modeIcon(GameType game, GameMode mode, QueueCounts.Count count) {
+        Lore lore = Lore.of()
+                .kv("Players", mode.minPlayers() + "-" + mode.maxPlayers())
+                .line(mode.isTeams() ? Theme.TEXT + "Teams of <white>" + mode.teamSize() : Theme.TEXT + "Free for all")
+                .status(activity(count)).blank().hint("Click to join");
+        String name = Theme.NAME + mode.displayName() + "</b>"
+                + (count.waiting() > 0 ? " " + Theme.GOOD + "· " + count.waiting() + " waiting" : "");
+        return Buttons.count(Buttons.item(game.icon(), name, lore), cue(count.waiting()));
     }
 }

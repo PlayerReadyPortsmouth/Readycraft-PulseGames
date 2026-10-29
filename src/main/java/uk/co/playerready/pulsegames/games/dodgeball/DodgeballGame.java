@@ -75,7 +75,7 @@ public final class DodgeballGame extends MiniGame {
         ItemStack launcher = new ItemStack(Material.BLAZE_ROD);
         launcher.editMeta(meta -> {
             meta.displayName(Component.text("Dodgeball launcher", NamedTextColor.GOLD));
-            meta.lore(List.of(Component.text("Right-click to throw. Three hits and you are out.")));
+            meta.lore(List.of(Component.text("Use it to throw. Three hits and you are out.")));
         });
         player.getInventory().setItem(0, launcher);
         player.setCooldown(Material.BLAZE_ROD, 0);
@@ -108,7 +108,7 @@ public final class DodgeballGame extends MiniGame {
             lives.put(player.getUniqueId(), 3);
             equip(player);
         }
-        game.broadcast("Right-click your blaze rod to throw! Three hits and you're out.");
+        game.broadcast("Use your blaze rod to throw! Three hits and you're out.");
     }
     /** Shared human/bot action. Aim with the player's look direction before calling. */
     public boolean throwBall(Player player) {

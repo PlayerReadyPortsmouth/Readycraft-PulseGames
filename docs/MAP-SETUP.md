@@ -160,7 +160,11 @@ The checklist shows all of this in-game; this is the reference with map-building
   Place the actual beds while building.
 - **Locations:** `setloc generator1` ... `generatorN` - each team's iron/gold spawner;
   `addloc diamond-generators` (repeat) for shared diamond points.
-- In-game: emerald = item shop (wool, swords, armor, bow, gapples, TNT...). Bed gone = no respawn.
+- In-game: emerald = item shop (shelves for blocks, melee, armour, tools, ranged, potions, utility,
+  a quick-buy row and team upgrades). Bed gone = no respawn. Prices and items live in
+  `plugins/PulseGames/bedwars-shop.yml` (copied from the jar on first run, re-read each match).
+- Optional setting `team-upgrades: false` hides the team-upgrade tab on that map (default on).
+- The sidebar shows "Next upgrade" and "Diamonds in" timers.
 
 ### Build Battle (`buildbattle` - classic, speed)
 - **Regions:** `plot1..plotN` - one flat build plot per player, well separated.
