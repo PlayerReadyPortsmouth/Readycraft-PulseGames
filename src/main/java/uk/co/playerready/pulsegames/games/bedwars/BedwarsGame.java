@@ -88,7 +88,7 @@ public final class BedwarsGame extends MiniGame {
         if (sharp > 0) sword.addUnsafeEnchantment(org.bukkit.enchantments.Enchantment.SHARPNESS, sharp);
         player.getInventory().setItem(0, sword);
         ItemStack shop = new ItemStack(Material.EMERALD);
-        shop.editMeta(meta -> meta.displayName(Text.mm("<!i><green><b>Item Shop</b> <gray>(use to open)")));
+        shop.editMeta(meta -> meta.displayName(Text.mm("<!i><green><b>Item Shop</b> <gray>("+uk.co.playerready.pulsegames.core.util.PlatformDetector.useVerb(player)+")")));
         player.getInventory().setItem(8, shop);
         Material bought = shopArmour.get(player.getUniqueId());
         if (bought != null) {

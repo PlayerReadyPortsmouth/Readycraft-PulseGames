@@ -359,8 +359,8 @@ public final class GameCatalog {
      * Tips must stay short (about 36 characters): they are shown in the waiting sidebar.
      */
     static final Map<String, ObjectiveCard> CARDS = Map.ofEntries(
-            Map.entry("quake", card("First to the target score wins!", "Pick a weapon, then right-click to fire", "Keep moving - still targets get hit")),
-            Map.entry("dodgeball", card("Hit others, don't get hit!", "Right-click to throw. Three hits and you're out", "Move side to side to dodge")),
+            Map.entry("quake", card("First to the target score wins!", "Pick a weapon, then use it to fire", "Keep moving - still targets get hit")),
+            Map.entry("dodgeball", card("Hit others, don't get hit!", "Use your blaze rod to throw. Three hits and you're out", "Move side to side to dodge")),
             Map.entry("dropper", card("Fall to the water to win!", "Steer through the obstacles and land in the pool", "Aim for the water, not the blocks")),
             Map.entry("spleef", card("Last one standing wins!", "Dig the floor out from under everyone else", "Dig under others, not yourself")),
             Map.entry("tntrun", card("Keep moving - last one standing wins!", "The floor crumbles behind you", "Never stand still")),
