@@ -4,6 +4,10 @@ bridge-secret: ''
 chat:
   enabled: false
   global-by-default: true
+  # Send local chat to each viewer as an unsigned system message (fixes signed-chat hiding behind Velocity/Floodgate).
+  local-system-delivery: false
+  # Only used if the event's own renderer fails; <name> and <message> are literal substitutions.
+  local-format: '<name>: <message>'
 queues:
   enabled: false
 chat-games:

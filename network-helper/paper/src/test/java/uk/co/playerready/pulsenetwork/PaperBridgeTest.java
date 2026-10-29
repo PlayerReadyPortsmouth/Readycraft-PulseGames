@@ -29,11 +29,24 @@ class PaperBridgeTest {
         dispatch();verify(sender).sendPluginMessage(eq(bridge),eq(Wire.CHANNEL),any(byte[].class));
         verify(event,never()).setCancelled(anyBoolean());verify(event,never()).message(any());verify(event,never()).renderer(any());
     }
+    @Test void localDeliveryClearsViewersButGlobalRelayStillFiresOnce() throws Exception {
+        config.set("chat.local-system-delivery",true);when(sender.displayName()).thenReturn(Component.text("Ann"));
+        var viewers=new HashSet<net.kyori.adventure.audience.Audience>(List.of(sender,other));when(event.viewers()).thenReturn(viewers);
+        try(var bukkit=mockStatic(Bukkit.class)){bukkit.when(Bukkit::getOnlinePlayers).thenReturn(List.of(sender,other));
+            bridge.chat(event);tasks.forEach(Runnable::run);}
+        assertTrue(viewers.isEmpty());verify(other,times(1)).sendMessage(any(Component.class));
+        verify(sender,times(1)).sendPluginMessage(eq(bridge),eq(Wire.CHANNEL),any(byte[].class));
+    }
+    @Test void localDeliveryOffLeavesEventAlone() throws Exception {
+        var viewers=new HashSet<net.kyori.adventure.audience.Audience>(List.of(sender,other));when(event.viewers()).thenReturn(viewers);
+        dispatch();assertEquals(2,viewers.size());
+        verify(other,never()).sendMessage(any(Component.class));
+    }
     @Test void restrictedViewersRemainLocal() {
         when(event.viewers()).thenReturn(new HashSet<>(List.of(sender)));dispatch();verify(sender,never()).sendPluginMessage(any(),any(),any());
     }
     @Test void LateCancellationAndMutePermissionPreventRelay() {
-        bridge.chat(event);when(event.isCancelled()).thenReturn(true);tasks.forEach(Runnable::run);verify(sender,never()).sendPluginMessage(any(),any(),any());
+        try(var bk=mockStatic(Bukkit.class)){bk.when(Bukkit::getOnlinePlayers).thenReturn(List.of(sender,other));bridge.chat(event);}when(event.isCancelled()).thenReturn(true);tasks.forEach(Runnable::run);verify(sender,never()).sendPluginMessage(any(),any(),any());
         when(event.isCancelled()).thenReturn(false);when(sender.hasPermission("pulsenetwork.chat")).thenReturn(false);dispatch();verify(sender,never()).sendPluginMessage(any(),any(),any());
     }
     @Test void localModeAndVanishNeverRelay() {
