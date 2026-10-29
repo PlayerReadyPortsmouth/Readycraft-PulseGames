@@ -21,8 +21,9 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Plugin(id="pulsenetwork", name="PulseNetwork", version="0.1.4", description="Public chat relay and minigame queue joins", authors={"AurorasChaos (on behalf of Player Ready)"},
-        dependencies = {@com.velocitypowered.api.plugin.Dependency(id="floodgate", optional=true)})
+@Plugin(id="pulsenetwork", name="PulseNetwork", version="0.1.5", description="Public chat relay and minigame queue joins", authors={"AurorasChaos (on behalf of Player Ready)"},
+        dependencies = {@com.velocitypowered.api.plugin.Dependency(id="floodgate", optional=true),
+                @com.velocitypowered.api.plugin.Dependency(id="luckperms", optional=true)})
 public final class VelocityBridge {
     private static final MinecraftChannelIdentifier CHANNEL = MinecraftChannelIdentifier.from(Wire.CHANNEL);
     private final ProxyServer proxy;
@@ -30,6 +31,7 @@ public final class VelocityBridge {
     private final Path directory;
     private Wire wire;
     private LocalChatIngress ingress;
+    private TabService tab;
     private Set<String> backends = Set.of(), queueServers = Set.of();
     private Set<String> chatBackends;
     private Set<String> paperBackends = Set.of();
@@ -52,10 +54,11 @@ public final class VelocityBridge {
         this.proxy = proxy; this.logger = logger; this.directory = directory;
     }
     @Subscribe public void start(ProxyInitializeEvent event) {
+        TabConfig tabConfig = null;
         try {
             Files.createDirectories(directory);
             Path path = directory.resolve("network.properties");
-            if (!Files.exists(path)) Files.writeString(path, "enabled=false\nbridge-secret=\nbackends=lobby,survival,creative,skyblock,minigames,minigamestest,survivaltest,sessions,aoc\nqueue-servers=minigamestest\nlocal-ingress-port=0\nlocal-ingress-backends=aoc\n");
+            if (!Files.exists(path)) Files.writeString(path, "enabled=false\nbridge-secret=\nbackends=lobby,survival,creative,skyblock,minigames,minigamestest,survivaltest,sessions,aoc\nqueue-servers=minigamestest\nlocal-ingress-port=0\nlocal-ingress-backends=aoc\ntab.enabled=false\n");
             Properties config = new Properties(); try (var reader = Files.newBufferedReader(path)) { config.load(reader); }
             if (!Boolean.parseBoolean(config.getProperty("enabled"))) { logger.info("PulseNetwork is disabled until configured."); return; }
             wire = new Wire(config.getProperty("bridge-secret"));
@@ -63,6 +66,8 @@ public final class VelocityBridge {
             paperBackends = csv(config.getProperty("paper-backends", ""));
             chatBackends = csv(config.getProperty("chat-backends", config.getProperty("backends", "")));
             if (!backends.containsAll(chatBackends)) throw new IllegalArgumentException("Chat backends must be allowed backends");
+            try { tabConfig = TabConfig.parse(config); }
+            catch (IllegalArgumentException e) { logger.error("Network tab configuration is invalid; tab stays off: {}", e.getMessage()); }
             if (backends.isEmpty() || !backends.containsAll(queueServers)) throw new IllegalArgumentException("Queue servers must be in the backend allowlist");
             int ingressPort = Integer.parseInt(config.getProperty("local-ingress-port", "0"));
             if (ingressPort != 0) {
@@ -79,6 +84,11 @@ public final class VelocityBridge {
             }
         } catch (IOException | IllegalArgumentException e) { wire = null; logger.error("PulseNetwork configuration is invalid: {}", e.getMessage()); return; }
         proxy.getChannelRegistrar().register(CHANNEL);
+        if (tabConfig != null && tabConfig.enabled()) {
+            tab = new TabService(proxy, logger, tabConfig, backends, proxy.getPluginManager().isLoaded("floodgate"), java.time.Clock.systemUTC());
+            proxy.getEventManager().register(this, tab);
+            proxy.getScheduler().buildTask(this, tab::tick).repeat(Duration.ofMillis(tabConfig.minIntervalMs())).schedule();
+        }
         var commands = proxy.getCommandManager();
         commands.register(commands.metaBuilder("queues").plugin(this).build(), (SimpleCommand) invocation -> {
             if (invocation.source() instanceof Player p) showQueues(p, invocation.arguments().length > 0 && invocation.arguments()[0].equalsIgnoreCase("chat"));
@@ -112,6 +122,7 @@ public final class VelocityBridge {
         wire.decode(event.getData()).filter(m -> m.player().equals(carrier.getUniqueId())).ifPresent(m -> {
             try {
                 switch (m.kind()) {
+                    case "STATUS" -> { if (tab != null) tab.status(server, m.fields()); }
                     case "PARTYCMD" -> partyCommand(carrier, m.fields().toArray(String[]::new));
                     case "CHAT" -> { if (m.fields().size() == 1) chat(carrier, server, m.fields().getFirst()); }
                     case "QUEUE" -> {
