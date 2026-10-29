@@ -109,6 +109,57 @@ bots:
   max-per-match: 31
   max-total: 64
 
+# Bedwars bot behaviour (only matters when bots.enabled and the arena allows bots). All values optional; defaults shown.
+# Owner Aurora / ReadyCraft; review 2026-11-26.
+bedwars:
+  bots:
+    pace:
+      # How many cells ahead a bot aims while walking. 1 = old step-by-step feel; 3 = continuous.
+      look-ahead-cells: 3
+    bridge:
+      # Ticks between placed bridge blocks (bots think every 5 ticks, so 5 is one block per think).
+      place-ticks: 5
+      # Sneak while placing at an edge, like a player bridging.
+      sneak: true
+      # Longest void gap, in cells, a bot will plan a bridge across when choosing a bed.
+      max-gap: 24
+    roles:
+      # One guard per team (a lone bot guards only for solo-guard-seconds); the rest gather, then attack.
+      attack-start-seconds: 150
+      solo-guard-seconds: 90
+      # Attackers may leave for diamonds from this game time.
+      mid-game-seconds: 300
+    resources:
+      diamond-trip-seconds: 40
+      diamonds-wanted: 4
+      # Attackers low on iron and gold return to the team generator this often, for gather-hold-seconds.
+      gather-interval-seconds: 60
+      gather-hold-seconds: 12
+      # Bots buy only within this many blocks of their generator (except wool when nearly out).
+      spend-radius: 14
+    defence:
+      # Rings of blocks around the bed (1-3). Rebuilt when broken.
+      layers: 2
+      guard-radius: 6
+      # An enemy this close to the bed makes the guard (and nearby teammates) run to it.
+      alert-radius: 16
+      place-ticks: 10
+      # Most blocks one bot will place on defence over a match (bridging is not counted).
+      block-cap: 192
+    attack:
+      # How often a bot re-chooses which enemy bed to go for.
+      reassess-seconds: 15
+    fireball:
+      enabled: true
+      min-range: 3
+      max-range: 9
+      cooldown-ticks: 60
+    pearl:
+      # Throw an ender pearl towards home at or below this many health points (20 = full).
+      escape-health: 6.0
+    # Eat a golden apple at or below this many health points.
+    apple-health: 10.0
+
 # Trial access for preview games, queue bots and modeled Prop Hunt. UUIDs only.
 # Owner Aurora / ReadyCraft; review 2026-10-25. Empty list grants nobody access.
 features:

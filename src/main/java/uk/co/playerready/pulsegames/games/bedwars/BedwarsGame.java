@@ -68,6 +68,7 @@ public final class BedwarsGame extends MiniGame {
     public void onStart() {
         bedRegions = game.arena().regionsByPrefix("bed");
         catalogue = loadCatalogue();
+        loadBotConfig();
         for (GameTeam team : game.teams()) bedAlive.put(team.index(), true);
         game.alivePlayers().forEach(this::equipBase);
         game.broadcast("Protect your bed! If it's destroyed you can't respawn.");
@@ -285,6 +286,7 @@ public final class BedwarsGame extends MiniGame {
     public void onRespawn(Player player) {
         equipBase(player);
         botTraversal.remove(player); botBow.remove(player); botMining.remove(player.getUniqueId());
+        bridgeAnchor.remove(player.getUniqueId()); if(botSneaking.remove(player.getUniqueId())) player.setSneaking(false);
     }
 
     // ---- shop --------------------------------------------------------------------
@@ -295,6 +297,15 @@ public final class BedwarsGame extends MiniGame {
                 && event.getAction().isRightClick()) {
             event.setCancelled(true);
             shopMenu.open(event.getPlayer());
+        } else if (event.getItem() != null && event.getItem().getType() == Material.FIRE_CHARGE
+                && event.getAction().isRightClick()) {
+            // Fireball from the shop: right-click to launch it (blocks and beds still go through canExplode).
+            event.setCancelled(true);
+            Player player = event.getPlayer();
+            if (!player.hasCooldown(Material.FIRE_CHARGE) && take(player, Material.FIRE_CHARGE)) {
+                player.setCooldown(Material.FIRE_CHARGE, 20);
+                launchFireball(player, player.getLocation().getDirection());
+            }
         }
     }
 
@@ -405,58 +416,191 @@ public final class BedwarsGame extends MiniGame {
     }
 
     public String botStatus(Player bot) { return botStatuses.getOrDefault(bot.getUniqueId(),"Gathering resources"); }
-    public boolean botCombat(Player bot,org.bukkit.entity.LivingEntity enemy,long tick,
-            uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty) { return botBow.combat(game,bot,enemy,tick,difficulty); }
 
+    // ---- bots: tunables and shared team state ---------------------------------------
+    private BedwarsBotConfig botCfg=BedwarsBotConfig.defaults();
+    private final Map<Integer,BedwarsBotTeams.TeamState> botTeams=new HashMap<>();
+    private final Map<java.util.UUID,Long> botTripUntil=new HashMap<>(),botTripNext=new HashMap<>(),
+            botGatherUntil=new HashMap<>(),botGatherNext=new HashMap<>(),botTargetUntil=new HashMap<>(),botFireballReady=new HashMap<>();
+    private final Map<java.util.UUID,Boolean> botCanSpend=new HashMap<>();
+    private final Map<java.util.UUID,BedwarsBridge.Cell> bridgeAnchor=new HashMap<>();
+    private final Set<java.util.UUID> botSneaking=new HashSet<>();
+    private final Map<Integer,Block> defenceCache=new HashMap<>();
+    private final Map<Integer,Long> defenceCacheUntil=new HashMap<>();
+
+    private void loadBotConfig() {
+        try { botCfg=BedwarsBotConfig.from(game.plugin().getConfig().getConfigurationSection("bedwars.bots")); }
+        catch(RuntimeException unusable) { botCfg=BedwarsBotConfig.defaults(); }
+    }
+    private BedwarsBridge.Terrain terrain() {
+        return (x,y,z)->game.world().isChunkLoaded(x>>4,z>>4) && game.world().getBlockAt(x,y,z).getType().isSolid();
+    }
+    private static BedwarsBridge.Cell cellOf(Location l) { return new BedwarsBridge.Cell(l.getBlockX(),(int)Math.floor(l.getY()+.01),l.getBlockZ()); }
+    private void setSneak(Player bot,boolean on) {
+        if(on) { if(botSneaking.add(bot.getUniqueId())) bot.setSneaking(true); }
+        else if(botSneaking.remove(bot.getUniqueId())) bot.setSneaking(false);
+    }
+
+    /** Roles, threats and the shared view of our bed, refreshed once a second per team and shared by every bot on it. */
+    private BedwarsBotTeams.TeamState teamState(GameTeam team,long tick) {
+        var state=botTeams.computeIfAbsent(team.index(),i->new BedwarsBotTeams.TeamState());
+        if(tick<state.nextRoleRefresh) return state;
+        state.nextRoleRefresh=tick+20;
+        List<java.util.UUID> bots=new ArrayList<>();
+        for(java.util.UUID member:team.members()) { Player p=game.player(member); if(p!=null && game.isBot(p) && game.isAlive(p)) bots.add(member); }
+        boolean alive=bedAlive.getOrDefault(team.index(),false);
+        state.roles.clear(); state.roles.putAll(BedwarsBotTeams.assign(bots,alive,game.gameTime(),botCfg));
+        state.targets.keySet().retainAll(bots);
+        if(alive && team.index()<bedRegions.size()) {
+            Location bed=bedRegions.get(team.index()).center(game.world()); double radius=botCfg.alertRadius();
+            for(Player enemy:game.alivePlayers()) {
+                if(team.contains(enemy) || enemy.isInvisible() || enemy.getWorld()!=game.world()) continue;
+                if(enemy.getLocation().distanceSquared(bed)<=radius*radius) { var at=enemy.getLocation(); state.seeThreat(tick,at.getX(),at.getY(),at.getZ()); break; }
+            }
+        }
+        return state;
+    }
+
+    public boolean botCombat(Player bot,org.bukkit.entity.LivingEntity enemy,long tick,
+            uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty) {
+        // TODO(BotMelee): once core/bot/BotMelee is wired by the releaser, melee for this branch moves there; item use stays here.
+        if(botActive(bot) && useCombatItem(bot,enemy,tick)) return true;
+        return botBow.combat(game,bot,enemy,tick,difficulty);
+    }
+
+    private boolean useCombatItem(Player bot,org.bukkit.entity.LivingEntity enemy,long tick) {
+        if(bot.getWorld()!=enemy.getWorld()) return false;
+        var id=bot.getUniqueId(); var inv=bot.getInventory();
+        GameTeam team=game.teamOf(bot);
+        double distance=bot.getLocation().distance(enemy.getLocation());
+        boolean safe=true;
+        if(team!=null && team.index()<bedRegions.size()) safe=enemy.getLocation().distanceSquared(bedRegions.get(team.index()).center(game.world()))>8*8
+                && bot.getLocation().distanceSquared(bedRegions.get(team.index()).center(game.world()))>6*6;
+        var use=BedwarsBotItems.choose(new BedwarsBotItems.Facts(bot.getHealth(),distance,
+                BedwarsPurchase.count(inv,Material.GOLDEN_APPLE)>0,BedwarsPurchase.count(inv,Material.ENDER_PEARL)>0,
+                BedwarsPurchase.count(inv,Material.FIRE_CHARGE)>0,tick,botFireballReady.getOrDefault(id,0L),safe && bot.hasLineOfSight(enemy)),botCfg);
+        switch(use) {
+            case GOLDEN_APPLE -> {
+                if(!take(bot,Material.GOLDEN_APPLE)) return false;
+                bot.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.REGENERATION,100,1));
+                bot.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.ABSORPTION,2400,0));
+                bot.swingMainHand(); return true;
+            }
+            case PEARL_ESCAPE -> {
+                Location home=team==null?null:generator(team);
+                if(home==null || home.getWorld()!=bot.getWorld() || !take(bot,Material.ENDER_PEARL)) return false;
+                var aim=home.toVector().subtract(bot.getEyeLocation().toVector()); double flat=Math.hypot(aim.getX(),aim.getZ());
+                aim.setY(Math.max(.3*flat,0)+Math.min(flat,40)*.22); if(aim.lengthSquared()<.01) return false;
+                bot.launchProjectile(org.bukkit.entity.EnderPearl.class,aim.normalize().multiply(1.5)); bot.swingMainHand(); return true;
+            }
+            case FIREBALL -> {
+                if(!take(bot,Material.FIRE_CHARGE)) return false;
+                botFireballReady.put(id,tick+botCfg.fireballCooldownTicks());
+                launchFireball(bot,enemy.getLocation().toVector().subtract(bot.getEyeLocation().toVector()).normalize());
+                return true;
+            }
+            default -> { return false; }
+        }
+    }
+    private static boolean take(Player player,Material material) {
+        var inv=player.getInventory();
+        for(int i=0;i<36;i++) { ItemStack item=inv.getItem(i); if(item!=null && item.getType()==material && item.getAmount()>0) {
+            if(item.getAmount()==1) inv.setItem(i,null); else item.setAmount(item.getAmount()-1); return true; } }
+        return false;
+    }
+    private void launchFireball(Player shooter,org.bukkit.util.Vector direction) {
+        var ball=shooter.launchProjectile(org.bukkit.entity.Fireball.class,direction.multiply(.6));
+        ball.setYield(1.5f); ball.setIsIncendiary(false); shooter.swingMainHand();
+    }
+
+    // ---- bots: the objective -----------------------------------------------------
     public Location botObjective(Player bot,Location combatGoal,long tick,uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty) {
         if(!botActive(bot)) return null;
         GameTeam team=game.teamOf(bot); if(team==null) return null;
         var id=bot.getUniqueId();
+        var state=teamState(team,tick);
+        var role=state.role(id);
         if(tick>=botNextAction.getOrDefault(id,0L)) {
             botNextAction.put(id,tick+20);
             BedwarsBotResources.collect(game,bot);
-            botPurchase(bot);
-            uk.co.playerready.pulsegames.games.skywars.SkywarsBotInventory.equip(bot.getInventory());
+            botPurchase(bot,role);
+            if(!botMining.containsKey(id)) uk.co.playerready.pulsegames.games.skywars.SkywarsBotInventory.equip(bot.getInventory());
         }
         Location flight=botTraversal.airborne(bot,tick); if(flight!=null) return flight;
         if(!bot.isOnGround()) return null;
-        Location goal;
-        boolean closeEnemy=combatGoal!=null && combatGoal.getWorld()==bot.getWorld()
-                && bot.getLocation().distanceSquared(combatGoal)<8*8;
-        if(closeEnemy) { botMining.remove(id); goal=combatGoal; }
-        else {
-            Block defence=nextDefence(team);
-            int blocks=uk.co.playerready.pulsegames.games.skywars.SkywarsBotInventory.blockSlot(bot.getInventory());
-            if(defence!=null && blocks>=0) {
-                goal=defence.getLocation().add(.5,0,.5); goal.setY(bot.getLocation().getY());
-                if(placeNear(bot,defence,blocks,tick)) { botStatuses.put(id,"Building a finite bed defence"); return null; }
-            } else if(blocks<0 || (!hasSword(bot,Material.STONE_SWORD) && !hasSword(bot,Material.IRON_SWORD)
-                    && !hasSword(bot,Material.DIAMOND_SWORD))) {
-                goal=generator(team); botStatuses.put(id,"Collecting actual generator drops");
-            } else {
-                Cuboid enemy=enemyBed(team,bot.getLocation());
+        Location here=bot.getLocation();
+        boolean closeEnemy=combatGoal!=null && combatGoal.getWorld()==bot.getWorld() && here.distanceSquared(combatGoal)<8*8;
+        var inv=bot.getInventory();
+        int blocks=uk.co.playerready.pulsegames.games.skywars.SkywarsBotInventory.blockSlot(inv);
+        boolean alive=bedAlive.getOrDefault(team.index(),false);
+        Location bedCentre=team.index()<bedRegions.size()?bedRegions.get(team.index()).center(game.world()):null;
+        Location gen=generator(team);
+        Block defence=alive?nextDefence(team,tick):null;
+        boolean armed=hasSword(bot,Material.STONE_SWORD) || hasSword(bot,Material.IRON_SWORD) || hasSword(bot,Material.DIAMOND_SWORD);
+        var plan=new BedwarsBotPlan.Facts(role,game.gameTime(),closeEnemy,state.threatened(tick),
+                bedCentre!=null && here.distanceSquared(bedCentre)<=24*24,alive,blocks>=0,armed,defence!=null,
+                gen!=null && here.distanceSquared(gen)<=Math.pow(botCfg.spendRadius(),2),botCanSpend.getOrDefault(id,false),
+                role==BedwarsBotTeams.Role.ATTACK && !closeEnemy && diamondTrip(bot,tick),gatherDue(bot,role,tick));
+        Location goal=null;
+        switch(BedwarsBotPlan.decide(plan,botCfg)) {
+            case FIGHT -> { botMining.remove(id); goal=combatGoal; }
+            case RESPOND_BED -> {
+                botStatuses.put(id,"Defending the bed from an approaching enemy");
+                goal=new Location(game.world(),state.threatX,state.threatY,state.threatZ);
+            }
+            case REBUILD -> {
+                botStatuses.put(id,"Building a finite bed defence");
+                goal=defence.getLocation().add(.5,0,.5); goal.setY(here.getY());
+                int slot=bestBlockSlot(inv);
+                if(slot>=0 && placeNear(bot,defence,slot,tick,botCfg.defencePlaceTicks(),botCfg.defenceBlockCap())) return null;
+            }
+            case HOLD_BED -> { botStatuses.put(id,"Guarding the bed"); goal=gen!=null?gen:bedCentre; }
+            case SPEND -> { botStatuses.put(id,"Heading home to spend resources"); goal=gen; }
+            case DIAMONDS -> {
+                botStatuses.put(id,"Fetching diamonds");
+                goal=nearestDiamondGenerator(here);
+            }
+            case ATTACK -> {
+                Cuboid enemy=chooseEnemyBed(bot,team,state,tick);
                 goal=enemy==null?combatGoal:enemy.center(game.world());
                 if(enemy!=null) {
                     botStatuses.put(id,"Approaching a public enemy bed objective");
                     if(mineVisibleDefence(bot,enemy,tick)) return null;
                 }
             }
+            default -> { botStatuses.put(id,"Collecting actual generator drops"); goal=gen; }
         }
-        if(goal==null) goal=generator(team);
-        Location here=bot.getLocation(),step=uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.step(here,goal);
-        if(step==null) return null;
-        if(uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.corridor(here,step)) return step;
-        Location height=botTraversal.start(game,bot,step,tick); if(height!=null) return height;
+        if(goal==null) goal=gen;
+        if(goal==null || goal.getWorld()!=bot.getWorld()) return null;
+        return moveToward(bot,goal,tick);
+    }
+
+    /** Walk several cells ahead without stopping; fall back to a height step, then to bridging. */
+    private Location moveToward(Player bot,Location goal,long tick) {
+        var id=bot.getUniqueId(); Location here=bot.getLocation();
+        Location run=uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.run(here,goal,botCfg.lookAheadCells());
+        if(run!=null) { bridgeAnchor.remove(id); setSneak(bot,false); return run; }
+        var cell=cellOf(here); var anchor=bridgeAnchor.computeIfAbsent(id,k->cell);
+        var next=BedwarsBridge.next(anchor,cell,cellOf(goal));
+        if(next==null) { setSneak(bot,false); return null; }
+        Location flat=new Location(game.world(),next.x()+.5,here.getY(),next.z()+.5);
+        if(uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.corridor(here,flat)) return flat;
+        Location height=botTraversal.start(game,bot,flat,tick); if(height!=null) { setSneak(bot,false); return height; }
         if(uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.safe(here,true)
-                && uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.safe(step,false)
+                && uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.safe(flat,false)
                 && Math.abs(here.getY()-Math.rint(here.getY()))<.04) {
-            Block target=game.world().getBlockAt(step.getBlockX(),step.getBlockY()-1,step.getBlockZ());
+            Block target=game.world().getBlockAt(next.x(),next.y()-1,next.z());
             int slot=uk.co.playerready.pulsegames.games.skywars.SkywarsBotInventory.blockSlot(bot.getInventory());
-            if(slot>=0 && placeNear(bot,target,slot,tick)
-                    && uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.corridor(here,step)) return step;
+            if(botCfg.bridgeSneak()) setSneak(bot,true);
+            if(slot>=0 && placeNear(bot,target,slot,tick,botCfg.bridgePlaceTicks(),-1)) {
+                botStatuses.put(id,"Bridging to the target island");
+                if(uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.corridor(here,flat)) return flat;
+                return botTraversal.start(game,bot,flat,tick);
+            }
         }
         botStatuses.put(id,"Waiting for materials or a safe route"); return null;
     }
+
     private boolean botActive(Player bot) {
         return game.state()==uk.co.playerready.pulsegames.core.game.GameState.RUNNING && !game.frozen()
                 && game.isBot(bot) && game.isActive(bot) && bot.getWorld()==game.world();
@@ -465,69 +609,168 @@ public final class BedwarsGame extends MiniGame {
         try { return game.arena().settingLocation("generator"+(team.index()+1),game.world()); }
         catch(IllegalArgumentException badMap) { return null; }
     }
-    private boolean hasSword(Player bot,Material material) { return BedwarsPurchase.count(bot.getInventory(),material)>0; }
-    private void botPurchase(Player bot) {
-        Material pick = null; var inventory = bot.getInventory();
-        if (uk.co.playerready.pulsegames.games.skywars.SkywarsBotInventory.blockSlot(inventory) < 0) pick = Material.WHITE_WOOL;
-        else if (!hasSword(bot, Material.DIAMOND_SWORD) && BedwarsPurchase.count(inventory, Material.DIAMOND) >= 4) pick = Material.DIAMOND_SWORD;
-        else if (!hasSword(bot, Material.IRON_SWORD) && !hasSword(bot, Material.DIAMOND_SWORD)
-                && BedwarsPurchase.count(inventory, Material.GOLD_INGOT) >= 7) pick = Material.IRON_SWORD;
-        else if (!hasSword(bot, Material.STONE_SWORD) && !hasSword(bot, Material.IRON_SWORD) && !hasSword(bot, Material.DIAMOND_SWORD)) pick = Material.STONE_SWORD;
-        else if (uk.co.playerready.pulsegames.games.skywars.SkywarsBotInventory.rank(inventory.getChestplate()) < 3) pick = Material.CHAINMAIL_CHESTPLATE;
-        else if (uk.co.playerready.pulsegames.games.skywars.SkywarsBotInventory.rank(inventory.getChestplate()) < 4
-                && BedwarsPurchase.count(inventory, Material.GOLD_INGOT) >= 12) pick = Material.IRON_CHESTPLATE;
-        else if (BedwarsPurchase.count(inventory, Material.BOW) == 0) pick = Material.BOW;
-        else if (BedwarsPurchase.count(inventory, Material.ARROW) < 12) pick = Material.ARROW;
-        if (pick == null) return;
-        ShopCatalogue.Item entry = catalogue().byMaterial(pick);
-        if (entry == null || BedwarsPurchase.count(inventory, entry.currency()) < entry.cost()) return;
-        if (botActive(bot)) buyItem(bot, entry);
+    private Location nearestDiamondGenerator(Location from) {
+        Location best=null; double distance=Double.MAX_VALUE;
+        for(String raw:game.arena().settings().getStringList("diamond-generators")) {
+            try {
+                Location loc=uk.co.playerready.pulsegames.core.util.LocUtil.parse(raw,game.world());
+                if(loc==null) continue; double d=loc.distanceSquared(from);
+                if(d<distance) { best=loc; distance=d; }
+            } catch(RuntimeException badLine) { /* skip a malformed line */ }
+        }
+        return best;
     }
-    private Block nextDefence(GameTeam team) {
+    /** A mid-game diamond trip: leave once, come back after diamondTripSeconds or enough diamonds. */
+    private boolean diamondTrip(Player bot,long tick) {
+        var id=bot.getUniqueId(); int diamonds=BedwarsPurchase.count(bot.getInventory(),Material.DIAMOND);
+        Long until=botTripUntil.get(id);
+        if(until!=null) {
+            if(tick<until && diamonds<botCfg.diamondsWanted()) return true;
+            botTripUntil.remove(id); botTripNext.put(id,tick+botCfg.gatherIntervalSeconds()*20L); return false;
+        }
+        if(game.gameTime()<botCfg.midGameSeconds() || diamonds>=botCfg.diamondsWanted() || tick<botTripNext.getOrDefault(id,0L)) return false;
+        if(game.arena().settings().getStringList("diamond-generators").isEmpty()) return false;
+        botTripUntil.put(id,tick+botCfg.diamondTripSeconds()*20L); return true;
+    }
+    /** Attackers top up from the team generator on a timer when they are running low. */
+    private boolean gatherDue(Player bot,BedwarsBotTeams.Role role,long tick) {
+        if(role!=BedwarsBotTeams.Role.ATTACK) return false;
+        var id=bot.getUniqueId(); Long until=botGatherUntil.get(id);
+        if(until!=null) { if(tick<until) return true; botGatherUntil.remove(id); }
+        long due=botGatherNext.computeIfAbsent(id,k->tick+botCfg.gatherIntervalSeconds()*20L);
+        var inv=bot.getInventory();
+        if(tick<due || BedwarsPurchase.count(inv,Material.IRON_INGOT)>=20 || BedwarsPurchase.count(inv,Material.GOLD_INGOT)>=8) return false;
+        botGatherUntil.put(id,tick+botCfg.gatherHoldSeconds()*20L); botGatherNext.put(id,tick+botCfg.gatherIntervalSeconds()*20L); return true;
+    }
+    private boolean hasSword(Player bot,Material material) { return BedwarsPurchase.count(bot.getInventory(),material)>0; }
+
+    // ---- bots: shopping ------------------------------------------------------------
+    private BedwarsShopPlan.Loadout loadout(Player bot,BedwarsBotTeams.Role role) {
+        var inv=bot.getInventory(); Map<Material,Integer> counts=new java.util.EnumMap<>(Material.class);
+        for(Material m:List.of(Material.IRON_INGOT,Material.GOLD_INGOT,Material.DIAMOND,Material.GOLDEN_APPLE,Material.FIRE_CHARGE,
+                Material.ENDER_PEARL,Material.BOW,Material.ARROW)) counts.put(m,BedwarsPurchase.count(inv,m));
+        int blocks=0;
+        for(int i=0;i<36;i++) { ItemStack s=inv.getItem(i); if(s!=null && isBlockMaterial(s.getType())) blocks+=s.getAmount(); }
+        GameTeam team=game.teamOf(bot); int index=team==null?0:team.index();
+        Map<ShopCatalogue.Effect,Integer> levels=new java.util.EnumMap<>(ShopCatalogue.Effect.class);
+        for(var effect:ShopCatalogue.Effect.values()) levels.put(effect,level(effect,index));
+        return new BedwarsShopPlan.Loadout(counts,heldMaterials(bot),blocks,role,game.gameTime(),teamUpgradesOn(),levels);
+    }
+    private static boolean isBlockMaterial(Material m) { return blockRank(m)>0; }
+    private static int blockRank(Material m) {
+        if(m==Material.END_STONE) return 3;
+        if(m==Material.OAK_PLANKS || m==Material.COBBLESTONE) return 2;
+        return m.name().endsWith("_WOOL")?1:0;
+    }
+    /** Strongest block held, so a guard builds with end stone once it has some. */
+    private static int bestBlockSlot(org.bukkit.inventory.PlayerInventory inv) {
+        int best=-1,rank=0;
+        for(int i=0;i<36;i++) { ItemStack s=inv.getItem(i); if(s!=null && s.getAmount()>0 && blockRank(s.getType())>rank) { best=i; rank=blockRank(s.getType()); } }
+        return best;
+    }
+    private void botPurchase(Player bot,BedwarsBotTeams.Role role) {
+        var loadout=loadout(bot,role);
+        var pick=BedwarsShopPlan.next(catalogue(),loadout);
+        botCanSpend.put(bot.getUniqueId(),pick!=null);
+        if(pick==null || !botActive(bot)) return;
+        boolean essential=pick.item()!=null && pick.item().id().equals("wool") && loadout.blocks()<8;
+        GameTeam team=game.teamOf(bot); Location gen=team==null?null:generator(team);
+        boolean atBase=gen!=null && gen.getWorld()==bot.getWorld() && bot.getLocation().distanceSquared(gen)<=Math.pow(botCfg.spendRadius(),2);
+        if(!essential && !atBase) return;
+        if(pick.item()!=null) buyItem(bot,pick.item()); else buyUpgrade(bot,pick.upgrade());
+    }
+
+    // ---- bots: defence, placement, attack target -------------------------------------
+    /** Next empty cell to cover, inner ring first, out to defence.layers rings (never below the bed). */
+    private Block nextDefence(GameTeam team,long tick) {
+        int index=team.index();
+        Block cached=defenceCache.get(index);
+        if(tick<defenceCacheUntil.getOrDefault(index,0L)) {
+            if(cached==null || uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.air(cached.getType())) return cached;
+        }
+        Block found=findDefence(team);
+        defenceCache.put(index,found); defenceCacheUntil.put(index,tick+10);
+        return found;
+    }
+    private static final org.bukkit.block.BlockFace[] RING={org.bukkit.block.BlockFace.UP,org.bukkit.block.BlockFace.NORTH,
+            org.bukkit.block.BlockFace.SOUTH,org.bukkit.block.BlockFace.EAST,org.bukkit.block.BlockFace.WEST};
+    private Block findDefence(GameTeam team) {
         if(!bedAlive.getOrDefault(team.index(),false) || team.index()>=bedRegions.size()) return null;
         Cuboid region=bedRegions.get(team.index()); if(region.volume()>64) return null;
+        var world=game.world(); List<Block> frontier=new ArrayList<>(); Set<List<Integer>> seen=new HashSet<>();
         for(int x=region.minX();x<=region.maxX();x++) for(int z=region.minZ();z<=region.maxZ();z++) {
-            if(!game.world().isChunkLoaded(x>>4,z>>4)) continue;
-            for(int y=Math.max(region.minY(),game.world().getMinHeight()+1);y<=Math.min(region.maxY(),game.world().getMaxHeight()-2);y++) {
-                Block bed=game.world().getBlockAt(x,y,z); if(!bed.getType().name().endsWith("_BED")) continue;
-                for(var face:List.of(org.bukkit.block.BlockFace.UP,org.bukkit.block.BlockFace.NORTH,org.bukkit.block.BlockFace.SOUTH,
-                        org.bukkit.block.BlockFace.EAST,org.bukkit.block.BlockFace.WEST)) {
-                    int nx=x+face.getModX(),nz=z+face.getModZ(); if(!game.world().isChunkLoaded(nx>>4,nz>>4)) continue;
-                    Block target=game.world().getBlockAt(nx,y+face.getModY(),nz);
-                    if(uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.air(target.getType())) {
-                        var box=new org.bukkit.util.BoundingBox(nx,y+face.getModY(),nz,nx+1,y+face.getModY()+1,nz+1);
-                        if(game.world().getNearbyEntities(box).stream().noneMatch(entity->entity instanceof org.bukkit.entity.LivingEntity
-                                && entity.getBoundingBox().overlaps(box))) return target;
-                    }
-                }
+            if(!world.isChunkLoaded(x>>4,z>>4)) continue;
+            for(int y=Math.max(region.minY(),world.getMinHeight()+1);y<=Math.min(region.maxY(),world.getMaxHeight()-2);y++) {
+                Block bed=world.getBlockAt(x,y,z);
+                if(bed.getType().name().endsWith("_BED")) { frontier.add(bed); seen.add(List.of(x,y,z)); }
             }
+        }
+        for(int layer=1;layer<=botCfg.defenceLayers() && !frontier.isEmpty();layer++) {
+            List<Block> next=new ArrayList<>();
+            for(Block from:frontier) for(var face:RING) {
+                int nx=from.getX()+face.getModX(),ny=from.getY()+face.getModY(),nz=from.getZ()+face.getModZ();
+                if(!world.isChunkLoaded(nx>>4,nz>>4) || ny>=world.getMaxHeight()-1 || !seen.add(List.of(nx,ny,nz))) continue;
+                Block target=world.getBlockAt(nx,ny,nz);
+                if(uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.air(target.getType())) {
+                    var box=new org.bukkit.util.BoundingBox(nx,ny,nz,nx+1,ny+1,nz+1);
+                    if(world.getNearbyEntities(box).stream().noneMatch(e->e instanceof org.bukkit.entity.LivingEntity && e.getBoundingBox().overlaps(box))) return target;
+                } else if(target.getType().isSolid()) next.add(target);
+            }
+            frontier=next;
         }
         return null;
     }
     private final Map<java.util.UUID,Long> botNextPlace=new HashMap<>();
-    private boolean placeNear(Player bot,Block target,int slot,long tick) {
+    /** @param cap per-bot lifetime limit for this kind of placement, or negative for none (bridging uses finite stock instead). */
+    private boolean placeNear(Player bot,Block target,int slot,long tick,int gapTicks,int cap) {
         var id=bot.getUniqueId();
-        if(tick<botNextPlace.getOrDefault(id,0L) || botPlaced.getOrDefault(id,0)>=128) return false;
+        if(tick<botNextPlace.getOrDefault(id,0L) || (cap>=0 && botPlaced.getOrDefault(id,0)>=cap)) return false;
         if(bot.getEyeLocation().distanceSquared(target.getLocation().add(.5,.5,.5))>4.5*4.5) return false;
-        botNextPlace.put(id,tick+15);
+        botNextPlace.put(id,tick+gapTicks);
         for(var face:List.of(org.bukkit.block.BlockFace.DOWN,org.bukkit.block.BlockFace.NORTH,org.bukkit.block.BlockFace.SOUTH,
-                org.bukkit.block.BlockFace.EAST,org.bukkit.block.BlockFace.WEST)) {
+                org.bukkit.block.BlockFace.EAST,org.bukkit.block.BlockFace.WEST,org.bukkit.block.BlockFace.UP)) {
             int x=target.getX()+face.getModX(),z=target.getZ()+face.getModZ();
             if(!game.world().isChunkLoaded(x>>4,z>>4)) continue;
             Block support=game.world().getBlockAt(x,target.getY()+face.getModY(),z);
             if(!support.isPassable() && uk.co.playerready.pulsegames.games.skywars.IslandBotPlacement.place(game,bot,target,support,slot,b->canPlace(bot,b))) {
-                botPlaced.merge(id,1,Integer::sum); return true;
+                if(cap>=0) botPlaced.merge(id,1,Integer::sum);
+                return true;
             }
         }
         return false;
     }
-    private Cuboid enemyBed(GameTeam team,Location from) {
-        Cuboid nearest=null; double distance=Double.POSITIVE_INFINITY;
-        for(int i=0;i<Math.min(bedRegions.size(),64);i++) if(i!=team.index() && bedAlive.getOrDefault(i,false)) {
-            double candidate=from.distanceSquared(bedRegions.get(i).center(game.world()));
-            if(candidate<distance) { nearest=bedRegions.get(i); distance=candidate; }
+    /** Weighted cover on the bed's open faces: wool 1, wood 2, end stone 3; zero means wide open. */
+    private double defenceWeight(Cuboid region) {
+        double weight=0; var world=game.world();
+        for(int x=region.minX();x<=region.maxX();x++) for(int z=region.minZ();z<=region.maxZ();z++) {
+            if(!world.isChunkLoaded(x>>4,z>>4)) continue;
+            for(int y=Math.max(region.minY(),world.getMinHeight()+1);y<=Math.min(region.maxY(),world.getMaxHeight()-2);y++) {
+                if(!world.getBlockAt(x,y,z).getType().name().endsWith("_BED")) continue;
+                for(var face:RING) {
+                    Material m=world.getBlockAt(x+face.getModX(),y+face.getModY(),z+face.getModZ()).getType();
+                    if(m.name().endsWith("_BED") || !m.isSolid()) continue;
+                    weight+=m==Material.END_STONE || m==Material.OBSIDIAN?3:m.name().endsWith("_WOOL")?1:m.name().endsWith("_PLANKS")?2:1.5;
+                }
+            }
         }
-        return nearest;
+        return weight;
+    }
+    /** The enemy bed this bot goes for: least defended, shortest bridge, nearest, and not the one teammates already chose. */
+    private Cuboid chooseEnemyBed(Player bot,GameTeam team,BedwarsBotTeams.TeamState state,long tick) {
+        var id=bot.getUniqueId(); Integer current=state.targets.get(id);
+        if(current!=null && tick<botTargetUntil.getOrDefault(id,0L) && current<bedRegions.size() && bedAlive.getOrDefault(current,false)) return bedRegions.get(current);
+        Location here=bot.getLocation(); var cell=cellOf(here); List<BedwarsBotTeams.BedCandidate> options=new ArrayList<>();
+        for(int i=0;i<Math.min(bedRegions.size(),64);i++) {
+            if(i==team.index() || !bedAlive.getOrDefault(i,false)) continue;
+            Location centre=bedRegions.get(i).center(game.world());
+            int claims=0; for(var entry:state.targets.entrySet()) if(!entry.getKey().equals(id) && entry.getValue()==i) claims++;
+            int gap=BedwarsBridge.gap(terrain(),cell,cellOf(centre),botCfg.bridgeMaxGap());
+            options.add(new BedwarsBotTeams.BedCandidate(i,Math.sqrt(here.distanceSquared(centre)),defenceWeight(bedRegions.get(i)),gap,claims));
+        }
+        Integer choice=BedwarsBotTeams.chooseBed(options);
+        if(choice==null) { state.targets.remove(id); return null; }
+        state.targets.put(id,choice); botTargetUntil.put(id,tick+botCfg.targetReassessSeconds()*20L);
+        return bedRegions.get(choice);
     }
     private boolean mineVisibleDefence(Player bot,Cuboid bed,long tick) {
         Location centre=bed.center(game.world()),eye=bot.getEyeLocation();
@@ -544,6 +787,7 @@ public final class BedwarsGame extends MiniGame {
         if(mining==null || !mining.block().equals(block.getLocation()) || mining.type()!=block.getType()) {
             botMining.put(bot.getUniqueId(),new Mining(block.getLocation(),block.getType(),tick,0)); return true;
         }
+        equipToolFor(bot,block.getType());
         float speed=block.getBreakSpeed(bot);
         if(!Float.isFinite(speed) || speed<=0) return true;
         bot.swingMainHand();
@@ -555,7 +799,20 @@ public final class BedwarsGame extends MiniGame {
         if(broken && bedTeam>=0 && !block.getType().name().endsWith("_BED")) destroyBed(bedTeam,bot);
         botMining.remove(bot.getUniqueId()); return true;
     }
+    /** Swap the right pickaxe, axe or shears into the hotbar and hold it; keeps the current item when nothing fits. */
+    private void equipToolFor(Player bot,Material block) {
+        var inv=bot.getInventory(); Set<Material> held=new HashSet<>();
+        for(int i=0;i<36;i++) { ItemStack s=inv.getItem(i); if(s!=null) held.add(s.getType()); }
+        Material tool=BedwarsBotTools.preferred(block,held); if(tool==null) return;
+        int slot=-1; for(int i=0;i<36 && slot<0;i++) { ItemStack s=inv.getItem(i); if(s!=null && s.getType()==tool) slot=i; }
+        if(slot<0) return;
+        if(slot>=9) { ItemStack displaced=inv.getItem(6); inv.setItem(6,inv.getItem(slot)); inv.setItem(slot,displaced); slot=6; }
+        inv.setHeldItemSlot(slot);
+    }
     @Override public void onCleanup() {
+        botTeams.clear(); botTripUntil.clear(); botTripNext.clear(); botGatherUntil.clear(); botGatherNext.clear();
+        botTargetUntil.clear(); botFireballReady.clear(); botCanSpend.clear(); bridgeAnchor.clear(); botSneaking.clear();
+        defenceCache.clear(); defenceCacheUntil.clear();
         botBow.clear(); botTraversal.clear(); botNextAction.clear(); botPlaced.clear(); botStatuses.clear();
         botMining.clear(); botNextPlace.clear(); shopArmour.clear();
     }
