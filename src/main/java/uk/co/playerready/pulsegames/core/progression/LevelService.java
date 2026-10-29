@@ -48,7 +48,8 @@ public final class LevelService implements Listener {
             store().set(id, XpRules.migratedXp(wins));
             plugin.engagement().markDirty();
         }
-        grantUnlocks(player, level(player), false);
+        // Read the store directly: level() -> progress() -> xp() -> ensure() would recurse forever.
+        grantUnlocks(player, XpRules.levelFor(store().xp(id)), false);
     }
 
     public long xp(Player player) { ensure(player); return enabled() ? store().xp(player.getUniqueId()) : 0; }
