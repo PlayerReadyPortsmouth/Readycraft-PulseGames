@@ -3,8 +3,6 @@ package uk.co.playerready.pulsegames.games.quake;
 import org.bukkit.*;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.*;
 import org.bukkit.util.Vector;
 import uk.co.playerready.pulsegames.core.bot.*;
@@ -47,11 +45,7 @@ public final class QuakeGame extends MiniGame implements BotMovement {
     private final Map<UUID,Location> goals=new HashMap<>();
     private final Map<UUID,UUID> botTargets=new HashMap<>();
     private final LongSupplier clock;
-    private final class Menu implements InventoryHolder {
-        final QuakeGame source=QuakeGame.this; final UUID owner; Inventory inventory;
-        Menu(UUID owner){this.owner=owner;}
-        public Inventory getInventory(){return inventory;}
-    }
+    private final QuakeLoadoutMenu loadout=new QuakeLoadoutMenu(this);
     public QuakeGame(GameInstance game){this(game,System::nanoTime);}
     QuakeGame(GameInstance game,LongSupplier clock){super(game);this.clock=clock;}
     @Override public int startFreezeSeconds(){return 15;}
@@ -92,37 +86,22 @@ public final class QuakeGame extends MiniGame implements BotMovement {
     private void equipAbilities(Player p){
         for(int i=0;i<2;i++){Ability a=abilities(p).get(i);p.getInventory().setItem(i+1,item(a.item,"<green>"+a.label+" · "+a.cooldown/20+"s cooldown"));}
     }
-    private void open(Player p){
-        if(game.state()!=GameState.RUNNING||!game.isActive(p)||!protectedSpawn(p))return;
-        Menu menu=new Menu(p.getUniqueId());menu.inventory=Bukkit.createInventory(menu,36,Text.mm("<aqua>Quake · weapon + two abilities"));
-        for(int i=0;i<Weapon.values().length;i++){
-            Weapon w=Weapon.values()[i];menu.inventory.setItem(2+i*2,item(w.item,
-                    (weapons.getOrDefault(p.getUniqueId(),Weapon.RAILGUN)==w?"<green>Selected: ":"<aqua>")+w.label+" · "+w.damage+" damage · "+w.cooldown/20.0+"s"));
-        }
-        for(int i=0;i<Ability.values().length;i++){
-            Ability a=Ability.values()[i];int selected=abilities(p).indexOf(a);
-            for(int target=0;target<2;target++)menu.inventory.setItem(10+target*9+i*2,item(a.item,(selected==target?"<green>Selected: ":"<yellow>Slot "+(target+1)+": ")+a.label));
-        }
-        menu.inventory.setItem(31,item(Material.LIME_DYE,"<green>Ready · keep this loadout"));p.openInventory(menu.inventory);
+    private void open(Player p){if(loadoutLive(p))loadout.open(p);}
+    /** True while the child may still change loadout: round running, alive, in spawn protection. */
+    boolean loadoutLive(Player p){return game.state()==GameState.RUNNING&&game.isActive(p)&&protectedSpawn(p);}
+    org.bukkit.plugin.Plugin plugin(){return game.plugin();}
+    Weapon weapon(Player p){return weapons.getOrDefault(p.getUniqueId(),Weapon.RAILGUN);}
+    void chooseWeapon(Player p,Weapon chosen){
+        weapons.put(p.getUniqueId(),chosen);
+        p.getInventory().setItem(0,item(chosen.item,"<aqua>"+chosen.label+" · "+uk.co.playerready.pulsegames.core.util.PlatformDetector.useVerb(p)+" to fire"));
     }
-    @Override public void onInventoryClick(Player p,InventoryClickEvent e){
-        e.setCancelled(true);
-        if(!(e.getView().getTopInventory().getHolder() instanceof QuakeGame.Menu menu)||menu.source!=this||!menu.owner.equals(p.getUniqueId())
-                ||game.state()!=GameState.RUNNING||!game.isActive(p)||!protectedSpawn(p))return;
-        int slot=e.getRawSlot();
-        if(slot==31){p.closeInventory();return;}
-        for(int i=0;i<Weapon.values().length;i++)if(slot==2+i*2){
-            Weapon chosen=Weapon.values()[i];weapons.put(p.getUniqueId(),chosen);
-            p.getInventory().setItem(0,item(chosen.item,"<aqua>"+chosen.label+" · "+uk.co.playerready.pulsegames.core.util.PlatformDetector.useVerb(p)+" to fire"));open(p);return;
-        }
-        for(int i=0;i<Ability.values().length;i++)for(int target=0;target<2;target++)if(slot==10+target*9+i*2){
-            Ability chosen=Ability.values()[i];List<Ability> current=new ArrayList<>(abilities(p));
-            int existing=current.indexOf(chosen);
-            if(existing>=0)Collections.swap(current,target,existing);else current.set(target,chosen);
-            selectAbilities(p,current.get(0),current.get(1));equipAbilities(p);open(p);return;
-        }
+    /** Put {@code chosen} in ability slot {@code target} (0 or 1); if it was in the other slot the two swap. */
+    void chooseAbility(Player p,Ability chosen,int target){
+        List<Ability> current=new ArrayList<>(abilities(p));
+        int existing=current.indexOf(chosen);
+        if(existing>=0)Collections.swap(current,target,existing);else current.set(target,chosen);
+        selectAbilities(p,current.get(0),current.get(1));equipAbilities(p);
     }
-    @Override public void onInventoryDrag(Player p,InventoryDragEvent e){e.setCancelled(true);}
     @Override public void onInteract(PlayerInteractEvent e){
         if(e.getHand()!=EquipmentSlot.HAND||!e.getAction().isRightClick()||e.getItem()==null)return;
         e.setCancelled(true);Player p=e.getPlayer();Material type=e.getItem().getType();
@@ -266,7 +245,7 @@ public final class QuakeGame extends MiniGame implements BotMovement {
             Float speed=originalSpeed.remove(p.getUniqueId());if(speed!=null)p.setWalkSpeed(speed);sprints.remove(p.getUniqueId());
         }
         for(Player p:game.players())if(!protectedSpawn(p)
-                && p.getOpenInventory().getTopInventory().getHolder() instanceof QuakeGame.Menu menu && menu.source==this)p.closeInventory();
+                && loadout.isOpenFor(p))p.closeInventory();
     }
     private List<Player> side(Player p){var team=game.teamOf(p);return team==null?List.of(p):game.players().stream().filter(team::contains).toList();}
     private int sideScore(Player p){return side(p).stream().mapToInt(game::score).sum();}
@@ -308,7 +287,7 @@ public final class QuakeGame extends MiniGame implements BotMovement {
     @Override public void onEnd(List<Player> winners){onCleanup();}
     @Override public void onCleanup(){
         for(Player p:game.everyone()){
-            if(p.getOpenInventory().getTopInventory().getHolder() instanceof QuakeGame.Menu menu && menu.source==this)p.closeInventory();
+            if(loadout.isOpenFor(p))p.closeInventory();loadout.forget(p);
             clearEffects(p);
             for(Weapon w:Weapon.values())p.setCooldown(w.item,0);
             for(Ability a:Ability.values())p.setCooldown(a.item,0);

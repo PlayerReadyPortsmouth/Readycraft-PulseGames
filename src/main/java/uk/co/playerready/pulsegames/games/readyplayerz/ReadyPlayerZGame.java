@@ -12,10 +12,8 @@ import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Zombie;
-import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -32,39 +30,36 @@ import uk.co.playerready.pulsegames.core.util.Text;
  * Arena: regions mobspawn1..N.
  */
 public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerready.pulsegames.core.bot.BotObjectives {
-    private static final class ShopHolder implements InventoryHolder {
-        Inventory inventory;
-        @Override
-        public Inventory getInventory() {
-            return inventory;
-        }
-    }
+    /** One shop line. {@code perk} is the potion effect a perk grants, used to show "Active now". */
+    record Upgrade(String name, Material icon, int cost, String blurb, java.util.function.Supplier<PotionEffectType> perk,
+                   java.util.function.Consumer<Player> apply) {}
 
-    private record Upgrade(String name, Material icon, int cost, java.util.function.Consumer<Player> apply) {}
-
-    private final List<Upgrade> upgrades =
-        List.of(new Upgrade("Stone Sword", Material.STONE_SWORD, 50,
+    static final List<Upgrade> UPGRADES =
+        List.of(new Upgrade("Stone Sword", Material.STONE_SWORD, 50, "A starter sword for close fights.", null,
                     p -> p.getInventory().addItem(new ItemStack(Material.STONE_SWORD))),
-            new Upgrade("Iron Sword", Material.IRON_SWORD, 150,
+            new Upgrade("Iron Sword", Material.IRON_SWORD, 150, "A stronger sword.", null,
                 p -> p.getInventory().addItem(new ItemStack(Material.IRON_SWORD))),
-            new Upgrade("Diamond Sword", Material.DIAMOND_SWORD, 500,
+            new Upgrade("Diamond Sword", Material.DIAMOND_SWORD, 500, "The strongest sword in the shop.", null,
                 p -> p.getInventory().addItem(new ItemStack(Material.DIAMOND_SWORD))),
-            new Upgrade("Bow", Material.BOW, 200, p -> p.getInventory().addItem(new ItemStack(Material.BOW))),
-            new Upgrade(
-                "Arrows x16", Material.ARROW, 100, p -> p.getInventory().addItem(new ItemStack(Material.ARROW, 16))),
-            new Upgrade("Iron Chestplate", Material.IRON_CHESTPLATE, 300,
+            new Upgrade("Bow", Material.BOW, 200, "Hit zombies from far away. Needs arrows.", null,
+                p -> p.getInventory().addItem(new ItemStack(Material.BOW))),
+            new Upgrade("Arrows x16", Material.ARROW, 100, "16 more arrows for your bow.", null,
+                p -> p.getInventory().addItem(new ItemStack(Material.ARROW, 16))),
+            new Upgrade("Iron Chestplate", Material.IRON_CHESTPLATE, 300, "Armour that takes some of the hits.", null,
                 p -> p.getInventory().setChestplate(new ItemStack(Material.IRON_CHESTPLATE))),
-            new Upgrade("Heal Up", Material.GOLDEN_APPLE, 75, p -> p.setHealth(20)),
-            new Upgrade("Speed Perk", Material.SUGAR, 250,
+            new Upgrade("Heal Up", Material.GOLDEN_APPLE, 75, "Fills your health back up.", null, p -> p.setHealth(20)),
+            new Upgrade("Speed Perk", Material.SUGAR, 250, "Run faster for 10 minutes.", () -> PotionEffectType.SPEED,
                 p -> p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 20 * 600, 0))),
-            new Upgrade("Crossbow", Material.CROSSBOW, 350, p -> {
+            new Upgrade("Crossbow", Material.CROSSBOW, 350, "A crossbow with 16 arrows.", null, p -> {
                 p.getInventory().addItem(new ItemStack(Material.CROSSBOW));
                 p.getInventory().addItem(new ItemStack(Material.ARROW, 16));
             }),
-            new Upgrade("Tough Skin Perk", Material.GOLDEN_APPLE, 400,
+            new Upgrade("Tough Skin Perk", Material.GOLDEN_APPLE, 400, "Extra hearts for 10 minutes.", () -> PotionEffectType.ABSORPTION,
                 p -> p.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, 20 * 600, 1))),
-            new Upgrade("Regen Perk", Material.GLISTERING_MELON_SLICE, 450,
+            new Upgrade("Regen Perk", Material.GLISTERING_MELON_SLICE, 450, "Heal slowly for 10 minutes.", () -> PotionEffectType.REGENERATION,
                 p -> p.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION, 20 * 600, 0))));
+    private final List<Upgrade> upgrades = UPGRADES;
+    private final ZShopMenu shop = new ZShopMenu(this);
     /** Supply Shop chest (27 slots, Bedrock-safe): upgrades first, then the Mystery Box / Pack-a-Punch fallbacks. */
     static final int BOX_SLOT = 12, PAP_SLOT = 14;
     private final java.util.Map<UUID, Integer> boxUses = new java.util.HashMap<>();
@@ -1017,55 +1012,20 @@ public final class ReadyPlayerZGame extends MiniGame implements uk.co.playerread
     }
 
     private void openShop(Player player) {
-        if(game.state()!=GameState.RUNNING||!game.isActive(player)||downed.contains(player.getUniqueId())||player.getWorld()!=game.world())return;
-        ShopHolder holder = new ShopHolder();
-        Inventory inv = Bukkit.createInventory(holder, 27, Text.mm("<dark_gray>Supply Shop"));
-        holder.inventory = inv;
-        for (int i = 0; i < upgrades.size(); i++) {
-            Upgrade upgrade = upgrades.get(i);
-            ItemStack item = new ItemStack(upgrade.icon());
-            item.editMeta(meta -> {
-                meta.displayName(Text.mm("<yellow>" + upgrade.name()));
-                meta.lore(List.of(Text.mm("<gold>" + upgrade.cost() + " points")));
-            });
-            inv.setItem(i, item);
-        }
-        if (boxLocations().isEmpty())
-            inv.setItem(BOX_SLOT, shopIcon(Material.ENDER_CHEST, "<light_purple>Mystery Box",
-                ZMysteryBox.price(boxUses.getOrDefault(player.getUniqueId(), 0)) + " points",
-                "Random weapon or perk"));
-        if (packLocation() == null)
-            inv.setItem(PAP_SLOT, shopIcon(Material.ANVIL, "<aqua>Pack-a-Punch", ZMysteryBox.PACK_A_PUNCH_PRICE + " points",
-                "Upgrade the weapon in your hand once"));
-        player.openInventory(inv);
+        if (shopOpen(player)) shop.open(player);
     }
 
-    private ItemStack shopIcon(Material icon, String name, String cost, String detail) {
-        ItemStack item = new ItemStack(icon);
-        item.editMeta(meta -> {
-            meta.displayName(Text.mm(name));
-            meta.lore(List.of(Text.mm("<gold>" + cost), Text.mm("<gray>" + detail)));
-        });
-        return item;
+    /** True while this player may shop: round running, still up, in the arena. */
+    boolean shopOpen(Player player) {
+        return game.state() == GameState.RUNNING && game.isActive(player) && !downed.contains(player.getUniqueId())
+            && player.getWorld() == game.world();
     }
 
-    @Override
-    public void onInventoryClick(Player player, InventoryClickEvent event) {
-        if (!(event.getInventory().getHolder() instanceof ShopHolder))
-            return;
-        event.setCancelled(true);
-        int slot = event.getSlot();
-        if (event.getClickedInventory() != event.getInventory() || slot < 0
-            || !(slot < upgrades.size() || slot == BOX_SLOT || slot == PAP_SLOT))
-            return;
-        if (!purchase(player, slot))
-            player.sendMessage(Text.msg("<red>Purchase unavailable. Check your points and inventory space."));
-    }
+    int points(Player player) { return game.score(player); }
 
-    @Override
-    public void onInventoryDrag(Player player,org.bukkit.event.inventory.InventoryDragEvent event){
-        if(event.getView().getTopInventory().getHolder() instanceof ShopHolder)event.setCancelled(true);
-    }
+    int boxPrice(Player player) { return ZMysteryBox.price(boxUses.getOrDefault(player.getUniqueId(), 0)); }
+
+    org.bukkit.plugin.Plugin plugin() { return game.plugin(); }
 
     /** Shared shop action: bots pay exactly the same prices and obey active-player checks. */
     boolean purchase(Player player, int slot) {

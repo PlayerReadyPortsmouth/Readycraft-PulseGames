@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static uk.co.playerready.pulsegames.games.bedwars.shop.ShopRules.Status.*;
+import static uk.co.playerready.pulsegames.core.ui.shop.ShopRules.Status.*;
 
 class ShopRulesTest {
     private final ShopCatalogue c = ShopCatalogue.loadBundled();

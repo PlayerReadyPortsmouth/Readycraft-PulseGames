@@ -55,15 +55,7 @@ class ReadyPlayerZCombatTest {
         verify(mob,times(1)).remove();verify(world,times(1)).setTime(6000);verify(world,times(1)).setGameRule(GameRule.DO_DAYLIGHT_CYCLE,true);
         verify(world,times(1)).setGameRule(GameRule.DO_WEATHER_CYCLE,true);assertTrue(((Set<?>)field("zombies")).isEmpty());
     }
-    @Test void shopDragCannotInsertItemsIntoMenu()throws Exception{
-        Class<?> holderType=Class.forName(ReadyPlayerZGame.class.getName()+"$ShopHolder");
-        var constructor=holderType.getDeclaredConstructor();constructor.setAccessible(true);
-        var holder=(org.bukkit.inventory.InventoryHolder)constructor.newInstance();
-        var top=mock(org.bukkit.inventory.Inventory.class);when(top.getHolder()).thenReturn(holder);
-        var view=mock(org.bukkit.inventory.InventoryView.class);when(view.getTopInventory()).thenReturn(top);
-        var event=mock(org.bukkit.event.inventory.InventoryDragEvent.class);when(event.getView()).thenReturn(view);
-        logic.onInventoryDrag(player,event);verify(event).setCancelled(true);
-    }
+    // Shop drag/click cancelling now lives in the shared Menu kit (MenuKitTest.dragsAreCancelledOnlyForMenus).
     @Test void downedActivePlayerCannotPurchaseOrOpenShop()throws Exception{
         ((Set<UUID>)field("downed")).add(player.getUniqueId());when(game.score(player)).thenReturn(1000);
         assertFalse(logic.purchase(player,6));verify(game,never()).addScore(any(),anyInt());

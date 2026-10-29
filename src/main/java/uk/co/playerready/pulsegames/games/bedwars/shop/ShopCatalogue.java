@@ -80,16 +80,13 @@ public final class ShopCatalogue {
     /** Materials in the same tier chain that sit below this item and are replaced when it is bought. */
     public Set<Material> lowerTiers(Item item) {
         if (item.group() == null || item.equip()) return Set.of();
-        return new HashSet<>(groups.get(item.group()).subList(0, item.tier()));
+        return uk.co.playerready.pulsegames.core.ui.shop.ShopRules.lowerTiers(groups.get(item.group()), item.tier());
     }
 
     /** Highest tier of the item's chain among the given materials, or -1 for none. */
     public int ownedTier(Item item, java.util.Collection<Material> held) {
         if (item.group() == null) return -1;
-        List<Material> chain = groups.get(item.group());
-        int best = -1;
-        for (Material m : held) best = Math.max(best, chain.indexOf(m));
-        return best;
+        return uk.co.playerready.pulsegames.core.ui.shop.ShopRules.ownedTier(groups.get(item.group()), held);
     }
 
     // ---- loading ---------------------------------------------------------------------
