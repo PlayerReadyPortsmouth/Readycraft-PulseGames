@@ -639,12 +639,14 @@ public final class BotService implements AutoCloseable {
         if (goal == null || here.distanceSquared(goal) < (precise ? 0.04 : 1)) {
             slot.actor.stopNavigation();
             slot.destination = null;
-        } else if (tick >= slot.nextPath && (slot.destination == null || slot.destination.distanceSquared(goal) > (precise ? 0.01 : 2) || tick % 100 == 0)) {
+        } else if (BotPace.mayIssue(skywars, tick, slot.nextPath, skywars && BotPace.arrived(here, slot.destination))
+                && (slot.destination == null || slot.destination.distanceSquared(goal) > (precise ? 0.01 : 2) || tick % 100 == 0)) {
             if (skywars || slot.game.logic() instanceof BotMovement movement && movement.straightNavigation()) slot.actor.navigateStraight(goal);
             else slot.actor.navigate(goal);
             slot.destination = goal.clone();
             slot.nextPath = tick + (slot.game.logic() instanceof BotMovement movement
-                    ? Math.max(5, movement.navigationIntervalTicks(difficulty)) : difficulty.pathTicks + random.applyAsInt(6));
+                    ? Math.max(5, movement.navigationIntervalTicks(difficulty))
+                    : BotPace.interval(skywars, difficulty.pathTicks, random.applyAsInt(6)));
         }
     }
 
