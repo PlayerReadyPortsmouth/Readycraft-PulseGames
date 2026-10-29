@@ -13,6 +13,7 @@ import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
+import uk.co.playerready.pulsegames.core.game.Comeback;
 import uk.co.playerready.pulsegames.core.game.GameInstance;
 import uk.co.playerready.pulsegames.core.game.GameState;
 import uk.co.playerready.pulsegames.core.game.MiniGame;
@@ -56,6 +57,34 @@ public final class DodgeballGame extends MiniGame {
         return tiers;
     }
 
+    @Override public List<Player> mercyWinners() { return rounds == null ? null : rounds.mercyWinners(); }
+
+    /** Players owed one extra throw (ignoring the cooldown once) because their side was smaller at the last reset. */
+    private final Set<UUID> bonusThrows = new HashSet<>();
+
+    /** Comeback: at a round reset the side with fewer players gets one extra ball each. */
+    private void grantBonusBalls(List<Player> contestants) {
+        bonusThrows.clear();
+        if (!Comeback.enabled(game.plugin().getConfig(), "dodgeball")) return;
+        Map<Object, Integer> sizes = new HashMap<>();
+        for (Player p : contestants) {
+            var team = game.teamOf(p);
+            if (team != null) sizes.merge(team, 1, Integer::sum);
+        }
+        int biggest = sizes.values().stream().mapToInt(Integer::intValue).max().orElse(0);
+        for (Player p : contestants) {
+            var team = game.teamOf(p);
+            if (team != null && Comeback.smallerSide(sizes.get(team), biggest)) {
+                bonusThrows.add(p.getUniqueId());
+                p.sendActionBar(Component.text("Comeback: you have an extra ball this round", NamedTextColor.GREEN));
+            }
+        }
+    }
+
+    @Override public String comebackLine(Player player) {
+        return bonusThrows.contains(player.getUniqueId()) ? "Comeback: extra ball" : null;
+    }
+
     private boolean isRounds() { return RoundController.isRounds(game); }
 
     private void out(Player player) {
@@ -67,6 +96,7 @@ public final class DodgeballGame extends MiniGame {
             lives.put(player.getUniqueId(), 3);
             equip(player);
         }
+        grantBonusBalls(rounds.contestants());
         balls.values().forEach(Snowball::remove);
         balls.clear();
     }
@@ -116,7 +146,7 @@ public final class DodgeballGame extends MiniGame {
                 || player.getWorld() != game.world()) return false;
         long now = clock.getAsLong();
         Long deadline = nextThrow.get(player.getUniqueId());
-        if (deadline != null && now - deadline < 0) return false;
+        if (deadline != null && now - deadline < 0 && !bonusThrows.remove(player.getUniqueId())) return false;
         int ticks = throwCooldownTicks();
         nextThrow.put(player.getUniqueId(), now + ticks * 50_000_000L);
         player.setCooldown(Material.BLAZE_ROD, ticks);
@@ -201,7 +231,7 @@ public final class DodgeballGame extends MiniGame {
     @Override public void onCleanup() {
         balls.values().forEach(Snowball::remove);
         game.everyone().forEach(player -> player.setCooldown(Material.BLAZE_ROD, 0));
-        balls.clear(); nextThrow.clear(); lives.clear();
+        balls.clear(); nextThrow.clear(); lives.clear(); bonusThrows.clear();
         if (rounds != null) rounds.close();
     }
     @Override public List<String> sidebar(Player player) {

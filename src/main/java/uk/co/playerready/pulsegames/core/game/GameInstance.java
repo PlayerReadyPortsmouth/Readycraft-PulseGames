@@ -56,6 +56,8 @@ public final class GameInstance {
     private int lastStartAnnouncement = -1;
     private long emptySince;
     private int logicFailures;
+    private final Mercy.Timer mercyTimer = new Mercy.Timer();
+    private boolean endedByMercy;
 
     private final Set<UUID> participants = new LinkedHashSet<>();
     private final Set<UUID> botIds = new LinkedHashSet<>();
@@ -477,6 +479,7 @@ public final class GameInstance {
                 if (state == GameState.RUNNING && gameTime >= logic.timeLimitSeconds()) {
                     runLogic("onTimeUp", logic::onTimeUp);
                 }
+                if (state == GameState.RUNNING) runLogic("mercy", this::mercyStep);
             }
             case ENDING -> {
                 if (--countdown <= 0) cleanup();
@@ -485,6 +488,37 @@ public final class GameInstance {
         }
         if (state == GameState.WAITING || state == GameState.COUNTDOWN || state == GameState.RUNNING) {
             updateSidebars();
+        }
+    }
+
+    /** Once a second: poll the game's "decided" signal and run the hold, countdown, cancel and end. */
+    private void mercyStep() {
+        if (!Mercy.enabled(plugin.getConfig(), type.id())) return;
+        List<Player> winners = logic.mercyWinners();
+        boolean decided = winners != null && !winners.isEmpty();
+        int hold = Mercy.holdSeconds(plugin.getConfig(), type.id(), logic.mercyHoldSeconds());
+        Mercy.Step step = mercyTimer.tick(decided, hold, Mercy.countdownSeconds(plugin.getConfig()));
+        switch (step.phase()) {
+            case START, COUNT -> {
+                GameTeam team = teamOf(winners.get(0));
+                String who = team != null ? team.coloredName() : winners.get(0).getName();
+                String headline = Mercy.headline("<white>" + who + "<white>", team != null || winners.size() > 1);
+                for (Player p : everyone()) {
+                    if (isBot(p)) continue;
+                    Text.title(p, "<gold><b>" + headline, "<gray>Ending in " + step.secondsLeft() + "s");
+                    p.playSound(p.getLocation(), "minecraft:block.note_block.hat", 0.5f, 1.2f);
+                }
+                if (step.phase() == Mercy.Phase.START) note("mercy-start", "decided, countdown " + step.secondsLeft());
+            }
+            case CANCEL -> {
+                broadcast("<yellow>Back in the game! The comeback is on.");
+                note("mercy-cancel", "signal cleared");
+            }
+            case FIRE -> {
+                endedByMercy = true;
+                end(winners, "mercy");
+            }
+            default -> { }
         }
     }
 
@@ -677,6 +711,8 @@ public final class GameInstance {
         if (preparation > 0) lines.add("<yellow>Starting in: " + preparation + "s");
         if (phase != null && !phase.isBlank()) lines.add("<yellow>" + phase);
         lines.add("<gray>Match left: <white>" + Text.time(remainingSeconds()));
+        String comeback = logic.comebackLine(player);
+        if (comeback != null) lines.add("<green>" + comeback);
         List<String> custom = logic.sidebar(player);
         if (custom.isEmpty()) lines.add("<gray>Alive: <white>" + alive.size());
         else {
@@ -862,6 +898,7 @@ public final class GameInstance {
         List<String> summaryPlain = summaryLines.stream().map(Text::plain).toList();
         broadcast("<gold><b>Round over!</b></gold> <gray>" + (coop ? (anyWinner ? "The squad pulled it off." : "The squad's run has ended.")
                 : anyWinner ? "Winner(s): <yellow>" + winnerNames : "No single winner this time."));
+        if (endedByMercy) broadcast("<gray>" + Mercy.NOTE + ".");
         for (Player p : everyone()) {
             if (isBot(p)) { p.setGameMode(org.bukkit.GameMode.SPECTATOR); continue; }
             int balanceBefore = plugin.economy().tokens(p);
@@ -890,9 +927,12 @@ public final class GameInstance {
                 else Text.title(p, "<aqua><b>Well played!", "<gray>" + line);
                 // A draw or timeout with no declared winner is not a loss.
                 // A co-op round nobody won is a genuine loss; a forced stop is neither.
-                if (isParticipant(p) && !"forced".equals(reason)) {
-                    if (anyWinner || coop) plugin.stats().addLoss(p, type.id());
-                    else plugin.stats().addDraw(p, type.id());
+                if (isParticipant(p)) {
+                    switch (Mercy.statForNonWinner("forced".equals(reason), anyWinner, coop)) {
+                        case LOSS -> plugin.stats().addLoss(p, type.id());
+                        case DRAW -> plugin.stats().addDraw(p, type.id());
+                        default -> { }
+                    }
                 }
             }
             summaryLines.forEach(line -> p.sendMessage(Text.msg(line)));
@@ -918,7 +958,7 @@ public final class GameInstance {
                 plugin.results().publishLate(gone, new MatchResults.Result(id, type.id(), mode.id(), arena.displayName(),
                         Placements.outcome(true, false, anyWinner, coop, gonePlace, fieldSize),
                         "Solo", 0, 0, roundKills.getOrDefault(gid, 0), roundDeaths.getOrDefault(gid, 0), 0, false, practice,
-                        System.currentTimeMillis() + 600_000L, gonePlace, fieldSize, podium, summaryPlain));
+                        System.currentTimeMillis() + 600_000L, gonePlace, fieldSize, podium, summaryPlain, endNote()));
             }
         }
         // Celebration: fireworks rain on the creditedWinners until cleanup.
@@ -942,8 +982,10 @@ public final class GameInstance {
                 team == null ? "Solo" : "Team " + (team.index() + 1), score(p), teamScore,
                 roundKills.getOrDefault(p.getUniqueId(), 0), roundDeaths.getOrDefault(p.getUniqueId(), 0),
                 Math.max(0, plugin.economy().tokens(p) - balanceBefore), ranked() && isParticipant(p), practice,
-                System.currentTimeMillis() + 600_000L, place, fieldSize, podium, summary);
+                System.currentTimeMillis() + 600_000L, place, fieldSize, podium, summary, endNote());
     }
+
+    private String endNote() { return endedByMercy ? Mercy.NOTE : ""; }
 
     /** The logic's co-op end screen, or null (a failing hook must never stop a round from ending). */
     private MiniGame.EndSummary coopSummary(List<Player> winners) {

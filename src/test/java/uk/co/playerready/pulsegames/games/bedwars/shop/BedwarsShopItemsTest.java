@@ -49,7 +49,9 @@ class BedwarsShopItemsTest {
     @Test void everyShelfFitsAndTheTabRowHoldsNineTabs() {
         for (var c : ShopCatalogue.Category.values())
             assertTrue(SHOP.inCategory(c).size() <= ShopCatalogue.PAGE_CAPACITY, c.name());
-        long shelves = java.util.Arrays.stream(ShopCatalogue.Category.values()).filter(c -> c != ShopCatalogue.Category.QUICK_BUY).count();
+        // The Comeback shelf takes the Funky tab's slot while it is on, so it never adds a tenth tab.
+        long shelves = java.util.Arrays.stream(ShopCatalogue.Category.values())
+                .filter(c -> c != ShopCatalogue.Category.QUICK_BUY && c != ShopCatalogue.Category.COMEBACK).count();
         assertEquals(8, shelves);
         assertTrue(shelves + 1 <= uk.co.playerready.pulsegames.core.ui.shop.ShopLayout.TABS, "eight shelves plus Team Upgrades");
         assertTrue(SHOP.upgrades().size() <= uk.co.playerready.pulsegames.core.ui.shop.ShopLayout.SPACED_CAPACITY);

@@ -4,6 +4,7 @@ import net.kyori.adventure.bossbar.BossBar;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import uk.co.playerready.pulsegames.core.game.GameInstance;
+import uk.co.playerready.pulsegames.core.game.Mercy;
 import uk.co.playerready.pulsegames.core.game.MiniGame;
 import uk.co.playerready.pulsegames.core.kit.Kit;
 import uk.co.playerready.pulsegames.core.team.GameTeam;
@@ -276,6 +277,22 @@ public final class KothGame extends MiniGame {
 
     private List<Player> playerList(UUID uuid) {
         return game.players().stream().filter(p -> p.getUniqueId().equals(uuid)).toList();
+    }
+
+    /** A side that has a very large lead late on wins now rather than waiting out the clock. */
+    @Override
+    public List<Player> mercyWinners() {
+        var lead = Mercy.leading(game.players(), p -> {
+            GameTeam team = game.teamOf(p);
+            return team != null ? team : p.getUniqueId();
+        }, p -> {
+            GameTeam team = game.teamOf(p);
+            return team != null ? teamScores.getOrDefault(team.index(), 0) : game.score(p);
+        });
+        if (lead == null || !Mercy.scoreGap(game.plugin().getConfig(), "koth", lead.best(), lead.second(), target(),
+                game.remainingSeconds(), timeLimitSeconds())) return null;
+        GameTeam team = game.teamOf(lead.member());
+        return team != null ? membersOfTeam(team.index()) : List.of(lead.member());
     }
 
     @Override

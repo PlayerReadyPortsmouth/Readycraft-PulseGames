@@ -11,7 +11,9 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
+import uk.co.playerready.pulsegames.core.game.Comeback;
 import uk.co.playerready.pulsegames.core.game.GameInstance;
+import uk.co.playerready.pulsegames.core.game.Mercy;
 import uk.co.playerready.pulsegames.core.game.MiniGame;
 import uk.co.playerready.pulsegames.core.team.GameTeam;
 import uk.co.playerready.pulsegames.core.util.Cuboid;
@@ -57,6 +59,8 @@ public final class BedwarsGame extends MiniGame {
     private final BedwarsShopMenu shopMenu = new BedwarsShopMenu(game.plugin(), new Backend());
     private List<Cuboid> bedRegions = List.of();
     private int generatorTier = 1;
+    /** Teams with the free comeback perk right now (no bed, outnumbered); recomputed every second. */
+    private final Set<Integer> comebackTeams = new HashSet<>();
     private final uk.co.playerready.pulsegames.games.skywars.SkywarsBotBow botBow=new uk.co.playerready.pulsegames.games.skywars.SkywarsBotBow();
     private final uk.co.playerready.pulsegames.games.skywars.SkywarsBotTraversal botTraversal=new uk.co.playerready.pulsegames.games.skywars.SkywarsBotTraversal();
     private final Map<java.util.UUID,Long> botNextAction=new HashMap<>();
@@ -170,6 +174,7 @@ public final class BedwarsGame extends MiniGame {
         int goldEvery = generatorTier >= 3 ? 3 : generatorTier == 2 ? 5 : 8;
         int diamondEvery = BedwarsTimers.diamondEvery(generatorTier);
         custom.tick(gameTime);
+        refreshComeback();
         guardBeds();
         if (gameTime % ironEvery == 0) dropAtTeamGenerators(Material.IRON_INGOT);
         if (gameTime % goldEvery == 0) dropAtTeamGenerators(Material.GOLD_INGOT);
@@ -180,6 +185,66 @@ public final class BedwarsGame extends MiniGame {
                 game.world().spawnParticle(org.bukkit.Particle.HAPPY_VILLAGER, loc.clone().add(0, 1, 0), 5, 0.3, 0.5, 0.3);
             }
         }
+    }
+
+    // ---- comeback and mercy ------------------------------------------------------------
+
+    private int aliveCount(GameTeam team) {
+        return (int) team.members().stream().map(game::player).filter(p -> p != null && game.isAlive(p)).count();
+    }
+
+    /** A bedless, outnumbered team gets a free forge tier and the Comeback shop tab; it ends when that stops being true. */
+    private void refreshComeback() {
+        Set<Integer> now = new HashSet<>();
+        if (Comeback.enabled(game.plugin().getConfig(), "bedwars")) {
+            Map<Integer, Integer> alive = new HashMap<>();
+            for (GameTeam team : game.teams()) alive.put(team.index(), aliveCount(team));
+            now = Comeback.bedwarsTeams(bedAlive, alive);
+        }
+        for (GameTeam team : game.teams()) {
+            boolean was = comebackTeams.contains(team.index()), is = now.contains(team.index());
+            if (was == is) continue;
+            String message = is ? "<green><b>COMEBACK!</b> <gray>Your forge is a tier faster and the shop has a <green>Comeback</green> tab with cheap essentials."
+                    : "<gray>Comeback bonus over. Your forge is back to normal.";
+            for (java.util.UUID member : team.members()) {
+                Player mate = game.player(member);
+                if (mate != null) mate.sendMessage(Text.msg(message));
+            }
+        }
+        comebackTeams.clear();
+        comebackTeams.addAll(now);
+    }
+
+    private boolean comebackActive(Player player) {
+        GameTeam team = game.teamOf(player);
+        return team != null && comebackTeams.contains(team.index());
+    }
+
+    @Override
+    public String comebackLine(Player player) { return comebackActive(player) ? "Comeback: faster forge" : null; }
+
+    @Override public int mercyHoldSeconds() { return 60; }
+
+    /** The leading team when every other team has lost its bed and the leader has twice their combined players. */
+    @Override
+    public List<Player> mercyWinners() {
+        GameTeam leader = null;
+        int leaderAlive = 0, othersAlive = 0;
+        for (GameTeam team : game.teams()) {
+            int n = aliveCount(team);
+            if (n > leaderAlive) { leader = team; leaderAlive = n; }
+        }
+        if (leader == null) return null;
+        boolean othersBedless = true;
+        for (GameTeam team : game.teams()) {
+            if (team == leader) continue;
+            othersAlive += aliveCount(team);
+            if (bedAlive.getOrDefault(team.index(), false)) othersBedless = false;
+        }
+        double ratio = game.plugin().getConfig().getDouble("mercy.bedwars.ratio", 2.0);
+        if (!Mercy.bedwars(othersBedless, leaderAlive, othersAlive, ratio)) return null;
+        final GameTeam winner = leader;
+        return game.alivePlayers().stream().filter(winner::contains).toList();
     }
 
     /** Heal pool and traps, checked once a second around each living team's bed. */
@@ -238,7 +303,8 @@ public final class BedwarsGame extends MiniGame {
             Location gen = game.arena().settingLocation("generator" + (team.index() + 1), game.world());
             if (gen == null) continue;
             int event = forgeEvents.merge(material + "/" + team.index(), 1, Integer::sum) - 1;
-            int copies = 1 + ForgeRates.extraDrops(level(ShopCatalogue.Effect.FORGE, team.index()), event);
+            int copies = 1 + ForgeRates.extraDrops(ForgeRates.withComeback(
+                    level(ShopCatalogue.Effect.FORGE, team.index()), comebackTeams.contains(team.index())), event);
             for (int i = 0; i < copies; i++) drop(gen, material);
         }
     }
@@ -406,6 +472,10 @@ public final class BedwarsGame extends MiniGame {
             return game.state() == uk.co.playerready.pulsegames.core.game.GameState.RUNNING && game.isAlive(player);
         }
         @Override public boolean teamUpgradesOn() { return BedwarsGame.this.teamUpgradesOn(); }
+        @Override public boolean comebackShop(Player player) {
+            // A server's older copied bedwars-shop.yml has no Comeback shelf: the forge perk still works, the tab stays hidden.
+            return comebackActive(player) && !catalogue().inCategory(ShopCatalogue.Category.COMEBACK).isEmpty();
+        }
         @Override public Material woolFor(Player player) {
             GameTeam team = game.teamOf(player);
             return team == null ? null : team.palette().wool();
@@ -442,6 +512,10 @@ public final class BedwarsGame extends MiniGame {
     }
 
     private ShopBackend.Result buyItem(Player player, ShopCatalogue.Item entry) {
+        if (entry.category() == ShopCatalogue.Category.COMEBACK && !comebackActive(player)) {
+            player.sendMessage(Text.msg("<gray>Comeback deals are only for teams fighting back without a bed."));
+            return ShopBackend.Result.ALREADY_OWNED;
+        }
         var inventory = player.getInventory();
         var verdict = ShopRules.verdict(catalogue(), entry, BedwarsPurchase.count(inventory, entry.currency()), heldMaterials(player));
         switch (verdict.status()) {

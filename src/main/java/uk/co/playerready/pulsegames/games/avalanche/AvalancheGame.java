@@ -12,6 +12,7 @@ import uk.co.playerready.pulsegames.games.common.HazardFeedback;
 import uk.co.playerready.pulsegames.games.common.RegionSnapshot;
 import uk.co.playerready.pulsegames.games.common.RoundController;
 
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -45,6 +46,8 @@ public final class AvalancheGame extends MiniGame implements uk.co.playerready.p
     public static boolean isNearMiss(double horizontalDistance) {
         return horizontalDistance > HIT_RADIUS && horizontalDistance <= NEAR_MISS_RADIUS;
     }
+
+    @Override public List<Player> mercyWinners() { return rounds == null ? null : rounds.mercyWinners(); }
 
     private boolean isRounds() { return RoundController.isRounds(game); }
 
