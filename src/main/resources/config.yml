@@ -45,6 +45,10 @@ end:
   # Seconds to celebrate before players are returned to the lobby.
   celebrate-seconds: 10
 
+shop:
+  # Buying anything priced at or above this asks "are you sure?" first (the 2x booster always asks).
+  confirm-at: 500
+
 economy:
   # Pulse Tokens earned for...
   win-reward: 50

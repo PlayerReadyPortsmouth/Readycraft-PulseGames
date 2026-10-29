@@ -121,11 +121,6 @@ public final class PulseGamesPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new uk.co.playerready.pulsegames.core.lobby.LobbyItemListener(lobby), this);
         getServer().getPluginManager().registerEvents(new uk.co.playerready.pulsegames.core.ui.MenuListener(), this);
         getServer().getPluginManager().registerEvents(setup, this);
-        getServer().getPluginManager().registerEvents(tokenShop, this);
-        getServer().getPluginManager().registerEvents(kitSelection, this);
-        getServer().getPluginManager().registerEvents(duelMenu, this);
-        getServer().getPluginManager().registerEvents(results, this);
-        getServer().getPluginManager().registerEvents(new uk.co.playerready.pulsegames.core.lobby.InfoMenu(), this);
         new Commands(this);
         bots.start();
         practice.start();
