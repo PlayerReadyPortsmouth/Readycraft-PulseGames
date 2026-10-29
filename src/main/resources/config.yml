@@ -230,7 +230,8 @@ bedwars:
       place-ticks: 5
       # Sneak while placing at an edge, like a player bridging.
       sneak: true
-      # Longest void gap, in cells, a bot will plan a bridge across when choosing a bed.
+      # Longest void gap, in cells, of ONE bridge hop. A hard limit: a longer crossing is split over diamond or base islands, and
+      # a bed that needs a longer single bridge is not attacked (the bot defends or gathers instead).
       max-gap: 24
     roles:
       # One guard per team (a lone bot guards only for solo-guard-seconds); the rest gather, then attack.

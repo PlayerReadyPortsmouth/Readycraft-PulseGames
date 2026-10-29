@@ -77,7 +77,7 @@ public final class BotNavigationHints {
         for (int x = minX; x <= maxX; x++) for (int z = minZ; z <= maxZ; z++) {
             var floor = world.getBlockAt(x, floor(feet.getY() - .02), z);
             var top = floor.getBoundingBox();
-            if (floor.isPassable() || floor.isLiquid() || !BotFloorSafety.fullCube(floor.getType()) || HAZARDS.contains(floor.getType())
+            if (floor.isPassable() || floor.isLiquid() || !BotFloorSafety.footing(floor) || HAZARDS.contains(floor.getType())
                     || Math.abs(top.getMaxY() - feet.getY()) >= .04
                     || top.getMinX() > Math.max(x, body.getMinX()) + .001 || top.getMaxX() < Math.min(x + 1, body.getMaxX()) - .001
                     || top.getMinZ() > Math.max(z, body.getMinZ()) + .001 || top.getMaxZ() < Math.min(z + 1, body.getMaxZ()) - .001) return false;
