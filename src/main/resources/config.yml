@@ -9,6 +9,22 @@ lobby:
   # Give the game-menu compass on lobby join
   give-menu-item: true
 
+  # Placements made with /pulse lobby ... are saved in plugins/PulseGames/lobby.yml (see docs/LOBBY-PLACEMENTS.md).
+  # Game selector NPC skins: a Minecraft account name per game. Unlisted games use the built-in default
+  # (an MHF head such as MHF_TNT). Example override:
+  #   npcs:
+  #     spleef:
+  #       skin: MHF_Cactus
+  npcs: {}
+  chest:
+    # Random extra tokens on top of economy.daily-bonus when the daily reward chest is opened.
+    extra-min: 5
+    extra-max: 25
+  parkour:
+    # Falling below this height sends a parkour runner back to their last checkpoint.
+    # "auto" = two blocks under the lowest plate.
+    fall-y: auto
+
 ui:
   # Bedrock (Floodgate) players get forms for the game list, mode picker and confirms; false = chest menus for all.
   bedrock-forms: true
