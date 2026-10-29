@@ -41,8 +41,8 @@ class ShopRulesTest {
 
     @Test void teamUpgradeLevelsCostEachStepAndStopAtTheTop() {
         var protection = c.upgrades().stream().filter(u -> u.effect() == ShopCatalogue.Effect.PROTECTION).findFirst().orElseThrow();
-        assertEquals(CAN_BUY, ShopRules.upgradeVerdict(protection, 0, 8).status());
-        assertEquals(8, ShopRules.upgradeVerdict(protection, 1, 8).shortfall());
+        assertEquals(CAN_BUY, ShopRules.upgradeVerdict(protection, 0, 5).status());
+        assertEquals(2, ShopRules.upgradeVerdict(protection, 1, 8).shortfall()); // level II costs 10
         assertEquals(OWNED_THIS, ShopRules.upgradeVerdict(protection, protection.maxLevel(), 99).status());
     }
 }

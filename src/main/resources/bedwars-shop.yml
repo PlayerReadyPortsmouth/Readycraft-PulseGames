@@ -4,7 +4,7 @@
 #
 # Per item:
 #   id          unique short name
-#   category    blocks | melee | armour | tools | ranged | potions | utility
+#   category    blocks | melee | armour | tools | ranged | potions | utility | funky
 #   material    Bukkit material name (for armour: the CHESTPLATE; leggings and boots come with it)
 #   amount      how many you get (default 1)
 #   currency    iron | gold | diamond
@@ -16,6 +16,12 @@
 #   unique      true = you can only hold one
 #   quick-buy   true = appears in the quick-buy row (at most 8)
 #   potion      optional { effect: speed, seconds: 45, level: 2 }
+#   custom      optional behaviour id handled by BedwarsCustomItems (the list is in that class; an unknown id is
+#               rejected when the shop loads, so a typo cannot ship a dead item)
+#   new         true = lore says NEW (for the first few weeks of an item)
+#   cooldown    seconds before the same player can use that item again (custom items)
+#   seconds     how long the effect or object lasts (custom items; each has a sensible default in the code)
+# Currencies on this server are iron, gold and diamond only; there is no emerald.
 # A category page holds at most 18 items.
 
 groups:
@@ -28,10 +34,13 @@ items:
   - {id: wool, category: blocks, material: WHITE_WOOL, amount: 16, currency: iron, cost: 4, name: Wool, blurb: "Build bridges and walls in your team colour.", team-colour: true, quick-buy: true}
   - {id: planks, category: blocks, material: OAK_PLANKS, amount: 16, currency: gold, cost: 4, name: Wood Planks, blurb: "Strong blocks that are harder to break."}
   - {id: end_stone, category: blocks, material: END_STONE, amount: 12, currency: iron, cost: 24, name: End Stone, blurb: "Tough blocks to guard your bed."}
+  - {id: obsidian, category: blocks, material: OBSIDIAN, amount: 4, currency: diamond, cost: 4, name: Obsidian, blurb: "The toughest block. Almost nothing breaks it quickly."}
+  - {id: ladder, category: blocks, material: LADDER, amount: 16, currency: iron, cost: 8, name: Ladders, blurb: "Climb up walls and out of holes."}
 
   - {id: sword_stone, category: melee, material: STONE_SWORD, currency: iron, cost: 10, name: Stone Sword, blurb: "Replaces your wooden sword.", group: sword, quick-buy: true}
   - {id: sword_iron, category: melee, material: IRON_SWORD, currency: gold, cost: 7, name: Iron Sword, blurb: "A stronger sword. Replaces your old one.", group: sword, quick-buy: true}
   - {id: sword_diamond, category: melee, material: DIAMOND_SWORD, currency: diamond, cost: 4, name: Diamond Sword, blurb: "The strongest sword. Replaces your old one.", group: sword}
+  - {id: knockback_stick, category: melee, material: STICK, currency: gold, cost: 5, name: Knockback Stick, blurb: "A stick with a big shove. Push enemies off the edge!", custom: knockback_stick, unique: true}
 
   - {id: armour_chain, category: armour, material: CHAINMAIL_CHESTPLATE, currency: iron, cost: 30, name: Chainmail Armour, blurb: "Chestplate, leggings and boots. You wear it straight away and keep it when you respawn.", group: armour, equip: true, quick-buy: true}
   - {id: armour_iron, category: armour, material: IRON_CHESTPLATE, currency: gold, cost: 12, name: Iron Armour, blurb: "Chestplate, leggings and boots. You wear it straight away and keep it when you respawn.", group: armour, equip: true}
@@ -48,18 +57,43 @@ items:
   - {id: bow, category: ranged, material: BOW, currency: gold, cost: 12, name: Bow, blurb: "Shoot from a distance. You need arrows.", unique: true, quick-buy: true}
   - {id: arrows, category: ranged, material: ARROW, amount: 6, currency: gold, cost: 2, name: Arrows, blurb: "Ammunition for your bow."}
 
-  - {id: potion_speed, category: potions, material: POTION, currency: gold, cost: 2, name: Speed Potion, blurb: "Run faster for 45 seconds.", potion: {effect: speed, seconds: 45, level: 2}}
-  - {id: potion_jump, category: potions, material: POTION, currency: gold, cost: 2, name: Jump Potion, blurb: "Jump higher for 45 seconds.", potion: {effect: jump_boost, seconds: 45, level: 4}}
+  - {id: potion_speed, category: potions, material: POTION, currency: gold, cost: 2, name: Speed II Potion, blurb: "Run faster for 45 seconds.", potion: {effect: speed, seconds: 45, level: 2}}
+  - {id: potion_jump, category: potions, material: POTION, currency: gold, cost: 2, name: Jump V Potion, blurb: "Jump super high for 30 seconds.", potion: {effect: jump_boost, seconds: 30, level: 5}}
+  - {id: potion_invis, category: potions, material: POTION, currency: gold, cost: 6, name: Invisibility Potion, blurb: "Vanish for 30 seconds. Your armour hides too.", potion: {effect: invisibility, seconds: 30, level: 1}}
+  - {id: magic_milk, category: potions, material: MILK_BUCKET, currency: gold, cost: 4, name: Magic Milk, blurb: "Right-click to drink. Enemy traps ignore you for 30 seconds.", custom: magic_milk, seconds: 30}
 
   - {id: golden_apple, category: utility, material: GOLDEN_APPLE, currency: gold, cost: 3, name: Golden Apple, blurb: "Eat it to heal and get a short boost.", quick-buy: true}
   - {id: tnt, category: utility, material: TNT, currency: gold, cost: 8, name: TNT, blurb: "Blast open a bed defence. Careful where you place it!", quick-buy: true}
   - {id: fireball, category: utility, material: FIRE_CHARGE, currency: iron, cost: 40, name: Fireball, blurb: "Right-click to throw it. It knocks players back and blasts weak blocks. Beds shrug it off: only mining breaks a bed."}
   - {id: ender_pearl, category: utility, material: ENDER_PEARL, currency: diamond, cost: 4, name: Ender Pearl, blurb: "Throw it to teleport to where it lands."}
+  - {id: sponge, category: utility, material: SPONGE, currency: gold, cost: 3, name: Sponge, blurb: "Place it in water to soak it up."}
+  - {id: bridge_egg, category: utility, material: EGG, currency: gold, cost: 6, name: Bridge Egg, blurb: "Throw it. A bridge of your team's wool builds behind it as it flies.", custom: bridge_egg, cooldown: 2}
+  - {id: popup_tower, category: utility, material: CHEST, currency: iron, cost: 24, name: Pop-up Tower, blurb: "Place it in front of you for an instant wool tower with a ladder.", custom: popup_tower, cooldown: 5}
+  - {id: dream_defender, category: utility, material: CARVED_PUMPKIN, currency: iron, cost: 120, name: Dream Defender, blurb: "An iron golem guards your team for 4 minutes. One at a time.", custom: dream_defender, cooldown: 30, seconds: 240}
+  - {id: bed_bug, category: utility, material: SILVERFISH_SPAWN_EGG, currency: iron, cost: 30, name: Bed Bug, blurb: "Throw it. A silverfish hatches where it lands and chases enemies for 15 seconds.", custom: bed_bug, cooldown: 4, seconds: 15}
+
+  - {id: grappling_hook, category: funky, material: FISHING_ROD, currency: gold, cost: 10, name: Grappling Hook, blurb: "Cast it, then reel in to swing towards the hook. 5 second cooldown.", custom: grappling_hook, new: true, cooldown: 5, unique: true}
+  - {id: bounce_pad, category: funky, material: SLIME_BLOCK, currency: iron, cost: 24, name: Bounce Pad, blurb: "Place it. Anyone who steps on it boing!s into the air. Lasts 60 seconds.", custom: bounce_pad, new: true, cooldown: 3, seconds: 60}
+  - {id: ice_road, category: funky, material: PACKED_ICE, currency: gold, cost: 4, name: Ice Road, blurb: "Right-click to freeze a path of 8 blocks the way you are looking. It melts after 45 seconds.", custom: ice_road, new: true, cooldown: 8, seconds: 45}
+  - {id: smoke_bomb, category: funky, material: GUNPOWDER, currency: gold, cost: 5, name: Smoke Bomb, blurb: "Throw it for a 5 second smoke cloud. Enemies inside cannot see well.", custom: smoke_bomb, new: true, cooldown: 10, seconds: 5}
+  - {id: freeze_ball, category: funky, material: SNOWBALL, currency: gold, cost: 3, name: Freeze Ball, blurb: "A chilly snowball. Enemies it hits move slowly for 3 seconds.", custom: freeze_ball, new: true, cooldown: 6, seconds: 3}
+  - {id: rocket_boots, category: funky, material: FIREWORK_ROCKET, currency: gold, cost: 12, name: Rocket Boots, blurb: "Right-click to shoot straight up, then float down gently. 3 uses.", custom: rocket_boots, new: true, cooldown: 10}
+  - {id: recall_totem, category: funky, material: TOTEM_OF_UNDYING, currency: diamond, cost: 2, name: Recall Totem, blurb: "Stand still for 5 seconds to go home to your bed. Getting hurt cancels it.", custom: recall_totem, new: true, cooldown: 30, seconds: 5}
+  - {id: shield_wall, category: funky, material: SHIELD, currency: gold, cost: 8, name: Shield Wall, blurb: "Puts up a wall of your team wool in front of you. It fades after 30 seconds.", custom: shield_wall, new: true, cooldown: 15, seconds: 30}
+  - {id: honey_trap, category: funky, material: HONEYCOMB, currency: gold, cost: 6, name: Honey Trap, blurb: "Right-click the ground for a sticky honey patch that slows enemies. Lasts 60 seconds.", custom: honey_trap, new: true, cooldown: 15, seconds: 60}
+  - {id: decoy_dummy, category: funky, material: ARMOR_STAND, currency: iron, cost: 32, name: Decoy Dummy, blurb: "A dummy in your team colours. Enemies chase it instead of you. Lasts 30 seconds.", custom: decoy_dummy, new: true, cooldown: 20, seconds: 30}
   - {id: water_bucket, category: utility, material: WATER_BUCKET, currency: gold, cost: 4, name: Water Bucket, blurb: "Slows down fire and breaks falls.", unique: true}
 
 # Team upgrades: everyone on your team gets them. Each level costs the listed number of diamonds.
-# effect: sharpness (swords) | protection (armour) | haste (dig faster)
+# effect: sharpness (swords) | protection (armour) | haste (dig faster) | forge (iron and gold generators run faster)
+#         | heal_pool (regeneration near your bed) | trap_alarm | trap_slow | trap_fatigue (one-shot traps near your bed;
+#         they re-arm when bought again). At most 9 upgrades fit the shop window.
 upgrades:
   - {id: sharpness, effect: sharpness, icon: DIAMOND_SWORD, name: Sharp Swords, blurb: "All your team's swords hit harder.", costs: [8]}
-  - {id: protection, effect: protection, icon: DIAMOND_CHESTPLATE, name: Strong Armour, blurb: "All your team's armour protects more.", costs: [8, 16]}
+  - {id: protection, effect: protection, icon: DIAMOND_CHESTPLATE, name: Strong Armour, blurb: "All your team's armour protects more.", costs: [5, 10, 20, 30]}
   - {id: haste, effect: haste, icon: GOLDEN_PICKAXE, name: Maniac Miner, blurb: "Your whole team digs faster.", costs: [4, 8]}
+  - {id: forge, effect: forge, icon: FURNACE, name: Iron Forge, blurb: "Your team's generator makes more iron and gold. Each level adds half as much again.", costs: [4, 8, 12, 16]}
+  - {id: heal_pool, effect: heal_pool, icon: GLISTERING_MELON_SLICE, name: Heal Pool, blurb: "Teammates near your bed slowly heal.", costs: [3]}
+  - {id: trap_alarm, effect: trap_alarm, icon: BELL, name: Alarm Trap, blurb: "Rings when an enemy sneaks up to your bed, and makes them glow for 10 seconds. Works once.", costs: [1]}
+  - {id: trap_slow, effect: trap_slow, icon: COBWEB, name: Slowness Trap, blurb: "Slows the first enemy to reach your bed for 8 seconds. Works once.", costs: [2]}
+  - {id: trap_fatigue, effect: trap_fatigue, icon: WOODEN_PICKAXE, name: Tired Hands Trap, blurb: "Makes the first enemy to reach your bed dig slowly for 10 seconds. Works once.", costs: [2]}

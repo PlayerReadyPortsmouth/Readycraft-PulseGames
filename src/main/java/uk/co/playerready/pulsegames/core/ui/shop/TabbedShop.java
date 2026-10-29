@@ -72,7 +72,7 @@ public final class TabbedShop {
             menu.set(ShopLayout.HINT, ShopTiles.info(Material.BOOK, "<yellow>" + current.hintTitle(),
                     Lore.of().desc(current.hint())));
         }
-        int cap = current.spaced() ? 7 : ShopLayout.PAGE_CAPACITY;
+        int cap = current.spaced() ? ShopLayout.SPACED_CAPACITY : ShopLayout.PAGE_CAPACITY;
         for (int i = 0; i < Math.min(page.size(), cap); i++)
             put(menu, current.spaced() ? ShopLayout.spacedSlot(i) : ShopLayout.pageSlot(i), page.get(i));
         put(menu, ShopLayout.FOOTER, source.footer(player));

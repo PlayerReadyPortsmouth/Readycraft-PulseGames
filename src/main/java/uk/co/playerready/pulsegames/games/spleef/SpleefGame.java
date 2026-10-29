@@ -182,72 +182,224 @@ public final class SpleefGame extends MiniGame implements uk.co.playerready.puls
         return true;
     }
 
-    private Player visibleOpponent(Player bot) {
-        var here = bot.getLocation();
-        return game.alivePlayers().stream().filter(p -> !p.getUniqueId().equals(bot.getUniqueId()) && game.isActive(p))
-                .filter(p -> p.getWorld().equals(bot.getWorld()) && here.distanceSquared(p.getLocation()) <= 16 * 16)
-                .filter(bot::hasLineOfSight)
-                .min(java.util.Comparator.comparingDouble(p -> here.distanceSquared(p.getLocation()))).orElse(null);
+    // ---- Bot play -------------------------------------------------------------------------------
+
+    private static final int REMEMBER_TICKS = 60, STUCK_TICKS = 40, AWARE_BLOCKS = 32;
+
+    /** Per-bot memory: who it is chasing, when it noticed them, where it is roaming, whether it is stuck. */
+    private static final class Brain {
+        java.util.UUID enemy; long reactAt, lastSeen;
+        org.bukkit.Location lastKnown;
+        SpleefTactics.Cell roam; long roamUntil, unstickUntil; int strafe = 1; long strafeUntil;
+        boolean wantsMove; final SpleefTactics.StuckWatch stuck = new SpleefTactics.StuckWatch();
     }
+    private record Target(java.util.UUID id, org.bukkit.Location loc, double vx, double vz, boolean live) {}
+    private final java.util.Map<java.util.UUID, Brain> brains = new java.util.HashMap<>();
+    /** id -> {x, z, vx, vz, tick}: velocity per tick sampled from position, since NPC velocity is not reliable. */
+    private final java.util.Map<java.util.UUID, double[]> motion = new java.util.HashMap<>();
+    private long lastTrack = -1, now;
+
+    private void track(long tick) {
+        if (tick == lastTrack) return;
+        lastTrack = tick;
+        for (Player p : game.alivePlayers()) {
+            var at = p.getLocation(); double[] m = motion.get(p.getUniqueId());
+            if (m == null) { motion.put(p.getUniqueId(), new double[]{at.getX(), at.getZ(), 0, 0, tick}); continue; }
+            double dt = Math.max(1, tick - m[4]);
+            m[2] = m[2] * 0.5 + (at.getX() - m[0]) / dt * 0.5; m[3] = m[3] * 0.5 + (at.getZ() - m[1]) / dt * 0.5;
+            m[0] = at.getX(); m[1] = at.getZ(); m[4] = tick;
+        }
+    }
+
+    /** Nearest living opponent within 32 blocks, sight not required (a line of sight counts as 4 blocks nearer). */
+    private Target acquire(Player bot, Brain brain, long tick) {
+        var here = bot.getLocation(); Player best = null; double bestScore = Double.MAX_VALUE;
+        for (Player p : game.alivePlayers()) {
+            if (p.getUniqueId().equals(bot.getUniqueId()) || !game.isActive(p) || !p.getWorld().equals(bot.getWorld())) continue;
+            double d = Math.sqrt(here.distanceSquared(p.getLocation()));
+            if (d > AWARE_BLOCKS) continue;
+            double score = d - (bot.hasLineOfSight(p) ? 4 : 0);
+            if (score < bestScore) { bestScore = score; best = p; }
+        }
+        if (best != null) {
+            double[] m = motion.get(best.getUniqueId());
+            brain.lastKnown = best.getLocation().clone(); brain.lastSeen = tick;
+            return new Target(best.getUniqueId(), brain.lastKnown, m == null ? 0 : m[2], m == null ? 0 : m[3], true);
+        }
+        if (brain.lastKnown != null && tick - brain.lastSeen <= REMEMBER_TICKS)
+            return new Target(brain.enemy, brain.lastKnown, 0, 0, false);
+        return null;
+    }
+
+    private SpleefTactics.Grid grid(int y) {
+        var cache = new java.util.HashMap<Long, Boolean>();
+        return (x, z) -> cache.computeIfAbsent(((long) x << 32) ^ (z & 0xffffffffL), k -> {
+            Block b = game.world().getBlockAt(x, y, z);
+            return !b.getType().isAir() && inFloor(b);
+        });
+    }
+
+    private SpleefTactics.Grid crackingGrid(int y) {
+        return (x, z) -> { for (Block b : cracking) if (b.getY() == y && b.getX() == x && b.getZ() == z) return true; return false; };
+    }
+
+    private boolean onFloor(org.bukkit.Location point) {
+        return floors.stream().anyMatch(floor -> floor.contains(point.clone().subtract(0, 1, 0)));
+    }
+
+    @Override public int navigationIntervalTicks(uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty) { return 5; }
 
     @Override
     public org.bukkit.Location botDestination(Player bot) {
-        Player enemy = visibleOpponent(bot);
         var here = bot.getLocation();
-        return uk.co.playerready.pulsegames.core.bot.GroundNavigation.nextStep(here,
-                point -> floors.stream().anyMatch(floor -> floor.contains(point.clone().subtract(0, 1, 0))),
-                point -> {
-                    double safety = 0;
-                    for (int[] direction : new int[][]{{1,0},{-1,0},{0,1},{0,-1}}) {
-                        var neighbour = point.clone().add(direction[0], 0, direction[1]);
-                        if (floors.stream().anyMatch(f -> f.contains(neighbour.clone().subtract(0, 1, 0)))
-                                && uk.co.playerready.pulsegames.core.bot.GroundNavigation.walkable(neighbour)) safety += 0.5;
-                    }
-                    if (enemy == null) return safety;
-                    return safety - Math.abs(Math.sqrt(point.distanceSquared(enemy.getLocation())) - 2.5) * 2;
-                });
+        Brain brain = brains.computeIfAbsent(bot.getUniqueId(), id -> new Brain());
+        Target enemy = acquire(bot, brain, now);
+        int y = here.getBlockY() - 1;
+        SpleefTactics.Grid g = grid(y), crack = crackingGrid(y);
+        if (brain.stuck.update(now, here.getBlockX(), here.getBlockZ(), brain.wantsMove, STUCK_TICKS)) {
+            brain.unstickUntil = now + 40; brain.roam = null;
+            var step = SpleefTactics.randomNeighbour(new SpleefTactics.Cell(here.getBlockX(), here.getBlockZ()), random,
+                    c -> g.solid(c.x(), c.z()));
+            if (step != null) brain.roam = new SpleefTactics.Cell(step.x() + (int) Math.signum(step.x() - here.getBlockX()) * 2,
+                    step.z() + (int) Math.signum(step.z() - here.getBlockZ()) * 2);
+        }
+        boolean unsticking = now < brain.unstickUntil && brain.roam != null;
+        if (!unsticking && (enemy == null || !enemy.live()) && (brain.roam == null || now > brain.roamUntil
+                || Math.hypot(here.getX() - brain.roam.x() - .5, here.getZ() - brain.roam.z() - .5) < 1.5)) {
+            brain.roam = pickRoam(y); brain.roamUntil = now + 160;
+        }
+        if (now > brain.strafeUntil) { brain.strafe = random.applyAsInt(2) == 0 ? -1 : 1; brain.strafeUntil = now + 30 + random.applyAsInt(40); }
+        double preferred = isSplegg() ? 6.5 : isDecay() ? 4 : 2.5, weight = isDecay() ? 0.8 : 2;
+        var next = uk.co.playerready.pulsegames.core.bot.GroundNavigation.nextStepDeep(here, this::onFloor, point -> {
+            double score = SpleefTactics.comfort(g, crack, point.getBlockX(), point.getBlockZ());
+            if (unsticking) return score - Math.hypot(point.getX() - brain.roam.x() - .5, point.getZ() - brain.roam.z() - .5);
+            if (enemy != null && enemy.live()) {
+                double d = Math.hypot(point.getX() - enemy.loc().getX(), point.getZ() - enemy.loc().getZ());
+                double ux = (enemy.loc().getX() - here.getX()), uz = (enemy.loc().getZ() - here.getZ());
+                double len = Math.max(0.01, Math.hypot(ux, uz));
+                double side = ((point.getX() - here.getX()) * -uz + (point.getZ() - here.getZ()) * ux) / len;
+                return score - Math.abs(d - preferred) * weight + brain.strafe * side * 0.4;
+            }
+            org.bukkit.Location goal = enemy != null ? enemy.loc() : null;
+            if (goal != null) return score - Math.hypot(point.getX() - goal.getX(), point.getZ() - goal.getZ()) * 0.5;
+            return brain.roam == null ? score
+                    : score - Math.hypot(point.getX() - brain.roam.x() - .5, point.getZ() - brain.roam.z() - .5) * 0.5;
+        });
+        if (next == null) {
+            var step = SpleefTactics.randomNeighbour(new SpleefTactics.Cell(here.getBlockX(), here.getBlockZ()), random, c -> {
+                var point = new org.bukkit.Location(here.getWorld(), c.x() + .5, here.getBlockY(), c.z() + .5);
+                return onFloor(point) && uk.co.playerready.pulsegames.core.bot.GroundNavigation.walkable(point)
+                        && !crack.solid(c.x(), c.z());
+            });
+            if (step != null) next = new org.bukkit.Location(here.getWorld(), step.x() + .5, here.getBlockY(), step.z() + .5);
+        }
+        brain.wantsMove = next != null;
+        return next;
+    }
+
+    /** A random intact block of the floor, or the middle of it, to head for when nobody is around. */
+    private SpleefTactics.Cell pickRoam(int y) {
+        if (floorBlocks.isEmpty()) return null;
+        for (int tries = 0; tries < 8; tries++) {
+            Block b = floorBlocks.get(random.applyAsInt(floorBlocks.size()));
+            if (b.getY() == y && !b.getType().isAir()) return new SpleefTactics.Cell(b.getX(), b.getZ());
+        }
+        var mid = floors.get(0);
+        return new SpleefTactics.Cell((mid.minX() + mid.maxX()) / 2, (mid.minZ() + mid.maxZ()) / 2);
+    }
+
+    private boolean reaches(Player bot, Block target) {
+        org.bukkit.Location aim = target.getLocation().add(0.5, 0.5, 0.5);
+        var delta = aim.toVector().subtract(bot.getEyeLocation().toVector());
+        double distance = delta.length();
+        if (distance < 0.01 || distance > 4.5) return false;
+        var hit = bot.getWorld().rayTraceBlocks(bot.getEyeLocation(), delta.normalize(), distance + 0.05,
+                org.bukkit.FluidCollisionMode.NEVER, true);
+        return hit != null && target.equals(hit.getHitBlock());
+    }
+
+    private void dig(Player bot, Block target) {
+        bot.getInventory().setHeldItemSlot(0);
+        bot.swingMainHand();
+        // Real BlockBreakEvent enforces game floor rules, protection and snowball awards.
+        bot.breakBlock(target);
     }
 
     @Override
     public void botTick(Player bot, long tick, uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty) {
-        if (!game.isBot(bot) || !game.isActive(bot) || tick < nextAction.getOrDefault(bot.getUniqueId(), 0L)) return;
-        Player enemy = visibleOpponent(bot); if (enemy == null) return;
-        Block target = enemy.getLocation().clone().subtract(0, 1, 0).getBlock();
-        if (!inFloor(target) || target.getType().isAir()
-                || target.equals(bot.getLocation().clone().subtract(0, 1, 0).getBlock())) return;
-        org.bukkit.Location aim = target.getLocation().add(0.5, 0.5, 0.5);
-        var delta = aim.toVector().subtract(bot.getEyeLocation().toVector());
-        double distance = delta.length(); if (distance < 0.01) return;
-        nextAction.put(bot.getUniqueId(), tick + (isSplegg() ? difficulty.projectileDelayTicks() : difficulty.meleeDelayTicks()) + random.applyAsInt(9));
-        if (random.applyAsInt(100) >= difficulty.accuracyPercent()) return;
+        if (!game.isBot(bot) || !game.isActive(bot)) return;
+        now = tick; track(tick);
+        Brain brain = brains.computeIfAbsent(bot.getUniqueId(), id -> new Brain());
+        Target enemy = acquire(bot, brain, tick);
+        if (enemy == null) { brain.enemy = null; return; }
+        if (!enemy.id().equals(brain.enemy)) {
+            brain.enemy = enemy.id();
+            brain.reactAt = tick + 6 + random.applyAsInt(difficulty.profile().reactionJitter() * 3 + 1);
+        }
+        if (!enemy.live() || tick < brain.reactAt || tick < nextAction.getOrDefault(bot.getUniqueId(), 0L)) return;
+        var profile = difficulty.profile();
+        var me = bot.getLocation(); var at = enemy.loc();
+        int y = me.getBlockY() - 1;
+        double lead = Math.sqrt(me.distanceSquared(at)) / 2.0;
+        var predicted = SpleefTactics.ahead(at.getX(), at.getZ(), enemy.vx(), enemy.vz(), isSplegg() ? lead : 8, 2);
+        long delay = (isSplegg() ? difficulty.projectileDelayTicks() : difficulty.meleeDelayTicks()) + random.applyAsInt(9);
+        double wrongPercent = profile.aimErrorDegrees() * 4;
         if (isSplegg()) {
-            if (distance <= 12) {
-                bot.getInventory().setHeldItemSlot(0);
-                throwEgg(bot, delta);
+            if (Math.abs(at.getY() - me.getY()) > 6 || me.distanceSquared(at) > 16 * 16) return;
+            var aim = new org.bukkit.Location(bot.getWorld(), predicted.x() + .5, at.getBlockY() - .5, predicted.z() + .5);
+            if (aim.getBlockX() == me.getBlockX() && aim.getBlockZ() == me.getBlockZ()) return;
+            var delta = aim.toVector().subtract(bot.getEyeLocation().toVector());
+            boolean hit = random.applyAsInt(100) < difficulty.accuracyPercent();
+            double error = profile.aimErrorDegrees() * (hit ? 1 : 3) * (random.applyAsInt(201) - 100) / 100.0;
+            if (throwEgg(bot, delta.rotateAroundY(Math.toRadians(error)))) nextAction.put(bot.getUniqueId(), tick + delay);
+            return;
+        }
+        SpleefTactics.Grid g = grid(y);
+        var self = new SpleefTactics.Cell(me.getBlockX(), me.getBlockZ());
+        // Easy bots sometimes dig right beside themselves, which is how children also lose.
+        if (difficulty == uk.co.playerready.pulsegames.core.bot.BotDifficulty.EASY && !isDecay() && random.applyAsInt(100) < 4) {
+            var near = SpleefTactics.randomNeighbour(self, random, c -> g.solid(c.x(), c.z()));
+            if (near != null) { dig(bot, game.world().getBlockAt(near.x(), y, near.z())); nextAction.put(bot.getUniqueId(), tick + delay); return; }
+        }
+        boolean sameLevel = Math.abs(at.getY() - me.getY()) <= 1.5;
+        var targets = sameLevel
+                ? SpleefTactics.classicTargets(g, self, me.getX(), me.getZ(), at.getX(), at.getZ(), enemy.vx(), enemy.vz(),
+                        difficulty == uk.co.playerready.pulsegames.core.bot.BotDifficulty.HARD, isDecay() ? 2 : 1)
+                : List.<SpleefTactics.Cell>of();
+        for (var cell : targets) {
+            Block block = game.world().getBlockAt(cell.x(), y, cell.z());
+            if (!reaches(bot, block)) continue;
+            nextAction.put(bot.getUniqueId(), tick + delay);
+            if (random.applyAsInt(100) >= difficulty.accuracyPercent()) { bot.swingMainHand(); return; }
+            Block chosen = block;
+            if (random.applyAsInt(100) < wrongPercent) {
+                var wrong = SpleefTactics.randomNeighbour(cell, random, c -> SpleefTactics.safeToDig(g, self, c, isDecay() ? 2 : 1)
+                        && reaches(bot, game.world().getBlockAt(c.x(), y, c.z())));
+                if (wrong != null) chosen = game.world().getBlockAt(wrong.x(), y, wrong.z());
             }
-        } else if (distance <= 4.5) {
-            var hit = bot.getWorld().rayTraceBlocks(bot.getEyeLocation(), delta.clone().normalize(), distance + 0.05,
-                    org.bukkit.FluidCollisionMode.NEVER, true);
-            if (hit != null && target.equals(hit.getHitBlock())) {
-                bot.getInventory().setHeldItemSlot(0);
-                bot.swingMainHand();
-                // Real BlockBreakEvent enforces game floor rules, protection and snowball awards.
-                bot.breakBlock(target);
-            }
-        } else if (distance <= 12 && !bot.hasCooldown(Material.SNOWBALL)) {
+            dig(bot, chosen);
+            nextAction.put(bot.getUniqueId(), tick + delay + 6 + random.applyAsInt(8)); // a beat to admire the hole
+            return;
+        }
+        double distance = Math.sqrt(me.distanceSquared(at));
+        if (distance > 4.5 && distance <= 14 && !bot.hasCooldown(Material.SNOWBALL)) {
             var inventory = bot.getInventory();
             for (int slot = 0; slot < inventory.getSize(); slot++) {
                 var item = inventory.getItem(slot);
                 if (item == null || item.getType() != Material.SNOWBALL) continue;
+                var aim = new org.bukkit.Location(bot.getWorld(), predicted.x() + .5, at.getBlockY() - .5, predicted.z() + .5);
+                var delta = aim.toVector().subtract(bot.getEyeLocation().toVector());
+                double error = profile.aimErrorDegrees() * (random.applyAsInt(201) - 100) / 100.0;
                 if (item.getAmount() == 1) inventory.setItem(slot, null); else item.setAmount(item.getAmount() - 1);
                 bot.setCooldown(Material.SNOWBALL, 10);
-                bot.launchProjectile(org.bukkit.entity.Snowball.class, delta.normalize().multiply(1.5));
+                bot.launchProjectile(org.bukkit.entity.Snowball.class, delta.rotateAroundY(Math.toRadians(error)).normalize().multiply(1.5));
+                nextAction.put(bot.getUniqueId(), tick + delay);
                 break;
             }
         }
     }
 
-    @Override public void onCleanup() { nextAction.clear(); cracking.clear(); if (rounds != null) rounds.close(); }
+    @Override public void onCleanup() { nextAction.clear(); brains.clear(); motion.clear(); cracking.clear(); if (rounds != null) rounds.close(); }
     @Override public void onEnd(List<Player> winners) { if (rounds != null) rounds.close(); }
     @Override public void onQuit(Player player) { if (rounds != null) rounds.playerLeft(player); }
 

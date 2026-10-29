@@ -21,6 +21,16 @@ public final class GroundNavigation {
     }
 
     static Location nextStep(Location from, Predicate<Location> allowed, ToDoubleFunction<Location> score, Predicate<Location> surface) {
+        return nextStep(from, allowed, score, surface, 3, 32);
+    }
+
+    /** Deeper bounded search for open floors that fill with holes; routes round them before the first step. */
+    public static Location nextStepDeep(Location from, Predicate<Location> allowed, ToDoubleFunction<Location> score) {
+        return nextStep(from, allowed, score, GroundNavigation::walkable, 6, 96);
+    }
+
+    static Location nextStep(Location from, Predicate<Location> allowed, ToDoubleFunction<Location> score,
+                             Predicate<Location> surface, int maxDepth, int maxVisits) {
         World world = from.getWorld();
         if (world == null) return null;
         Cell start = new Cell(from.getBlockX(), from.getBlockY(), from.getBlockZ());
@@ -33,9 +43,9 @@ public final class GroundNavigation {
         Set<Cell> seen = new HashSet<>(); seen.add(start);
         ArrayDeque<Visit> queue = new ArrayDeque<>(); queue.add(new Visit(start, null, 0));
         int visits = 0;
-        while (!queue.isEmpty() && visits++ < 32) {
+        while (!queue.isEmpty() && visits++ < maxVisits) {
             Visit visit = queue.removeFirst();
-            if (visit.depth() == 3) continue;
+            if (visit.depth() == maxDepth) continue;
             for (int[] direction : DIRECTIONS) {
                 for (int dy : new int[]{0, 1, -1}) {
                     Cell cell = new Cell(visit.cell().x() + direction[0], visit.cell().y() + dy, visit.cell().z() + direction[1]);
