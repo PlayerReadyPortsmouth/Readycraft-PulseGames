@@ -36,9 +36,13 @@ commands:
   results:
     description: View your latest match and choose what to do next.
     usage: /results [again|games|return]
+  event:
+    description: Tournaments - see the next ones, join, watch the bracket or see the last results.
+    usage: /event [join|leave|bracket|results]
+    aliases: [tournament]
   pulse:
     description: PulseGames admin commands.
-    usage: /pulse <setup|maps|practice|bots|list|start|end|setlobby|reload>
+    usage: /pulse <setup|maps|practice|event|bots|list|start|end|setlobby|reload>
     permission: pulsegames.admin
 
 permissions:

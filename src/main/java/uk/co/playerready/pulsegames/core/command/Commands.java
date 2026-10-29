@@ -22,7 +22,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
 
     public Commands(PulseGamesPlugin plugin) {
         this.plugin = plugin;
-        for (String name : List.of("play", "party", "lobby", "pulse", "stats", "shop", "pulsekits", "duels", "results", "challenges", "top")) {
+        for (String name : List.of("play", "party", "lobby", "pulse", "stats", "shop", "pulsekits", "duels", "results", "challenges", "top", "event")) {
             var command = plugin.getCommand(name);
             command.setExecutor(this);
             command.setTabCompleter(this);
@@ -54,6 +54,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
             case "stats" -> stats(player, args);
             case "challenges" -> plugin.engagement().openChallenges(player);
             case "top" -> plugin.engagement().top(player, args);
+            case "event" -> plugin.events().command(player, args);
             case "results" -> plugin.results().command(player,args);
             case "duels" -> plugin.duelMenu().open(player);
             case "pulsekits" -> plugin.kitSelection().open(player);
@@ -208,6 +209,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
             case "results" -> plugin.results().command(player, java.util.Arrays.copyOfRange(args, 1, args.length));
+            case "event" -> plugin.events().admin(player, java.util.Arrays.copyOfRange(args, 1, args.length));
             case "practice" -> plugin.practice().handle(player, java.util.Arrays.copyOfRange(args, 1, args.length));
             case "setup" -> plugin.setup().handle(player, java.util.Arrays.copyOfRange(args, 1, args.length));
             case "shape" -> {
@@ -287,6 +289,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
                 plugin.reloadConfig();
                 plugin.arenas().load();
                 plugin.kits().load();
+                plugin.events().load();
                 player.sendMessage(Text.msg("Config, arenas and kits reloaded."));
             }
             default -> player.sendMessage(Text.msg("<red>Unknown subcommand."));
@@ -309,6 +312,9 @@ public final class Commands implements CommandExecutor, TabCompleter {
                     }
                 }
             }
+            case "event" -> {
+                if (args.length == 1) return List.of("join", "leave", "bracket", "results");
+            }
             case "party" -> {
                 if (args.length == 1) {
                     return List.of("invite", "accept", "deny", "leave", "disband", "list", "chat", "invites");
@@ -330,6 +336,16 @@ public final class Commands implements CommandExecutor, TabCompleter {
                         choices = java.util.Arrays.stream(uk.co.playerready.pulsegames.core.maps.MapReviewStore.Outcome.values()).map(outcome -> outcome.name().toLowerCase(Locale.ROOT)).toList();
                     String prefix = args[args.length - 1].toLowerCase(Locale.ROOT);
                     return choices.stream().filter(choice -> choice.toLowerCase(Locale.ROOT).startsWith(prefix)).limit(64).toList();
+                }
+                if (args.length >= 2 && args[0].equalsIgnoreCase("event")) {
+                    if (!sender.hasPermission("pulsegames.admin")) return List.of();
+                    String prefix = args[args.length - 1].toLowerCase(Locale.ROOT);
+                    List<String> choices = args.length == 2 ? List.of("start", "cancel", "list")
+                            : args.length == 3 && args[1].equalsIgnoreCase("start") ? plugin.registry().all().stream().map(GameType::id).toList()
+                            : args.length == 4 && args[1].equalsIgnoreCase("start") && plugin.registry().get(args[2]) != null
+                                ? plugin.registry().get(args[2]).modes().stream().map(GameMode::id).toList()
+                            : args.length == 5 && args[1].equalsIgnoreCase("start") ? List.of("bracket", "points") : List.of();
+                    return choices.stream().filter(choice -> choice.startsWith(prefix)).limit(64).toList();
                 }
                 if (args.length >= 2 && args[0].equalsIgnoreCase("practice")) {
                     if (!sender.hasPermission("pulsegames.admin")) return List.of();
@@ -356,7 +372,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
                     return List.of();
                 }
                 if (args.length == 1) {
-                    return List.of("setup", "shape", "build", "blueprints", "bots", "diagnose", "maps", "practice", "results", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
+                    return List.of("setup", "shape", "build", "blueprints", "bots", "diagnose", "maps", "practice", "event", "results", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
                 }
                 if (args.length == 3 && args[0].equalsIgnoreCase("world")) return List.of("void", "normal");
                 if (args.length == 2 && args[0].equalsIgnoreCase("build")) {
