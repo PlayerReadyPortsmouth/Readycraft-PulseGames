@@ -163,6 +163,8 @@ public abstract class MiniGame {
     public boolean canExplode(Block block) { return false; }
 
     public boolean itemDrops() { return false; }
+    /** Per-stack drop rule; defaults to {@link #itemDrops()}. */
+    public boolean itemDrops(org.bukkit.inventory.ItemStack stack) { return itemDrops(); }
 
     public boolean itemPickup(Player player, Item item) { return false; }
 
