@@ -49,6 +49,11 @@ public final class BedwarsGame extends MiniGame {
     /** Armour bought from the shop: worn again after every respawn. */
     private final Map<java.util.UUID, Material> shopArmour = new HashMap<>();
     private ShopCatalogue catalogue;
+    /** Shop custom items (grappling hook, bridge egg, traps' milk and the rest); owns its own cleanup. */
+    private final BedwarsCustomItems custom = new BedwarsCustomItems(game, this::catalogue,
+            block -> bedTeamIndex(block.getLocation()) >= 0,
+            block -> playerBlocks.add(block.getLocation()), block -> playerBlocks.remove(block.getLocation()), this::homeOf);
+    private final Map<String, Integer> forgeEvents = new HashMap<>();
     private final BedwarsShopMenu shopMenu = new BedwarsShopMenu(game.plugin(), new Backend());
     private List<Cuboid> bedRegions = List.of();
     private int generatorTier = 1;
@@ -164,6 +169,8 @@ public final class BedwarsGame extends MiniGame {
         int ironEvery = generatorTier >= 2 ? 1 : 2;
         int goldEvery = generatorTier >= 3 ? 3 : generatorTier == 2 ? 5 : 8;
         int diamondEvery = BedwarsTimers.diamondEvery(generatorTier);
+        custom.tick(gameTime);
+        guardBeds();
         if (gameTime % ironEvery == 0) dropAtTeamGenerators(Material.IRON_INGOT);
         if (gameTime % goldEvery == 0) dropAtTeamGenerators(Material.GOLD_INGOT);
         if (gameTime % diamondEvery == 0) {
@@ -175,10 +182,64 @@ public final class BedwarsGame extends MiniGame {
         }
     }
 
+    /** Heal pool and traps, checked once a second around each living team's bed. */
+    private void guardBeds() {
+        for (GameTeam team : game.aliveTeams()) {
+            if (team.index() >= bedRegions.size()) continue;
+            Location centre = bedRegions.get(team.index()).center(game.world());
+            int heal = level(ShopCatalogue.Effect.HEAL_POOL, team.index());
+            for (Player p : game.alivePlayers()) {
+                if (p.getWorld() != game.world() || !game.isActive(p)) continue;
+                double d = p.getLocation().distanceSquared(centre);
+                if (team.contains(p)) {
+                    if (heal > 0 && d <= 14 * 14) p.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                            org.bukkit.potion.PotionEffectType.REGENERATION, 60, 0, false, false));
+                } else if (d <= 8 * 8 && !custom.trapImmune(p)) springTrap(team, p);
+            }
+        }
+    }
+
+    /** The first armed trap (alarm, slowness, mining fatigue) goes off on the intruder and is used up. */
+    private void springTrap(GameTeam team, Player intruder) {
+        for (ShopCatalogue.Effect trap : List.of(ShopCatalogue.Effect.TRAP_ALARM, ShopCatalogue.Effect.TRAP_SLOW, ShopCatalogue.Effect.TRAP_FATIGUE)) {
+            if (level(trap, team.index()) <= 0) continue;
+            upgradeLevels.get(trap).put(team.index(), 0);
+            switch (trap) {
+                case TRAP_ALARM -> intruder.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.GLOWING, 200, 0, false, false));
+                case TRAP_SLOW -> intruder.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.SLOWNESS, 160, 0));
+                default -> intruder.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.MINING_FATIGUE, 200, 0));
+            }
+            for (java.util.UUID member : team.members()) {
+                Player mate = game.player(member);
+                if (mate == null) continue;
+                mate.sendMessage(Text.msg("<red><b>TRAP!</b> <gray>Someone is sneaking up on your bed."));
+                mate.playSound(mate.getLocation(), Sound.BLOCK_BELL_USE, 1f, 1f);
+            }
+            intruder.sendMessage(Text.msg("<yellow>You set off a trap!"));
+            return;
+        }
+    }
+
+    /** Where Recall Totem takes this team: just above a bed block, or null once the bed is gone. */
+    private Location homeOf(GameTeam team) {
+        if (!bedAlive.getOrDefault(team.index(), false) || team.index() >= bedRegions.size()) return null;
+        Cuboid region = bedRegions.get(team.index());
+        if (region.volume() > 512) return null;
+        for (int x = region.minX(); x <= region.maxX(); x++) for (int y = region.minY(); y <= region.maxY(); y++)
+            for (int z = region.minZ(); z <= region.maxZ(); z++) {
+                Block b = game.world().getBlockAt(x, y, z);
+                if (b.getType().name().endsWith("_BED")) return b.getLocation().add(0.5, 1, 0.5);
+            }
+        return null;
+    }
+
     private void dropAtTeamGenerators(Material material) {
         for (GameTeam team : game.aliveTeams()) {
             Location gen = game.arena().settingLocation("generator" + (team.index() + 1), game.world());
-            if (gen != null) drop(gen, material);
+            if (gen == null) continue;
+            int event = forgeEvents.merge(material + "/" + team.index(), 1, Integer::sum) - 1;
+            int copies = 1 + ForgeRates.extraDrops(level(ShopCatalogue.Effect.FORGE, team.index()), event);
+            for (int i = 0; i < copies; i++) drop(gen, material);
         }
     }
 
@@ -262,6 +323,7 @@ public final class BedwarsGame extends MiniGame {
 
     @Override
     public void onDeath(Player victim, Player killer) {
+        custom.playerGone(victim);
         if (killer != null) {
             game.broadcast("<red>" + victim.getName() + "</red> was killed by <yellow>" + killer.getName() + "</yellow>");
             game.stats().addKill(killer, game.type().id());
@@ -285,6 +347,16 @@ public final class BedwarsGame extends MiniGame {
         bridgeAnchor.remove(player.getUniqueId()); if(botSneaking.remove(player.getUniqueId())) player.setSneaking(false);
     }
 
+    // ---- shop custom items: engine hooks ----------------------------------------------
+
+    @Override public void onBlockPlaced(org.bukkit.event.block.BlockPlaceEvent event) { custom.onBlockPlaced(event); }
+    @Override public void onProjectileHit(org.bukkit.event.entity.ProjectileHitEvent event) { custom.onProjectileHit(event); }
+    @Override public void onMove(Player player, Location from, Location to) { custom.onMove(player, to); }
+    @Override public void onDamage(Player victim, org.bukkit.event.entity.EntityDamageEvent event) { custom.onDamage(victim, event); }
+    @Override public void onEntityDamage(org.bukkit.event.entity.EntityDamageEvent event) { custom.onEntityDamage(event); }
+    @Override public void onQuit(Player player) { custom.playerGone(player); }
+    @Override public void onEnd(List<Player> winners) { custom.clear(); }
+
     // ---- shop --------------------------------------------------------------------
 
     @Override
@@ -293,6 +365,8 @@ public final class BedwarsGame extends MiniGame {
                 && event.getAction().isRightClick()) {
             event.setCancelled(true);
             shopMenu.open(event.getPlayer());
+        } else if (custom.onInteract(event)) {
+            return;
         } else if (event.getItem() != null && event.getItem().getType() == Material.FIRE_CHARGE
                 && event.getAction().isRightClick()) {
             // Fireball from the shop: right-click to launch it (placed blocks go through canExplode; beds never break to an explosion).
@@ -363,6 +437,7 @@ public final class BedwarsGame extends MiniGame {
             if (type != null) meta.addCustomEffect(new org.bukkit.potion.PotionEffect(type, entry.potion().seconds() * 20, entry.potion().level() - 1), true);
             product.setItemMeta(meta);
         }
+        if (entry.custom() != null) custom.decorate(product, entry);
         return product;
     }
 
@@ -404,7 +479,13 @@ public final class BedwarsGame extends MiniGame {
             }
         }
         String label = upgrade.name() + " " + ShopRules.roman(current + 1);
-        game.broadcast(team != null
+        if (upgrade.effect().isTrap() && team != null) {
+            // Traps are a secret: only the team hears.
+            for (java.util.UUID member : team.members()) {
+                Player mate = game.player(member);
+                if (mate != null) mate.sendMessage(Text.msg("<aqua>" + upgrade.name() + "</aqua> <gray>is set near your bed."));
+            }
+        } else game.broadcast(team != null
                 ? team.coloredName() + "</gray> unlocked <aqua>" + label + "</aqua>!"
                 : "<aqua>" + label + "</aqua> unlocked!");
         player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1.4f);
@@ -483,7 +564,9 @@ public final class BedwarsGame extends MiniGame {
                 && bot.getLocation().distanceSquared(bedRegions.get(team.index()).center(game.world()))>6*6;
         var use=BedwarsBotItems.choose(new BedwarsBotItems.Facts(bot.getHealth(),distance,
                 BedwarsPurchase.count(inv,Material.GOLDEN_APPLE)>0,BedwarsPurchase.count(inv,Material.ENDER_PEARL)>0,
-                BedwarsPurchase.count(inv,Material.FIRE_CHARGE)>0,tick,botFireballReady.getOrDefault(id,0L),safe && bot.hasLineOfSight(enemy)),botCfg);
+                BedwarsPurchase.count(inv,Material.FIRE_CHARGE)>0,tick,botFireballReady.getOrDefault(id,0L),safe && bot.hasLineOfSight(enemy)),
+                new BedwarsBotItems.Kit(BedwarsPurchase.count(inv,Material.POTION)>0,BedwarsPurchase.count(inv,Material.EGG)>0,
+                        BedwarsPurchase.count(inv,Material.CHEST)>0),botCfg);
         switch(use) {
             case GOLDEN_APPLE -> {
                 if(!take(bot,Material.GOLDEN_APPLE)) return false;
@@ -504,6 +587,13 @@ public final class BedwarsGame extends MiniGame {
                 launchFireball(bot,enemy.getLocation().toVector().subtract(bot.getEyeLocation().toVector()).normalize());
                 return true;
             }
+            case POTION -> {
+                if(!take(bot,Material.POTION)) return false;
+                bot.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.SPEED,900,1));
+                bot.swingMainHand(); return true;
+            }
+            case BRIDGE_EGG -> { return custom.botUse(bot,BedwarsCustomItems.Custom.BRIDGE_EGG); }
+            case POPUP_TOWER -> { return custom.botUse(bot,BedwarsCustomItems.Custom.POPUP_TOWER); }
             default -> { return false; }
         }
     }
@@ -653,7 +743,7 @@ public final class BedwarsGame extends MiniGame {
     private BedwarsShopPlan.Loadout loadout(Player bot,BedwarsBotTeams.Role role) {
         var inv=bot.getInventory(); Map<Material,Integer> counts=new java.util.EnumMap<>(Material.class);
         for(Material m:List.of(Material.IRON_INGOT,Material.GOLD_INGOT,Material.DIAMOND,Material.GOLDEN_APPLE,Material.FIRE_CHARGE,
-                Material.ENDER_PEARL,Material.BOW,Material.ARROW)) counts.put(m,BedwarsPurchase.count(inv,m));
+                Material.ENDER_PEARL,Material.BOW,Material.ARROW,Material.EGG,Material.CHEST,Material.POTION)) counts.put(m,BedwarsPurchase.count(inv,m));
         int blocks=0;
         for(int i=0;i<36;i++) { ItemStack s=inv.getItem(i); if(s!=null && isBlockMaterial(s.getType())) blocks+=s.getAmount(); }
         GameTeam team=game.teamOf(bot); int index=team==null?0:team.index();
@@ -820,6 +910,7 @@ public final class BedwarsGame extends MiniGame {
         defenceCache.clear(); defenceCacheUntil.clear();
         botBow.clear(); botTraversal.clear(); botNextAction.clear(); botPlaced.clear(); botStatuses.clear();
         botMining.clear(); botNextPlace.clear(); shopArmour.clear();
+        custom.clear(); forgeEvents.clear();
     }
 
     // ---- rules ----------------------------------------------------------------------

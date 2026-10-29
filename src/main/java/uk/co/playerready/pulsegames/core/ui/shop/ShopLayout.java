@@ -11,6 +11,8 @@ public final class ShopLayout {
     public static final int PAGE = 27;         // 27..44
     public static final int PAGE_CAPACITY = 18;
     public static final int HINT = 31;
+    /** Spaced slots 28,30..44: nine targets across the two page rows. */
+    public static final int SPACED_CAPACITY = 9;
     public static final int FOOTER = 49;
     public static final int CLOSE = 53;
 

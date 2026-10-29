@@ -40,7 +40,7 @@ class BedwarsBotBrainTest {
         assertNull(BedwarsShopPlan.next(SHOP, attacker), "fireball costs 40 iron in bedwars-shop.yml");
         counts.put(Material.FIRE_CHARGE, 1); counts.put(Material.DIAMOND, 4);
         assertEquals("ender_pearl", id(BedwarsShopPlan.next(SHOP, attacker)));
-        counts.put(Material.ENDER_PEARL, 1); counts.put(Material.DIAMOND, 8);
+        counts.put(Material.ENDER_PEARL, 1); counts.put(Material.DIAMOND, 8); counts.put(Material.CHEST, 1); // tower already owned
         assertEquals("upgrade:sharpness", id(BedwarsShopPlan.next(SHOP, attacker)));
     }
 
