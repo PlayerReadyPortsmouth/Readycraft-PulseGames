@@ -31,6 +31,7 @@ public final class MapReviewService {
         if(!sender.hasPermission("pulsegames.admin")) { say(sender,"No permission.");return; }
         try {
             if(args.length==0 || args[0].equalsIgnoreCase("list")) { list(sender,args.length>1?args[1]:null);return; }
+            if(args[0].equalsIgnoreCase("board")) { board(sender);return; }
             if(args.length<3) { usage(sender);return; }
             String action=args[0].toLowerCase(Locale.ROOT),game=args[1],map=args[2];
             if(!MapReviewStore.safe(game) || plugin.registry().get(game)==null || !MapReviewStore.safe(map)) { say(sender,"Unknown game or invalid map ID.");return; }
@@ -99,6 +100,20 @@ public final class MapReviewService {
         lines.add("External terrain edits require /pulse maps revision before reusing approval evidence. Captures and configuration changes invalidate current evidence.");
         return List.copyOf(lines);
     }
+    /** Read-only readiness dashboard; marks still go through {@code mark}. */
+    private void board(CommandSender sender) {
+        if(!(sender instanceof Player player)) { say(sender,"The board is in-game only; use /pulse maps list from the console.");return; }
+        if(store==null) { say(sender,"Review ledger could not be loaded, so there is nothing to show.");return; }
+        Map<String,String> names=new LinkedHashMap<>();Map<String,org.bukkit.Material> icons=new HashMap<>();
+        plugin.registry().all().stream().sorted(Comparator.comparing(g->g.displayName())).forEach(g->{names.put(g.id(),g.displayName());icons.put(g.id(),g.icon());});
+        new MapBoardMenu(plugin,player,names,icons,game->{
+            Set<String> maps=new TreeSet<>();
+            plugin.arenas().all().stream().filter(a->a.gameId().equals(game)).forEach(a->maps.add(a.id()));
+            store.all().stream().filter(e->e.game().equals(game)).forEach(e->maps.add(e.map()));
+            java.time.Instant now=java.time.Instant.now();
+            return maps.stream().map(m->MapBoardModel.row(game,m,store.get(game,m),currentFingerprint(plugin.arenas().byId(game,m)),now)).toList();
+        }).open();
+    }
     private void list(CommandSender sender,String filter) {
         Set<String> keys=new TreeSet<>();
         plugin.arenas().all().forEach(a->keys.add(a.gameId()+"/"+a.id()));
@@ -151,7 +166,7 @@ public final class MapReviewService {
     private static String escape(String text) {return text.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("\"","&quot;");}
     private static void say(CommandSender sender,String text) {sender.sendMessage(Component.text(text));}
     private static void usage(CommandSender sender) {
-        say(sender,"/pulse maps list [game] | check/export/register <game> <map>");
+        say(sender,"/pulse maps board | list [game] | check/export/register <game> <map>");
         say(sender,"/pulse maps revision <game> <map> <build-label>");
         say(sender,"/pulse maps mark <game> <map> <built|visual|java|bedrock|bots> <pass|fail|pending> <evidence note>");
     }

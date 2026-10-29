@@ -321,7 +321,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
                 if (args.length >= 2 && args[0].equalsIgnoreCase("maps")) {
                     if (!sender.hasPermission("pulsegames.admin")) return List.of();
                     List<String> choices = List.of();
-                    if (args.length == 2) choices = List.of("list", "check", "report", "export", "register", "revision", "mark");
+                    if (args.length == 2) choices = List.of("board", "list", "check", "report", "export", "register", "revision", "mark");
                     else if (args.length == 3) choices = plugin.registry().all().stream().map(GameType::id).toList();
                     else if (args.length == 4 && !args[1].equalsIgnoreCase("list"))
                         choices = plugin.arenas().all().stream().filter(arena -> arena.gameId().equalsIgnoreCase(args[2])).map(arena -> arena.id()).distinct().toList();
