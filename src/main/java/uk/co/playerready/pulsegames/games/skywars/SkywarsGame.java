@@ -173,6 +173,8 @@ public final class SkywarsGame extends MiniGame {
         if (SkywarsBotTerrain.corridor(here,step)) { botStatuses.put(id,"Walking on supported terrain"); return step; }
         Location raised=botTraversal.start(game,bot,step,tick);
         if(raised!=null) { botStatuses.put(id,"Traversing a checked adjacent step"); return raised; }
+        Location around=sidestep(here,step,tick,id);
+        if(around!=null) { botStatuses.put(id,"Going round an obstacle"); return around; }
         if (!SkywarsBotTerrain.safe(here,true) || !SkywarsBotTerrain.safe(step,false)) {
             botStatuses.put(id,"Route obstructed or unsafe"); return null;
         }
@@ -182,6 +184,18 @@ public final class SkywarsGame extends MiniGame {
             botStatuses.put(id,"Bridging with inventory blocks"); return step;
         }
         return null;
+    }
+
+    private final uk.co.playerready.pulsegames.core.bot.BotSidestep botSidestep=new uk.co.playerready.pulsegames.core.bot.BotSidestep();
+    /** A solid block (not a gap) is ahead: step to a walkable side cell instead of standing at it. */
+    private Location sidestep(Location here,Location step,long tick,java.util.UUID id) {
+        int fx=(int)Math.signum(step.getBlockX()-here.getBlockX()), fz=(int)Math.signum(step.getBlockZ()-here.getBlockZ());
+        if(fx==0 && fz==0) return null;
+        var ahead=game.world().getBlockAt(step.getBlockX(),here.getBlockY(),step.getBlockZ());
+        if(ahead.isPassable() && game.world().getBlockAt(step.getBlockX(),here.getBlockY()+1,step.getBlockZ()).isPassable()) return null;
+        var pick=botSidestep.choose(id,fx,fz,tick,(dx,dz)->
+                SkywarsBotTerrain.corridor(here,new Location(game.world(),here.getBlockX()+dx+.5,here.getY(),here.getBlockZ()+dz+.5)));
+        return pick==null?null:new Location(game.world(),here.getBlockX()+pick.dx()+.5,here.getY(),here.getBlockZ()+pick.dz()+.5);
     }
 
     /** Nothing in view: loot the nearest chest, then bridge to the best-kitted player, and never idle on spawn. */
@@ -207,7 +221,8 @@ public final class SkywarsGame extends MiniGame {
             looted[i]=visited.contains(at) || botGaveUp.getOrDefault(id,Set.of()).contains(at);
         }
         int chest=SkywarsTactics.nearestChest(here.getX(),here.getY(),here.getZ(),spots,looted);
-        if (chest>=0) {
+        boolean canBridge=SkywarsBotInventory.blockSlot(bot.getInventory())>=0;
+        if (SkywarsBotOrder.next(chest>=0,canBridge,true)==SkywarsBotOrder.Step.LOOT) {
             Location at=chests.get(chest).getLocation();
             Long since=botChestSince.get(id);
             if (since==null || !at.equals(botChestAt.get(id))) { botChestAt.put(id,at); botChestSince.put(id,tick); }
@@ -227,7 +242,7 @@ public final class SkywarsGame extends MiniGame {
             players[i]=new double[]{at.getX(),at.getZ(),gear};
         }
         int target=SkywarsTactics.richestTarget(here.getX(),here.getZ(),players);
-        if (SkywarsTactics.plan(false,target>=0)==SkywarsTactics.Plan.BRIDGE) {
+        if (SkywarsBotOrder.next(false,canBridge,target>=0)==SkywarsBotOrder.Step.BRIDGE) {
             botStatuses.put(id,"Heading for a rival");
             return others.get(target).getLocation();
         }
@@ -319,7 +334,7 @@ public final class SkywarsGame extends MiniGame {
     }
 
     @Override public void onCleanup() {
-        botTraversal.clear(); botBow.clear(); botLooted.clear(); botNextLoot.clear(); botNextBridge.clear(); botBridged.clear(); botStatuses.clear();
+        botTraversal.clear(); botSidestep.clear(); botBow.clear(); botLooted.clear(); botNextLoot.clear(); botNextBridge.clear(); botBridged.clear(); botStatuses.clear();
         botChests.clear(); botNextScan.clear(); botChestAt.clear(); botChestSince.clear(); botGaveUp.clear(); botNextPearl.clear();
     }
 
