@@ -32,6 +32,7 @@ public final class GameMenu {
     static final int CHALLENGES_SLOT = 46;
     static final int TOP_SLOT = 47;
     static final int KIT_SLOT = 51;
+    static final int RANKED_SLOT = 52;
     /** One row of modes in a 27-slot menu, otherwise four rows in a 54-slot one. */
     static final int SMALL_MODES = 7;
     static final int MAX_MODES = PER_PAGE;
@@ -182,6 +183,10 @@ public final class GameMenu {
                 Lore.of().desc("Who is winning this week.").blank().hint("Click to see")),
                 p -> { p.closeInventory(); plugin.engagement().top(p, new String[0]); });
         menu.set(KIT_SLOT, kitButton(), p -> plugin.kitSelection().open(p));
+        if (plugin.ranked() != null && plugin.ranked().enabled())
+            menu.set(RANKED_SLOT, Buttons.item(Material.NETHER_STAR, Theme.MONEY + "<b>Ranked Duels</b>",
+                    Lore.of().desc("Climb the divisions, one against one.").blank().hint("Click to open")),
+                    p -> plugin.rankedMenu().open(p));
         menu.pager(page, () -> { pageState[0]--; menu.refresh(); }, () -> { pageState[0]++; menu.refresh(); });
         menu.close();
         menu.fillEmpty(Material.GRAY_STAINED_GLASS_PANE);

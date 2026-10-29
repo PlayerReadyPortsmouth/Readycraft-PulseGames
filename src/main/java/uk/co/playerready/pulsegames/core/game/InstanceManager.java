@@ -89,10 +89,15 @@ public final class InstanceManager {
     public GameInstance findOrCreate(GameType type, GameMode mode, int groupSize,
                                      java.util.function.Predicate<GameInstance> acceptsGroup) {
         for (GameInstance instance : instances) {
-            if (!instance.practice() && instance.type() == type && instance.mode().id().equals(mode.id()) && instance.joinable(groupSize) && acceptsGroup.test(instance)) {
+            if (!instance.practice() && !instance.rankedMatch() && instance.type() == type && instance.mode().id().equals(mode.id()) && instance.joinable(groupSize) && acceptsGroup.test(instance)) {
                 return instance;
             }
         }
+        return create(type, mode, groupSize);
+    }
+
+    /** Always a fresh instance on a random eligible map (Ranked Duels pairs get their own), or null. */
+    public GameInstance create(GameType type, GameMode mode, int groupSize) {
         int max = plugin.getConfig().getInt("instances.max-concurrent", 20);
         if (instances.size() >= max) return null;
         var candidates = new ArrayList<>(plugin.arenas().forGame(type.id(), mode.id()));

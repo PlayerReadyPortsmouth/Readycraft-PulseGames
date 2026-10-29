@@ -15,6 +15,7 @@ public final class StatsService {
     private YamlConfiguration data;
     private boolean dirty;
     private final WeeklyStats weekly;
+    private final uk.co.playerready.pulsegames.core.ranked.RankedStore ranked;
 
     public StatsService(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -22,6 +23,9 @@ public final class StatsService {
         this.data = YamlConfiguration.loadConfiguration(file);
         var weeklySection = data.getConfigurationSection("_weekly");
         this.weekly = new WeeklyStats(weeklySection != null ? weeklySection : data.createSection("_weekly"));
+        var rankedSection = data.getConfigurationSection("_ranked");
+        this.ranked = new uk.co.playerready.pulsegames.core.ranked.RankedStore(
+                rankedSection != null ? rankedSection : data.createSection("_ranked"), this, () -> dirty = true);
         plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin, this::flush, 20L * 60, 20L * 60);
     }
 
@@ -38,6 +42,9 @@ public final class StatsService {
             dirty = true;
         }
     }
+
+    /** Ranked Duels ratings, kept in the same stats.yml. */
+    public uk.co.playerready.pulsegames.core.ranked.RankedStore ranked() { return ranked; }
 
     public void addWin(Player player, String game) { bump(player, game, "wins"); }
     public void addLoss(Player player, String game) { bump(player, game, "losses"); }

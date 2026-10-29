@@ -358,3 +358,44 @@ debug:
 engagement:
   # One action-bar line on join when a daily challenge, the first-win bonus or a featured-game bonus is waiting.
   join-hint: true
+
+# Ranked Duels (/ranked): Elo per kit, one against one, humans only unless allow-bots is on.
+# Ratings live in stats.yml under _ranked. New players start at 1000 (K 32 for 10 games, then 20; floor 0).
+ranked:
+  enabled: true
+  # Which Duels kits have a ranked ladder (the discipline ids). Ranked uses modern combat.
+  kits: [classic, sumo, crystal, mace]
+  # When true, a player who finds nobody for bot-after-seconds gets bots chosen by rating band.
+  # Needs bots.enabled, the map's bots-enabled and testing access. Bot games never change a rating.
+  allow-bots: false
+  bot-after-seconds: 15
+  bots:
+    # Tier anchors: the bot tier whose anchor is nearest the player's rating is used.
+    easy-rating: 900
+    normal-rating: 1200
+    hard-rating: 1500
+  # Divisions: name, lowest rating, short badge tag and its colour. The first 5 games show "Unranked".
+  divisions:
+    - {name: Wood, min: 0, tag: WOD, color: "#a97142"}
+    - {name: Stone, min: 900, tag: STN, color: "#9a9a9a"}
+    - {name: Iron, min: 1100, tag: IRN, color: "#d8d8d8"}
+    - {name: Gold, min: 1300, tag: GLD, color: "#ffc835"}
+    - {name: Diamond, min: 1500, tag: DIA, color: "#4be6e6"}
+  matchmaking:
+    # The accepted rating gap starts here and widens every widen-every-seconds, up to max-range.
+    start-range: 100
+    widen-by: 50
+    widen-every-seconds: 10
+    max-range: 400
+  season:
+    # Change id (or let the end date pass) to start a new season: ratings move halfway back to 1000 and
+    # each player's peak division is archived under _ranked.archive in stats.yml.
+    id: "1"
+    ends: "2027-01-31"
+  # A disconnect only counts as a loss if the player has not come back after this long; if they return in
+  # time the match changes nobody's rating.
+  disconnect-grace-seconds: 30
+  # Meeting the same opponent again inside the window shrinks the rating change (second meeting, third and later).
+  repeat-opponent:
+    window-minutes: 10
+    factors: [0.5, 0.25]
