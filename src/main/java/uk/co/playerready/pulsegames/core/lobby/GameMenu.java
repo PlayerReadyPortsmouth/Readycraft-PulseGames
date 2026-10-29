@@ -82,7 +82,7 @@ public final class GameMenu {
                 p -> { p.closeInventory(); plugin.quickPlay().quickPlay(p); });
         menu.set(PARTY_SLOT, Buttons.item(Material.PLAYER_HEAD, Theme.ACCENT + "Play with a party",
                 Lore.of().desc("Invite friends and your leader queues everyone together.").blank().hint("Click for party help")),
-                p -> { p.closeInventory(); partyHelp(p); });
+                p -> new uk.co.playerready.pulsegames.core.party.PartyMenu(plugin).open(p));
         menu.set(CHALLENGES_SLOT, Buttons.item(Material.WRITABLE_BOOK, Theme.NAME + "Daily challenges</b>",
                 Lore.of().desc("Earn bonus tokens.").blank().hint("Click to see them")),
                 p -> { p.closeInventory(); plugin.engagement().openChallenges(p); });

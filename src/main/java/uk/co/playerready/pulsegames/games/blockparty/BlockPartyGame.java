@@ -58,7 +58,12 @@ public final class BlockPartyGame extends MiniGame implements uk.co.playerready.
     }
 
     private Material[] colors() {
-        return game.arena().settings().getBoolean("colour-patterns", false) ? PATTERNS : COLORS;
+        // Arena setting, or any human in the round who chose colour patterns in their settings.
+        boolean patterns = game.arena().settings().getBoolean("colour-patterns", false)
+                || uk.co.playerready.pulsegames.core.settings.PlayerSettings.anyEnabled(
+                        game.players().stream().filter(p -> !game.isBot(p)).toList(),
+                        uk.co.playerready.pulsegames.core.settings.Comfort.COLOUR_PATTERNS);
+        return patterns ? PATTERNS : COLORS;
     }
 
     /** Colour name for the call, the same whichever floor material is in use. */
