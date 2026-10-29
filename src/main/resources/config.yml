@@ -424,6 +424,11 @@ debug:
   # Log sidebar line operations once a second (new method vs the old reset-and-rewrite). Leave off in normal play.
   sidebar: false
 
+supermarket:
+  hints:
+    # Checkout pointer line, floor-edge particles, chat reminders and the Checkout compass in Supermarket Sweep.
+    enabled: true
+
 engagement:
   # One action-bar line on join when a daily challenge, the first-win bonus or a featured-game bonus is waiting.
   join-hint: true

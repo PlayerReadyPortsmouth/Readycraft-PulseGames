@@ -407,7 +407,7 @@ public final class GameListener implements Listener {
     public void onDrop(PlayerDropItemEvent event) {
         GameInstance instance = instanceOf(event.getPlayer());
         if (instance == null || instance.state() != GameState.RUNNING || instance.isSpectator(event.getPlayer())
-                || !instance.logic().itemDrops()) {
+                || !instance.logic().itemDrops(event.getItemDrop().getItemStack())) {
             event.setCancelled(true);
         }
     }
