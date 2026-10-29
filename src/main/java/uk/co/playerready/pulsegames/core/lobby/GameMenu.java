@@ -236,6 +236,13 @@ public final class GameMenu {
         player.sendMessage(Text.msg("<yellow>/party invite [name]</yellow> — invite a friend (network-wide when PulseNetwork is active)"));
         player.sendMessage(Text.msg("<yellow>/party accept</yellow>, <yellow>/party list</yellow>, <yellow>/party leave</yellow>"));
         player.sendMessage(Text.msg("Your party leader selects the game. Parties may face each other in solo modes."));
+        if (plugin.privateMatches().enabled()) {
+            player.sendMessage(Text.msg("<yellow>/party private</yellow> — play with just your party. <yellow>/party spectate</yellow> — watch it if you joined late."));
+            Forms.list(plugin, player, "Party", "Play with just your party.", List.of(
+                    new FormLayout.Button("Private match\nPick a game and map for your party", "private"),
+                    new FormLayout.Button("Back", FormLayout.BACK)),
+                    target -> { if (target.equals("private")) plugin.privateMatches().open(player); else openGames(player); });
+        }
     }
 
     public void openModes(Player player, GameType game) {

@@ -47,6 +47,18 @@ party:
   # Every party message is also logged to the console.
   chat-blocklist: []
 
+# Private matches: /party private (or the Private match button in the party menu). Only the party is admitted,
+# the game never shows in Quick Play or public queues, and results follow the normal competitive rules, so
+# tokens are paid only when most players are people. Duels are not offered here.
+private:
+  enabled: true
+  # Seconds in the waiting lobby once enough people are in.
+  countdown-seconds: 10
+  # Most people (the party) in one private match. Also limited by party.max-size.
+  max-party: 16
+  # Let the leader fill empty seats with bots (they still need bots.enabled and a bot-supported game).
+  allow-bots: true
+
 end:
   # Seconds to celebrate before players are returned to the lobby.
   celebrate-seconds: 10

@@ -110,10 +110,21 @@ public final class BotService implements AutoCloseable {
             var latest = plugin.arenas().byId(game.type().id(), arena.id());
             if (latest != null) arena = latest;
         }
-        return arena.settings().getBoolean("bots-enabled", false);
+        boolean explicit = game.privateSetup() != null && game.privateSetup().explicitBots();
+        return uk.co.playerready.pulsegames.core.play.PrivateRules.mapAllowsBots(arena.settings().getBoolean("bots-enabled", false), explicit);
+    }
+
+    /** Bots can fill this match now: allowed, supported, and the bot provider has not failed. */
+    public boolean canFill(GameInstance game) { return !failed && eligible(game); }
+
+    /** The leader's explicit private-match difficulty, else the map override, else the server setting. */
+    private String difficultySetting(GameInstance game) {
+        String chosen = game.privateDifficulty();
+        return chosen != null ? chosen : game.arena().settings().getString("bot-difficulty", plugin.getConfig().getString("bots.difficulty", "adaptive"));
     }
 
     private String blockedReason(GameInstance game) {
+        if (game.isPrivate() && !game.privateBotsWanted()) return "off for this private match";
         if (!plugin.getConfig().getBoolean("bots.enabled", false)) return "disabled";
         if (!mapBotsEnabled(game)) return "disabled on this map";
         if (!supports(game.type().id(), game.mode().rulesId())) return "unsupported mode";
@@ -132,7 +143,7 @@ public final class BotService implements AutoCloseable {
     public boolean eligible(GameInstance game) { return blockedReason(game) == null; }
 
     private int waitSeconds(GameInstance game) {
-        return game.practice() ? 2 : Math.max(1, plugin.getConfig().getInt("bots.wait-seconds", 30));
+        return game.practice() || game.isPrivate() ? 2 : Math.max(1, plugin.getConfig().getInt("bots.wait-seconds", 30));
     }
 
     private int desiredBots(GameInstance game) {
@@ -162,7 +173,7 @@ public final class BotService implements AutoCloseable {
         if (game.practice()) return game.practiceDifficulty().ordinal() + 1;
         String key = game.type().id() + ":" + game.mode().id();
         if (!isBot(player)) return (skills == null ? BotDifficulty.NORMAL : skills.difficulty(player.getUniqueId(), key)).ordinal() + 1;
-        String selection = game.arena().settings().getString("bot-difficulty", plugin.getConfig().getString("bots.difficulty", "adaptive"));
+        String selection = difficultySetting(game);
         if (!"adaptive".equalsIgnoreCase(selection)) return BotDifficulty.parse(selection).ordinal() + 1;
         var humanLevels = game.players().stream().filter(p -> !isBot(p))
                 .map(p -> skills == null ? BotDifficulty.NORMAL : skills.difficulty(p.getUniqueId(), key)).sorted().toList();
@@ -180,7 +191,7 @@ public final class BotService implements AutoCloseable {
         String detail;
         if(slot.game.practice()) detail="Fixed practice difficulty; this round does not train adaptive history.";
         else {
-            String selection=slot.game.arena().settings().getString("bot-difficulty",plugin.getConfig().getString("bots.difficulty","adaptive"));
+            String selection=difficultySetting(slot.game);
             Player target=slot.game.players().stream().filter(p->!isBot(p) && p.getName().equals(slot.target)).findFirst().orElse(null);
             if(!"adaptive".equalsIgnoreCase(selection)) detail="Fixed difficulty override: "+selection;
             else if(target==null || skills==null) detail="Adaptive group difficulty; no visible human target selected.";
@@ -205,8 +216,7 @@ public final class BotService implements AutoCloseable {
 
     public BotDifficulty difficultyFor(GameInstance game, Player opponent) {
         if (game.practice()) return game.practiceDifficulty();
-        String selection = game.arena().settings().getString("bot-difficulty",
-                plugin.getConfig().getString("bots.difficulty", "adaptive"));
+        String selection = difficultySetting(game);
         if (!"adaptive".equalsIgnoreCase(selection)) return BotDifficulty.parse(selection);
         SkillRound round = skillRounds.get(game);
         if (round == null) return BotDifficulty.NORMAL;

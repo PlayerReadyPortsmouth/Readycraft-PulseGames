@@ -149,6 +149,13 @@ public final class PartyManager {
                 + "</yellow> invited you to a party. <green><click:run_command:'/party accept'>[ACCEPT]</click></green> "
                 + "<red><click:run_command:'/party deny'>[DENY]</click></red>"));
         target.sendMessage(Text.msg("Type <yellow>/party accept</yellow> or <yellow>/party deny</yellow>. Your leader queues the group together."));
+        // Bedrock players get a form instead of the clickable chat line; false (and nothing shown) on Java.
+        try {
+            uk.co.playerready.pulsegames.core.ui.forms.Forms.confirm(plugin, target, "Party invite",
+                    inviter.getName() + " invited you to a party.", "Accept", "Decline", () -> accept(target), () -> deny(target));
+        } catch (RuntimeException formsUnavailable) {
+            // The clickable chat invite above still works.
+        }
         return true;
     }
 

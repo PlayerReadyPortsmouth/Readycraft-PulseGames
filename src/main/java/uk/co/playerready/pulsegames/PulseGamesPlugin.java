@@ -49,6 +49,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
     private SidebarService sidebar;
     private StatsService stats;
     private PlayService playService;
+    private uk.co.playerready.pulsegames.core.play.PrivateMatchService privateMatches;
     private ArenaSetupManager setup;
     private uk.co.playerready.pulsegames.core.combat.ClassicCombatService combat;
     private EconomyService economy;
@@ -90,6 +91,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
         playService = new PlayService(this);
         results = new uk.co.playerready.pulsegames.core.game.MatchResults(this);
         practice = new uk.co.playerready.pulsegames.core.practice.PracticeService(this);
+        privateMatches = new uk.co.playerready.pulsegames.core.play.PrivateMatchService(this);
         maps = new uk.co.playerready.pulsegames.core.maps.MapReviewService(this);
         setup = new ArenaSetupManager(this);
         economy = new EconomyService(this);
@@ -195,6 +197,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
     public StatsService stats() { return stats; }
     public uk.co.playerready.pulsegames.core.progression.ProgressionService progression() { return progression; }
     public PlayService playService() { return playService; }
+    public uk.co.playerready.pulsegames.core.play.PrivateMatchService privateMatches() { return privateMatches; }
     public uk.co.playerready.pulsegames.core.combat.ClassicCombatService combat() { return combat; }
     public ArenaSetupManager setup() { return setup; }
     public uk.co.playerready.pulsegames.core.maps.MapReviewService maps() { return maps; }
@@ -210,7 +213,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
         return instances().all().stream()
                 .filter(g -> (g.state() == uk.co.playerready.pulsegames.core.game.GameState.WAITING
                         || g.state() == uk.co.playerready.pulsegames.core.game.GameState.COUNTDOWN)
-                        && !g.practice() && g.humanCount() > 0 && g.joinable(1) && !g.type().wip() && gameAvailable(g.type()))
+                        && !g.practice() && !g.isPrivate() && g.humanCount() > 0 && g.joinable(1) && !g.type().wip() && gameAvailable(g.type()))
                 .map(g -> java.util.Map.of("id", g.id(), "title", g.type().displayName() + " / " + g.mode().displayName(),
                         "players", Integer.toString(g.players().size()), "maximum", Integer.toString(g.maxPlayers())))
                 .toList();

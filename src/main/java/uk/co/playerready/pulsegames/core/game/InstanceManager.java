@@ -89,7 +89,7 @@ public final class InstanceManager {
     public GameInstance findOrCreate(GameType type, GameMode mode, int groupSize,
                                      java.util.function.Predicate<GameInstance> acceptsGroup) {
         for (GameInstance instance : instances) {
-            if (!instance.practice() && instance.type() == type && instance.mode().id().equals(mode.id()) && instance.joinable(groupSize) && acceptsGroup.test(instance)) {
+            if (!instance.practice() && !instance.isPrivate() && instance.type() == type && instance.mode().id().equals(mode.id()) && instance.joinable(groupSize) && acceptsGroup.test(instance)) {
                 return instance;
             }
         }
@@ -126,6 +126,18 @@ public final class InstanceManager {
         if (instance.maxPlayers() < Math.max(1, instance.minPlayers())
                 || (mode.isTeams() && instance.teamCount() < 2)) return null;
         instance.configurePractice(difficulty, botCount);
+        instances.add(instance);
+        instance.init();
+        return instance;
+    }
+
+    /** A party-only game on a chosen arena; null when the server is full or the map cannot hold the group. */
+    public GameInstance createPrivate(GameType type, GameMode mode, Arena arena,
+                                      uk.co.playerready.pulsegames.core.play.PrivateSetup setup, int groupSize) {
+        if (instances.size() >= plugin.getConfig().getInt("instances.max-concurrent", 20)) return null;
+        GameInstance instance = new GameInstance(plugin, type, mode, arena);
+        if (instance.maxPlayers() < Math.max(groupSize, 1) || (mode.isTeams() && instance.teamCount() < 2)) return null;
+        instance.configurePrivate(setup);
         instances.add(instance);
         instance.init();
         return instance;
