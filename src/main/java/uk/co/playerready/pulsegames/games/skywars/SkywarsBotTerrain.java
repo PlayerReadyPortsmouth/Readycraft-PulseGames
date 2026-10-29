@@ -7,9 +7,7 @@ import java.util.Set;
 
 /** Conservative level walking only; no jump, fall, teleport or unloaded-chunk shortcut. */
 public final class SkywarsBotTerrain {
-    private static final Set<Material> DANGER = Set.of(Material.LAVA, Material.FIRE, Material.SOUL_FIRE,
-            Material.MAGMA_BLOCK, Material.CACTUS, Material.CAMPFIRE, Material.SOUL_CAMPFIRE,
-            Material.POWDER_SNOW, Material.SWEET_BERRY_BUSH, Material.WITHER_ROSE);
+    private static final Set<Material> DANGER = uk.co.playerready.pulsegames.core.bot.BotFloorSafety.HAZARDS;
     private SkywarsBotTerrain() {}
     public static Location step(Location here, Location goal) {
         if (here == null || goal == null || here.getWorld() == null || here.getWorld() != goal.getWorld()) return null;
@@ -100,7 +98,7 @@ public final class SkywarsBotTerrain {
             return feet.getX()-.2>=minX-.001 && feet.getX()+.2<=maxX+.001 && feet.getZ()-.2>=minZ-.001 && feet.getZ()+.2<=maxZ+.001;
         }
         boolean slab=block.getBlockData() instanceof org.bukkit.block.data.type.Slab data && !data.isWaterlogged();
-        return (fullFloor(block.getType()) || slab) && Math.abs(top.getMaxY()-feet.getY())<.04 && covers(top,body,x,z);
+        return ((!slab && uk.co.playerready.pulsegames.core.bot.BotFloorSafety.footing(block)) || slab) && Math.abs(top.getMaxY()-feet.getY())<.04 && covers(top,body,x,z);
     }
     private static boolean covers(BoundingBox top,BoundingBox body,int x,int z) {
         return top.getMinX()<=Math.max(x,body.getMinX())+.001 && top.getMaxX()>=Math.min(x+1,body.getMaxX())-.001
@@ -139,8 +137,5 @@ public final class SkywarsBotTerrain {
         return true;
     }
     public static boolean air(Material material) { return material==Material.AIR || material==Material.CAVE_AIR || material==Material.VOID_AIR; }
-    private static boolean fullFloor(Material material) {
-        return uk.co.playerready.pulsegames.core.bot.BotFloorSafety.fullCube(material);
-    }
     private static int floor(double number) { return (int)Math.floor(number); }
 }

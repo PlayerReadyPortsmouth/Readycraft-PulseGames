@@ -76,6 +76,18 @@ public final class SkywarsBotInventory {
                     && (item.getType() == Material.OAK_PLANKS || item.getType() == Material.COBBLESTONE
                         || item.getType() == Material.END_STONE || item.getType().name().endsWith("_WOOL"))) return slot;
         }
+        // No planks or stone from the chests: any other solid full block in the bag will do for a bridge.
+        for (int slot = 0; slot < 36; slot++) {
+            ItemStack item = inventory.getItem(slot);
+            if (item != null && item.getAmount() > 0 && stackableBridgeBlock(item.getType())) return slot;
+        }
         return -1;
+    }
+    /** A full solid block that stays where it is put: not sand or gravel, not a hazard, not a chest or a stair. */
+    static boolean stackableBridgeBlock(Material material) {
+        String name = material.name();
+        return uk.co.playerready.pulsegames.core.bot.BotFloorSafety.fullCube(material)
+                && !name.endsWith("SAND") && !name.equals("GRAVEL") && !name.endsWith("_POWDER") && !name.endsWith("_LEAVES")
+                && !name.endsWith("_BUCKET") && !name.endsWith("_ORE") && !name.contains("SHULKER") && !name.contains("COMMAND") && !name.contains("SPAWNER");
     }
 }
