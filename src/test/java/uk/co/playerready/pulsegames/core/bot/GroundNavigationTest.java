@@ -32,4 +32,14 @@ class GroundNavigationTest {
         Location next=GroundNavigation.nextStep(new Location(w,.5,80,.5),p->true,p->p.getX(),p-> { Material m=p.getWorld().getBlockAt(p.getBlockX(),79,p.getBlockZ()).getType(); return m==Material.STONE; });
         assertNotNull(next);assertEquals(.5,next.getX());assertEquals(1,Math.abs(next.getZ()-.5));
     }
+    @Test void deepSearchRoutesRoundAWallOfHolesThatTheShortSearchCannot() {
+        // A wall of missing floor at x=1 with a single gap at z=3: the goal at x=4 is 7 steps round.
+        World w=terrain((x,z)->x==1 && z!=3 && z>=-2?Material.AIR:Material.STONE);
+        java.util.function.Predicate<Location> stone=p->w.getBlockAt(p.getBlockX(),79,p.getBlockZ()).getType()==Material.STONE;
+        java.util.function.Predicate<Location> inArena=p->p.getBlockZ()>=-2 && p.getBlockZ()<=3 && p.getBlockX()<=4;
+        Location from=new Location(w,.5,80,.5);
+        assertNull(GroundNavigation.nextStep(from,inArena,p->p.getX(),stone));
+        Location next=GroundNavigation.nextStep(from,inArena,p->p.getX(),stone,6,96);
+        assertNotNull(next);assertEquals(1,next.getBlockZ()); // heads for the gap, not into the hole
+    }
 }
