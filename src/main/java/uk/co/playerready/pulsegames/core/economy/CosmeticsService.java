@@ -79,7 +79,8 @@ public final class CosmeticsService {
         var world = victimLocation.getWorld();
         switch (id) {
             case "ke-lightning" -> {
-                if (lightning.computeIfAbsent(world.getUID(), k -> new uk.co.playerready.pulsegames.core.util.RateCap(1, 5000))
+                if (!uk.co.playerready.pulsegames.core.settings.PlayerSettings.anyInWorld(world, uk.co.playerready.pulsegames.core.settings.Comfort.REDUCE_FLASHES)
+                        && lightning.computeIfAbsent(world.getUID(), k -> new uk.co.playerready.pulsegames.core.util.RateCap(1, 5000))
                         .allow(System.currentTimeMillis())) world.strikeLightningEffect(victimLocation);
                 else world.spawnParticle(Particle.CRIT, victimLocation.clone().add(0, 1, 0), 12, 0.4, 0.6, 0.4, 0.05);
             }

@@ -40,14 +40,18 @@ public final class Commands implements CommandExecutor, TabCompleter {
             }
         }
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("In-game only.");
+            if (command.getName().equalsIgnoreCase("stats") && args.length >= 1 && Bukkit.getPlayerExact(args[0]) != null) {
+                uk.co.playerready.pulsegames.core.stats.StatsMenu.sendText(plugin, sender, Bukkit.getPlayerExact(args[0]));
+                return true;
+            }
+            sender.sendMessage("In-game only. Console: /stats <player>");
             return true;
         }
         switch (command.getName().toLowerCase(Locale.ROOT)) {
             case "play" -> play(player, args);
             case "party" -> party(player, args);
             case "lobby" -> plugin.playService().leave(player);
-            case "stats" -> stats(player);
+            case "stats" -> stats(player, args);
             case "challenges" -> plugin.engagement().openChallenges(player);
             case "top" -> plugin.engagement().top(player, args);
             case "results" -> plugin.results().command(player,args);
@@ -84,23 +88,16 @@ public final class Commands implements CommandExecutor, TabCompleter {
         plugin.playService().join(player, type, mode);
     }
 
-    private void stats(Player player) {
-        player.sendMessage(Text.msg("<yellow><b>Your stats</b>"));
-        int totalWins = 0, totalKills = 0, totalPlayed = 0;
-        for (GameType type : plugin.registry().all()) {
-            int played = plugin.stats().get(player, type.id(), "played");
-            if (played == 0) continue;
-            int wins = plugin.stats().get(player, type.id(), "wins");
-            int kills = plugin.stats().get(player, type.id(), "kills");
-            totalWins += wins;
-            totalKills += kills;
-            totalPlayed += played;
-            player.sendMessage(Text.mm(" <gray>" + type.displayName() + ": <green>" + wins
-                    + "W</green> <white>" + played + " played</white>"
-                    + (kills > 0 ? " <red>" + kills + " kills" : "")));
+    private void stats(Player player, String[] args) {
+        if (args.length > 0 && args[0].equalsIgnoreCase("--text")) {
+            uk.co.playerready.pulsegames.core.stats.StatsMenu.sendText(plugin, player, player);
+            return;
         }
-        player.sendMessage(Text.mm(" <gray>Total: <green>" + totalWins + " wins</green><gray>, <white>"
-                + totalPlayed + " games</white><gray>, <red>" + totalKills + " kills"));
+        if (args.length > 0 && args[0].equalsIgnoreCase("settings")) {
+            new uk.co.playerready.pulsegames.core.settings.SettingsMenu(plugin, null).open(player);
+            return;
+        }
+        new uk.co.playerready.pulsegames.core.stats.StatsMenu(plugin).open(player);
     }
 
     private void party(Player player, String[] args) {

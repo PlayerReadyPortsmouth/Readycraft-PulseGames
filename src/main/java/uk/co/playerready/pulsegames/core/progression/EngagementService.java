@@ -99,6 +99,10 @@ public final class EngagementService {
         }
     }
 
+    public synchronized int currentStreak(Player player) { return streaks.current(player.getUniqueId()); }
+
+    public synchronized int bestStreak(Player player) { return streaks.best(player.getUniqueId()); }
+
     // ---- /challenges ------------------------------------------------------------
 
     public void openChallenges(Player player) {
