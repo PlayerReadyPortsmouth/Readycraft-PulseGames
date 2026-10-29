@@ -9,7 +9,7 @@ final class BedwarsBotItems {
     record Facts(double health, double enemyDistance, boolean hasApple, boolean hasPearl, boolean hasFireball,
                  long tick, long fireballReadyAt, boolean fireballSafe) {}
 
-    /** Escape first, then heal, then knock the enemy back. TODO(BotMelee): melee itself moves to the shared core. */
+    /** Escape first, then heal, then knock the enemy back. Melee itself lives in the shared core (BotMelee). */
     static Use choose(Facts f, BedwarsBotConfig cfg) {
         if (f.hasPearl() && f.health() <= cfg.pearlEscapeHealth() && f.enemyDistance() <= 7) return Use.PEARL_ESCAPE;
         if (f.hasApple() && f.health() <= cfg.appleHealth() && f.enemyDistance() >= 3) return Use.GOLDEN_APPLE;

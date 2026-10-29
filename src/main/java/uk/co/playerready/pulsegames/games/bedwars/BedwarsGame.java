@@ -236,17 +236,13 @@ public final class BedwarsGame extends MiniGame {
     }
 
     /**
-     * TNT is a shop item, so beds do get blown up. Route those through destroyBed or the
-     * team keeps respawning off a bed that is no longer there.
+     * Standard Bedwars: explosions (fireball, TNT) never break a bed, anyone's, including the firer's own.
+     * Beds only fall to mining, which goes through the break handler and destroyBed. Explosions only
+     * remove blocks players placed.
      */
     @Override
     public boolean canExplode(Block block) {
-        if (block.getType().name().endsWith("_BED")) {
-            int bedTeam = bedTeamIndex(block.getLocation());
-            if (bedTeam < 0) return false;
-            destroyBed(bedTeam, null);
-            return true;
-        }
+        if (block.getType().name().endsWith("_BED")) return false;
         return playerBlocks.contains(block.getLocation());
     }
 
@@ -299,7 +295,7 @@ public final class BedwarsGame extends MiniGame {
             shopMenu.open(event.getPlayer());
         } else if (event.getItem() != null && event.getItem().getType() == Material.FIRE_CHARGE
                 && event.getAction().isRightClick()) {
-            // Fireball from the shop: right-click to launch it (blocks and beds still go through canExplode).
+            // Fireball from the shop: right-click to launch it (placed blocks go through canExplode; beds never break to an explosion).
             event.setCancelled(true);
             Player player = event.getPlayer();
             if (!player.hasCooldown(Material.FIRE_CHARGE) && take(player, Material.FIRE_CHARGE)) {
@@ -463,9 +459,18 @@ public final class BedwarsGame extends MiniGame {
 
     public boolean botCombat(Player bot,org.bukkit.entity.LivingEntity enemy,long tick,
             uk.co.playerready.pulsegames.core.bot.BotDifficulty difficulty) {
-        // TODO(BotMelee): once core/bot/BotMelee is wired by the releaser, melee for this branch moves there; item use stays here.
+        // Melee (strafe, aim, sprint, jump) runs in the shared core BotMelee via BotService, limited by botStrafeSafe.
         if(botActive(bot) && useCombatItem(bot,enemy,tick)) return true;
         return botBow.combat(game,bot,enemy,tick,difficulty);
+    }
+
+    /**
+     * Where a strafing bot may step: a full, supported, hazard-free footprint at its own level, using the same
+     * island-edge rule as bridging and running, so a strafe never walks off an island.
+     */
+    public static java.util.function.Predicate<Location> botStrafeSafe(Location level) {
+        double y=level.getY();
+        return at -> { Location feet=at.clone(); feet.setY(y); return uk.co.playerready.pulsegames.games.skywars.SkywarsBotTerrain.safe(feet,true); };
     }
 
     private boolean useCombatItem(Player bot,org.bukkit.entity.LivingEntity enemy,long tick) {

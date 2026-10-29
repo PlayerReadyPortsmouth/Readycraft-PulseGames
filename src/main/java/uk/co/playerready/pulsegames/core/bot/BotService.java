@@ -429,8 +429,11 @@ public final class BotService implements AutoCloseable {
             slot.objective = "Engaging a visible opponent"; slot.route = "";
             double distance = here.distanceSquared(enemy.getLocation());
             boolean pvp = objectives == null && enemy instanceof Player && pvpCore(game);
+            // Bedwars uses the shared melee too, but only ever strafes onto island-safe tiles (BedwarsGame.botStrafeSafe).
+            boolean bedwarsMelee = enemy instanceof Player
+                    && game.logic() instanceof uk.co.playerready.pulsegames.games.bedwars.BedwarsGame;
             BotDifficulty.Profile profile = combat.profile(difficulty);
-            if (pvp) {
+            if (pvp || bedwarsMelee) {
                 if (slot.melee == null) slot.melee = new BotMelee(bot.getUniqueId(), new Random(System.nanoTime() ^ bot.getUniqueId().getLeastSignificantBits()), () -> tick);
                 slot.actor.face(slot.melee.aim(bot.getEyeLocation(), enemy.getEyeLocation(), profile, difficulty == BotDifficulty.EASY));
             } else slot.actor.face(enemy.getEyeLocation());
@@ -452,7 +455,12 @@ public final class BotService implements AutoCloseable {
                     handled = sky.botCombat(bot, enemy, tick, difficulty);
                 if (!handled && game.logic() instanceof uk.co.playerready.pulsegames.games.bedwars.BedwarsGame bed)
                     handled = bed.botCombat(bot, enemy, tick, difficulty);
-                if (!handled && pvp) goal = pvpCombat(slot, game, bot, (Player) enemy, here, distance, difficulty, profile);
+                if (!handled && pvp) goal = pvpCombat(slot, game, bot, (Player) enemy, here, distance, difficulty, profile,
+                        standable(here), true);
+                else if (!handled && bedwarsMelee)
+                    // Item use (apples, pearls, fireballs) stays in BedwarsGame.botCombat, so the core kit is off here.
+                    goal = pvpCombat(slot, game, bot, (Player) enemy, here, distance, difficulty, profile,
+                            uk.co.playerready.pulsegames.games.bedwars.BedwarsGame.botStrafeSafe(here), false);
                 else {
                     if (!handled && distance <= 2.8 * 2.8 && tick >= slot.nextAttack) {
                         if (random.applyAsInt(100) < difficulty.accuracy) {
@@ -517,14 +525,14 @@ public final class BotService implements AutoCloseable {
 
     /** The shared PvP core: strafe, kit, sprint, jump, retreat and sumo edge. Returns the movement goal. */
     private Location pvpCombat(Slot slot, GameInstance game, Player bot, Player enemy, Location here,
-                               double distanceSquared, BotDifficulty difficulty, BotDifficulty.Profile profile) {
+                               double distanceSquared, BotDifficulty difficulty, BotDifficulty.Profile profile,
+                               java.util.function.Predicate<Location> safe, boolean coreKit) {
         BotMelee melee = slot.melee;
         double distance = Math.sqrt(distanceSquared);
         Location enemyAt = enemy.getLocation();
-        var safe = standable(here);
         boolean sumo = game.type().id().equals("duels") && game.mode().rulesId().equals("sumo");
         boolean retreating = combat.retreat() && melee.retreating(healthFraction(bot), slot.kit.canHeal(bot), profile);
-        if (combat.kitUse() && kitUse(slot, game, bot, enemy, here, distance, retreating, difficulty, profile, safe)) {
+        if (coreKit && combat.kitUse() && kitUse(slot, game, bot, enemy, here, distance, retreating, difficulty, profile, safe)) {
             slot.objective = slot.kit.drawing() ? "Shooting from range" : "Using the kit";
             return combat.strafe() ? melee.strafeGoal(here, enemyAt, profile, safe, true) : null;
         }
