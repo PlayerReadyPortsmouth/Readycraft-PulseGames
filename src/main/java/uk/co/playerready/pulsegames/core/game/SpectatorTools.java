@@ -273,8 +273,20 @@ public final class SpectatorTools {
             case WOW -> { sound = "minecraft:entity.experience_orb.pickup"; pitch = 1.6f; particle = Particle.END_ROD; count = 20; }
             default -> { sound = "minecraft:block.note_block.chime"; pitch = 1.4f; particle = Particle.NOTE; count = 8; }
         }
-        at.getWorld().spawnParticle(particle, at, count, 0.4, 0.5, 0.4, 0.05);
-        for (Player p : game.everyone()) if (!game.isBot(p)) p.playSound(at, sound, 0.7f, pitch);
+        // Per viewer, so "Hide spectator reactions" (Settings) can skip other players' reactions.
+        for (Player p : game.everyone()) {
+            if (game.isBot(p) || p.getWorld() != at.getWorld()) continue;
+            boolean hide = uk.co.playerready.pulsegames.core.settings.PlayerSettings.enabled(
+                    p, uk.co.playerready.pulsegames.core.settings.Comfort.HIDE_REACTIONS);
+            if (!showsReaction(p.equals(player), hide)) continue;
+            p.spawnParticle(particle, at, count, 0.4, 0.5, 0.4, 0.05);
+            p.playSound(at, sound, 0.7f, pitch);
+        }
         player.sendActionBar(Text.mm("<green>Sent!"));
+    }
+
+    /** A viewer sees a reaction unless it is someone else's and they turned on "Hide spectator reactions". */
+    static boolean showsReaction(boolean viewerIsSender, boolean viewerHidesReactions) {
+        return viewerIsSender || !viewerHidesReactions;
     }
 }
