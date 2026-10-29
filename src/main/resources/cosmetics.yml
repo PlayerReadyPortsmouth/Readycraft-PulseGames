@@ -274,7 +274,7 @@ cosmetics:
     level: 95
     description: "A big, friendly roar"
     effect:
-      particle: DRAGON_BREATH
+      particle: SOUL_FIRE_FLAME
       count: 18
       spread: 0.6
       speed: 0.02
