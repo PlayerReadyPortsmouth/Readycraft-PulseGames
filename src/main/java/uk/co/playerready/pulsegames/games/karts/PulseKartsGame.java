@@ -657,7 +657,8 @@ public final class PulseKartsGame extends CheckpointRaceGame {
     }
     /** At most one lightning flash per 5 s for photosensitive players; any extra strike shows quiet sparks. */
     private void lightningEffect(Location at) {
-        if (flashes.allow(System.currentTimeMillis())) game.world().strikeLightningEffect(at);
+        if (!uk.co.playerready.pulsegames.core.settings.PlayerSettings.anyInWorld(game.world(), uk.co.playerready.pulsegames.core.settings.Comfort.REDUCE_FLASHES)
+                && flashes.allow(System.currentTimeMillis())) game.world().strikeLightningEffect(at);
         else game.world().spawnParticle(Particle.ELECTRIC_SPARK, at.add(0, 1, 0), 20, .5, .8, .5, .1);
     }
     /** An action-bar message the HUD must not overwrite for a moment. */

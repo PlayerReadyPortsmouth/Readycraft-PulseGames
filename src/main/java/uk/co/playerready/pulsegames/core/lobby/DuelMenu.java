@@ -1,38 +1,29 @@
 package uk.co.playerready.pulsegames.core.lobby;
 
-import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
-import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.event.inventory.InventoryDragEvent;
-import org.bukkit.inventory.*;
 import uk.co.playerready.pulsegames.PulseGamesPlugin;
 import uk.co.playerready.pulsegames.core.game.GameMode;
 import uk.co.playerready.pulsegames.core.kit.Kit;
+import uk.co.playerready.pulsegames.core.ui.Buttons;
+import uk.co.playerready.pulsegames.core.ui.Menu;
+import uk.co.playerready.pulsegames.core.ui.Theme;
 import uk.co.playerready.pulsegames.core.util.Text;
 import java.util.*;
 import java.util.function.Consumer;
 
 /** Combat rules, discipline, team size and personal loadout are independent choices. */
-public final class DuelMenu implements Listener {
+public final class DuelMenu {
     private final PulseGamesPlugin plugin;
     public DuelMenu(PulseGamesPlugin plugin) { this.plugin = plugin; }
-    static final class Screen implements InventoryHolder {
-        final UUID owner;
-        Screen(UUID owner) { this.owner = owner; }
-        Inventory inventory;
-        final Map<Integer, Consumer<Player>> actions = new HashMap<>();
-        public Inventory getInventory() { return inventory; }
+    /** Builds a 27-slot window; {@code fill} runs again on every render. */
+    private void show(Player player, String title, Consumer<Menu> fill) {
+        Menu menu = new Menu(plugin, player, Theme.title(title), 3);
+        menu.renderer(() -> fill.accept(menu));
+        menu.open(player);
     }
-    private Screen screen(Player player, String title) {
-        var s = new Screen(player.getUniqueId()); s.inventory = Bukkit.createInventory(s, 27, Text.mm("<dark_gray>" + title)); return s;
-    }
-    private void button(Screen s, int slot, Material icon, String name, Consumer<Player> action, String... lore) {
-        var item = new ItemStack(icon);
-        item.editMeta(meta -> { meta.displayName(Text.mm(name)); meta.lore(Arrays.stream(lore).map(Text::mm).toList()); });
-        s.inventory.setItem(slot, item); if (action != null) s.actions.put(slot, action);
+    private void button(Menu s, int slot, Material icon, String name, Consumer<Player> action, String... lore) {
+        s.set(slot, Buttons.item(icon, name, Arrays.stream(lore).map(Theme::mm).toList()), action);
     }
     public void open(Player player) {
         var current = plugin.instances().byPlayer(player);
@@ -41,7 +32,7 @@ public final class DuelMenu implements Listener {
         else styles(player);
     }
     public void styles(Player player) {
-        var s = screen(player, "Duels · Combat style");
+        show(player, "Duels · Combat style", s -> {
         boolean classic = plugin.combat() != null && plugin.combat().available();
         button(s, 11, Material.IRON_SWORD, "<yellow>Classic · 1.8-style", p -> {
             if (classic) disciplines(p, GameMode.CombatStyle.CLASSIC);
@@ -49,10 +40,10 @@ public final class DuelMenu implements Listener {
         }, classic ? "<gray>Classic combat rules" : "<red>Combat provider not ready", "<gray>Choose the discipline next");
         button(s, 15, Material.DIAMOND_SWORD, "<aqua>Modern · 1.9+", p -> disciplines(p, GameMode.CombatStyle.MODERN),
                 "<gray>Modern attack cooldown and combat", "<gray>Regular PvP, Sumo, Crystal or Mace");
-        player.openInventory(s.inventory);
+        });
     }
     private void disciplines(Player player, GameMode.CombatStyle style) {
-        var s = screen(player, "Duels · Discipline");
+        show(player, "Duels · Discipline", s -> {
         String[] ids = style == GameMode.CombatStyle.CLASSIC ? new String[]{"classic", "sumo"} : new String[]{"classic", "sumo", "crystal", "mace"};
         for (int i = 0; i < ids.length; i++) {
             String id = ids[i];
@@ -60,7 +51,8 @@ public final class DuelMenu implements Listener {
             button(s, 10 + i * 2, icon, "<yellow>" + disciplineName(id), p -> match(p, mode(style, id, 1)),
                     "<gray>Kit is chosen separately", id.equals("crystal") || id.equals("mace") ? "<gray>Requires an approved map for this discipline" : "<gray>Choose solo, doubles, triples or squads");
         }
-        button(s, 18, Material.ARROW, "<gray>Back", this::styles); player.openInventory(s.inventory);
+        button(s, 18, Material.ARROW, "<gray>Back", this::styles);
+        });
     }
     public GameMode mode(GameMode.CombatStyle style, String discipline, int size) {
         String suffix = switch(size) { case 2 -> "-doubles"; case 3 -> "-triples"; case 4 -> "-squads"; default -> ""; };
@@ -82,7 +74,7 @@ public final class DuelMenu implements Listener {
         plugin.economy().duelKit(player, profile(mode), kit.id()); return true;
     }
     private void match(Player player, GameMode mode) {
-        var s = screen(player, "Duels · " + disciplineName(mode.rulesId()));
+        show(player, "Duels · " + disciplineName(mode.rulesId()), s -> {
         for (int size = 1; size <= 4; size++) {
             int selectedSize = size;
             button(s, 9 + size * 2, Material.PAPER, (mode.teamSize() == size ? "<green>" : "<yellow>") + size + "v" + size,
@@ -98,13 +90,13 @@ public final class DuelMenu implements Listener {
         }, "<gray>" + (mode.combatStyle() == GameMode.CombatStyle.CLASSIC ? "Classic 1.8-style" : "Modern 1.9+") + " · " + disciplineName(mode.rulesId()),
                 "<gray>Finds players with the same rules and team size");
         button(s, 18, Material.ARROW, "<gray>Back", p -> disciplines(p, mode.combatStyle()));
-        player.openInventory(s.inventory);
+        });
     }
     private void loadouts(Player player, GameMode mode) { loadouts(player, mode, 0); }
     private void loadouts(Player player, GameMode mode, int requestedPage) {
         var choices = plugin.kits().duelChoices(mode);
         int page = loadoutPage(requestedPage, choices.size());
-        var s = screen(player, "Duels · Kits " + (page + 1) + "/" + (loadoutPage(Integer.MAX_VALUE, choices.size()) + 1));
+        show(player, "Duels · Kits " + (page + 1) + "/" + (loadoutPage(Integer.MAX_VALUE, choices.size()) + 1), s -> {
         var current = kitFor(player, mode);
         int end = Math.min(choices.size(), page * 18 + 18);
         for (int index = page * 18; index < end; index++) {
@@ -135,22 +127,11 @@ public final class DuelMenu implements Listener {
                 saved != null && (current == null || !saved.equals(current.id()))
                         ? "<yellow>Previous selection unavailable; compatible default shown"
                         : "<gray>Your choice is remembered independently of other players");
-        player.openInventory(s.inventory);
+        });
     }
     static int loadoutPage(int requested, int count) { return Math.max(0, Math.min(requested, Math.max(0, (count - 1) / 18))); }
     private static String combatLabel(GameMode mode) {
         return mode.combatStyle() == GameMode.CombatStyle.CLASSIC ? "Classic 1.8-style" : "Modern 1.9+";
     }
     private static String disciplineName(String id) { return switch(id) { case "classic" -> "Regular PvP"; case "sumo" -> "Sumo"; case "crystal" -> "Crystal"; case "mace" -> "Mace"; default -> id; }; }
-    @EventHandler public void onClick(InventoryClickEvent event) {
-        if (!(event.getView().getTopInventory().getHolder() instanceof Screen s)) return;
-        event.setCancelled(true);
-        if (!(event.getWhoClicked() instanceof Player player) || event.getClickedInventory() != s.inventory) return;
-        var action = s.actions.get(event.getSlot());
-        if (action != null) plugin.getServer().getScheduler().runTask(plugin, () -> { if (player.isOnline() && s.owner.equals(player.getUniqueId())
-                && player.getOpenInventory().getTopInventory() == s.inventory) action.accept(player); });
-    }
-    @EventHandler public void onDrag(InventoryDragEvent event) {
-        if (event.getView().getTopInventory().getHolder() instanceof Screen) event.setCancelled(true);
-    }
 }

@@ -45,6 +45,9 @@ Restrict a map to certain modes with `/pulse setup set modes <mode1,mode2>`.
   through them between ticks - especially for elytra and karts.
 - The waiting lobby should be enclosed (players can move freely there before the game).
 - After saving you can re-run setup with the same id to overwrite the arena.
+- `/pulse maps board` (admins) opens a read-only readiness dashboard: per game "N of M maps fully checked",
+  then each map with its five review checks (built, visual, java, bedrock, bots) and the age of the evidence.
+  Clicking a check prints the exact `/pulse maps mark ...` command to run. See `docs/MAP-REVIEW.md`.
 
 ---
 
