@@ -8,6 +8,7 @@ import org.bukkit.Sound;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
@@ -17,6 +18,10 @@ import uk.co.playerready.pulsegames.core.game.MiniGame;
 import uk.co.playerready.pulsegames.core.team.GameTeam;
 import uk.co.playerready.pulsegames.core.util.Cuboid;
 import uk.co.playerready.pulsegames.core.util.Text;
+import uk.co.playerready.pulsegames.games.bedwars.shop.BedwarsShopMenu;
+import uk.co.playerready.pulsegames.games.bedwars.shop.ShopBackend;
+import uk.co.playerready.pulsegames.games.bedwars.shop.ShopCatalogue;
+import uk.co.playerready.pulsegames.games.bedwars.shop.ShopRules;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -34,32 +39,6 @@ import java.util.Set;
  */
 public final class BedwarsGame extends MiniGame {
 
-    private static final class ShopHolder implements InventoryHolder {
-        Inventory inventory;
-        @Override public Inventory getInventory() { return inventory; }
-    }
-
-    private record ShopItem(Material material,int amount,Material currency,int cost) {
-        ShopItem(Material material,Material currency,int cost) { this(material,1,currency,cost); }
-        ItemStack product() { return new ItemStack(material,amount); }
-    }
-
-    private static final List<ShopItem> SHOP = List.of(
-            new ShopItem(Material.WHITE_WOOL, 16, Material.IRON_INGOT, 4),
-            new ShopItem(Material.OAK_PLANKS, 16, Material.GOLD_INGOT, 4),
-            new ShopItem(Material.END_STONE, 12, Material.IRON_INGOT, 24),
-            new ShopItem(Material.STONE_SWORD, Material.IRON_INGOT, 10),
-            new ShopItem(Material.IRON_SWORD, Material.GOLD_INGOT, 7),
-            new ShopItem(Material.DIAMOND_SWORD, Material.DIAMOND, 4),
-            new ShopItem(Material.CHAINMAIL_CHESTPLATE, Material.IRON_INGOT, 30),
-            new ShopItem(Material.IRON_CHESTPLATE, Material.GOLD_INGOT, 12),
-            new ShopItem(Material.BOW, Material.GOLD_INGOT, 12),
-            new ShopItem(Material.ARROW, 6, Material.GOLD_INGOT, 2),
-            new ShopItem(Material.GOLDEN_APPLE, Material.GOLD_INGOT, 3),
-            new ShopItem(Material.SHEARS, Material.IRON_INGOT, 20),
-            new ShopItem(Material.IRON_PICKAXE, Material.IRON_INGOT, 25),
-            new ShopItem(Material.TNT, Material.GOLD_INGOT, 8));
-
     private static final org.bukkit.Color[] TEAM_COLORS = {
             org.bukkit.Color.RED, org.bukkit.Color.BLUE, org.bukkit.Color.LIME, org.bukkit.Color.YELLOW,
             org.bukkit.Color.AQUA, org.bukkit.Color.FUCHSIA, org.bukkit.Color.WHITE, org.bukkit.Color.GRAY
@@ -67,9 +46,12 @@ public final class BedwarsGame extends MiniGame {
 
     private final Map<Integer, Boolean> bedAlive = new HashMap<>();
     private final Set<Location> playerBlocks = new HashSet<>();
-    private final Set<Integer> sharpnessTeams = new HashSet<>();
-    private final Set<Integer> protectionTeams = new HashSet<>();
-    private final Set<Integer> hasteTeams = new HashSet<>();
+    /** Team upgrade levels: effect -> team index -> level (0 = not bought). */
+    private final Map<ShopCatalogue.Effect, Map<Integer, Integer>> upgradeLevels = new java.util.EnumMap<>(ShopCatalogue.Effect.class);
+    /** Armour bought from the shop: worn again after every respawn. */
+    private final Map<java.util.UUID, Material> shopArmour = new HashMap<>();
+    private ShopCatalogue catalogue;
+    private final BedwarsShopMenu shopMenu = new BedwarsShopMenu(new Backend());
     private List<Cuboid> bedRegions = List.of();
     private int generatorTier = 1;
     private final uk.co.playerready.pulsegames.games.skywars.SkywarsBotBow botBow=new uk.co.playerready.pulsegames.games.skywars.SkywarsBotBow();
@@ -77,7 +59,6 @@ public final class BedwarsGame extends MiniGame {
     private final Map<java.util.UUID,Long> botNextAction=new HashMap<>();
     private final Map<java.util.UUID,Integer> botPlaced=new HashMap<>();
     private final Map<java.util.UUID,String> botStatuses=new HashMap<>();
-    private final Set<java.util.UUID> botPurchaseProbes=new HashSet<>();
     private record Mining(Location block,Material type,long lastTick,double progress) {}
     private final Map<java.util.UUID,Mining> botMining=new HashMap<>();
 
@@ -88,62 +69,89 @@ public final class BedwarsGame extends MiniGame {
     @Override
     public void onStart() {
         bedRegions = game.arena().regionsByPrefix("bed");
+        catalogue = loadCatalogue();
         for (GameTeam team : game.teams()) bedAlive.put(team.index(), true);
         game.alivePlayers().forEach(this::equipBase);
         game.broadcast("Protect your bed! If it's destroyed you can't respawn.");
         game.broadcast("<gray>Generators upgrade at <yellow>5:00</yellow> and <yellow>10:00</yellow>!");
     }
 
+    private int level(ShopCatalogue.Effect effect, int teamIndex) {
+        return upgradeLevels.getOrDefault(effect, Map.of()).getOrDefault(teamIndex, 0);
+    }
+
     private void equipBase(Player player) {
         GameTeam team = game.teamOf(player);
         int teamIndex = team != null ? team.index() : 0;
         ItemStack sword = new ItemStack(Material.WOODEN_SWORD);
-        if (sharpnessTeams.contains(teamIndex)) {
-            sword.addUnsafeEnchantment(org.bukkit.enchantments.Enchantment.SHARPNESS, 1);
-        }
+        int sharp = level(ShopCatalogue.Effect.SHARPNESS, teamIndex);
+        if (sharp > 0) sword.addUnsafeEnchantment(org.bukkit.enchantments.Enchantment.SHARPNESS, sharp);
         player.getInventory().setItem(0, sword);
         ItemStack shop = new ItemStack(Material.EMERALD);
-        shop.editMeta(meta -> meta.displayName(Text.mm("<green><b>Item Shop</b> <gray>(right-click)")));
+        shop.editMeta(meta -> meta.displayName(Text.mm("<!i><green><b>Item Shop</b> <gray>(use to open)")));
         player.getInventory().setItem(8, shop);
-        // Team-colored leather armor.
-        org.bukkit.Color color = TEAM_COLORS[teamIndex % TEAM_COLORS.length];
-        player.getInventory().setChestplate(dyed(Material.LEATHER_CHESTPLATE, color, protectionTeams.contains(teamIndex)));
-        player.getInventory().setLeggings(dyed(Material.LEATHER_LEGGINGS, color, protectionTeams.contains(teamIndex)));
-        player.getInventory().setBoots(dyed(Material.LEATHER_BOOTS, color, protectionTeams.contains(teamIndex)));
-        if (hasteTeams.contains(teamIndex)) {
+        Material bought = shopArmour.get(player.getUniqueId());
+        if (bought != null) {
+            wear(player, bought, teamIndex);
+        } else {
+            // Team-colored leather armor.
+            org.bukkit.Color color = TEAM_COLORS[teamIndex % TEAM_COLORS.length];
+            int prot = level(ShopCatalogue.Effect.PROTECTION, teamIndex);
+            player.getInventory().setChestplate(dyed(Material.LEATHER_CHESTPLATE, color, prot));
+            player.getInventory().setLeggings(dyed(Material.LEATHER_LEGGINGS, color, prot));
+            player.getInventory().setBoots(dyed(Material.LEATHER_BOOTS, color, prot));
+        }
+        applyHaste(player, teamIndex);
+    }
+
+    private void applyHaste(Player player, int teamIndex) {
+        int haste = level(ShopCatalogue.Effect.HASTE, teamIndex);
+        if (haste > 0) {
             player.addPotionEffect(new org.bukkit.potion.PotionEffect(
                     org.bukkit.potion.PotionEffectType.HASTE, org.bukkit.potion.PotionEffect.INFINITE_DURATION,
-                    0, false, false));
+                    haste - 1, false, false));
         }
+    }
+
+    /** Puts a bought armour set on the player's body, replacing what they wore. */
+    private void wear(Player player, Material chestplate, int teamIndex) {
+        int prot = level(ShopCatalogue.Effect.PROTECTION, teamIndex);
+        Material[] set = ShopRules.armourSet(chestplate);
+        player.getInventory().setChestplate(enchantedArmour(set[0], prot));
+        player.getInventory().setLeggings(enchantedArmour(set[1], prot));
+        player.getInventory().setBoots(enchantedArmour(set[2], prot));
+    }
+
+    private ItemStack enchantedArmour(Material material, int protection) {
+        ItemStack item = new ItemStack(material);
+        if (protection > 0) item.addUnsafeEnchantment(org.bukkit.enchantments.Enchantment.PROTECTION, protection);
+        return item;
     }
 
     /** Applies owned team upgrades to a player's current gear in place. */
     private void applyUpgrades(Player player, int teamIndex) {
-        if (sharpnessTeams.contains(teamIndex)) {
+        int sharp = level(ShopCatalogue.Effect.SHARPNESS, teamIndex), prot = level(ShopCatalogue.Effect.PROTECTION, teamIndex);
+        if (sharp > 0) {
             for (ItemStack item : player.getInventory().getContents()) {
                 if (item != null && item.getType().name().endsWith("_SWORD")) {
-                    item.addUnsafeEnchantment(org.bukkit.enchantments.Enchantment.SHARPNESS, 1);
+                    item.addUnsafeEnchantment(org.bukkit.enchantments.Enchantment.SHARPNESS, sharp);
                 }
             }
         }
-        if (protectionTeams.contains(teamIndex)) {
+        if (prot > 0) {
             for (ItemStack armor : player.getInventory().getArmorContents()) {
                 if (armor != null) {
-                    armor.addUnsafeEnchantment(org.bukkit.enchantments.Enchantment.PROTECTION, 1);
+                    armor.addUnsafeEnchantment(org.bukkit.enchantments.Enchantment.PROTECTION, prot);
                 }
             }
         }
-        if (hasteTeams.contains(teamIndex)) {
-            player.addPotionEffect(new org.bukkit.potion.PotionEffect(
-                    org.bukkit.potion.PotionEffectType.HASTE, org.bukkit.potion.PotionEffect.INFINITE_DURATION,
-                    0, false, false));
-        }
+        applyHaste(player, teamIndex);
     }
 
-    private ItemStack dyed(Material material, org.bukkit.Color color, boolean protect) {
+    private ItemStack dyed(Material material, org.bukkit.Color color, int protection) {
         ItemStack item = new ItemStack(material);
         item.editMeta(org.bukkit.inventory.meta.LeatherArmorMeta.class, meta -> meta.setColor(color));
-        if (protect) item.addUnsafeEnchantment(org.bukkit.enchantments.Enchantment.PROTECTION, 1);
+        if (protection > 0) item.addUnsafeEnchantment(org.bukkit.enchantments.Enchantment.PROTECTION, protection);
         return item;
     }
 
@@ -156,7 +164,7 @@ public final class BedwarsGame extends MiniGame {
         }
         int ironEvery = generatorTier >= 2 ? 1 : 2;
         int goldEvery = generatorTier >= 3 ? 3 : generatorTier == 2 ? 5 : 8;
-        int diamondEvery = generatorTier >= 3 ? 20 : generatorTier == 2 ? 25 : 30;
+        int diamondEvery = BedwarsTimers.diamondEvery(generatorTier);
         if (gameTime % ironEvery == 0) dropAtTeamGenerators(Material.IRON_INGOT);
         if (gameTime % goldEvery == 0) dropAtTeamGenerators(Material.GOLD_INGOT);
         if (gameTime % diamondEvery == 0) {
@@ -288,96 +296,107 @@ public final class BedwarsGame extends MiniGame {
         if (event.getItem() != null && event.getItem().getType() == Material.EMERALD
                 && event.getAction().isRightClick()) {
             event.setCancelled(true);
-            openShop(event.getPlayer());
+            shopMenu.open(event.getPlayer());
         }
     }
-
-    private record TeamUpgrade(String name, Material icon, int diamondCost, Set<Integer> owners) {}
-
-    private List<TeamUpgrade> teamUpgrades() {
-        return List.of(
-                new TeamUpgrade("Sharpened Swords (team)", Material.DIAMOND_SWORD, 8, sharpnessTeams),
-                new TeamUpgrade("Reinforced Armor (team)", Material.DIAMOND_CHESTPLATE, 8, protectionTeams),
-                new TeamUpgrade("Maniac Miner (team haste)", Material.GOLDEN_PICKAXE, 4, hasteTeams));
-    }
-
-    private void openShop(Player player) {
-        ShopHolder holder = new ShopHolder();
-        Inventory inv = Bukkit.createInventory(holder, 27, Text.mm("<dark_gray>Item Shop"));
-        holder.inventory = inv;
-        for (int i = 0; i < SHOP.size(); i++) {
-            ShopItem entry = SHOP.get(i);
-            ItemStack display = entry.product().clone();
-            display.editMeta(meta -> meta.lore(List.of(
-                    (Component) Text.mm("<gray>Cost: <yellow>" + entry.cost() + " "
-                            + entry.currency().name().toLowerCase().replace('_', ' ')))));
-            inv.setItem(i, display);
-        }
-        GameTeam team = game.teamOf(player);
-        int teamIndex = team != null ? team.index() : 0;
-        List<TeamUpgrade> upgrades = teamUpgrades();
-        for (int i = 0; i < upgrades.size(); i++) {
-            TeamUpgrade upgrade = upgrades.get(i);
-            boolean owned = upgrade.owners().contains(teamIndex);
-            ItemStack display = new ItemStack(owned ? Material.LIME_DYE : upgrade.icon());
-            display.editMeta(meta -> {
-                meta.displayName(Text.mm((owned ? "<green>" : "<aqua>") + upgrade.name()));
-                meta.lore(List.of((Component) Text.mm(owned ? "<green>Purchased!"
-                        : "<gray>Cost: <aqua>" + upgrade.diamondCost() + " diamonds")));
-            });
-            inv.setItem(18 + i, display);
-        }
-        player.openInventory(inv);
-    }
-
-    @Override public void onInventoryDrag(Player player, org.bukkit.event.inventory.InventoryDragEvent event) { if (event.getInventory().getHolder() instanceof ShopHolder) event.setCancelled(true); }
 
     @Override
-    public void onInventoryClick(Player player, InventoryClickEvent event) {
-        if (botPurchaseProbes.contains(player.getUniqueId())) return;
-        if (!(event.getInventory().getHolder() instanceof ShopHolder)) return;
-        event.setCancelled(true);
-        int slot = event.getSlot();
-        if (event.getClickedInventory() != event.getInventory() || slot < 0) return;
-        if (slot >= 18 && slot < 18 + teamUpgrades().size()) {
-            buyTeamUpgrade(player, teamUpgrades().get(slot - 18));
-            return;
+    public void onInventoryClick(Player player, InventoryClickEvent event) { shopMenu.click(player, event); }
+
+    @Override
+    public void onInventoryDrag(Player player, InventoryDragEvent event) { shopMenu.drag(event); }
+
+    /** The server's editable copy if it parses, otherwise the one inside the jar. */
+    private ShopCatalogue loadCatalogue() {
+        try {
+            java.io.File file = new java.io.File(game.plugin().getDataFolder(), "bedwars-shop.yml");
+            if (!file.exists()) game.plugin().saveResource("bedwars-shop.yml", false);
+            try (var reader = java.nio.file.Files.newBufferedReader(file.toPath())) {
+                return ShopCatalogue.parse(reader);
+            }
+        } catch (Exception e) {
+            game.plugin().getLogger().warning("bedwars-shop.yml could not be used (" + e.getMessage() + "); using the built-in shop.");
+            return ShopCatalogue.loadBundled();
         }
-        if (slot >= SHOP.size()) return;
-        ShopItem entry = SHOP.get(slot);
-        buyItem(player,entry);
     }
 
-    private boolean buyItem(Player player,ShopItem entry) {
-        ItemStack product=entry.product();
-        if(product.getType()==Material.WHITE_WOOL) {
-            GameTeam team=game.teamOf(player);
-            if(team!=null) product=new ItemStack(team.palette().wool(),product.getAmount());
-        }
-        if(!BedwarsPurchase.buy(player.getInventory(),entry.currency(),entry.cost(),product)) {
-            if(!game.isBot(player)) player.sendMessage(Text.msg("<red>Not enough currency or inventory space."));
-            return false;
-        }
-        GameTeam team=game.teamOf(player);
-        if(team!=null) applyUpgrades(player,team.index());
-        player.playSound(player.getLocation(),Sound.ENTITY_EXPERIENCE_ORB_PICKUP,1f,1.4f);
-        return true;
+    private ShopCatalogue catalogue() {
+        if (catalogue == null) catalogue = ShopCatalogue.loadBundled();
+        return catalogue;
     }
 
-    private void buyTeamUpgrade(Player player, TeamUpgrade upgrade) {
+    private boolean teamUpgradesOn() { return game.arena().settings().getBoolean("team-upgrades", true); }
+
+    private final class Backend implements ShopBackend {
+        @Override public ShopCatalogue catalogue() { return BedwarsGame.this.catalogue(); }
+        @Override public boolean live(Player player) {
+            return game.state() == uk.co.playerready.pulsegames.core.game.GameState.RUNNING && game.isAlive(player);
+        }
+        @Override public boolean teamUpgradesOn() { return BedwarsGame.this.teamUpgradesOn(); }
+        @Override public Material woolFor(Player player) {
+            GameTeam team = game.teamOf(player);
+            return team == null ? null : team.palette().wool();
+        }
+        @Override public int upgradeLevel(Player player, ShopCatalogue.Upgrade upgrade) {
+            GameTeam team = game.teamOf(player);
+            return level(upgrade.effect(), team != null ? team.index() : 0);
+        }
+        @Override public Result buy(Player player, ShopCatalogue.Item item) { return buyItem(player, item); }
+        @Override public Result buyUpgrade(Player player, ShopCatalogue.Upgrade upgrade) { return BedwarsGame.this.buyUpgrade(player, upgrade); }
+        @Override public void runLater(Runnable task) { game.runLater(1L, task); }
+    }
+
+    private java.util.Set<Material> heldMaterials(Player player) {
+        java.util.Set<Material> held = new HashSet<>();
+        var inventory = player.getInventory();
+        for (ItemStack item : inventory.getContents()) if (item != null) held.add(item.getType());
+        for (ItemStack item : inventory.getArmorContents()) if (item != null) held.add(item.getType());
+        return held;
+    }
+
+    private ItemStack product(Player player, ShopCatalogue.Item entry) {
+        Material material = entry.material();
+        GameTeam team = game.teamOf(player);
+        if (entry.teamColour() && team != null) material = team.palette().wool();
+        ItemStack product = new ItemStack(material, entry.amount());
+        if (entry.potion() != null && product.getItemMeta() instanceof org.bukkit.inventory.meta.PotionMeta meta) {
+            var type = org.bukkit.Registry.POTION_EFFECT_TYPE.get(org.bukkit.NamespacedKey.minecraft(entry.potion().effect()));
+            if (type != null) meta.addCustomEffect(new org.bukkit.potion.PotionEffect(type, entry.potion().seconds() * 20, entry.potion().level() - 1), true);
+            product.setItemMeta(meta);
+        }
+        return product;
+    }
+
+    private ShopBackend.Result buyItem(Player player, ShopCatalogue.Item entry) {
+        var inventory = player.getInventory();
+        var verdict = ShopRules.verdict(catalogue(), entry, BedwarsPurchase.count(inventory, entry.currency()), heldMaterials(player));
+        switch (verdict.status()) {
+            case OWNED_THIS, OWNED_BETTER -> { return ShopBackend.Result.ALREADY_OWNED; }
+            case NEED_MORE -> { return ShopBackend.Result.NEED_MORE; }
+            default -> { }
+        }
         GameTeam team = game.teamOf(player);
         int teamIndex = team != null ? team.index() : 0;
-        if (upgrade.owners().contains(teamIndex)) {
-            player.sendMessage(Text.msg("<red>Your team already has that upgrade."));
-            return;
+        if (entry.equip()) {
+            if (!BedwarsPurchase.charge(inventory, entry.currency(), entry.cost())) return ShopBackend.Result.NEED_MORE;
+            shopArmour.put(player.getUniqueId(), entry.material());
+            wear(player, entry.material(), teamIndex);
+        } else if (!BedwarsPurchase.buy(inventory, entry.currency(), entry.cost(), product(player, entry), catalogue().lowerTiers(entry))) {
+            return ShopBackend.Result.NO_ROOM;
         }
-        if (!player.getInventory().containsAtLeast(new ItemStack(Material.DIAMOND), upgrade.diamondCost())) {
-            player.sendMessage(Text.msg("<red>You need <aqua>" + upgrade.diamondCost() + " diamonds</aqua> for that."));
-            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
-            return;
+        applyUpgrades(player, teamIndex);
+        return ShopBackend.Result.OK;
+    }
+
+    private ShopBackend.Result buyUpgrade(Player player, ShopCatalogue.Upgrade upgrade) {
+        GameTeam team = game.teamOf(player);
+        int teamIndex = team != null ? team.index() : 0;
+        int current = level(upgrade.effect(), teamIndex);
+        if (current >= upgrade.maxLevel()) return ShopBackend.Result.ALREADY_OWNED;
+        if (!BedwarsPurchase.charge(player.getInventory(), Material.DIAMOND, upgrade.costs().get(current))) {
+            return ShopBackend.Result.NEED_MORE;
         }
-        player.getInventory().removeItem(new ItemStack(Material.DIAMOND, upgrade.diamondCost()));
-        upgrade.owners().add(teamIndex);
+        upgradeLevels.computeIfAbsent(upgrade.effect(), e -> new HashMap<>()).put(teamIndex, current + 1);
         // Apply to every online teammate immediately (without resetting their gear).
         if (team != null) {
             for (java.util.UUID member : team.members()) {
@@ -385,14 +404,12 @@ public final class BedwarsGame extends MiniGame {
                 if (teammate != null && game.isAlive(teammate)) applyUpgrades(teammate, teamIndex);
             }
         }
+        String label = upgrade.name() + " " + ShopRules.roman(current + 1);
         game.broadcast(team != null
-                ? team.coloredName() + "</gray> unlocked <aqua>" + upgrade.name() + "</aqua>!"
-                : "<aqua>" + upgrade.name() + "</aqua> unlocked!");
+                ? team.coloredName() + "</gray> unlocked <aqua>" + label + "</aqua>!"
+                : "<aqua>" + label + "</aqua> unlocked!");
         player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1.4f);
-        // Re-opening from inside InventoryClickEvent leaves the client with a ghost window.
-        game.runLater(1L, () -> {
-            if (player.isOnline() && game.isAlive(player)) openShop(player);
-        });
+        return ShopBackend.Result.OK;
     }
 
     public String botStatus(Player bot) { return botStatuses.getOrDefault(bot.getUniqueId(),"Gathering resources"); }
@@ -458,30 +475,21 @@ public final class BedwarsGame extends MiniGame {
     }
     private boolean hasSword(Player bot,Material material) { return BedwarsPurchase.count(bot.getInventory(),material)>0; }
     private void botPurchase(Player bot) {
-        int selection=-1; var inventory=bot.getInventory();
-        if(uk.co.playerready.pulsegames.games.skywars.SkywarsBotInventory.blockSlot(inventory)<0) selection=0;
-        else if(!hasSword(bot,Material.DIAMOND_SWORD) && BedwarsPurchase.count(inventory,Material.DIAMOND)>=4) selection=5;
-        else if(!hasSword(bot,Material.IRON_SWORD) && !hasSword(bot,Material.DIAMOND_SWORD)
-                && BedwarsPurchase.count(inventory,Material.GOLD_INGOT)>=7) selection=4;
-        else if(!hasSword(bot,Material.STONE_SWORD) && !hasSword(bot,Material.IRON_SWORD) && !hasSword(bot,Material.DIAMOND_SWORD)) selection=3;
-        else if(uk.co.playerready.pulsegames.games.skywars.SkywarsBotInventory.rank(inventory.getChestplate())<3) selection=6;
-        else if(uk.co.playerready.pulsegames.games.skywars.SkywarsBotInventory.rank(inventory.getChestplate())<4
-                && BedwarsPurchase.count(inventory,Material.GOLD_INGOT)>=12) selection=7;
-        else if(BedwarsPurchase.count(inventory,Material.BOW)==0) selection=8;
-        else if(BedwarsPurchase.count(inventory,Material.ARROW)<12) selection=9;
-        if(selection<0) return;
-        ShopItem entry=SHOP.get(selection);
-        if(BedwarsPurchase.count(inventory,entry.currency())<entry.cost()) return;
-        openShop(bot);
-        var view=bot.getOpenInventory();
-        if(!(view.getTopInventory().getHolder() instanceof ShopHolder)) return;
-        botPurchaseProbes.add(bot.getUniqueId());
-        try {
-            var click=new InventoryClickEvent(view,org.bukkit.event.inventory.InventoryType.SlotType.CONTAINER,selection,
-                    org.bukkit.event.inventory.ClickType.LEFT,org.bukkit.event.inventory.InventoryAction.PICKUP_ALL);
-            game.plugin().getServer().getPluginManager().callEvent(click);
-            if(!click.isCancelled() && botActive(bot)) buyItem(bot,entry);
-        } finally { botPurchaseProbes.remove(bot.getUniqueId()); bot.closeInventory(); }
+        Material pick = null; var inventory = bot.getInventory();
+        if (uk.co.playerready.pulsegames.games.skywars.SkywarsBotInventory.blockSlot(inventory) < 0) pick = Material.WHITE_WOOL;
+        else if (!hasSword(bot, Material.DIAMOND_SWORD) && BedwarsPurchase.count(inventory, Material.DIAMOND) >= 4) pick = Material.DIAMOND_SWORD;
+        else if (!hasSword(bot, Material.IRON_SWORD) && !hasSword(bot, Material.DIAMOND_SWORD)
+                && BedwarsPurchase.count(inventory, Material.GOLD_INGOT) >= 7) pick = Material.IRON_SWORD;
+        else if (!hasSword(bot, Material.STONE_SWORD) && !hasSword(bot, Material.IRON_SWORD) && !hasSword(bot, Material.DIAMOND_SWORD)) pick = Material.STONE_SWORD;
+        else if (uk.co.playerready.pulsegames.games.skywars.SkywarsBotInventory.rank(inventory.getChestplate()) < 3) pick = Material.CHAINMAIL_CHESTPLATE;
+        else if (uk.co.playerready.pulsegames.games.skywars.SkywarsBotInventory.rank(inventory.getChestplate()) < 4
+                && BedwarsPurchase.count(inventory, Material.GOLD_INGOT) >= 12) pick = Material.IRON_CHESTPLATE;
+        else if (BedwarsPurchase.count(inventory, Material.BOW) == 0) pick = Material.BOW;
+        else if (BedwarsPurchase.count(inventory, Material.ARROW) < 12) pick = Material.ARROW;
+        if (pick == null) return;
+        ShopCatalogue.Item entry = catalogue().byMaterial(pick);
+        if (entry == null || BedwarsPurchase.count(inventory, entry.currency()) < entry.cost()) return;
+        if (botActive(bot)) buyItem(bot, entry);
     }
     private Block nextDefence(GameTeam team) {
         if(!bedAlive.getOrDefault(team.index(),false) || team.index()>=bedRegions.size()) return null;
@@ -557,14 +565,14 @@ public final class BedwarsGame extends MiniGame {
     }
     @Override public void onCleanup() {
         botBow.clear(); botTraversal.clear(); botNextAction.clear(); botPlaced.clear(); botStatuses.clear();
-        botPurchaseProbes.clear(); botMining.clear(); botNextPlace.clear();
+        botMining.clear(); botNextPlace.clear(); shopArmour.clear();
     }
 
     // ---- rules ----------------------------------------------------------------------
 
     @Override
     public List<String> sidebar(Player player) {
-        List<String> lines = new ArrayList<>();
+        List<String> lines = new ArrayList<>(BedwarsTimers.lines(game.gameTime(), game.teams().size()));
         for (GameTeam team : game.teams()) {
             boolean alive = team.members().stream().map(game::player)
                     .anyMatch(p -> p != null && game.isAlive(p));

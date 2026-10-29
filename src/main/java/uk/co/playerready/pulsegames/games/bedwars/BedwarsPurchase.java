@@ -4,22 +4,44 @@ import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 
+import java.util.Set;
+
 /** Prepare a complete finite purchase before touching the real inventory. */
 final class BedwarsPurchase {
     private BedwarsPurchase() {}
     static boolean buy(PlayerInventory inventory,Material currency,int cost,ItemStack product) {
-        if(cost<=0 || product==null || product.getAmount()<=0) return false;
-        ItemStack[] plan=new ItemStack[36]; int funds=0;
-        for(int i=0;i<plan.length;i++) {
-            ItemStack item=inventory.getItem(i); plan[i]=item==null?null:item.clone();
-            if(item!=null && item.getType()==currency && !item.hasItemMeta()) funds+=item.getAmount();
-        }
+        return buy(inventory,currency,cost,product,Set.of());
+    }
+    /** Pay only: for purchases that are worn rather than carried (armour) and team upgrades. */
+    static boolean charge(PlayerInventory inventory,Material currency,int cost) {
+        if(cost<=0) return false;
+        ItemStack[] plan=snapshot(inventory);
+        if(!pay(inventory,plan,currency,cost)) return false;
+        for(int i=0;i<plan.length;i++) inventory.setItem(i,plan[i]);
+        return true;
+    }
+    private static ItemStack[] snapshot(PlayerInventory inventory) {
+        ItemStack[] plan=new ItemStack[36];
+        for(int i=0;i<plan.length;i++) { ItemStack item=inventory.getItem(i); plan[i]=item==null?null:item.clone(); }
+        return plan;
+    }
+    private static boolean pay(PlayerInventory inventory,ItemStack[] plan,Material currency,int cost) {
+        int funds=0;
+        for(int i=0;i<plan.length;i++) { ItemStack item=inventory.getItem(i); if(item!=null && item.getType()==currency && !item.hasItemMeta()) funds+=item.getAmount(); }
         if(funds<cost) return false;
         int remainingCost=cost;
         for(int i=0;i<plan.length && remainingCost>0;i++) if(plan[i]!=null && plan[i].getType()==currency && !plan[i].hasItemMeta()) {
             int paid=Math.min(plan[i].getAmount(),remainingCost); remainingCost-=paid;
             if(paid==plan[i].getAmount()) plan[i]=null; else plan[i].setAmount(plan[i].getAmount()-paid);
         }
+        return true;
+    }
+    /** @param replace lower-tier materials removed in the same all-or-nothing step (a better sword replaces a worse one). */
+    static boolean buy(PlayerInventory inventory,Material currency,int cost,ItemStack product,Set<Material> replace) {
+        if(cost<=0 || product==null || product.getAmount()<=0) return false;
+        ItemStack[] plan=snapshot(inventory);
+        if(!pay(inventory,plan,currency,cost)) return false;
+        for(int i=0;i<plan.length;i++) if(plan[i]!=null && replace.contains(plan[i].getType())) plan[i]=null;
         int remaining=product.getAmount(),limit=Math.max(1,product.getMaxStackSize());
         for(int i=0;i<plan.length && remaining>0;i++) if(plan[i]!=null && plan[i].isSimilar(product)) {
             int add=Math.min(remaining,Math.max(0,limit-plan[i].getAmount()));
