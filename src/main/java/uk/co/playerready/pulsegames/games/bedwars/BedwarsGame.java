@@ -7,8 +7,6 @@ import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
-import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
@@ -51,7 +49,7 @@ public final class BedwarsGame extends MiniGame {
     /** Armour bought from the shop: worn again after every respawn. */
     private final Map<java.util.UUID, Material> shopArmour = new HashMap<>();
     private ShopCatalogue catalogue;
-    private final BedwarsShopMenu shopMenu = new BedwarsShopMenu(new Backend());
+    private final BedwarsShopMenu shopMenu = new BedwarsShopMenu(game.plugin(), new Backend());
     private List<Cuboid> bedRegions = List.of();
     private int generatorTier = 1;
     private final uk.co.playerready.pulsegames.games.skywars.SkywarsBotBow botBow=new uk.co.playerready.pulsegames.games.skywars.SkywarsBotBow();
@@ -299,12 +297,6 @@ public final class BedwarsGame extends MiniGame {
             shopMenu.open(event.getPlayer());
         }
     }
-
-    @Override
-    public void onInventoryClick(Player player, InventoryClickEvent event) { shopMenu.click(player, event); }
-
-    @Override
-    public void onInventoryDrag(Player player, InventoryDragEvent event) { shopMenu.drag(event); }
 
     /** The server's editable copy if it parses, otherwise the one inside the jar. */
     private ShopCatalogue loadCatalogue() {
