@@ -161,6 +161,7 @@ public final class MatchResults {
                 menu.set(4, item(Material.NETHER_STAR, "Squad summary", result.summary()));
             List<String> mine = new ArrayList<>(result.placeLines().stream().filter(l -> l.startsWith("You finished")).toList());
             mine.addAll(result.lines());
+            mine.add(0, plugin.levels() == null ? "" : plugin.levels().tag(player) + " " + player.getName());
             menu.set(13, item(Material.PAPER, result.place() > 0
                     ? "You finished " + Placements.ordinal(result.place()) : "Your result", mine));
             menu.set(29, item(Material.LIME_DYE, result.practice() ? "Repeat practice" : "Play again", List.of("Queue the same mode with your party")), p -> act(p, result.match(), "again"));

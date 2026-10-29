@@ -24,6 +24,7 @@ public final class StatsMenu {
     static final int WEEKLY_SLOT = 4;
     static final int COSMETICS_SLOT = 5;
     static final int SETTINGS_SLOT = 6;
+    static final int LEVEL_SLOT = 1;
     /** Games per page: rows 2-4, columns 1-7. */
     static final int PER_PAGE = 21;
 
@@ -34,7 +35,7 @@ public final class StatsMenu {
     static int gameSlot(int index) { return 19 + (index / 7) * 9 + index % 7; }
 
     public void open(Player player) {
-        Menu menu = new Menu(plugin, player, Theme.title("My stats"), 6);
+        Menu menu = new Menu(plugin, player, Theme.title(plugin.levels().tag(player) + " My stats"), 6);
         int[] page = {0};
         menu.renderer(() -> render(menu, player, page));
         menu.open(player);
@@ -57,6 +58,10 @@ public final class StatsMenu {
                 Lore.of().kv("Best", String.valueOf(plugin.engagement().bestStreak(player))).blank().desc("Wins in a row.")));
         menu.set(WEEKLY_SLOT, Buttons.item(Material.GOLDEN_HELMET, Theme.NAME + "Wins this week",
                 Lore.of().kv("Wins", String.valueOf(plugin.stats().weeklyWins(player))).blank().desc("Starts again every week.")));
+        var level = plugin.levels().progress(player);
+        menu.set(LEVEL_SLOT, Buttons.item(Material.EXPERIENCE_BOTTLE, uk.co.playerready.pulsegames.core.progression.XpRules.colouredTag(level.level()) + " <b>Level " + level.level(),
+                Lore.of().line("<white>" + uk.co.playerready.pulsegames.core.progression.XpRules.bar(level, 10)).blank().hint("Click for details")),
+                p -> plugin.levelMenu().open(p));
         menu.set(COSMETICS_SLOT, cosmetics(player));
         menu.set(SETTINGS_SLOT, Buttons.item(Material.COMPARATOR, Theme.ACCENT + "My settings",
                 Lore.of().desc("Party invites and comfort options.").blank().hint("Click to open")),

@@ -12,6 +12,7 @@ public final class FormLayout {
     public static final String CHALLENGES = "challenges";
     public static final String TOP = "top";
     public static final String KIT = "kit";
+    public static final String LEVEL = "level";
     public static final String BACK = "back";
     public static final String GAME = "game:";
     public static final String MODE = "mode:";
@@ -44,6 +45,7 @@ public final class FormLayout {
         out.add(new Button("Daily challenges", CHALLENGES));
         out.add(new Button("Weekly top 3", TOP));
         out.add(new Button("KitPvP loadout", KIT));
+        out.add(new Button("My level", LEVEL));
         return out;
     }
 

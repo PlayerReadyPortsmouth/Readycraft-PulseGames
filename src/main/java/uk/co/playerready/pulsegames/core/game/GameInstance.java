@@ -266,6 +266,12 @@ public final class GameInstance {
         return placements().keySet().stream().map(this::player).filter(java.util.Objects::nonNull).toList();
     }
 
+    /** Podium names carry the level prefix, like the lobby nametag. */
+    private String podiumName(UUID id) {
+        Player p = player(id);
+        return p != null && plugin.levels() != null && !isBot(p) ? plugin.levels().tag(p) + " " + p.getName() : nameOf(id);
+    }
+
     private String nameOf(UUID id) {
         Player p = player(id);
         return p != null ? p.getName() : names.getOrDefault(id, "Player");
@@ -341,6 +347,9 @@ public final class GameInstance {
     }
 
     /** Seconds this player survived: when they went out, or the whole round if still alive. */
+    /** Kills this player scored in the current round (for XP). */
+    public int roundKillCount(Player player) { return roundKills.getOrDefault(player.getUniqueId(), 0); }
+
     public int survivedSeconds(Player player) {
         return survivedAt.getOrDefault(player.getUniqueId(), gameTime);
     }
@@ -848,7 +857,7 @@ public final class GameInstance {
         creditedWinners.forEach(w -> winnerIds.add(w.getUniqueId()));
         finalPlacements = coop ? Map.of() : Placements.compute(field(), finishOrder, winnerIds, alive, outOrder);
         int fieldSize = field().size();
-        List<String> podium = Placements.podium(finalPlacements, this::nameOf);
+        List<String> podium = Placements.podium(finalPlacements, this::podiumName);
         boolean anyWinner = !creditedWinners.isEmpty();
         boolean decided = anyWinner || !reason.equals("forced");
         int minField = plugin.getConfig().getInt("economy.placement-min-players", 4);

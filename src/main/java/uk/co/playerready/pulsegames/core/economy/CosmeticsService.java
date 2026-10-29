@@ -13,7 +13,8 @@ import java.util.concurrent.ThreadLocalRandom;
 /** The cosmetic catalog and the effect implementations behind each unlock. */
 public final class CosmeticsService {
 
-    public static final List<Cosmetic> CATALOG = List.of(
+    /** The coded cosmetics. The rest of the catalogue is data in cosmetics.yml. */
+    public static final List<Cosmetic> BUILTIN = List.of(
             // Kill effects (played where your victim fell)
             new Cosmetic("ke-lightning", Cosmetic.Category.KILL_EFFECT, "Lightning Strike",
                     Material.LIGHTNING_ROD, 400, "A bolt from the blue marks your kill"),
@@ -51,6 +52,23 @@ public final class CosmeticsService {
                     Material.NETHERITE_CHESTPLATE, 800, "Heavy armor, slow but unstoppable"),
             new Cosmetic("kit-archer", Cosmetic.Category.KIT, "Archer Kit",
                     Material.BOW, 800, "Power bow and mobility"));
+
+    /** Built-in items plus whatever cosmetics.yml added; swapped whole by {@link #loadExtra}. */
+    public static volatile List<Cosmetic> CATALOG = BUILTIN;
+
+    /** Adds the data-file items to the catalogue; bad entries are returned as problems and skipped. */
+    public static List<String> loadExtra(org.bukkit.configuration.ConfigurationSection section) {
+        var parsed = CosmeticCatalogue.parse(section, BUILTIN.stream().map(Cosmetic::id).collect(java.util.stream.Collectors.toSet()));
+        List<Cosmetic> all = new java.util.ArrayList<>(BUILTIN);
+        all.addAll(parsed.items());
+        CATALOG = List.copyOf(all);
+        return parsed.problems();
+    }
+
+    /** Level-unlocked items in unlock order. */
+    public static List<Cosmetic> levelRewards() {
+        return CATALOG.stream().filter(Cosmetic::levelUnlock).sorted(java.util.Comparator.comparingInt(Cosmetic::level)).toList();
+    }
 
     /** Games where an equipped trail also shows during the match, not just in the lobby. */
     public static boolean trailInMatch(String gameId) {
@@ -92,7 +110,7 @@ public final class CosmeticsService {
             }
             case "ke-ink" -> world.spawnParticle(Particle.SQUID_INK, victimLocation.clone().add(0, 1, 0),
                     25, 0.4, 0.6, 0.4, 0.05);
-            default -> { }
+            default -> playData(id, world, victimLocation);
         }
     }
 
@@ -122,7 +140,7 @@ public final class CosmeticsService {
                 world.playSound(loc, Sound.BLOCK_BELL_USE, 1f, 1.2f);
                 world.playSound(loc, Sound.BLOCK_NOTE_BLOCK_BELL, 1f, 1.5f);
             }
-            default -> { }
+            default -> playData(id, world, loc);
         }
     }
 
@@ -143,8 +161,21 @@ public final class CosmeticsService {
                 world.spawnParticle(Particle.DUST, loc, 5, 0.2, 0.1, 0.2,
                         new Particle.DustOptions(color, 1.2f));
             }
-            default -> { }
+            default -> playData(id, world, loc);
         }
+    }
+
+    /** Plays a cosmetics.yml effect by id; unknown ids and effect-less items do nothing. */
+    private static void playData(String id, org.bukkit.World world, Location at) {
+        Cosmetic cosmetic = byId(id);
+        if (cosmetic != null && cosmetic.effect() != null) cosmetic.effect().play(world, at);
+    }
+
+    /** The effect of the owned, equipped spectator reaction, or null for the default reactions. */
+    public EffectSpec equippedReaction(Player player) {
+        String id = economy.equipped(player, Cosmetic.Category.EMOTE);
+        Cosmetic cosmetic = id == null || !economy.isUnlocked(player, id) ? null : byId(id);
+        return cosmetic == null ? null : cosmetic.effect();
     }
 
     /** Equipped, unlocked Kit PvP kit id (e.g. "tank"), or null for the default. */

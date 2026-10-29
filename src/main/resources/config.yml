@@ -328,6 +328,10 @@ combat:
 # Owner: AurorasChaos; review 2026-11-14; retain as collection/delivery pause until acceptance.
 progression:
   enabled: false
+  # XP levels across every game ([12] prefix, /level, /wardrobe). XP comes from eligible rounds and challenges only.
+  levels-enabled: true
+  # Tell the lobby (never other servers) when someone reaches level 5, 10, 15 ...
+  announce-levels: true
   event-id: "" # Stable event ID; only matches completed during this configured event count.
 
 # Quick Play hotbar item/menu button and the daily featured game.
@@ -351,17 +355,20 @@ challenges:
       type: DISTINCT_GAMES
       target: 3
       reward: 40
+      xp: 40   # XP towards your level (0 for none)
     win-a-round:
       name: "Win a round of anything"
       type: WINS
       target: 1
       reward: 30
+      xp: 30
     survive-avalanche:
       name: "Survive 90 seconds in Avalanche"
       type: SURVIVE_SECONDS
       game: avalanche
       target: 90
       reward: 30
+      xp: 30
 
 # Weekly top-three board (/top): tokens paid at the Monday reset to 1st, 2nd and 3rd.
 leaderboard:

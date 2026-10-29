@@ -13,7 +13,7 @@ class FormsLogicTest {
     @Test void quickPlayIsFirstThenGamesInOrderThenHelpers() {
         var b = gameList(List.of(new GameRow("spleef", "Spleef", 3, 5, true), new GameRow("x", "Maze", 0, 0, false)));
         assertEquals(QUICK_PLAY, b.get(0).target());
-        assertEquals(List.of(QUICK_PLAY, "game:spleef", "soon:x", PARTY, CHALLENGES, TOP, KIT),
+        assertEquals(List.of(QUICK_PLAY, "game:spleef", "soon:x", PARTY, CHALLENGES, TOP, KIT, LEVEL),
                 b.stream().map(Button::target).toList());
         assertEquals("Spleef\n3 waiting, 5 playing", b.get(1).label());
         assertEquals("Maze\nComing soon!", b.get(2).label());
