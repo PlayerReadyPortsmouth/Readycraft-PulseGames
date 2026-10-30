@@ -411,3 +411,104 @@ cosmetics:
       sound: "minecraft:block.note_block.bell"
       volume: 0.6
       pitch: 1.4
+
+  # ---- Name styles (level rewards) ------------------------------------------------------------
+  # slot: name_style. The id must be ns-<network style id>; unlocking one grants the LuckPerms permission
+  # pulse.namestyle.<id> (see progression.namestyle-grants). Players pick it with /namestyle.
+  # Name styles may use any level from 1 to 100 (one per level); other items keep multiples of 5.
+  ns-red:
+    slot: name_style
+    name: "Red Name"
+    icon: RED_DYE
+    level: 3
+    description: "A bold red name"
+  ns-orange:
+    slot: name_style
+    name: "Orange Name"
+    icon: ORANGE_DYE
+    level: 6
+    description: "A bright orange name"
+  ns-yellow:
+    slot: name_style
+    name: "Yellow Name"
+    icon: YELLOW_DYE
+    level: 9
+    description: "A sunny yellow name"
+  ns-green:
+    slot: name_style
+    name: "Green Name"
+    icon: LIME_DYE
+    level: 12
+    description: "A fresh green name"
+  ns-aqua:
+    slot: name_style
+    name: "Aqua Name"
+    icon: CYAN_DYE
+    level: 15
+    description: "A cool aqua name"
+  ns-blue:
+    slot: name_style
+    name: "Blue Name"
+    icon: BLUE_DYE
+    level: 18
+    description: "A deep blue name"
+  ns-purple:
+    slot: name_style
+    name: "Purple Name"
+    icon: PURPLE_DYE
+    level: 21
+    description: "A royal purple name"
+  ns-pink:
+    slot: name_style
+    name: "Pink Name"
+    icon: PINK_DYE
+    level: 24
+    description: "A cheerful pink name"
+  ns-sunset:
+    slot: name_style
+    name: "Sunset Name"
+    icon: ORANGE_CONCRETE
+    level: 30
+    description: "Orange fading into pink, like the end of the day"
+  ns-ocean:
+    slot: name_style
+    name: "Ocean Name"
+    icon: PRISMARINE_SHARD
+    level: 40
+    description: "Blue fading into aqua, like the sea"
+  ns-forest:
+    slot: name_style
+    name: "Forest Name"
+    icon: OAK_SAPLING
+    level: 50
+    description: "Greens that shift like leaves"
+  ns-candy:
+    slot: name_style
+    name: "Candy Name"
+    icon: SUGAR
+    level: 60
+    description: "Pink and aqua, sweet as sweets"
+  ns-rainbow:
+    slot: name_style
+    name: "Rainbow Name"
+    icon: AMETHYST_SHARD
+    level: 70
+    description: "Every colour, always moving"
+  ns-shimmer:
+    slot: name_style
+    name: "Shimmer Name"
+    icon: GLOW_INK_SAC
+    level: 80
+    description: "A soft shine that sweeps across your name"
+  ns-pulse:
+    slot: name_style
+    name: "Pulse Name"
+    icon: REDSTONE
+    level: 90
+    description: "Your name glows in and out"
+  ns-sparkle:
+    slot: name_style
+    name: "Sparkle Name"
+    icon: NETHER_STAR
+    level: 100
+    description: "The top name style: your name twinkles"

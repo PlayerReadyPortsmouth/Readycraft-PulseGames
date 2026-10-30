@@ -96,6 +96,7 @@ public final class StatsMenu {
     private org.bukkit.inventory.ItemStack cosmetics(Player player) {
         Lore lore = Lore.of();
         for (Cosmetic.Category category : Cosmetic.Category.values()) {
+            if (category == Cosmetic.Category.NAME_STYLE) continue; // chosen with /namestyle
             Cosmetic equipped = CosmeticsService.byId(plugin.economy().equipped(player, category));
             lore.kv(category.displayName, equipped == null ? "None" : equipped.name());
         }

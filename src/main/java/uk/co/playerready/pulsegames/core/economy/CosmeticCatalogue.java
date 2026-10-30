@@ -24,7 +24,7 @@ public final class CosmeticCatalogue {
         List<String> problems = new ArrayList<>();
         if (section == null) return new Parsed(items, problems);
         Set<String> seen = new HashSet<>(takenIds);
-        Set<Integer> levels = new HashSet<>();
+        Set<Integer> levels = new HashSet<>(), styleLevels = new HashSet<>();
         for (String id : section.getKeys(false)) {
             ConfigurationSection s = section.getConfigurationSection(id);
             try {
@@ -33,14 +33,19 @@ public final class CosmeticCatalogue {
                 Cosmetic.Category slot = slot(s.getString("slot", ""));
                 int price = s.getInt("price", 0), level = s.getInt("level", 0);
                 if (price > 0 == level > 0) throw new IllegalArgumentException("needs exactly one of price or level");
-                if (level > 0 && !uk.co.playerready.pulsegames.core.progression.XpRules.isUnlockLevel(level))
+                boolean style = slot == Cosmetic.Category.NAME_STYLE;
+                if (style && (level <= 0 || level > uk.co.playerready.pulsegames.core.progression.XpRules.MAX_LEVEL
+                        || !id.startsWith(Cosmetic.NAME_STYLE_PREFIX)))
+                    throw new IllegalArgumentException("a name style needs an ns- id and a level from 1 to 100");
+                if (level > 0 && !style && !uk.co.playerready.pulsegames.core.progression.XpRules.isUnlockLevel(level))
                     throw new IllegalArgumentException("level must be a multiple of 5 up to 100");
-                if (level > 0 && !levels.add(level)) throw new IllegalArgumentException("level " + level + " already unlocks another item");
+                if (level > 0 && !(style ? styleLevels : levels).add(level))
+                    throw new IllegalArgumentException("level " + level + " already unlocks another item");
                 String name = s.getString("name", "");
                 if (name.isBlank()) throw new IllegalArgumentException("missing name");
                 Material icon = Material.matchMaterial(s.getString("icon", ""));
                 if (icon == null) throw new IllegalArgumentException("unknown icon");
-                EffectSpec effect = slot == Cosmetic.Category.KIT ? null : EffectSpec.parse(s.getConfigurationSection("effect"));
+                EffectSpec effect = slot == Cosmetic.Category.KIT || style ? null : EffectSpec.parse(s.getConfigurationSection("effect"));
                 items.add(new Cosmetic(id, slot, name, icon, price, s.getString("description", ""), level, effect));
             } catch (IllegalArgumentException bad) {
                 problems.add(id + ": " + bad.getMessage());
