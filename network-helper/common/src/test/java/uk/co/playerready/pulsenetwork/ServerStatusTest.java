@@ -45,4 +45,26 @@ class ServerStatusTest {
         assertTrue(ServerStatus.parse(List.of("20", "5", "1", id + "1")).isPresent());
         assertThrows(IllegalArgumentException.class, () -> new Wire(KEY, NOW).encode("STATUS", UUID.randomUUID(), "x".repeat(1025)));
     }
+    @Test void levelsRoundTripAndTruncateWithinThePacketLimit() {
+        UUID a = UUID.randomUUID();
+        var small = new ServerStatus(20, 1, 2, Map.of(a, ServerStatus.AFK), Map.of(a, 12));
+        var parsed = ServerStatus.parse(List.of(small.toFields())).orElseThrow();
+        assertEquals(Map.of(a, 12), parsed.levels()); assertEquals(small.flags(), parsed.flags());
+        var flags = new HashMap<UUID, Integer>(); var levels = new HashMap<UUID, Integer>();
+        for (int i = 0; i < 400; i++) { UUID id = UUID.randomUUID(); flags.put(id, ServerStatus.AFK); levels.put(id, 9999); }
+        String[] fields = new ServerStatus(20, 1, 400, flags, levels).toFields();
+        assertTrue(fields.length <= 3 + ServerStatus.MAX_CHUNKS + ServerStatus.MAX_LEVEL_CHUNKS);
+        byte[] packet = new Wire(KEY, NOW).encode("STATUS", UUID.randomUUID(), fields);
+        assertTrue(packet.length <= 8192);
+        var back = ServerStatus.parse(new Wire(KEY, NOW).decode(packet).orElseThrow().fields()).orElseThrow();
+        assertFalse(back.levels().isEmpty()); assertTrue(back.levels().size() <= 2 * 19);
+    }
+    @Test void oldReportsParseAndBadLevelChunksAreRejected() {
+        String id = UUID.randomUUID().toString().replace("-", "");
+        assertTrue(ServerStatus.parse(List.of("20", "5", "1", id + "1")).orElseThrow().levels().isEmpty());
+        assertTrue(ServerStatus.parse(List.of("20", "5", "1", "L" + id + ":12")).isPresent());
+        assertTrue(ServerStatus.parse(List.of("20", "5", "1", "L" + id + ":0")).isEmpty());
+        assertTrue(ServerStatus.parse(List.of("20", "5", "1", "L" + id + ":12345")).isEmpty());
+        assertTrue(ServerStatus.parse(List.of("20", "5", "1", "L" + id + ":12", id + "1")).isEmpty());
+    }
 }

@@ -26,6 +26,9 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
     private final Map<UUID, Visit> visits = new HashMap<>();
     private Set<String> advertised = Set.of();
     private StatusReporter status;
+    private final StatusReporter levelLookup = new StatusReporter(List.of());
+    private final LuckPermsMeta lpMeta = new LuckPermsMeta();
+    private NameStyle.Tags tags = NameStyle.Tags.DEFAULT;
     @Override public void onEnable() {
         saveDefaultConfig();
         try { returnLocations = ReturnLocations.load(new java.io.File(getDataFolder(), "return-locations.yml").toPath()); }
@@ -42,9 +45,17 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
             status = new StatusReporter(getConfig().getStringList("tab-status.afk-metadata-keys"));
             getServer().getScheduler().runTaskTimer(this, this::statusTick, 40, 100);
         }
+        tags = loadTags();
         compatibility = new ChatCompatibility(this); compatibility.start();
         chatGames = new LocalChatGames(this);
         getServer().getScheduler().runTaskTimer(this, chatGames::tick, 20, 20);
+    }
+    private NameStyle.Tags loadTags() {
+        var section = getConfig().getConfigurationSection("tags");
+        var overrides = new HashMap<String, String>();
+        if (section != null) for (String role : section.getKeys(false)) overrides.put(role, section.getString(role, ""));
+        try { return new NameStyle.Tags(overrides); }
+        catch (IllegalArgumentException e) { getLogger().warning("Invalid tags configuration; built-in role tags are used."); return NameStyle.Tags.DEFAULT; }
     }
     @Override public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) return true;
@@ -54,6 +65,23 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
         global.put(player.getUniqueId(), enabled);
         player.sendMessage(Component.text(enabled ? "Global chat on. Your public messages also reach other servers." : "Local chat on. Your messages stay on this server."));
         return true;
+    }
+    /** Tag, level and name style for local system delivery (static frame), per viewer kind. Falls back to the plain display name on failure. */
+    private java.util.function.Function<net.kyori.adventure.audience.Audience, Component> styledNames(Player player) {
+        Component[] cache = new Component[2];
+        return viewer -> {
+            int slot = LocalChatDelivery.bedrock(viewer) ? 1 : 0;
+            if (cache[slot] == null) cache[slot] = styledName(player, slot == 1);
+            return cache[slot];
+        };
+    }
+    private Component styledName(Player player, boolean bedrockViewer) {
+        try {
+            var games = getServer().getPluginManager().getPlugin("PulseGames");
+            Integer level = levelLookup.level(games, player);
+            var identity = IdentityResolver.resolve(player.getUniqueId(), player.getName(), lpMeta, level, tags);
+            return NameStyle.render(identity, bedrockViewer, 0, tags, NameStyle.MAX_VISIBLE);
+        } catch (RuntimeException e) { return player.displayName(); }
     }
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void chat(AsyncChatEvent event) {
@@ -65,7 +93,7 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
         // system message and the signed packet is not also sent. Mutes, filters and channels have already trimmed it.
         if (getConfig().getBoolean("chat.local-system-delivery")) {
             var viewers = event.viewers();
-            LocalChatDelivery.deliver(viewers, event.renderer(), event.getPlayer(), event.getPlayer().displayName(), event.message(),
+            LocalChatDelivery.deliver(viewers, event.renderer(), event.getPlayer(), styledNames(event.getPlayer()), event.message(),
                     getConfig().getString("chat.local-format", LocalChatDelivery.DEFAULT_FORMAT));
             viewers.clear();
         }

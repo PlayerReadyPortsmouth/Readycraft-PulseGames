@@ -20,7 +20,7 @@ final class TabService {
     private record Seen(ServerStatus status, long at) {}
     private static final class Viewer {
         final Set<UUID> owned = ConcurrentHashMap.newKeySet();
-        volatile long lastUpdate, lastPeriodic, settleUntil;
+        volatile long lastUpdate, lastPeriodic, settleUntil, lastFrame;
         volatile Component[] lastHeaderFooter;
     }
     private final ProxyServer proxy;
@@ -29,6 +29,7 @@ final class TabService {
     private final Set<String> participating;
     private final Clock clock;
     private final OptionalPlugins optional = new OptionalPlugins();
+    private final LuckPermsMeta lpMeta = new LuckPermsMeta();
     private final boolean floodgate;
     private final Map<String, Seen> statuses = new ConcurrentHashMap<>();
     private final Map<UUID, Viewer> viewers = new ConcurrentHashMap<>();
@@ -51,6 +52,13 @@ final class TabService {
         return seen == null || clock.millis() - seen.at() > STATUS_TTL_MS ? null : seen.status();
     }
 
+    /** Level from the authenticated backend report for {@code server}, or null when unknown or stale. */
+    Integer level(String server, UUID id) {
+        var s = status(server);
+        return s == null ? null : s.levels().get(id);
+    }
+    NameStyle.Tags tags() { return config.tags(); }
+
     @Subscribe public void connected(ServerPostConnectEvent event) {
         var viewer = viewers.computeIfAbsent(event.getPlayer().getUniqueId(), id -> new Viewer());
         viewer.owned.clear(); // Velocity cleared the old server's list; backend entries for this server arrive shortly.
@@ -65,16 +73,20 @@ final class TabService {
         boolean dirty = everyoneDirty; everyoneDirty = false;
         statuses.values().removeIf(s -> now - s.at() > STATUS_TTL_MS * 3);
         var members = new ArrayList<TabRoster.Member>();
+        boolean animated = false;
         var players = List.copyOf(proxy.getAllPlayers());
         for (Player p : players) {
             String server = server(p);
             if (server == null || !participating.contains(server)) continue;
             var flags = status(server) == null ? 0 : status(server).flags().getOrDefault(p.getUniqueId(), 0);
             String[] meta = optional.meta(p.getUniqueId());
+            var identity = IdentityResolver.resolve(p.getUniqueId(), p.getUsername(), lpMeta, level(server, p.getUniqueId()), config.tags());
+            animated |= NameStyle.isAnimated(identity.styleId());
             members.add(new TabRoster.Member(p.getUniqueId(), p.getUsername(), server, (int) Math.min(9999, Math.max(0, p.getPing())), meta[0], meta[1],
                     bedrock(p), (flags & ServerStatus.HIDDEN) != 0 || p.hasPermission("pulsenetwork.tab.hidden"),
-                    (flags & ServerStatus.AFK) != 0, (flags & ServerStatus.MATCH) != 0));
+                    (flags & ServerStatus.AFK) != 0, (flags & ServerStatus.MATCH) != 0, identity.role(), identity.styleId(), identity.level()));
         }
+        long frame = TabRender.frame(now, config);
         var cache = new HashMap<String, List<TabRender.Row>>();
         var groupCache = new HashMap<String, List<TabRoster.Group>>();
         for (Player viewer : players) {
@@ -84,11 +96,12 @@ final class TabService {
                 if (server == null) continue;
                 if (!participating.contains(server)) { release(viewer, state); continue; }
                 boolean periodic = now - state.lastPeriodic >= PERIODIC_MS;
-                if (!(dirty || periodic || now < state.settleUntil) || now - state.lastUpdate < config.minIntervalMs()) continue;
-                state.lastUpdate = now; if (periodic) state.lastPeriodic = now;
+                boolean newFrame = animated && frame != state.lastFrame; // static rows are identical across frames, so TabSync sends nothing for them
+                if (!(dirty || periodic || newFrame || now < state.settleUntil) || now - state.lastUpdate < config.minIntervalMs()) continue;
+                state.lastUpdate = now; state.lastFrame = frame; if (periodic) state.lastPeriodic = now;
                 boolean bedrock = bedrock(viewer);
                 var groups = groupCache.computeIfAbsent(server, s -> TabRoster.groups(members, s, config.order(), participating));
-                var rows = cache.computeIfAbsent(server + (bedrock ? "/b" : "/j"), k -> TabRender.rows(groups, server, config, bedrock));
+                var rows = cache.computeIfAbsent(server + (bedrock ? "/b" : "/j/" + (animated ? frame : 0)), k -> TabRender.rows(groups, server, config, bedrock, frame));
                 TabSync.apply(viewer.getTabList(), rows, state.owned);
                 var counts = new LinkedHashMap<String, Integer>();
                 int total = 0;

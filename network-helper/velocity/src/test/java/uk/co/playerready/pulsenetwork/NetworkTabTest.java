@@ -172,4 +172,38 @@ class NetworkTabTest {
         when(p.getProtocolVersion()).thenReturn(com.velocitypowered.api.network.ProtocolVersion.MINECRAFT_1_21_4);
         return p;
     }
+
+    static TabRoster.Member styled(String name, String prefix, String role, String style, Integer level, boolean afk) {
+        return new TabRoster.Member(UUID.nameUUIDFromBytes(name.getBytes()), name, "lobby", 40, prefix, "", false, false, afk, false, role, style, level);
+    }
+    @Test void roleTagReplacesLuckPermsPrefixButPrefixStaysAsFallback() {
+        assertEquals("[DEV] [12] Aurora", text(TabRender.displayName(styled("Aurora", "&7staff", "dev", null, 12, false), CONFIG, false)));
+        assertEquals("staff Aurora", text(TabRender.displayName(styled("Aurora", "&7staff", null, null, null, false), CONFIG, false)));
+        assertEquals("[VENUE] Aurora", text(TabRender.displayName(styled("Aurora", "", "venue", null, null, false), CONFIG, false)));
+        assertEquals("[ADMIN] Aurora", text(TabRender.displayName(styled("Aurora", "", "admin", null, null, false), CONFIG, true)));
+    }
+    @Test void rowFitsThirtyTwoVisibleCharactersIncludingAfkAndBedrockMarker() {
+        var m = new TabRoster.Member(UUID.randomUUID(), "Name_Ten_X", "lobby", 1, "", "", true, false, true, true, "admin", null, 123);
+        String row = text(TabRender.displayName(m, CONFIG, false));
+        assertTrue(row.length() <= 32, row);
+        assertTrue(row.contains("Name_Ten_X") && row.contains("(AFK)"));
+    }
+    @Test void bedrockViewersAndStaticMembersNeverChangeWithTheFrame() {
+        var rainbow = styled("Rae", "", null, "rainbow", null, false);
+        var green = styled("Gus", "", "staff", "green", null, false);
+        assertNotEquals(TabRender.displayName(rainbow, CONFIG, false, 1), TabRender.displayName(rainbow, CONFIG, false, 2));
+        assertEquals(TabRender.displayName(rainbow, CONFIG, true, 1), TabRender.displayName(rainbow, CONFIG, true, 2));
+        assertEquals(TabRender.displayName(green, CONFIG, false, 1), TabRender.displayName(green, CONFIG, false, 2));
+        var groups = TabRoster.groups(List.of(rainbow, green), "lobby", List.of(), Set.of("lobby"));
+        var a = TabRender.rows(groups, "lobby", CONFIG, false, 1);
+        var b = TabRender.rows(groups, "lobby", CONFIG, false, 2);
+        assertEquals(a.get(0).display(), b.get(0).display(), "Gus is static");
+        assertNotEquals(a.get(1).display(), b.get(1).display(), "Rae animates");
+    }
+    @Test void tagConfigOverridesAndFrameDerivesFromAnimationInterval() {
+        var config = with("tags.dev", "<gold>CREATOR</gold>");
+        assertEquals("[CREATO] Aurora", text(TabRender.displayName(styled("Aurora", "", "dev", null, null, false), config, false)));
+        assertEquals(3, TabRender.frame(3_999, CONFIG));
+        assertEquals(1, TabRender.frame(3_999, with("tab.animation-ms", "10000")) + 1);
+    }
 }

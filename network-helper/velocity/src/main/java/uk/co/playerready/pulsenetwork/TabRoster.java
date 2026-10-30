@@ -5,7 +5,11 @@ import java.util.*;
 /** Pure grouping and ordering of the network roster. Hidden players and non-participating servers are omitted. */
 final class TabRoster {
     record Member(UUID id, String name, String server, int ping, String prefix, String suffix, boolean bedrock,
-                  boolean hidden, boolean afk, boolean match) {}
+                  boolean hidden, boolean afk, boolean match, String role, String styleId, Integer level) {
+        Member(UUID id, String name, String server, int ping, String prefix, String suffix, boolean bedrock, boolean hidden, boolean afk, boolean match) {
+            this(id, name, server, ping, prefix, suffix, bedrock, hidden, afk, match, null, null, null);
+        }
+    }
     record Group(String server, List<Member> members) {}
 
     private TabRoster() {}

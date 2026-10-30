@@ -32,6 +32,8 @@ public final class VelocityBridge {
     private Wire wire;
     private LocalChatIngress ingress;
     private TabService tab;
+    private IdentityResolver.Meta lpMeta = new LuckPermsMeta();
+    private NameStyle.Tags tags = NameStyle.Tags.DEFAULT;
     private Set<String> backends = Set.of(), queueServers = Set.of();
     private Set<String> chatBackends;
     private Set<String> paperBackends = Set.of();
@@ -66,6 +68,8 @@ public final class VelocityBridge {
             paperBackends = csv(config.getProperty("paper-backends", ""));
             chatBackends = csv(config.getProperty("chat-backends", config.getProperty("backends", "")));
             if (!backends.containsAll(chatBackends)) throw new IllegalArgumentException("Chat backends must be allowed backends");
+            try { tags = TabConfig.tags(config); }
+            catch (IllegalArgumentException e) { logger.error("Role tag configuration is invalid; built-in tags are used: {}", e.getMessage()); }
             try { tabConfig = TabConfig.parse(config); }
             catch (IllegalArgumentException e) { logger.error("Network tab configuration is invalid; tab stays off: {}", e.getMessage()); }
             if (backends.isEmpty() || !backends.containsAll(queueServers)) throw new IllegalArgumentException("Queue servers must be in the backend allowlist");
@@ -161,15 +165,26 @@ public final class VelocityBridge {
         body = Wire.plain(body); if (body.isBlank() || body.length() > 512) return;
         long now = System.currentTimeMillis();
         Long previous = chatTimes.put(player.getUniqueId(), now); if (previous != null && now - previous < 1000) return;
-        Component line = Component.text("[Global · " + server + "] ", NamedTextColor.GRAY)
-                .append(Component.text(player.getUsername() + ": ", NamedTextColor.AQUA)).append(Component.text(body, NamedTextColor.WHITE));
+        Component[] lines = {relayLine(player, server, body, false), null};
         for (Player receiver : proxy.getAllPlayers()) if (receiver.getCurrentServer()
                 .map(s -> chatAllowed.contains(s.getServerInfo().getName()) && !s.getServerInfo().getName().equals(server)).orElse(false)) {
             var connection = receiver.getCurrentServer().orElseThrow();
             if (paperBackends.contains(connection.getServerInfo().getName()))
                 connection.sendPluginMessage(CHANNEL, wire.encode("REMOTECHAT", receiver.getUniqueId(), server, player.getUniqueId().toString(), player.getUsername(), body));
-            else receiver.sendMessage(line);
+            else {
+                boolean bedrock = receiver.getUniqueId().getMostSignificantBits() == 0; // Floodgate UUIDs
+                if (bedrock && lines[1] == null) lines[1] = relayLine(player, server, body, true);
+                receiver.sendMessage(lines[bedrock ? 1 : 0]);
+            }
         }
+    }
+    /** {@code [Global · server] [TAG] name: body}, static frame; the level badge needs the tab status feed. */
+    Component relayLine(Player player, String server, String body, boolean bedrockViewer) {
+        var identity = IdentityResolver.resolve(player.getUniqueId(), player.getUsername(), lpMeta,
+                tab == null ? null : tab.level(server, player.getUniqueId()), tags);
+        return Component.text("[Global · " + server + "] ", NamedTextColor.GRAY)
+                .append(Component.text().color(NamedTextColor.AQUA).append(NameStyle.render(identity, bedrockViewer, 0, tags, NameStyle.MAX_VISIBLE))
+                        .append(Component.text(": ")).build()).append(Component.text(body, NamedTextColor.WHITE));
     }
     private Component row(QueueDirectory.Queue queue) {
         return Component.text(queue.title() + " (" + queue.players() + "/" + queue.maximum() + ") ", NamedTextColor.YELLOW)
