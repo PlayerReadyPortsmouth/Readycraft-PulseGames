@@ -16,6 +16,9 @@ commands:
     aliases: [namecolour, namecolor]
   rolemenu:
     description: Staff menu for giving and taking away network roles
+  admin:
+    description: Admin hub for Dev, Admin and Staff
+    aliases: [adminmenu, am]
 permissions:
   pulsenetwork.chat:
     default: true
