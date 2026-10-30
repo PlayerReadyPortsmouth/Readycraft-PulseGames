@@ -139,6 +139,7 @@ public final class VelocityBridge {
                 switch (m.kind()) {
                     case "STATUS" -> { if (tab != null) tab.status(server, m.fields()); }
                     case "PARTYCMD" -> partyCommand(carrier, m.fields().toArray(String[]::new));
+                    case "ROLECMD" -> RoleMenuCommands.fromFields(m.fields()).ifPresent(c -> proxy.getCommandManager().executeAsync(carrier, c));
                     case "CHAT" -> { if (m.fields().size() == 1) chat(carrier, server, m.fields().getFirst()); }
                     case "QUEUE" -> {
                         if (!queueServers.contains(server) || m.fields().size() != 4) return;
