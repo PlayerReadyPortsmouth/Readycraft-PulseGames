@@ -27,7 +27,8 @@ import org.bukkit.entity.Player;
 public final class PumpkinCommand implements CommandExecutor, TabCompleter {
     private static final String PLAY = "pumpkinhunt.play";
     private static final String ADMIN = "pumpkinhunt.admin";
-    private static final List<String> ADMIN_SUBS = List.of("add", "remove", "list", "reload", "reset", "stats");
+    private static final List<String> ADMIN_SUBS = HuntAdminRoute.VERBS.stream()
+            .filter(v -> !v.equals("enable") && !v.equals("disable")).toList();
 
     private final PumpkinHuntManager hunt;
 
@@ -36,6 +37,10 @@ public final class PumpkinCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         String sub = args.length == 0 ? "" : args[0].toLowerCase();
+        if (sub.equals("admin")) {
+            adminRoute(sender, java.util.Arrays.copyOfRange(args, 1, args.length));
+            return true;
+        }
         if (ADMIN_SUBS.contains(sub)) {
             if (!sender.hasPermission(ADMIN)) { msg(sender, "No permission.", NamedTextColor.RED); return true; }
             admin(sender, sub, args);
@@ -50,6 +55,33 @@ public final class PumpkinCommand implements CommandExecutor, TabCompleter {
         if (sub.equals("top")) top(sender);
         else progress(sender);
         return true;
+    }
+
+    /** {@code /pumpkins admin ...} and the hidden {@code /admin-route hunt ...}; args are the words after "admin". */
+    public void adminRoute(CommandSender sender, String[] afterAdmin) {
+        if (!sender.hasPermission(ADMIN)) { msg(sender, "No permission.", NamedTextColor.RED); return; }
+        HuntAdminRoute.Parsed r = HuntAdminRoute.parse(afterAdmin);
+        if (r == null) {
+            msg(sender, "Usage: /pumpkins admin <stats|list|reset <player|all>|enable|disable|add|remove|reload>", NamedTextColor.RED);
+            return;
+        }
+        String[] args = new String[r.args().length + 1];
+        System.arraycopy(r.args(), 0, args, 1, r.args().length);
+        switch (r.verb()) {
+            case "" -> summary(sender);
+            case "enable", "disable" -> {
+                boolean on = r.verb().equals("enable");
+                hunt.setEnabled(on);
+                msg(sender, "Pumpkin hunt " + (on ? "enabled" : "disabled") + " and config reloaded.", NamedTextColor.GREEN);
+            }
+            default -> admin(sender, r.verb(), args);
+        }
+    }
+
+    private void summary(CommandSender sender) {
+        msg(sender, "Pumpkin hunt: " + (hunt.enabled() ? "enabled" : "disabled") + ", season " + hunt.seasonState() + ", "
+                + hunt.lanterns().size() + " lanterns, " + hunt.progress().top(Integer.MAX_VALUE).size() + " finished.", NamedTextColor.GOLD);
+        msg(sender, "Try: /pumpkins admin stats | list | reset <player|all> | enable | disable", NamedTextColor.GRAY);
     }
 
     private void progress(CommandSender sender) {
@@ -148,9 +180,14 @@ public final class PumpkinCommand implements CommandExecutor, TabCompleter {
         List<String> out = new ArrayList<>();
         if (args.length == 1) {
             out.add("top");
-            if (sender.hasPermission(ADMIN)) out.addAll(ADMIN_SUBS);
-        } else if (args.length == 2 && sender.hasPermission(ADMIN)) {
-            String sub = args[0].toLowerCase();
+            if (sender.hasPermission(ADMIN)) { out.add("admin"); out.addAll(ADMIN_SUBS); }
+        } else if (args.length >= 2 && sender.hasPermission(ADMIN)) {
+            if (args[0].equalsIgnoreCase("admin")) {
+                if (args.length == 2) out.addAll(HuntAdminRoute.VERBS);
+                else if (args.length == 3 && args[1].equalsIgnoreCase("reset")) { out.add("all"); Bukkit.getOnlinePlayers().forEach(pl -> out.add(pl.getName())); }
+                else if (args.length == 3 && args[1].equalsIgnoreCase("remove")) hunt.lanterns().forEach(l -> out.add(l.id()));
+            }
+            String sub = args.length == 2 ? args[0].toLowerCase() : "";
             if (sub.equals("remove")) hunt.lanterns().forEach(l -> out.add(l.id()));
             if (sub.equals("reset")) {
                 out.add("all");

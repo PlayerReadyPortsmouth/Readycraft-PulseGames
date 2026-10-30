@@ -7,8 +7,12 @@ description: Halloween pumpkin hunt for the ReadyCraft Lobby.
 commands:
   pumpkins:
     description: Halloween pumpkin hunt - your progress, hints and the first finishers. Admins manage lanterns.
-    usage: /pumpkins [top] | /pumpkins <add|remove|list|reload|reset|stats>
+    usage: /pumpkins [top] | /pumpkins <add|remove|list|reload|reset|stats> | /pumpkins admin <stats|list|reset|enable|disable>
     aliases: [pumpkinhunt]
+  admin-route:
+    description: Internal route for the network /admin hub (area hunt). Use /admin hunt or /pumpkins admin.
+    usage: /admin-route hunt [stats|list|reset <player|all>|enable|disable]
+    permission: pumpkinhunt.admin
 permissions:
   pumpkinhunt.play:
     description: Find pumpkins and use /pumpkins
