@@ -13,7 +13,7 @@ import java.util.*;
 import java.util.function.BiPredicate;
 
 /**
- * {@code /rolemenu [player]}: a click menu (Java) or form (Bedrock) for dev, admin and staff. It only asks the proxy to run
+ * {@code /admin roles [player]} (old {@code /rolemenu}, hidden alias): a click menu (Java) or form (Bedrock) for dev, admin and staff. It only asks the proxy to run
  * {@code /role ...} as the player, so the proxy's gating, audit line and confirm step stay the single path. The reply arrives as normal chat.
  */
 final class RoleMenuCommand implements CommandExecutor, TabCompleter {
@@ -30,13 +30,19 @@ final class RoleMenuCommand implements CommandExecutor, TabCompleter {
         if (!(sender instanceof Player p)) { sender.sendMessage("Use /role from the console."); return true; }
         if (lp == null || !lp.inAnyGroup(p.getUniqueId(), RoleMenuModel.GROUPS)) { p.sendMessage(line("The role menu is for staff only.")); return true; }
         if (args.length > 1 || (args.length == 1 && !RoleMenuCommands.validName(args[0]))) { p.sendMessage(line("Use /rolemenu, or /rolemenu <player name>.")); return true; }
-        if (args.length == 1) actions(p, args[0]); else players(p);
+        open(p, args.length == 1 ? args[0] : null);
         return true;
+    }
+
+    /** Opens the player picker, or the actions for {@code target}. The caller has checked the group; {@code /admin roles} calls this too. */
+    void open(Player p, String target) {
+        if (lp == null || !lp.inAnyGroup(p.getUniqueId(), RoleMenuModel.GROUPS)) { p.sendMessage(line("The role menu is for staff only.")); return; }
+        if (target != null && !target.isEmpty()) actions(p, target); else players(p);
     }
 
     private void players(Player p) {
         var names = RoleMenuModel.pickable(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList(), p.getName());
-        if (names.isEmpty()) { p.sendMessage(line("Nobody else is online here. Use /rolemenu <player name> for someone who is not.")); return; }
+        if (names.isEmpty()) { p.sendMessage(line("Nobody else is online here. Use /admin roles <player name> for someone who is not.")); return; }
         if (LocalChatDelivery.bedrock(p) && BedrockForms.available()
                 && BedrockForms.simple(plugin, p, "Roles: pick a player", RoleMenuModel.playerFormContent(), names, i -> actions(p, names.get(i)))) return;
         var menu = new ClickMenu(Component.text("Roles: pick a player"), 54);
@@ -49,7 +55,7 @@ final class RoleMenuCommand implements CommandExecutor, TabCompleter {
             head.setItemMeta(m);
             menu.set(i, head, () -> actions(p, name));
         }
-        p.sendMessage(line("Pick a player. For someone who is offline, use /rolemenu <player name>."));
+        p.sendMessage(line("Pick a player. For someone who is offline, use /admin roles <player name>."));
         menu.open(p);
     }
 

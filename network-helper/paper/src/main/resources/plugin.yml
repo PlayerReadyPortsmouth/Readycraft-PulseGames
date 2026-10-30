@@ -15,9 +15,9 @@ commands:
     description: Pick a name style you have unlocked
     aliases: [namecolour, namecolor]
   rolemenu:
-    description: Staff menu for giving and taking away network roles
+    description: Old name of /admin roles (hidden alias, removed after one release)
   admin:
-    description: Admin hub for Dev, Admin and Staff
+    description: 'The admin hub: /admin [players|roles|nick|styles|identity|tab|whitelist|announce|games|survival|hunt|server]'
     aliases: [adminmenu, am]
 permissions:
   pulsenetwork.chat:
