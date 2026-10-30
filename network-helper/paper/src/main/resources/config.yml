@@ -36,3 +36,18 @@ presence:
 # /admin hub for Dev, Admin and Staff; sections appear only for plugins present on this server.
 admin:
   enabled: true
+  # Minimum LuckPerms group per /admin area: staff (dev, admin and staff) or admin (dev and admin). Defaults shown; remove a line to use the default.
+  # Whitelist remove/on/off, and announce, styles and tab, are dev/admin by default.
+  areas:
+    players: {min-group: staff}
+    roles: {min-group: staff}
+    nick: {min-group: staff}
+    identity: {min-group: staff}
+    whitelist: {min-group: staff}
+    games: {min-group: staff}
+    survival: {min-group: staff}
+    hunt: {min-group: staff}
+    server: {min-group: staff}
+    styles: {min-group: admin}
+    tab: {min-group: admin}
+    announce: {min-group: admin}
