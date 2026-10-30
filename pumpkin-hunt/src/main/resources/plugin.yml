@@ -1,0 +1,18 @@
+name: PumpkinHunt
+main: uk.co.playerready.pumpkinhunt.PumpkinHuntPlugin
+version: '${version}'
+api-version: '1.21'
+authors: [AurorasChaos (on behalf of Player Ready)]
+description: Halloween pumpkin hunt for the ReadyCraft Lobby.
+commands:
+  pumpkins:
+    description: Halloween pumpkin hunt - your progress, hints and the first finishers. Admins manage lanterns.
+    usage: /pumpkins [top] | /pumpkins <add|remove|list|reload|reset|stats>
+    aliases: [pumpkinhunt]
+permissions:
+  pumpkinhunt.play:
+    description: Find pumpkins and use /pumpkins
+    default: true
+  pumpkinhunt.admin:
+    description: Manage the pumpkin hunt (add, remove, reset, stats)
+    default: op
