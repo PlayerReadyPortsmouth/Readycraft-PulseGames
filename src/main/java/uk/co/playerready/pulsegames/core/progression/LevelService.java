@@ -132,16 +132,46 @@ public final class LevelService implements Listener {
     }
 
     /** Unlocks every level reward at or below {@code level}. Idempotent, so a migrated regular gets them all. */
-    private void grantUnlocks(Player player, int level, boolean tell) {
+    private void grantUnlocks(Player player, int level, boolean tell) { unlockThrough(player, level, tell); }
+
+    /** The unlock path shared by real level-ups and admin commands; returns the names newly unlocked. */
+    private List<String> unlockThrough(Player player, int level, boolean tell) {
+        List<String> names = new java.util.ArrayList<>();
         for (Cosmetic reward : CosmeticsService.levelRewards()) {
             if (reward.level() > level || plugin.economy().isUnlocked(player, reward.id())) continue;
             plugin.economy().unlock(player, reward.id());
             boolean style = reward.nameStyleId() != null;
+            names.add(reward.name() + (style ? " (name style)" : ""));
             if (tell) player.sendMessage(Text.msg("<green><b>New " + (style ? "name style" : "cosmetic") + " unlocked:</b> <yellow>"
                     + reward.name() + (style ? " <gray>Set it with /namestyle." : " <gray>Open /wardrobe to use it.")));
         }
         nameStyles().grant(player.getUniqueId(), level, player::hasPermission, CosmeticsService.levelRewards());
+        return names;
     }
+
+    // ---- admin (see ProgressionAdmin) --------------------------------------------------
+
+    /** Admin unlock: same path as a level-up, without chat spam to the player (the admin gets the summary). */
+    public List<String> adminUnlock(Player player, int level) { return unlockThrough(player, level, false); }
+
+    public void adminSetXp(Player player, long xp) {
+        store().set(player.getUniqueId(), xp);
+        plugin.engagement().markDirty();
+    }
+
+    public long adminXp(Player player) { return store().xp(player.getUniqueId()); }
+
+    /** Removes the level-reward cosmetics (and unequips them). LuckPerms is untouched. */
+    public int adminClearUnlocks(Player player) {
+        int cleared = 0;
+        for (Cosmetic reward : CosmeticsService.levelRewards()) {
+            if (reward.id().equals(plugin.economy().equipped(player, reward.category()))) plugin.economy().equip(player, reward.category(), null);
+            if (plugin.economy().lock(player, reward.id())) cleared++;
+        }
+        return cleared;
+    }
+
+    public NameStyleGrants nameStyleGrants() { return nameStyles(); }
 
     // ---- lobby nametag -----------------------------------------------------------------
 
