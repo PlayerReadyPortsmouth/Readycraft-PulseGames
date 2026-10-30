@@ -73,4 +73,8 @@ class RoleLogicTest {
         assertEquals(List.of("venue:ports", "venue:plym").stream().sorted().toList(), RoleLogic.complete(new String[]{"set", "Amy", "venue:p"}, online));
         assertTrue(RoleLogic.complete(new String[]{"set", "Amy", "dev", "x"}, online).isEmpty());
     }
+    @Test void onlyAdminDevAndConsoleMayAnnounce() {
+        assertFalse(RoleLogic.canAnnounce(RoleLogic.Level.NONE)); assertFalse(RoleLogic.canAnnounce(RoleLogic.Level.STAFF));
+        assertTrue(RoleLogic.canAnnounce(RoleLogic.Level.ADMIN)); assertTrue(RoleLogic.canAnnounce(RoleLogic.Level.DEV)); assertTrue(RoleLogic.canAnnounce(RoleLogic.Level.CONSOLE));
+    }
 }

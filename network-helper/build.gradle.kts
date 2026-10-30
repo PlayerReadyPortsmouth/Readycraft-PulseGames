@@ -2,7 +2,7 @@ plugins { java }
 subprojects {
     apply(plugin = "java")
     group = "uk.co.playerready"
-    version = "0.2.2"
+    version = "0.2.3"
     repositories {
         mavenCentral()
         maven("https://repo.papermc.io/repository/maven-public/")

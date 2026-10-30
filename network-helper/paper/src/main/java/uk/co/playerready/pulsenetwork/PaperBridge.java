@@ -7,6 +7,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.command.*;
 import org.bukkit.entity.Player;
 import org.bukkit.event.*;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.plugin.messaging.PluginMessageListener;
@@ -31,7 +32,8 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
     private NameStyle.Tags tags = NameStyle.Tags.DEFAULT;
     @Override public void onEnable() {
         saveDefaultConfig();
-        MenuCommands.register(this, (player, fields) -> { if (wire == null) return false; send(player, "ROLECMD", fields.toArray(String[]::new)); return true; });
+        MenuCommands.register(this, (player, fields) -> { if (wire == null) return false; send(player, "ROLECMD", fields.toArray(String[]::new)); return true; },
+                new AdminHubModel.Announcer() { public boolean enabled() { return wire != null; } public boolean announce(String text, String style) { return PaperBridge.this.announce(text, style); } });
         try { returnLocations = ReturnLocations.load(new java.io.File(getDataFolder(), "return-locations.yml").toPath()); }
         catch (java.io.IOException ex) { getLogger().severe("Return locations could not be read; preserving file and disabling location writes."); }
         if (!getConfig().getBoolean("enabled")) { getLogger().info("PulseNetwork is disabled until configured."); return; }
@@ -120,6 +122,22 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
         long now = System.currentTimeMillis();
         if (now - lastChat.getOrDefault(id, 0L) < 1000) return;
         lastChat.put(id, now); send(player, "CHAT", body);
+    }
+    /** Presence lines are the proxy's. Runs late so a message another plugin set earlier is blanked too. */
+    boolean suppressLocal() { return getConfig().getBoolean("presence.suppress-local", true); }
+    @EventHandler(priority = EventPriority.HIGHEST) public void joinMessage(PlayerJoinEvent event) { if (suppressLocal()) event.joinMessage(null); }
+    @EventHandler(priority = EventPriority.HIGHEST) public void quitMessage(PlayerQuitEvent event) { if (suppressLocal()) event.quitMessage(null); }
+    /**
+     * Public API for other plugins (look it up by reflection): asks the proxy to announce {@code text} to the whole network.
+     * {@code style} is chat, title or bar (null means chat). Returns false when it cannot be sent; the proxy still
+     * limits announcements to one per 5 seconds and shows only allowlisted colour tags.
+     */
+    public boolean announce(String text, String style) {
+        String clean = Announce.clean(text), kind = Announce.style(style);
+        Player carrier = Bukkit.getOnlinePlayers().stream().filter(p -> !p.hasMetadata("NPC")).findFirst().orElse(null);
+        if (wire == null || clean == null || kind == null || carrier == null) return false;
+        send(carrier, "ANNOUNCE", clean, kind, "network");
+        return true;
     }
     @EventHandler public void quit(PlayerQuitEvent event) {
         if (returnLocations != null && !event.getPlayer().hasMetadata("NPC")) {

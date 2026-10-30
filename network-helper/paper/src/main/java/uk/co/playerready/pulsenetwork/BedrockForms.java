@@ -30,4 +30,13 @@ final class BedrockForms {
         return api.sendForm(player.getUniqueId(), org.geysermc.cumulus.form.ModalForm.builder().title(title).content(body)
                 .button1(yes).button2(no).validResultHandler(r -> { if (r.clickedFirst()) Bukkit.getScheduler().runTask(plugin, onYes); }).build());
     }
+
+    /** One text field. {@code onText} gets the typed text; {@code onClosed} runs when the form is dismissed. Both on the main thread. */
+    static boolean input(Plugin plugin, Player player, String title, String label, String placeholder, java.util.function.Consumer<String> onText, Runnable onClosed) {
+        var api = org.geysermc.floodgate.api.FloodgateApi.getInstance();
+        if (!api.isFloodgatePlayer(player.getUniqueId())) return false;
+        return api.sendForm(player.getUniqueId(), org.geysermc.cumulus.form.CustomForm.builder().title(title).input(label, placeholder)
+                .validResultHandler(r -> { String t = r.asInput(0); Bukkit.getScheduler().runTask(plugin, () -> onText.accept(t == null ? "" : t)); })
+                .closedOrInvalidResultHandler(() -> Bukkit.getScheduler().runTask(plugin, onClosed)).build());
+    }
 }

@@ -21,7 +21,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Plugin(id="pulsenetwork", name="PulseNetwork", version="0.2.2", description="Public chat relay and minigame queue joins", authors={"AurorasChaos (on behalf of Player Ready)"},
+@Plugin(id="pulsenetwork", name="PulseNetwork", version="0.2.3", description="Public chat relay and minigame queue joins", authors={"AurorasChaos (on behalf of Player Ready)"},
         dependencies = {@com.velocitypowered.api.plugin.Dependency(id="floodgate", optional=true),
                 @com.velocitypowered.api.plugin.Dependency(id="luckperms", optional=true)})
 public final class VelocityBridge {
@@ -32,6 +32,9 @@ public final class VelocityBridge {
     private Wire wire;
     private LocalChatIngress ingress;
     private TabService tab;
+    private PresenceService presence;
+    private Announcer announcer;
+    private RoleStore roleStore;
     private IdentityResolver.Meta lpMeta = new LuckPermsMeta();
     private NameStyle.Tags tags = NameStyle.Tags.DEFAULT;
     private Set<String> backends = Set.of(), queueServers = Set.of();
@@ -57,6 +60,7 @@ public final class VelocityBridge {
     }
     @Subscribe public void start(ProxyInitializeEvent event) {
         TabConfig tabConfig = null;
+        PresenceConfig presenceConfig = null;
         String hiddenPlayers = "", roleGroups = "";
         try {
             Files.createDirectories(directory);
@@ -74,6 +78,8 @@ public final class VelocityBridge {
             catch (IllegalArgumentException e) { logger.error("Role tag configuration is invalid; built-in tags are used: {}", e.getMessage()); }
             try { tabConfig = TabConfig.parse(config); }
             catch (IllegalArgumentException e) { logger.error("Network tab configuration is invalid; tab stays off: {}", e.getMessage()); }
+            try { presenceConfig = PresenceConfig.parse(config); }
+            catch (IllegalArgumentException e) { logger.error("Presence configuration is invalid; presence lines stay off: {}", e.getMessage()); }
             if (backends.isEmpty() || !backends.containsAll(queueServers)) throw new IllegalArgumentException("Queue servers must be in the backend allowlist");
             int ingressPort = Integer.parseInt(config.getProperty("local-ingress-port", "0"));
             if (ingressPort != 0) {
@@ -96,6 +102,14 @@ public final class VelocityBridge {
             proxy.getEventManager().register(this, tab);
             proxy.getScheduler().buildTask(this, tab::tick).repeat(Duration.ofMillis(tabConfig.minIntervalMs())).schedule();
         }
+        final String hiddenCsv = hiddenPlayers, groupsCsv = roleGroups; final TabConfig shownTab = tabConfig;
+        if (presenceConfig != null && presenceConfig.enabled()) {
+            var hiddenNames = RoleLogic.names(hiddenCsv); var optional = new OptionalPlugins();
+            presence = new PresenceService(proxy, logger, this, presenceConfig, tags, this::identity,
+                    p -> tab != null && tab.hidden(p) || RoleLogic.tabHidden(p.getUniqueId(), p.getUsername(), id -> optional.metaValue(id, RoleLogic.HIDDEN_META), hiddenNames),
+                    shownTab != null ? shownTab::name : name -> name.isEmpty() ? name : Character.toUpperCase(name.charAt(0)) + name.substring(1), java.time.Clock.systemUTC());
+            proxy.getEventManager().register(this, presence);
+        }
         var commands = proxy.getCommandManager();
         commands.register(commands.metaBuilder("queues").plugin(this).build(), (SimpleCommand) invocation -> {
             if (invocation.source() instanceof Player p) showQueues(p, invocation.arguments().length > 0 && invocation.arguments()[0].equalsIgnoreCase("chat"));
@@ -109,12 +123,16 @@ public final class VelocityBridge {
             if (invocation.source() instanceof Player player) partyCommand(player, invocation.arguments());
         });
         registerRoles(commands, roleGroups, hiddenPlayers);
+        try {
+            announcer = new Announcer(proxy, logger, roleStore == null ? id -> Set.of() : roleStore::cachedGroups, RoleLogic.parseGroups(groupsCsv));
+            commands.register(commands.metaBuilder("announce").plugin(this).build(), announcer);
+        } catch (IllegalArgumentException e) { logger.error("/announce is unavailable: {}", e.getMessage()); }
         proxy.getScheduler().buildTask(this, this::retryJoins).repeat(Duration.ofSeconds(1)).schedule();
     }
     private void registerRoles(com.velocitypowered.api.command.CommandManager commands, String roleGroups, String hiddenPlayers) {
         if (!proxy.getPluginManager().isLoaded("luckperms")) { logger.info("LuckPerms is not loaded; /role is unavailable."); return; }
         try {
-            var store = new LuckPermsStore();
+            var store = new LuckPermsStore(); roleStore = store;
             var command = new RoleCommand(proxy, logger, store, RoleLogic.parseGroups(roleGroups), RoleLogic.names(hiddenPlayers));
             commands.register(commands.metaBuilder("role").aliases("networkrole").plugin(this).build(), command);
             commands.register(commands.metaBuilder("identity").plugin(this).build(),
@@ -141,6 +159,7 @@ public final class VelocityBridge {
             try {
                 switch (m.kind()) {
                     case "STATUS" -> { if (tab != null) tab.status(server, m.fields()); }
+                    case "ANNOUNCE" -> { if (announcer != null) announcer.fromBackend(server, m.fields()); }
                     case "PARTYCMD" -> partyCommand(carrier, m.fields().toArray(String[]::new));
                     case "ROLECMD" -> RoleMenuCommands.fromFields(m.fields()).ifPresent(c -> proxy.getCommandManager().executeAsync(carrier, c));
                     case "CHAT" -> { if (m.fields().size() == 1) chat(carrier, server, m.fields().getFirst()); }
@@ -429,6 +448,7 @@ public final class VelocityBridge {
         if (visits.containsKey(id)) reconnectUntil.put(id,System.currentTimeMillis()+300_000); returning.remove(id); pending.remove(id); chatTimes.remove(id); joinTimes.remove(id);
     }
     @Subscribe public void stop(com.velocitypowered.api.event.proxy.ProxyShutdownEvent event) {
+        if (presence != null) presence.stopping();
         if (ingress != null) ingress.close();
         pending.clear();visits.clear();reconnectUntil.clear();resuming.clear();cancelledGroups.clear();
     }

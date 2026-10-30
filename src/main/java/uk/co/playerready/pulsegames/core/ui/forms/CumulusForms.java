@@ -34,4 +34,12 @@ final class CumulusForms {
                 .build();
         org.geysermc.floodgate.api.FloodgateApi.getInstance().sendForm(player.getUniqueId(), form);
     }
+
+    static void input(Plugin plugin, Player player, String title, String label, Consumer<String> onText, Runnable onCancel) {
+        var form = org.geysermc.cumulus.form.CustomForm.builder().title(title).input(label, "Type here", "")
+                .validResultHandler(r -> { String text = r.asInput(0); Bukkit.getScheduler().runTask(plugin, () -> onText.accept(text == null ? "" : text)); })
+                .closedOrInvalidResultHandler(() -> Bukkit.getScheduler().runTask(plugin, onCancel))
+                .build();
+        org.geysermc.floodgate.api.FloodgateApi.getInstance().sendForm(player.getUniqueId(), form);
+    }
 }

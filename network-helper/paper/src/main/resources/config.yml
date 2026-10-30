@@ -28,3 +28,11 @@ namestyle:
   enabled: true
 rolemenu:
   enabled: true
+# Join and leave lines now come from the proxy (presence.* in network.properties). true blanks this server's own lines
+# so players see one. Set false if the proxy's presence.enabled is false.
+presence:
+  suppress-local: true
+
+# /admin hub for Dev, Admin and Staff; sections appear only for plugins present on this server.
+admin:
+  enabled: true

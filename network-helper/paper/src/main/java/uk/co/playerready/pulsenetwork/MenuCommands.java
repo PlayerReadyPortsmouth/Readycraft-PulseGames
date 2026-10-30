@@ -9,7 +9,7 @@ import java.util.function.BiPredicate;
 final class MenuCommands {
     private MenuCommands() {}
 
-    static void register(JavaPlugin plugin, BiPredicate<Player, List<String>> sendRole) {
+    static void register(JavaPlugin plugin, BiPredicate<Player, List<String>> sendRole, AdminHubModel.Announcer announcer) {
         LuckPermsLink lp = null;
         if (plugin.getServer().getPluginManager().getPlugin("LuckPerms") != null) {
             try { lp = new LuckPermsLink(); } catch (LinkageError | RuntimeException e) { plugin.getLogger().warning("LuckPerms is present but not ready; menus will refuse."); }
@@ -17,6 +17,8 @@ final class MenuCommands {
         plugin.getServer().getPluginManager().registerEvents(new ClickMenu.Guard(), plugin);
         if (plugin.getConfig().getBoolean("namestyle.enabled", true)) bind(plugin, "namestyle", new NameStyleCommand(plugin, lp));
         if (plugin.getConfig().getBoolean("rolemenu.enabled", true)) bind(plugin, "rolemenu", new RoleMenuCommand(plugin, lp, sendRole));
+        plugin.getServer().getPluginManager().registerEvents(AnvilPrompt.listener(), plugin);
+        if (plugin.getConfig().getBoolean("admin.enabled", true)) { var hub = plugin.getCommand("admin"); if (hub != null) hub.setExecutor(new AdminHubCommand(plugin, lp, sendRole, announcer)); }
     }
     private static <T extends org.bukkit.command.CommandExecutor & org.bukkit.command.TabCompleter> void bind(JavaPlugin plugin, String name, T handler) {
         var command = plugin.getCommand(name);

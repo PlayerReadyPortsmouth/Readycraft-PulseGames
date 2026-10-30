@@ -64,6 +64,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
     private uk.co.playerready.pulsegames.core.progression.LevelMenu levelMenu;
     private uk.co.playerready.pulsegames.core.economy.WardrobeMenu wardrobe;
     private uk.co.playerready.pulsegames.core.events.EventService events;
+    private uk.co.playerready.pulsegames.core.admin.AdminMenu adminMenu;
     private uk.co.playerready.pulsegames.core.ranked.RankedService ranked;
     private uk.co.playerready.pulsegames.core.ranked.RankedMenu rankedMenu;
 
@@ -114,6 +115,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
         wardrobe = new uk.co.playerready.pulsegames.core.economy.WardrobeMenu(this);
         loadCosmeticsFile();
         events = new uk.co.playerready.pulsegames.core.events.EventService(this);
+        adminMenu = new uk.co.playerready.pulsegames.core.admin.AdminMenu(this);
 
         ranked = new uk.co.playerready.pulsegames.core.ranked.RankedService(this);
         rankedMenu = new uk.co.playerready.pulsegames.core.ranked.RankedMenu(this);
@@ -138,6 +140,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new uk.co.playerready.pulsegames.core.game.FenceListener(this), this);
         getServer().getPluginManager().registerEvents(new uk.co.playerready.pulsegames.core.lobby.LobbyItemListener(lobby), this);
         getServer().getPluginManager().registerEvents(new uk.co.playerready.pulsegames.core.ui.MenuListener(), this);
+        getServer().getPluginManager().registerEvents(new uk.co.playerready.pulsegames.core.ui.AnvilPrompt.Events(), this);
         getServer().getPluginManager().registerEvents(setup, this);
         getServer().getPluginManager().registerEvents(new uk.co.playerready.pulsegames.core.ranked.RankedListener(ranked), this);
         new Commands(this);
@@ -266,6 +269,7 @@ public final class PulseGamesPlugin extends JavaPlugin {
         return merged;
     }
 
+    public uk.co.playerready.pulsegames.core.admin.AdminMenu adminMenu() { return adminMenu; }
     public uk.co.playerready.pulsegames.core.events.EventService events() { return events; }
     /** Public optional bridge API; called on the server thread by PulseNetwork. */
     public java.util.List<java.util.Map<String, String>> networkQueues() {

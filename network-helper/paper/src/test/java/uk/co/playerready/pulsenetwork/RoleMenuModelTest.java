@@ -14,7 +14,9 @@ class RoleMenuModelTest {
     @Test void refusesUnlistedRolesBadNamesAndOtherCommands() {
         assertTrue(RoleMenuCommands.line("set", "Kit", "owner").isEmpty());
         assertTrue(RoleMenuCommands.line("set", "Kit Two", "dev").isEmpty());
-        assertTrue(RoleMenuCommands.line("hide", "Kit", null).isEmpty());
+        assertTrue(RoleMenuCommands.line("ban", "Kit", null).isEmpty());
+        assertEquals(Optional.of("/role hide Kit"), RoleMenuCommands.line("hide", "Kit", null));
+        assertEquals(Optional.of("identity Kit"), RoleMenuCommands.fromFields(List.of("identity", "Kit")));
         assertTrue(RoleMenuCommands.fromFields(List.of("set", "Kit", "dev", "extra")).isEmpty());
         assertEquals(Optional.of("role set Kit dev"), RoleMenuCommands.fromFields(List.of("set", "Kit", "dev")));
         assertEquals(Optional.of("role confirm"), RoleMenuCommands.fromFields(List.of("confirm")));

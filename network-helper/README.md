@@ -2,7 +2,7 @@
 
 ## Cross-server parties — prepared draft, not deployed
 
-PulseNetwork **0.2.2** credits **AurorasChaos (on behalf of Player Ready)**. The current draft adds proxy-owned `/party` (also `/networkparty`) invitations, acceptance, list, leave, disband and private party chat. Invitations expire after 60 seconds; parties hold up to eight online players. Java has a clickable invitation; Bedrock can type `/party accept` or `/party deny`. Leaving the proxy removes a member and promotes another leader if needed. Backend transfers preserve membership; proxy restarts do not preserve parties yet.
+PulseNetwork **0.2.3** credits **AurorasChaos (on behalf of Player Ready)**. The current draft adds proxy-owned `/party` (also `/networkparty`) invitations, acceptance, list, leave, disband and private party chat. Invitations expire after 60 seconds; parties hold up to eight online players. Java has a clickable invitation; Bedrock can type `/party accept` or `/party deny`. Leaving the proxy removes a member and promotes another leader if needed. Backend transfers preserve membership; proxy restarts do not preserve parties yet.
 
 The leader selects an advertised game through `/queues` or `/joinqueue <id>`. Every party member transfers with their **own** saved origin. The destination receives one authenticated group admission only after everyone arrives. Transfer failure or timeout cancels the group and returns transferred members where possible; late successful transfers also return. The destination rejects conflicting local parties rather than overwriting them. A leader acknowledgement completes the whole proxy request atomically. Game capacity, team packing, preview access and admission remain PulseGames decisions.
 
@@ -196,6 +196,22 @@ It does not change roles itself. The backend sends a signed `ROLECMD` plugin mes
 - Needs the backend `enabled: true` with the bridge secret, and a proxy with this change (an older proxy ignores the message, so nothing happens).
 - **Config (`config.yml`):** `rolemenu.enabled` (default `true`).
 
+## Admin hub and anvil input
+
+`/admin` (aliases `/adminmenu`, `/am`) is one menu for players directly in the LuckPerms group `dev`, `admin` or `staff`. It shows only what this server has: **Players** always; **Whitelist** where UltimateWhitelist is enabled (the Lobby; elsewhere a grey "Whitelist lives on the Lobby" button runs `/server lobby`); **Network > Announce** for Dev and Admin whenever the proxy link is enabled (type the text in an anvil or Bedrock form, pick Chat, Title or Action bar, confirm; it is sent as the signed `ANNOUNCE` message through `PaperBridge.announce`, so the proxy's one-per-5-seconds limit and `ANNOUNCE` log line apply); and one button each for PulseGames (`/pulse adminmenu`), PulseAddon (`/pulseadmin menu`) and Pumpkin Hunt (`/pumpkins admin`) when that plugin is enabled. Java gets chest menus, Bedrock gets forms.
+
+- **Players:** pick an online head or search by name (anvil; offline names work through LuckPerms). Per player: View identity, Set role (`/rolemenu <name>`), Name styles (grant or revoke `pulse.namestyle.<id>` straight in LuckPerms, held styles lit), Hide or Show in tab, Teleport to (same server only). Identity, hide and unhide go to the proxy as the player (`ROLECMD`), so the proxy's own gating and audit still apply.
+- **Whitelist:** Add, Remove (confirm), Switch on or off (confirm), List and Status, run as the console after the permission check (`uw add|remove <name>`, `uw on|off|list|status`).
+- **Who may:** Dev, Admin and Staff open the hub, add to the whitelist and read it. Removing, switching the whitelist, name styles, tab hide and Announce are Dev and Admin only. The group is checked again on every click.
+- **Audit:** one console line per action: `ADMIN <actor> <action> <target>`.
+- **Config:** `admin.enabled` (default `true`).
+
+### AnvilPrompt (copy this pattern)
+
+`AnvilPrompt.ask(plugin, player, title, rule, onValue, onCancel)` opens an anvil with a paper named after the prompt. The player types in the rename box and clicks the result slot. Invalid text (`AnvilPromptLogic.Rule`: regex plus length) re-opens with a red error line, five tries at most. Escape or closing cancels. Every click and drag is cancelled and the paper is emptied before close, so nothing can be taken or handed back. Bedrock players get a one-field Cumulus `CustomForm` with the same rule. It uses `MenuType.ANVIL` and `AnvilView`, no NMS, so it runs on Paper 1.21.4 and 26.2.
+
+To reuse it in PulseGames or PulseAddon, copy `AnvilPrompt`, `AnvilPromptLogic` and `BedrockForms.input`, register `AnvilPrompt.listener()` once, and keep the logic class tested without Bukkit.
+
 ## Local chat delivery (`chat.local-system-delivery`)
 
 Symptom: players on the same backend cannot see each other's ordinary chat, while messages relayed from another server show fine. Since 1.19 player chat is signed with the Microsoft account key. Behind Velocity (and for Floodgate/Bedrock players, who cannot sign) clients can drop or hide player-chat packets whose signature chain does not validate. The proxy's relayed global chat arrives as unsigned system messages, so it is unaffected.
@@ -210,6 +226,56 @@ Paper key (`config.yml`, default `false`; turn it on per backend):
 What it changes: in the existing final (MONITOR, non-cancelled) chat handler, after the global relay decision has been taken from the viewer set, the helper renders the line for each original viewer with the event's own renderer (so AdvancedChat, Essentials and similar formatting is kept), sends it with `sendMessage(Component)`, then clears the event's viewers so the signed packet is not also sent. Mutes, filters and channel/radius plugins have already trimmed the viewers, and no viewer is ever added. The console is one of the viewers and receives its single line the same way, so the log shows each message once. The global relay does not depend on the viewers afterwards: it uses the decision recorded before they were cleared. Modifying the viewers at MONITOR is deliberate: this plugin is the final consumer and nothing else should act on the event after it. Events handled by AdvancedChat's own rebroadcast are skipped, as for the relay.
 
 Known limitation: clients lose the per-message report option and hover, and the message has no "secure chat" indicator. Cancellation by a later MONITOR listener no longer stops delivery.
+
+## Presence and announcements
+
+The proxy sends one system line when someone joins the network, hops between servers or leaves, and staff can announce to everyone. Players are children, so every line is short, plain and styled with the same tag, name style and level badge as chat (`NameStyle`). Not deployed until released.
+
+Example lines (Java / Bedrock): `→ [12] Sam joined the network` / `>> [12] Sam joined the network`; `⇄ Sam hopped to Survival` / `<> Sam hopped to Survival`; `← Sam left` / `<< Sam left`.
+
+### Proxy keys (`network.properties`)
+
+| Key | Default | Meaning |
+|---|---|---|
+| `presence.enabled` | `true` | Master switch for presence lines (the plugin's own `enabled` must also be true). |
+| `presence.join` | `<gray>→ <name> joined the network` | MiniMessage template. `<name>` (styled), `<server>`, `<from>` are the only placeholders. |
+| `presence.switch` | `<gray>⇄ <name> hopped to <server>` | Same placeholders; `<from>` is the server they left. |
+| `presence.leave` | `<gray>← <name> left` | Sent only if the stay was long enough. |
+| `presence.welcome-back` | `<gray>Welcome back, <name>!` | Sent to the player only, on their first join of the UK day (Europe/London). |
+| `presence.scope` | `network` | `network`: everyone sees it. `servers`: only players on the server joined or left, and for a hop both the origin and destination. |
+| `presence.switch-cooldown-seconds` | `60` | At most one hop line per player per window. Extra hops are silently counted; the next allowed line is the plain "hopped to" line, never a count. |
+| `presence.leave-min-stay-seconds` | `20` | Leaving sooner than this after joining produces no leave line. |
+| `presence.join-quiet-rejoin-seconds` | `120` | Rejoining sooner than this after leaving produces no join line. |
+| `presence.hidden-roles` | empty | Comma list of role ids (for example `dev`). Those players, anyone hidden from the tab (`tab.hidden-players`, meta `pulse.tab.hidden`, backend hidden flag) produce no lines at all. |
+
+Times are 0 to 3600 seconds. Bedrock viewers get the arrows as `>>`, `<>`, `<<` in case their font lacks them. Names are never parsed as MiniMessage. The welcome-back day and all cooldown state live in proxy memory, so a proxy restart forgets them (one extra welcome, no other harm), and a brand-new player is also told "welcome back" because nothing records first visits. A proxy shutdown produces no leave lines.
+
+### Backend key (`config.yml`)
+
+`presence.suppress-local` (default `true`): blank the Bukkit join and quit messages so players see only the proxy's line. The handlers run at `HIGHEST`, so a message another plugin set earlier (including a custom one) is blanked as well; a plugin that rewrites it at `MONITOR` would still win. Set it to `false` on a server if the proxy's `presence.enabled` is `false`, or players see no join lines.
+
+### `/announce` (proxy)
+
+`/announce [-title|-bar] <message>`. Allowed for the console and for players who directly hold the admin or dev group (`roles.groups` mapping, same rule as `/role`). Output is always the chat line `[Network] message` (gold prefix, white text). `-title` also shows a title; put `|` in the message to split title and subtitle. `-bar` also shows an action bar. Only one flag at a time.
+
+Typed text is not MiniMessage: only `<red>`, `<gold>`, `<green>`, `<aqua>`, `<gray>`, `<white>`, `<bold>` and `<reset>` work; any other tag (click, hover, rainbow, and so on) is shown as literal text. Control characters are removed and text is limited to 256 characters. One announcement per 5 seconds across the whole proxy (command and backends share it). Each one writes a proxy log line with who sent it and the text.
+
+### Backend announcements (`ANNOUNCE`)
+
+Signed wire kind `ANNOUNCE`, fields `text`, `style` (`chat|title|bar`), `scope` (`network`, or `here` for players on the sending server only). The proxy re-cleans the text and applies the allowlist and rate limit, so a backend cannot send click events. On Paper the plugin main class (`uk.co.playerready.pulsenetwork.PaperBridge`, plugin name `PulseNetwork`) has:
+
+```java
+public boolean announce(String text, String style) // style: "chat", "title" or "bar"; null means chat
+```
+
+Look it up by reflection so PulseGames keeps no hard dependency:
+
+```java
+var plugin = Bukkit.getPluginManager().getPlugin("PulseNetwork");
+plugin.getClass().getMethod("announce", String.class, String.class).invoke(plugin, "Bedwars starts in 1 minute!", "chat");
+```
+
+It returns `false` when the bridge is disabled, the text or style is unusable, or nobody is online to carry the message. It needs a proxy with this change; an older proxy ignores the message. PulseGames does not use it yet.
 
 ## Original baseline
 
