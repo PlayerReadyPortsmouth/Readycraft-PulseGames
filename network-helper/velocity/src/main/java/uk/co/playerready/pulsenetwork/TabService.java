@@ -5,6 +5,7 @@ import com.velocitypowered.api.event.connection.DisconnectEvent;
 import com.velocitypowered.api.event.player.ServerPostConnectEvent;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
+import com.velocitypowered.api.network.ProtocolVersion;
 import net.kyori.adventure.text.Component;
 import org.slf4j.Logger;
 import java.time.Clock;
@@ -92,6 +93,7 @@ final class TabService {
         long frame = TabRender.frame(now, config);
         var cache = new HashMap<String, List<TabRender.Row>>();
         var groupCache = new HashMap<String, List<TabRoster.Group>>();
+        var planCache = new HashMap<String, Optional<TabLayout.Plan>>();
         for (Player viewer : players) {
             var state = viewers.computeIfAbsent(viewer.getUniqueId(), id -> new Viewer());
             String server = server(viewer);
@@ -104,7 +106,10 @@ final class TabService {
                 state.lastUpdate = now; state.lastFrame = frame; if (periodic) state.lastPeriodic = now;
                 boolean bedrock = bedrock(viewer);
                 var groups = groupCache.computeIfAbsent(server, s -> TabRoster.groups(members, s, config.order(), participating));
-                var rows = cache.computeIfAbsent(server + (bedrock ? "/b" : "/j/" + (animated ? frame : 0)), k -> TabRender.rows(groups, server, config, bedrock, frame));
+                var plan = config.columns() && TabLayout.eligible(bedrock, viewer.getProtocolVersion().noLessThan(ProtocolVersion.MINECRAFT_1_21_2))
+                        ? planCache.computeIfAbsent(server, s -> TabLayout.plan(groups, s, config, participating)) : Optional.<TabLayout.Plan>empty();
+                var rows = cache.computeIfAbsent(server + (bedrock ? "/b" : plan.isPresent() ? "/c/" + (animated ? frame : 0) : "/j/" + (animated ? frame : 0)),
+                        k -> plan.isPresent() ? TabRender.rows(plan.get(), server, config, frame) : TabRender.rows(groups, server, config, bedrock, frame));
                 TabSync.apply(viewer.getTabList(), rows, state.owned);
                 var counts = new LinkedHashMap<String, Integer>();
                 int total = 0;
