@@ -21,7 +21,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Plugin(id="pulsenetwork", name="PulseNetwork", version="0.2.4", description="Public chat relay and minigame queue joins", authors={"AurorasChaos (on behalf of Player Ready)"},
+@Plugin(id="pulsenetwork", name="PulseNetwork", version="0.2.5", description="Public chat relay and minigame queue joins", authors={"AurorasChaos (on behalf of Player Ready)"},
         dependencies = {@com.velocitypowered.api.plugin.Dependency(id="floodgate", optional=true),
                 @com.velocitypowered.api.plugin.Dependency(id="luckperms", optional=true)})
 public final class VelocityBridge {
