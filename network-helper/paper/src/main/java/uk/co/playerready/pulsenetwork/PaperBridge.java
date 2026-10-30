@@ -32,7 +32,8 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
     private NameStyle.Tags tags = NameStyle.Tags.DEFAULT;
     @Override public void onEnable() {
         saveDefaultConfig();
-        MenuCommands.register(this, (player, fields) -> { if (wire == null) return false; send(player, "ROLECMD", fields.toArray(String[]::new)); return true; });
+        MenuCommands.register(this, (player, fields) -> { if (wire == null) return false; send(player, "ROLECMD", fields.toArray(String[]::new)); return true; },
+                new AdminHubModel.Announcer() { public boolean enabled() { return wire != null; } public boolean announce(String text, String style) { return PaperBridge.this.announce(text, style); } });
         try { returnLocations = ReturnLocations.load(new java.io.File(getDataFolder(), "return-locations.yml").toPath()); }
         catch (java.io.IOException ex) { getLogger().severe("Return locations could not be read; preserving file and disabling location writes."); }
         if (!getConfig().getBoolean("enabled")) { getLogger().info("PulseNetwork is disabled until configured."); return; }

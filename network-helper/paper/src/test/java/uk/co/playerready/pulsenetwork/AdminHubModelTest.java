@@ -6,20 +6,28 @@ import static org.junit.jupiter.api.Assertions.*;
 import static uk.co.playerready.pulsenetwork.AdminHubModel.*;
 
 class AdminHubModelTest {
-    private static Env env(Set<String> plugins, Set<String> commands) {
+    private static Env env(Set<String> plugins, boolean bridge) {
         return new Env() {
             public boolean pluginEnabled(String n) { return plugins.contains(n); }
-            public boolean hasCommand(String n) { return commands.contains(n); }
+            public boolean bridgeEnabled() { return bridge; }
         };
     }
 
     @Test void lobbyShowsTheWhitelistAndOnlyPresentPluginSections() {
-        assertEquals(List.of(Section.PLAYERS, Section.WHITELIST), visible(env(Set.of("UltimateWhitelist"), Set.of())));
+        assertEquals(List.of(Section.PLAYERS, Section.WHITELIST), visible(env(Set.of("UltimateWhitelist"), false), true));
         assertEquals(List.of(Section.PLAYERS, Section.NETWORK, Section.GAMES, Section.ADDON, Section.PUMPKINS),
-                visible(env(Set.of("PulseGames", "PulseAddon", "PumpkinHunt"), Set.of("announce"))));
+                visible(env(Set.of("PulseGames", "PulseAddon", "PumpkinHunt"), true), true));
     }
     @Test void aBareServerStillHasPlayersAndNothingElse() {
-        assertEquals(List.of(Section.PLAYERS), visible(env(Set.of(), Set.of())));
+        assertEquals(List.of(Section.PLAYERS), visible(env(Set.of(), false), true));
+    }
+    @Test void announceShowsForDevAndAdminWheneverTheBridgeIsEnabled() {
+        assertEquals(List.of(Section.PLAYERS, Section.NETWORK), visible(env(Set.of(), true), true));
+        assertEquals(List.of(Section.PLAYERS), visible(env(Set.of(), true), false), "staff do not see Announce");
+        assertEquals(List.of(Section.PLAYERS), visible(env(Set.of(), false), true), "no bridge, no Announce");
+        assertEquals(List.of("chat", "title", "bar"), ANNOUNCE_STYLES.stream().map(AnnounceStyle::style).toList());
+        assertEquals(List.of("Chat", "Title", "Action bar"), ANNOUNCE_STYLES.stream().map(AnnounceStyle::label).toList());
+        ANNOUNCE_STYLES.forEach(st -> assertEquals(st.style(), Announce.style(st.style())));
     }
     @Test void pluginButtonsRunTheirOwnAdminCommands() {
         assertEquals("pulse adminmenu", plugin(Section.GAMES).orElseThrow().command());

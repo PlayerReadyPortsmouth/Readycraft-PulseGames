@@ -18,16 +18,26 @@ final class AdminHubModel {
             new PluginSection(Section.ADDON, "PulseAddon", "PulseAddon", "pulseadmin menu"),
             new PluginSection(Section.PUMPKINS, "PumpkinHunt", "Pumpkin Hunt", "pumpkins admin"));
 
-    /** What this server has. Faked in tests. */
-    interface Env { boolean pluginEnabled(String name); boolean hasCommand(String name); }
+    /** What this server has. Faked in tests. {@code bridgeEnabled} is true once the signed proxy link is configured. */
+    interface Env { boolean pluginEnabled(String name); boolean bridgeEnabled(); }
+    /** Sends a network announcement through the proxy link ({@link PaperBridge#announce}); false when it cannot be sent. */
+    interface Announcer { boolean enabled(); boolean announce(String text, String style); }
+    /** Announcement styles offered by the hub: button label and the wire style. */
+    record AnnounceStyle(String label, String style) {}
+    static final List<AnnounceStyle> ANNOUNCE_STYLES = List.of(
+            new AnnounceStyle("Chat", "chat"), new AnnounceStyle("Title", "title"), new AnnounceStyle("Action bar", "bar"));
     static final String WHITELIST_PLUGIN = "UltimateWhitelist";
 
-    /** Sections to show here, in order. Network (Announce) shows only when /announce is registered on this server. The whitelist exists only where UltimateWhitelist is enabled; the plugin buttons only where the plugin is. */
-    static List<Section> visible(Env env) {
+    /**
+     * Sections to show here, in order. Network (Announce) shows to Dev and Admin whenever the proxy link is enabled: /announce lives on the
+     * proxy, and the hub sends the signed ANNOUNCE message, so the proxy's rate limit and log still apply. The whitelist exists only where
+     * UltimateWhitelist is enabled; the plugin buttons only where the plugin is.
+     */
+    static List<Section> visible(Env env, boolean admin) {
         var out = new ArrayList<Section>();
         out.add(Section.PLAYERS);
         if (env.pluginEnabled(WHITELIST_PLUGIN)) out.add(Section.WHITELIST);
-        if (env.hasCommand("announce")) out.add(Section.NETWORK);
+        if (admin && env.bridgeEnabled()) out.add(Section.NETWORK);
         for (var p : PLUGINS) if (env.pluginEnabled(p.plugin())) out.add(p.section());
         return out;
     }

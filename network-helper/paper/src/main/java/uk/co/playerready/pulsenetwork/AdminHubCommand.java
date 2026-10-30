@@ -28,12 +28,13 @@ final class AdminHubCommand implements CommandExecutor {
     private final LuckPermsLink lp;
     private final BiPredicate<Player, List<String>> send;
     private final Env env;
+    private final Announcer announcer;
 
-    AdminHubCommand(JavaPlugin plugin, LuckPermsLink lp, BiPredicate<Player, List<String>> send) {
-        this.plugin = plugin; this.lp = lp; this.send = send;
+    AdminHubCommand(JavaPlugin plugin, LuckPermsLink lp, BiPredicate<Player, List<String>> send, Announcer announcer) {
+        this.plugin = plugin; this.lp = lp; this.send = send; this.announcer = announcer;
         this.env = new Env() {
             public boolean pluginEnabled(String n) { return plugin.getServer().getPluginManager().isPluginEnabled(n); }
-            public boolean hasCommand(String n) { return Bukkit.getCommandMap().getCommand(n) != null; }
+            public boolean bridgeEnabled() { return announcer != null && announcer.enabled(); }
         };
     }
 
@@ -83,7 +84,7 @@ final class AdminHubCommand implements CommandExecutor {
 
     private void main(Player p) {
         var buttons = new ArrayList<Btn>();
-        for (var s : visible(env)) {
+        for (var s : visible(env, may(p, Gate.ADMIN))) {
             switch (s) {
                 case PLAYERS -> buttons.add(btn(Material.PLAYER_HEAD, "Players", "Roles, name styles, identity, tab, teleport", () -> players(p)));
                 case WHITELIST -> buttons.add(btn(Material.WRITABLE_BOOK, "Whitelist", "Add, remove, switch on or off, list", () -> whitelist(p)));
@@ -212,9 +213,22 @@ final class AdminHubCommand implements CommandExecutor {
     private void network(Player p) {
         var b = new ArrayList<Btn>();
         b.add(btn(Material.GOAT_HORN, "Announce", "Type a message for every server", guarded(p, Gate.ADMIN,
-                () -> ask(p, "Announcement", AnvilPromptLogic.Rule.text(150), text -> confirm(p, "Send this announcement?", () -> {
-                    audit(p, "announce", text); p.performCommand("announce " + text); })))));
+                () -> ask(p, "Announcement", AnvilPromptLogic.Rule.text(150), text -> announceStyle(p, text)))));
         b.add(btn(Material.ARROW, "Back", null, () -> main(p)));
         show(p, "Network", "Announcements reach every server.", b);
+    }
+    /** Pick how it shows (chat, title or action bar), confirm, then send through the proxy link. Titles split on " | " into title and subtitle. */
+    private void announceStyle(Player p, String text) {
+        var b = new ArrayList<Btn>();
+        for (var st : ANNOUNCE_STYLES) b.add(btn(st.style().equals("title") ? Material.NAME_TAG : st.style().equals("bar") ? Material.PAPER : Material.OAK_SIGN,
+                st.label(), "Send as " + st.label().toLowerCase(Locale.ROOT), guarded(p, Gate.ADMIN, () -> confirm(p, "Send this announcement?", () -> {
+                    if (!may(p, Gate.ADMIN)) { p.sendMessage(line("That needs a Dev or Admin.")); return; }
+                    audit(p, "announce " + st.style(), text);
+                    p.sendMessage(line(announcer != null && announcer.announce(text, st.style())
+                            ? "Announcement sent to the proxy. It allows one every 5 seconds; a second one sooner is dropped."
+                            : "The announcement could not be sent: the network link is not configured, or the text was empty."));
+                }))));
+        b.add(btn(Material.ARROW, "Back", null, () -> network(p)));
+        show(p, "Announce as", text, b);
     }
 }
