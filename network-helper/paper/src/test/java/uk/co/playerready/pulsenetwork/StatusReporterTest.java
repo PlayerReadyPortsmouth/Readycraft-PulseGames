@@ -13,6 +13,7 @@ class StatusReporterTest {
     /** Stands in for PulseGames: only the reflective hook the bridge already uses. */
     static abstract class GamesPlugin implements Plugin {
         public boolean networkPlayerBusy(Player p) { return p.getName().equals("busy"); }
+        public int networkPlayerLevel(Player p) { return p.getName().equals("busy") ? 12 : 0; }
     }
     Plugin games() {
         Plugin games = mock(GamesPlugin.class, CALLS_REAL_METHODS); when(games.isEnabled()).thenReturn(true); return games;
@@ -35,5 +36,14 @@ class StatusReporterTest {
         assertEquals(ServerStatus.MATCH, status.flags().get(busy.getUniqueId()));
         assertFalse(status.flags().containsKey(plain.getUniqueId()));
         assertEquals(0, reporter.collect(20, 1, List.of(plain), null).flags().size());
+    }
+    @Test void levelsComeFromTheSoftPulseGamesHookAndAreOmittedWhenAbsent() {
+        Player busy = player("busy", null), plain = player("plain", null);
+        var reporter = new StatusReporter(List.of());
+        var status = reporter.collect(20, 1, List.of(busy, plain), games());
+        assertEquals(Map.of(busy.getUniqueId(), 12), status.levels());
+        assertTrue(reporter.collect(20, 1, List.of(busy), null).levels().isEmpty());
+        Plugin old = mock(Plugin.class); when(old.isEnabled()).thenReturn(true);
+        assertTrue(new StatusReporter(List.of()).collect(20, 1, List.of(busy), old).levels().isEmpty());
     }
 }

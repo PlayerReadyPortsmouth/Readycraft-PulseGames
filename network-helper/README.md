@@ -2,7 +2,7 @@
 
 ## Cross-server parties — prepared draft, not deployed
 
-PulseNetwork **0.1.6** credits **AurorasChaos (on behalf of Player Ready)**. The current draft adds proxy-owned `/party` (also `/networkparty`) invitations, acceptance, list, leave, disband and private party chat. Invitations expire after 60 seconds; parties hold up to eight online players. Java has a clickable invitation; Bedrock can type `/party accept` or `/party deny`. Leaving the proxy removes a member and promotes another leader if needed. Backend transfers preserve membership; proxy restarts do not preserve parties yet.
+PulseNetwork **0.2.0** credits **AurorasChaos (on behalf of Player Ready)**. The current draft adds proxy-owned `/party` (also `/networkparty`) invitations, acceptance, list, leave, disband and private party chat. Invitations expire after 60 seconds; parties hold up to eight online players. Java has a clickable invitation; Bedrock can type `/party accept` or `/party deny`. Leaving the proxy removes a member and promotes another leader if needed. Backend transfers preserve membership; proxy restarts do not preserve parties yet.
 
 The leader selects an advertised game through `/queues` or `/joinqueue <id>`. Every party member transfers with their **own** saved origin. The destination receives one authenticated group admission only after everyone arrives. Transfer failure or timeout cancels the group and returns transferred members where possible; late successful transfers also return. The destination rejects conflicting local parties rather than overwriting them. A leader acknowledgement completes the whole proxy request atomically. Game capacity, team packing, preview access and admission remain PulseGames decisions.
 
@@ -67,6 +67,68 @@ Nothing logs player lists, names from the roster or secrets; a failed update log
 - [ ] Ordering on a 1.21.2+ client matches expectations (flip `tab.list-order-higher-first` if not); older client sorts by name without errors.
 - [ ] Excluded or non-allowlisted server leaves the backend's own list untouched; no EssentialsX conflict.
 - [ ] Proxy load acceptable with a full roster; logs contain no player lists or secrets.
+
+## Roles (`/role`) and hidden-from-tab
+
+Proxy-owned `/role` (alias `/networkrole`), available only when LuckPerms is loaded on the proxy. LuckPerms stays the single source of truth: a role is membership of a LuckPerms group, named in config. The command cannot touch any other group or permission.
+
+| Command | Effect |
+|---|---|
+| `/role set <player> <role>` | Adds the role's group |
+| `/role remove <player> <role>` | Asks for `/role confirm` within 30 seconds, then removes the group |
+| `/role who <player>` | Roles and whether the player is hidden from the tab |
+| `/role list [role]` | Holders by username, capped at 50 per role |
+| `/role venues` | The five venue roles with their group and account count |
+| `/role hide <player>` / `/role unhide <player>` | Sets or clears LuckPerms user meta `pulse.tab.hidden` |
+
+Roles: `dev`, `admin`, `staff`, `venue:ports`, `venue:plym`, `venue:tru`, `venue:tau`, `venue:exet`. Players need to have joined the network once; names must match exactly (offline players are fine). Nobody can change their own roles.
+
+### Who may do what
+
+Decided by the sender's **direct group membership**, never by permission (admins hold `*`, which would pass every check). The highest group wins: dev, then admin, then staff.
+
+| Sender | set/remove dev, admin, staff | set/remove venue roles | who, list, venues | hide, unhide |
+|---|---|---|---|---|
+| Console | yes | yes | yes | yes |
+| dev | yes | yes | yes | yes |
+| admin | no | yes | yes | yes |
+| staff | no | yes | yes | no |
+| venue or none | no | no | no | no |
+
+### Config keys (proxy `network.properties`)
+
+- `roles.groups`: role=group pairs, comma separated, e.g. `staff=crew,venue:tru=venue-truro`. Unlisted roles keep the defaults `dev=dev,admin=admin,staff=staff,venue:ports=venue-ports,venue:plym=venue-plym,venue:tru=venue-tru,venue:tau=venue-tau,venue:exet=venue-exet`. Group names are lower case; two roles cannot share a group. A bad value disables `/role` and logs why.
+- `tab.hidden-players`: comma-separated exact names always hidden from the network tab.
+
+Every change logs one proxy line, `ROLE <actor> set|remove <role> for <target>` (hide/unhide log `set|remove tab-hidden`), writes an entry to the LuckPerms action log, and tells online dev and admin players in chat.
+
+### Hidden from the tab: behaviour change
+
+`pulsenetwork.tab.hidden` is no longer checked, because the `*` wildcard granted it to every admin. A player is hidden only by opt-in: LuckPerms user meta `pulse.tab.hidden=true` (use `/role hide`) or the `tab.hidden-players` list. Backend-reported hidden flags still apply. **Players holding `*` are visible in the tab again** until someone hides them.
+
+### Sync delay
+
+The proxy sees a change immediately because the write goes through its own LuckPerms. Backends learn of it through LuckPerms SQL messaging, normally within a few seconds (not yet measured on this network). The tab picks the change up on its next refresh.
+
+## Names, tags and styles
+
+One pure renderer (`NameStyle`, in `common`) draws `[TAG] [12] name` for the proxy tab, the Velocity global relay and Paper local system delivery (`chat.local-system-delivery`). Prepared draft, not deployed.
+
+| Role (`pulse.role`) | Tag | Colour |
+|---|---|---|
+| `dev` | `DEV` | aqua |
+| `admin` | `ADMIN` | red to gold |
+| `staff` | `STAFF` | green |
+| `venue` | `VENUE` | yellow (generic: never a town name) |
+
+- **Meta read** (LuckPerms `CachedMetaData#getMetaValue`, reflective, so group weight decides): `pulse.role` (set on groups) and `pulse.namestyle` (user meta, a style id). `pulse.venue` is for admin use and is never read or rendered. Permissions never decide a tag: an admin holding `*` shows `ADMIN` only because their group sets `pulse.role=admin`. Unknown roles and style ids are ignored.
+- **Styles** (code, stable ids): solid `red orange yellow green aqua blue purple pink`; gradients `sunset ocean forest candy`; animated `rainbow shimmer pulse sparkle`. Player text is never parsed.
+- **Level badge:** grey `[12]` before the name, from PulseGames via the soft `networkPlayerLevel(Player)` method, carried in the STATUS message (chunks starting `L`, up to 2 chunks, about 38 players per backend report; extra players simply show no badge). It needs `tab-status.enabled` on the backend and `tab.enabled` on the proxy. A proxy older than this change rejects a STATUS report containing level chunks, so upgrade the proxy first.
+- **32-character rule:** the whole row (tag, badge, name, and in the tab the Bedrock marker, `(AFK)` and `[In a game]`) fits 32 visible characters. The name is never truncated; the badge goes first, then the tag.
+- **Tab:** the LuckPerms prefix/suffix is only a fallback for players with no role tag. Animated styles advance every `tab.animation-ms`; rows of players without an animated style are identical every frame, so nothing extra is sent for them.
+- **Bedrock** (Floodgate UUIDs, most-significant half zero): one static named colour per style and per tag, no gradients or animation; tags stay readable as text. Chat is always the static frame.
+- **Config:** proxy `network.properties`: `tags.<role>=<MiniMessage>` (text capped at 6 characters; blank removes the tag), `tab.animation-ms` (default `1000`, 500 to 10000). Paper `config.yml`: `tags:` section with the same role keys.
+- **Limit:** backends that receive global chat from the proxy (`REMOTECHAT`) still print the plain name; styling remote names there needs a wire change and is not part of this change.
 
 ## Local chat delivery (`chat.local-system-delivery`)
 

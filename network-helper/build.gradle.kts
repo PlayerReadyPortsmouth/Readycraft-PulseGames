@@ -2,7 +2,7 @@ plugins { java }
 subprojects {
     apply(plugin = "java")
     group = "uk.co.playerready"
-    version = "0.1.6"
+    version = "0.2.0"
     repositories {
         mavenCentral()
         maven("https://repo.papermc.io/repository/maven-public/")
@@ -15,6 +15,15 @@ subprojects {
         "testRuntimeOnly"("org.junit.platform:junit-platform-launcher")
     }
     tasks.withType<Test>().configureEach { useJUnitPlatform() }
+}
+project(":common") {
+    dependencies {
+        // Provided at runtime by both Paper and Velocity.
+        for (module in listOf("adventure-api", "adventure-text-minimessage", "adventure-text-serializer-plain")) {
+            "compileOnly"("net.kyori:$module:4.17.0")
+            "testImplementation"("net.kyori:$module:4.17.0")
+        }
+    }
 }
 project(":paper") {
     dependencies {
@@ -30,6 +39,7 @@ project(":velocity") {
         "testImplementation"("com.velocitypowered:velocity-api:3.4.0-SNAPSHOT")
         "annotationProcessor"("com.velocitypowered:velocity-api:3.4.0-SNAPSHOT")
         "compileOnly"("org.geysermc.floodgate:api:2.2.4-SNAPSHOT")
+        "compileOnly"("net.luckperms:api:5.4")
     }
 }
 configure(listOf(project(":paper"), project(":velocity"))) {

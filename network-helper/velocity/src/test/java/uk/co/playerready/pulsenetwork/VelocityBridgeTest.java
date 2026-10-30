@@ -128,4 +128,19 @@ class VelocityBridgeTest {
         assertEquals("RESTORE",new Wire(KEY).decode(bytes.getValue()).orElseThrow().kind());assertTrue(visits.isEmpty());
     }
 
+    @Test void globalRelayShowsRoleTagAndStyledNameStaticallyAndFlattensForBedrock() throws Exception {
+        set(bridge, "lpMeta", (IdentityResolver.Meta) (id, key) -> key.equals("pulse.role") ? "dev" : key.equals("pulse.namestyle") ? "rainbow" : null);
+        bridge.message(message("CHAT", "hello"));
+        var line = org.mockito.ArgumentCaptor.forClass(Component.class);
+        verify(remote).sendMessage(line.capture());
+        assertEquals("[Global · survival] [DEV] Test: hello", net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(line.getValue()));
+        assertEquals(line.getValue(), bridge.relayLine(sender, "survival", "hello", false), "static frame: identical every time");
+        assertNotEquals(line.getValue(), bridge.relayLine(sender, "survival", "hello", true), "Bedrock gets one flat colour");
+    }
+    @Test void globalRelayWithoutRoleIsAsBefore() {
+        bridge.message(message("CHAT", "hello"));
+        var line = org.mockito.ArgumentCaptor.forClass(Component.class);
+        verify(remote).sendMessage(line.capture());
+        assertEquals("[Global · survival] Test: hello", net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(line.getValue()));
+    }
 }

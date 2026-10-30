@@ -1,9 +1,9 @@
 name: PulseNetwork
-version: '0.1.6'
+version: '0.2.0'
 authors: ['AurorasChaos (on behalf of Player Ready)']
 main: uk.co.playerready.pulsenetwork.PaperBridge
 api-version: '1.21'
-softdepend: [PulseGames, AdvancedChat, ChatGames, EssentialsChat, PulseAddon]
+softdepend: [PulseGames, AdvancedChat, ChatGames, EssentialsChat, PulseAddon, LuckPerms]
 commands:
   globalchat:
     description: Toggle relaying your normal public chat across the network
