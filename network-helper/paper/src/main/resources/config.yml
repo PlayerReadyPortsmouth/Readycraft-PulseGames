@@ -28,3 +28,6 @@ namestyle:
   enabled: true
 rolemenu:
   enabled: true
+# /admin hub for Dev, Admin and Staff; sections appear only for plugins present on this server.
+admin:
+  enabled: true

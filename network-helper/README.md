@@ -196,6 +196,22 @@ It does not change roles itself. The backend sends a signed `ROLECMD` plugin mes
 - Needs the backend `enabled: true` with the bridge secret, and a proxy with this change (an older proxy ignores the message, so nothing happens).
 - **Config (`config.yml`):** `rolemenu.enabled` (default `true`).
 
+## Admin hub and anvil input
+
+`/admin` (aliases `/adminmenu`, `/am`) is one menu for players directly in the LuckPerms group `dev`, `admin` or `staff`. It shows only what this server has: **Players** always; **Whitelist** where UltimateWhitelist is enabled (the Lobby; elsewhere a grey "Whitelist lives on the Lobby" button runs `/server lobby`); **Network > Announce** where `/announce` is registered; and one button each for PulseGames (`/pulse adminmenu`), PulseAddon (`/pulseadmin menu`) and Pumpkin Hunt (`/pumpkins admin`) when that plugin is enabled. Java gets chest menus, Bedrock gets forms.
+
+- **Players:** pick an online head or search by name (anvil; offline names work through LuckPerms). Per player: View identity, Set role (`/rolemenu <name>`), Name styles (grant or revoke `pulse.namestyle.<id>` straight in LuckPerms, held styles lit), Hide or Show in tab, Teleport to (same server only). Identity, hide and unhide go to the proxy as the player (`ROLECMD`), so the proxy's own gating and audit still apply.
+- **Whitelist:** Add, Remove (confirm), Switch on or off (confirm), List and Status, run as the console after the permission check (`uw add|remove <name>`, `uw on|off|list|status`).
+- **Who may:** Dev, Admin and Staff open the hub, add to the whitelist and read it. Removing, switching the whitelist, name styles, tab hide and Announce are Dev and Admin only. The group is checked again on every click.
+- **Audit:** one console line per action: `ADMIN <actor> <action> <target>`.
+- **Config:** `admin.enabled` (default `true`).
+
+### AnvilPrompt (copy this pattern)
+
+`AnvilPrompt.ask(plugin, player, title, rule, onValue, onCancel)` opens an anvil with a paper named after the prompt. The player types in the rename box and clicks the result slot. Invalid text (`AnvilPromptLogic.Rule`: regex plus length) re-opens with a red error line, five tries at most. Escape or closing cancels. Every click and drag is cancelled and the paper is emptied before close, so nothing can be taken or handed back. Bedrock players get a one-field Cumulus `CustomForm` with the same rule. It uses `MenuType.ANVIL` and `AnvilView`, no NMS, so it runs on Paper 1.21.4 and 26.2.
+
+To reuse it in PulseGames or PulseAddon, copy `AnvilPrompt`, `AnvilPromptLogic` and `BedrockForms.input`, register `AnvilPrompt.listener()` once, and keep the logic class tested without Bukkit.
+
 ## Local chat delivery (`chat.local-system-delivery`)
 
 Symptom: players on the same backend cannot see each other's ordinary chat, while messages relayed from another server show fine. Since 1.19 player chat is signed with the Microsoft account key. Behind Velocity (and for Floodgate/Bedrock players, who cannot sign) clients can drop or hide player-chat packets whose signature chain does not validate. The proxy's relayed global chat arrives as unsigned system messages, so it is unaffected.

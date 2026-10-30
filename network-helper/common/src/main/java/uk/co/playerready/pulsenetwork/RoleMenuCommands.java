@@ -3,7 +3,7 @@ package uk.co.playerready.pulsenetwork;
 import java.util.*;
 
 /**
- * Composes and validates the {@code /role} command lines the Paper role menu asks the proxy to run as the player. Shared so the
+ * Composes and validates the {@code /role} (and {@code /identity}) command lines the Paper role menu asks the proxy to run as the player. Shared so the
  * backend only sends what the proxy will accept. The proxy's own gating, audit line and confirm step still decide everything.
  */
 public final class RoleMenuCommands {
@@ -17,7 +17,7 @@ public final class RoleMenuCommands {
     public static Optional<List<String>> fields(String action, String name, String role) {
         List<String> f = switch (action) {
             case "set", "remove" -> role != null && ROLES.contains(role) ? List.of(action, name == null ? "" : name, role) : null;
-            case "who" -> List.of("who", name == null ? "" : name);
+            case "who", "hide", "unhide", "identity" -> List.of(action, name == null ? "" : name);
             case "confirm" -> List.of("confirm");
             default -> null;
         };
@@ -27,13 +27,13 @@ public final class RoleMenuCommands {
 
     /** The full command text, for example {@code /role set X venue:ports}. */
     public static Optional<String> line(String action, String name, String role) {
-        return fields(action, name, role).map(f -> "/role " + String.join(" ", f));
+        return fields(action, name, role).map(f -> "/" + (f.get(0).equals("identity") ? "" : "role ") + String.join(" ", f));
     }
 
     /** Proxy side: validates received fields and returns the command to run without the slash. */
     public static Optional<String> fromFields(List<String> f) {
         if (f.isEmpty()) return Optional.empty();
         return fields(f.get(0), f.size() > 1 ? f.get(1) : null, f.size() > 2 ? f.get(2) : null)
-                .filter(c -> c.equals(f)).map(c -> "role " + String.join(" ", c));
+                .filter(c -> c.equals(f)).map(c -> (c.get(0).equals("identity") ? "" : "role ") + String.join(" ", c));
     }
 }
