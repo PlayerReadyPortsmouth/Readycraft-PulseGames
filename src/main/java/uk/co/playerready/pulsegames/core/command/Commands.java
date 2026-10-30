@@ -19,6 +19,7 @@ import java.util.Locale;
 public final class Commands implements CommandExecutor, TabCompleter {
 
     private final PulseGamesPlugin plugin;
+    private uk.co.playerready.pulsegames.core.progression.ProgressionAdminCommand progression;
 
     public Commands(PulseGamesPlugin plugin) {
         this.plugin = plugin;
@@ -34,6 +35,10 @@ public final class Commands implements CommandExecutor, TabCompleter {
         // Console-capable admin subcommands (map generation needs no player).
         if (command.getName().equalsIgnoreCase("pulse") && args.length >= 1) {
             String sub = args[0].toLowerCase(Locale.ROOT);
+            if (uk.co.playerready.pulsegames.core.progression.ProgressionAdminCommand.strip(args) != null) {
+                adminConsole(sender, args);
+                return true;
+            }
             if (sub.equals("build") || sub.equals("blueprints") || sub.equals("bots") || sub.equals("diagnose") || sub.equals("maps")) {
                 adminConsole(sender, args);
                 return true;
@@ -164,6 +169,12 @@ public final class Commands implements CommandExecutor, TabCompleter {
     private void adminConsole(CommandSender sender, String[] args) {
         if (sender instanceof Player p && !p.hasPermission("pulsegames.admin")) {
             sender.sendMessage(Text.msg("<red>No permission."));
+            return;
+        }
+        var progressionArgs = uk.co.playerready.pulsegames.core.progression.ProgressionAdminCommand.strip(args);
+        if (progressionArgs != null) {
+            if (progression == null) progression = new uk.co.playerready.pulsegames.core.progression.ProgressionAdminCommand(plugin);
+            progression.handle(sender, progressionArgs);
             return;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
@@ -335,6 +346,11 @@ public final class Commands implements CommandExecutor, TabCompleter {
                 }
             }
             case "pulse" -> {
+                var progressionArgs = uk.co.playerready.pulsegames.core.progression.ProgressionAdminCommand.strip(args);
+                if (progressionArgs != null || args.length == 1 && args[0].equalsIgnoreCase("admin")) {
+                    if (progression == null) progression = new uk.co.playerready.pulsegames.core.progression.ProgressionAdminCommand(plugin);
+                    return progression.tab(sender, progressionArgs == null ? new String[]{""} : progressionArgs);
+                }
                 if (args.length >= 2 && args[0].equalsIgnoreCase("maps")) {
                     if (!sender.hasPermission("pulsegames.admin")) return List.of();
                     List<String> choices = List.of();
@@ -387,7 +403,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
                 }
                 if (args.length >= 2 && args[0].equalsIgnoreCase("lobby")) return plugin.lobbyPlacements().tab(sender, args);
                 if (args.length == 1) {
-                    return List.of("lobby", "setup", "shape", "build", "blueprints", "bots", "diagnose", "maps", "practice", "event", "results", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
+                    return List.of("lobby", "setup", "shape", "build", "blueprints", "bots", "diagnose", "maps", "practice", "event", "results", "xp", "level", "namestyle", "progression", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
                 }
                 if (args.length == 3 && args[0].equalsIgnoreCase("world")) return List.of("void", "normal");
                 if (args.length == 2 && args[0].equalsIgnoreCase("build")) {

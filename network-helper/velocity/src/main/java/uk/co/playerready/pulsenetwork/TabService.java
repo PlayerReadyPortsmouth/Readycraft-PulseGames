@@ -62,6 +62,14 @@ final class TabService {
         return s == null ? null : s.levels().get(id);
     }
     NameStyle.Tags tags() { return config.tags(); }
+    private int flags(String server, UUID id) { var s = server == null ? null : status(server); return s == null ? 0 : s.flags().getOrDefault(id, 0); }
+    private boolean hidden(Player p, int flags) {
+        return (flags & ServerStatus.HIDDEN) != 0 || RoleLogic.tabHidden(p.getUniqueId(), p.getUsername(), id -> optional.metaValue(id, RoleLogic.HIDDEN_META), hiddenNames);
+    }
+    /** Whether the tab hides this player right now (backend flag, meta or config). */
+    boolean hidden(Player p) { return hidden(p, flags(server(p), p.getUniqueId())); }
+    /** Forces every viewer's tab to be rebuilt on the next tick. */
+    void refresh() { everyoneDirty = true; viewers.values().forEach(v -> { v.lastPeriodic = 0; v.lastUpdate = 0; v.lastHeaderFooter = null; }); }
 
     @Subscribe public void connected(ServerPostConnectEvent event) {
         var viewer = viewers.computeIfAbsent(event.getPlayer().getUniqueId(), id -> new Viewer());
@@ -82,12 +90,12 @@ final class TabService {
         for (Player p : players) {
             String server = server(p);
             if (server == null || !participating.contains(server)) continue;
-            var flags = status(server) == null ? 0 : status(server).flags().getOrDefault(p.getUniqueId(), 0);
+            var flags = flags(server, p.getUniqueId());
             String[] meta = optional.meta(p.getUniqueId());
             var identity = IdentityResolver.resolve(p.getUniqueId(), p.getUsername(), lpMeta, level(server, p.getUniqueId()), config.tags());
             animated |= NameStyle.isAnimated(identity.styleId());
             members.add(new TabRoster.Member(p.getUniqueId(), p.getUsername(), server, (int) Math.min(9999, Math.max(0, p.getPing())), meta[0], meta[1],
-                    bedrock(p), (flags & ServerStatus.HIDDEN) != 0 || RoleLogic.tabHidden(p.getUniqueId(), p.getUsername(), id -> optional.metaValue(id, RoleLogic.HIDDEN_META), hiddenNames),
+                    bedrock(p), hidden(p, flags),
                     (flags & ServerStatus.AFK) != 0, (flags & ServerStatus.MATCH) != 0, identity.role(), identity.styleId(), identity.level()));
         }
         long frame = TabRender.frame(now, config);
@@ -132,7 +140,7 @@ final class TabService {
         state.lastHeaderFooter = null;
     }
     private static String server(Player p) { return p.getCurrentServer().map(c -> c.getServerInfo().getName()).orElse(null); }
-    private boolean bedrock(Player p) {
+    boolean bedrock(Player p) {
         if (!floodgate) return false;
         try { return BedrockCheck.bedrock(p.getUniqueId()); } catch (RuntimeException | LinkageError e) { return false; }
     }

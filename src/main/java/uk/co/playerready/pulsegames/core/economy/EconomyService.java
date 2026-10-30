@@ -148,6 +148,17 @@ public final class EconomyService {
         }
     }
 
+    /** Removes an unlock (admin reset only); true if it was held. */
+    public synchronized boolean lock(Player player, String cosmeticId) {
+        List<String> unlocks = data.getStringList(key(player) + ".unlocks");
+        if (!unlocks.remove(cosmeticId)) return false;
+        data.set(key(player) + ".unlocks", unlocks);
+        dirty = true;
+        return true;
+    }
+
+    public synchronized int unlockedCount(Player player) { return data.getStringList(key(player) + ".unlocks").size(); }
+
     public synchronized String equipped(Player player, Cosmetic.Category category) {
         return data.getString(key(player) + ".equipped." + category.name().toLowerCase(Locale.ROOT));
     }

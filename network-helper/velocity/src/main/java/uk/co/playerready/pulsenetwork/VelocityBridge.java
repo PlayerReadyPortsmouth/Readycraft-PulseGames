@@ -21,7 +21,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Plugin(id="pulsenetwork", name="PulseNetwork", version="0.2.1", description="Public chat relay and minigame queue joins", authors={"AurorasChaos (on behalf of Player Ready)"},
+@Plugin(id="pulsenetwork", name="PulseNetwork", version="0.2.2", description="Public chat relay and minigame queue joins", authors={"AurorasChaos (on behalf of Player Ready)"},
         dependencies = {@com.velocitypowered.api.plugin.Dependency(id="floodgate", optional=true),
                 @com.velocitypowered.api.plugin.Dependency(id="luckperms", optional=true)})
 public final class VelocityBridge {
@@ -114,8 +114,11 @@ public final class VelocityBridge {
     private void registerRoles(com.velocitypowered.api.command.CommandManager commands, String roleGroups, String hiddenPlayers) {
         if (!proxy.getPluginManager().isLoaded("luckperms")) { logger.info("LuckPerms is not loaded; /role is unavailable."); return; }
         try {
-            var command = new RoleCommand(proxy, logger, new LuckPermsStore(), RoleLogic.parseGroups(roleGroups), RoleLogic.names(hiddenPlayers));
+            var store = new LuckPermsStore();
+            var command = new RoleCommand(proxy, logger, store, RoleLogic.parseGroups(roleGroups), RoleLogic.names(hiddenPlayers));
             commands.register(commands.metaBuilder("role").aliases("networkrole").plugin(this).build(), command);
+            commands.register(commands.metaBuilder("identity").plugin(this).build(),
+                    new IdentityCommand(proxy, store, RoleLogic.parseGroups(roleGroups), lpMeta, () -> tab, tags));
         } catch (IllegalArgumentException | LinkageError e) { logger.error("/role is unavailable: {}", e.getMessage()); }
     }
     private static Set<String> csv(String value) {
@@ -177,26 +180,26 @@ public final class VelocityBridge {
         body = Wire.plain(body); if (body.isBlank() || body.length() > 512) return;
         long now = System.currentTimeMillis();
         Long previous = chatTimes.put(player.getUniqueId(), now); if (previous != null && now - previous < 1000) return;
-        Component[] lines = {relayLine(player, server, body, false), null};
+        var identity = identity(player, server);
+        Component[] lines = {RemoteChat.line(server, identity, body, false, tags), null};
         for (Player receiver : proxy.getAllPlayers()) if (receiver.getCurrentServer()
                 .map(s -> chatAllowed.contains(s.getServerInfo().getName()) && !s.getServerInfo().getName().equals(server)).orElse(false)) {
             var connection = receiver.getCurrentServer().orElseThrow();
             if (paperBackends.contains(connection.getServerInfo().getName()))
-                connection.sendPluginMessage(CHANNEL, wire.encode("REMOTECHAT", receiver.getUniqueId(), server, player.getUniqueId().toString(), player.getUsername(), body));
+                connection.sendPluginMessage(CHANNEL, wire.encode("REMOTECHAT", receiver.getUniqueId(), RemoteChat.fields(server, player.getUniqueId(), identity, body)));
             else {
                 boolean bedrock = receiver.getUniqueId().getMostSignificantBits() == 0; // Floodgate UUIDs
-                if (bedrock && lines[1] == null) lines[1] = relayLine(player, server, body, true);
+                if (bedrock && lines[1] == null) lines[1] = RemoteChat.line(server, identity, body, true, tags);
                 receiver.sendMessage(lines[bedrock ? 1 : 0]);
             }
         }
     }
-    /** {@code [Global · server] [TAG] name: body}, static frame; the level badge needs the tab status feed. */
+    private NameStyle.Identity identity(Player player, String server) {
+        return IdentityResolver.resolve(player.getUniqueId(), player.getUsername(), lpMeta, tab == null ? null : tab.level(server, player.getUniqueId()), tags);
+    }
+    /** {@code [Global · server] [TAG] [12] name: body}, static frame; the level badge needs the tab status feed. */
     Component relayLine(Player player, String server, String body, boolean bedrockViewer) {
-        var identity = IdentityResolver.resolve(player.getUniqueId(), player.getUsername(), lpMeta,
-                tab == null ? null : tab.level(server, player.getUniqueId()), tags);
-        return Component.text("[Global · " + server + "] ", NamedTextColor.GRAY)
-                .append(Component.text().color(NamedTextColor.AQUA).append(NameStyle.render(identity, bedrockViewer, 0, tags, NameStyle.MAX_VISIBLE))
-                        .append(Component.text(": ")).build()).append(Component.text(body, NamedTextColor.WHITE));
+        return RemoteChat.line(server, identity(player, server), body, bedrockViewer, tags);
     }
     private Component row(QueueDirectory.Queue queue) {
         return Component.text(queue.title() + " (" + queue.players() + "/" + queue.maximum() + ") ", NamedTextColor.YELLOW)

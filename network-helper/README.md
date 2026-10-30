@@ -2,7 +2,7 @@
 
 ## Cross-server parties — prepared draft, not deployed
 
-PulseNetwork **0.2.1** credits **AurorasChaos (on behalf of Player Ready)**. The current draft adds proxy-owned `/party` (also `/networkparty`) invitations, acceptance, list, leave, disband and private party chat. Invitations expire after 60 seconds; parties hold up to eight online players. Java has a clickable invitation; Bedrock can type `/party accept` or `/party deny`. Leaving the proxy removes a member and promotes another leader if needed. Backend transfers preserve membership; proxy restarts do not preserve parties yet.
+PulseNetwork **0.2.2** credits **AurorasChaos (on behalf of Player Ready)**. The current draft adds proxy-owned `/party` (also `/networkparty`) invitations, acceptance, list, leave, disband and private party chat. Invitations expire after 60 seconds; parties hold up to eight online players. Java has a clickable invitation; Bedrock can type `/party accept` or `/party deny`. Leaving the proxy removes a member and promotes another leader if needed. Backend transfers preserve membership; proxy restarts do not preserve parties yet.
 
 The leader selects an advertised game through `/queues` or `/joinqueue <id>`. Every party member transfers with their **own** saved origin. The destination receives one authenticated group admission only after everyone arrives. Transfer failure or timeout cancels the group and returns transferred members where possible; late successful transfers also return. The destination rejects conflicting local parties rather than overwriting them. A leader acknowledgement completes the whole proxy request atomically. Game capacity, team packing, preview access and admission remain PulseGames decisions.
 
@@ -156,7 +156,7 @@ One pure renderer (`NameStyle`, in `common`) draws `[TAG] [12] name` for the pro
 - **Tab:** the LuckPerms prefix/suffix is only a fallback for players with no role tag. Animated styles advance every `tab.animation-ms`; rows of players without an animated style are identical every frame, so nothing extra is sent for them.
 - **Bedrock** (Floodgate UUIDs, most-significant half zero): one static named colour per style and per tag, no gradients or animation; tags stay readable as text. Chat is always the static frame.
 - **Config:** proxy `network.properties`: `tags.<role>=<MiniMessage>` (text capped at 6 characters; blank removes the tag), `tab.animation-ms` (default `1000`, 500 to 10000). Paper `config.yml`: `tags:` section with the same role keys.
-- **Limit:** backends that receive global chat from the proxy (`REMOTECHAT`) still print the plain name; styling remote names there needs a wire change and is not part of this change.
+- **Remote chat on backends:** `REMOTECHAT` now carries optional `role`, `styleId` and `level` after the original four fields (7 in total; empty strings when absent). Paper renders `[Global · Lobby] [DEV] [12] name: message` per viewer (Java colours, one flat colour for Bedrock, static frame) through the same `RemoteChat.line` the proxy uses, so both match character for character. Four fields (an older proxy) print the plain name; unknown roles, styles and odd levels are dropped. **Upgrade every Paper backend before the proxy:** an older backend ignores a 7-field message, so global chat would stop reaching it.
 
 ## Name style picker
 
@@ -167,12 +167,25 @@ One pure renderer (`NameStyle`, in `common`) draws `[TAG] [12] name` for the pro
 | `/namestyle` | Opens a 27-slot menu (Java) or a form (Bedrock) |
 | `/namestyle list` | Prints unlocked and locked styles |
 | `/namestyle set <id>` | Picks an unlocked style |
+| `/namestyle preview <id>` | Shows a style as a chat line without changing anything. Dev and admin (direct LuckPerms groups `dev` or `admin`) can preview any style; everyone else gets "locked" for styles they do not hold |
 | `/namestyle clear` | Removes your style |
 
 - **Unlocked** means the player holds the LuckPerms permission `pulse.namestyle.<id>` (so a `*` holder has every style). It is checked again on every change, so editing the command does not help.
 - **Selection** writes LuckPerms user meta `pulse.namestyle=<id>` through the LuckPerms API (old value replaced). LuckPerms records it in its action log and syncs it; the tab and chat change within the LuckPerms sync delay, and the confirmation says so. One change per 5 seconds per player.
 - **Java menu:** unlocked styles first as coloured items showing the player's own name in that style, locked ones as grey panes ("Unlock by levelling up"), the current style glows, a barrier clears. **Bedrock:** a form with one button per unlocked style (name and a one-word colour hint) plus "Clear my style"; locked styles are listed in the text below. Bedrock without the Floodgate plugin falls back to the chest menu.
 - **Config (`config.yml`):** `namestyle.enabled` (default `true`).
+
+## Identity debugging (`/identity`)
+
+Proxy command, registered with `/role` (needs LuckPerms on the proxy). Read-only; it changes no data.
+
+| Command | Does |
+|---|---|
+| `/identity` | Your own identity |
+| `/identity <player>` | An online player's identity. Dev, admin (direct groups per `roles.groups`) and the console only |
+| `/identity refresh` | Dev, admin or console: rebuilds every tab list within a few seconds |
+
+Output (plain text, readable on Bedrock): direct LuckPerms groups; `pulse.role` and the tag it gives (unknown roles are flagged as ignored); `pulse.namestyle` and how many of the styles the player holds (a `*` holder counts all of them); level from the latest STATUS (unknown when stale); hidden-from-tab; Bedrock; current server; then two previews, "Java viewer sees" and "Bedrock viewer sees", written as `{colour:text}` runs of the static first frame, e.g. `{dark_gray:[}{aqua:DEV}{dark_gray:]} {gray:[12]} {red:Ann}`. Java gradients show hex colours; Bedrock shows one named colour.
 
 ## Role menu
 

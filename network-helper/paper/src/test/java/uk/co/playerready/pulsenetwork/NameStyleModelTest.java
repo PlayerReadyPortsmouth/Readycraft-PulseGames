@@ -43,4 +43,12 @@ class NameStyleModelTest {
         var last = new HashMap<UUID, Long>(); UUID id = UUID.randomUUID();
         assertTrue(NameStyleModel.allow(last, id, 1000)); assertFalse(NameStyleModel.allow(last, id, 5999)); assertTrue(NameStyleModel.allow(last, id, 6000));
     }
+    @Test void previewIsOpenToDevAndAdminForAnyStyleAndLockedForEveryoneElse() {
+        java.util.function.Predicate<String> held = Set.of("pulse.namestyle.red")::contains;
+        assertEquals(NameStyleModel.Preview.OK, NameStyleModel.preview("rainbow", true, p -> false));
+        assertEquals(NameStyleModel.Preview.OK, NameStyleModel.preview("red", false, held));
+        assertEquals(NameStyleModel.Preview.LOCKED, NameStyleModel.preview("rainbow", false, held));
+        assertEquals(NameStyleModel.Preview.UNKNOWN, NameStyleModel.preview("nope", true, p -> true));
+        assertEquals(Set.of("dev", "admin"), NameStyleModel.PREVIEW_GROUPS);
+    }
 }
