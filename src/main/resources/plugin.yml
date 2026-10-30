@@ -3,7 +3,7 @@ authors: ['AurorasChaos (on behalf of Player Ready)']
 version: "${version}"
 main: uk.co.playerready.pulsegames.PulseGamesPlugin
 api-version: '1.21'
-softdepend: [floodgate, Citizens, PulseContent, OldCombatMechanics]
+softdepend: [floodgate, Citizens, PulseContent, OldCombatMechanics, LuckPerms]
 description: Multi-instance minigame engine for the Readycraft network.
 commands:
   play:

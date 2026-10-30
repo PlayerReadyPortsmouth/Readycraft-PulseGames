@@ -2,7 +2,7 @@
 
 ## Cross-server parties — prepared draft, not deployed
 
-PulseNetwork **0.2.0** credits **AurorasChaos (on behalf of Player Ready)**. The current draft adds proxy-owned `/party` (also `/networkparty`) invitations, acceptance, list, leave, disband and private party chat. Invitations expire after 60 seconds; parties hold up to eight online players. Java has a clickable invitation; Bedrock can type `/party accept` or `/party deny`. Leaving the proxy removes a member and promotes another leader if needed. Backend transfers preserve membership; proxy restarts do not preserve parties yet.
+PulseNetwork **0.2.1** credits **AurorasChaos (on behalf of Player Ready)**. The current draft adds proxy-owned `/party` (also `/networkparty`) invitations, acceptance, list, leave, disband and private party chat. Invitations expire after 60 seconds; parties hold up to eight online players. Java has a clickable invitation; Bedrock can type `/party accept` or `/party deny`. Leaving the proxy removes a member and promotes another leader if needed. Backend transfers preserve membership; proxy restarts do not preserve parties yet.
 
 The leader selects an advertised game through `/queues` or `/joinqueue <id>`. Every party member transfers with their **own** saved origin. The destination receives one authenticated group admission only after everyone arrives. Transfer failure or timeout cancels the group and returns transferred members where possible; late successful transfers also return. The destination rejects conflicting local parties rather than overwriting them. A leader acknowledgement completes the whole proxy request atomically. Game capacity, team packing, preview access and admission remain PulseGames decisions.
 
@@ -44,6 +44,34 @@ Placeholders: `<player>`, `<server>`, `<server_id>`, `<network_online>`, `<serve
 Paper backend (`config.yml`): `tab-status.enabled` (default `false`) sends a signed STATUS message every 5 s: TPS (1 min), MSPT (5 s average), online count and flags only for players that have one (AFK from metadata keys in `tab-status.afk-metadata-keys`, default `afk`/`AFK`; hidden from `vanished` metadata; in-match from `PulseGames.networkPlayerBusy`, which gives no game name). It follows the transport rules above: HMAC, 30 s freshness, nonces, at most 12 fields, 1,024 characters per field, 8 KiB packet, reports capped at 168 flagged players (hidden first). The proxy accepts it only from the current backend connection of an allowlisted, non-excluded server and treats a report older than 20 s as unknown. The NeoForge bridge does not send status (its servers show blank TPS) and stays at 0.1.0.
 
 Nothing logs player lists, names from the roster or secrets; a failed update logs one generic warning a minute.
+
+### Tab columns (`tab.layout=columns`)
+
+Opt-in, off by default. Prepared draft, not deployed, not tried on any real client. One 20-row column per server on Java 1.21.2+: row 1 is the server header, then its players (sorted as in the grouped list), then blank filler entries up to row 20. The viewer's own server is the first column, then `tab.server-order`. Sorting uses `TabListEntry#setListOrder` (`80 - slot`, flipped by `tab.list-order-higher-first`), so a join or leave only moves entries inside its own column.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `tab.layout` | `list` | `list` (grouped list as before) or `columns`. Anything else refuses to load. |
+| `tab.columns.show-empty` | `false` | Give participating servers with nobody online an empty column (header plus fillers). |
+| `tab.columns.filler` | empty | MiniMessage text for filler rows. Empty gives a single space (an absent name would fall back to the hidden profile name). |
+
+`tab.group-header-format` still styles the column headers; `tab.group-headers` is ignored in columns mode (headers are always shown).
+
+Fallback to the grouped list, per viewer, when any of these hold: Bedrock viewer; Java client below 1.21.2; more than 4 servers to show; or the viewer's own server would overflow its columns (the backend owns those entries, so the proxy cannot hide them). Overflow rule: a server with more than 19 players takes extra columns while fewer than 4 are in use in total; if none are spare, a server other than the viewer's shows its first players and a grey "+n more" in its last row.
+
+Fillers have fixed ids per server and block position and profile names `~p<n>` (they sort after real names). They are added once and kept (cached per viewer through the same owned-entry diff as the other rows), never resent each tick.
+
+Packet volume (3 servers, one viewer, `L` players on the viewer's own server, `R` on the others): first join or server switch sends about `60 - L` entry adds (3 headers, `R` remote players, the rest fillers) plus up to `L` list-order updates for the backend's own entries, at most 80 entries in all. Steady state sends nothing per tick (ping changes are rounded to 25 ms and still refresh every 5 s). A player joining a column sends one add, removes one filler and re-orders only the later players in that column (at most 19 updates); a leave is the mirror image. Other columns are untouched.
+
+Known limits: filler and header rows show a ping bar and a default head; the 80-entry Java limit and column-major fill are assumptions from the design note, not yet confirmed on a client. Backend entries for hidden or non-participating players cannot be reordered and may appear in the first column.
+
+Acceptance checklist:
+
+- [ ] Java 1.21.2+: one column per server, own server first, header on top, filler rows invisible (blank), join and leave do not reshuffle other columns.
+- [ ] Java 1.21.2+: a 20th player on a server with a spare column starts a second column; with no spare column the viewer's own server falls back to the grouped list without errors, others show "+n more".
+- [ ] Java 1.20: grouped list, same as `tab.layout=list`.
+- [ ] Bedrock via Geyser: grouped list, plain-text headers, no ghost or filler rows.
+- [ ] Switching `tab.layout` back to `list` and reloading leaves no stray filler rows (they are proxy-owned and removed).
 
 ### Conflicts and limits
 
@@ -129,6 +157,31 @@ One pure renderer (`NameStyle`, in `common`) draws `[TAG] [12] name` for the pro
 - **Bedrock** (Floodgate UUIDs, most-significant half zero): one static named colour per style and per tag, no gradients or animation; tags stay readable as text. Chat is always the static frame.
 - **Config:** proxy `network.properties`: `tags.<role>=<MiniMessage>` (text capped at 6 characters; blank removes the tag), `tab.animation-ms` (default `1000`, 500 to 10000). Paper `config.yml`: `tags:` section with the same role keys.
 - **Limit:** backends that receive global chat from the proxy (`REMOTECHAT`) still print the plain name; styling remote names there needs a wire change and is not part of this change.
+
+## Name style picker
+
+`/namestyle` (aliases `/namecolour`, `/namecolor`) on every backend running PulseNetwork. Needs LuckPerms; without it the command says so politely. Prepared draft, not deployed.
+
+| Command | Effect |
+|---|---|
+| `/namestyle` | Opens a 27-slot menu (Java) or a form (Bedrock) |
+| `/namestyle list` | Prints unlocked and locked styles |
+| `/namestyle set <id>` | Picks an unlocked style |
+| `/namestyle clear` | Removes your style |
+
+- **Unlocked** means the player holds the LuckPerms permission `pulse.namestyle.<id>` (so a `*` holder has every style). It is checked again on every change, so editing the command does not help.
+- **Selection** writes LuckPerms user meta `pulse.namestyle=<id>` through the LuckPerms API (old value replaced). LuckPerms records it in its action log and syncs it; the tab and chat change within the LuckPerms sync delay, and the confirmation says so. One change per 5 seconds per player.
+- **Java menu:** unlocked styles first as coloured items showing the player's own name in that style, locked ones as grey panes ("Unlock by levelling up"), the current style glows, a barrier clears. **Bedrock:** a form with one button per unlocked style (name and a one-word colour hint) plus "Clear my style"; locked styles are listed in the text below. Bedrock without the Floodgate plugin falls back to the chest menu.
+- **Config (`config.yml`):** `namestyle.enabled` (default `true`).
+
+## Role menu
+
+`/rolemenu [player]` for players directly in the LuckPerms group `dev`, `admin` or `staff` (group membership, never permissions). Pick an online player (heads, or a form on Bedrock) or type `/rolemenu <name>` for an offline one, then give a role, take one away (with a yes/no step) or "View roles".
+
+It does not change roles itself. The backend sends a signed `ROLECMD` plugin message and the proxy runs `/role set|remove|confirm|who ...` **as that player**, so the proxy's gating, audit line, LuckPerms action log entry and confirm step stay the single path. The result arrives as normal chat. A backend cannot run a proxy command with `performCommand`, which is why the message exists; the proxy only accepts the four forms above, the fixed role list and valid names (`RoleMenuCommands`).
+
+- Needs the backend `enabled: true` with the bridge secret, and a proxy with this change (an older proxy ignores the message, so nothing happens).
+- **Config (`config.yml`):** `rolemenu.enabled` (default `true`).
 
 ## Local chat delivery (`chat.local-system-delivery`)
 

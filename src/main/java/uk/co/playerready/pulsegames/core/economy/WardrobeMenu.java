@@ -81,7 +81,9 @@ public final class WardrobeMenu implements TabbedShop.Source {
         Lore lore = Lore.of();
         lore.line(c.levelUnlock() ? Theme.ACCENT + "Unlocked by level" : Theme.MONEY + "Bought with tokens");
         lore.desc(c.description()).blank();
+        if (c.nameStyleId() != null && !owned) lore.line(Theme.ACCENT + "Set it with /namestyle");
         if (equipped) lore.status(Theme.GOOD + "Equipped").hint("Click to take it off");
+        else if (owned && c.nameStyleId() != null) lore.status("<yellow>Yours").line(Theme.ACCENT + "Set it with /namestyle").hint("Click to use this style");
         else if (owned) lore.status("<yellow>Yours").hint("Click to equip");
         else if (c.levelUnlock()) lore.status(level >= c.level() ? Theme.GOOD + "Ready to unlock" : Theme.BAD + "Reach level " + c.level() + " (you are " + level + ")");
         else {
@@ -103,6 +105,11 @@ public final class WardrobeMenu implements TabbedShop.Source {
                 Theme.sound(player, Theme.Cue.ERROR);
                 return;
             }
+        }
+        if (economy.isUnlocked(player, c.id()) && c.nameStyleId() != null) {
+            // The network picks and shows the style; run the same command the player would type.
+            player.performCommand("namestyle set " + c.nameStyleId());
+            return;
         }
         if (economy.isUnlocked(player, c.id())) {
             boolean on = c.id().equals(economy.equipped(player, c.category()));

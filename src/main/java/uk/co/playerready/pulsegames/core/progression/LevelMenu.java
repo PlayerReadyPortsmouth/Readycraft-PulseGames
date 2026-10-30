@@ -19,6 +19,7 @@ import java.util.List;
 public final class LevelMenu {
     private static final String WARDROBE = "wardrobe";
     private static final String CLOSE = "close";
+    private static final String NAMESTYLE = "namestyle";
 
     private final PulseGamesPlugin plugin;
 
@@ -36,6 +37,12 @@ public final class LevelMenu {
                 : next.name() + " (" + next.category().displayName + ") at level " + next.level();
     }
 
+    /** Name styles reached at {@code level}, as "3/16". */
+    static String nameStyleProgress(int level) {
+        var styles = CosmeticsService.byCategory(Cosmetic.Category.NAME_STYLE);
+        return styles.stream().filter(c -> c.level() <= level).count() + "/" + styles.size();
+    }
+
     /** The Bedrock form body. */
     static String formBody(int level, XpRules.Progress progress, long totalXp, List<String> recent) {
         List<String> lines = new ArrayList<>();
@@ -44,6 +51,7 @@ public final class LevelMenu {
         lines.add("Total XP: " + totalXp);
         lines.add("");
         lines.add("Next unlock: " + nextUnlockText(level));
+        lines.add("Name styles: " + nameStyleProgress(level) + ". Set one with /namestyle.");
         lines.add("");
         lines.add("Recent XP:");
         if (recent.isEmpty()) lines.add("Play a game to earn some!");
@@ -57,8 +65,13 @@ public final class LevelMenu {
         long total = plugin.levels().xp(player);
         List<String> recent = plugin.levels().recent(player);
         if (Forms.list(plugin, player, "My level " + XpRules.tag(level), formBody(level, progress, total, recent),
-                List.of(new FormLayout.Button("Open the wardrobe", WARDROBE), new FormLayout.Button("Close", CLOSE)),
-                target -> { if (target.equals(WARDROBE) && player.isOnline()) plugin.wardrobe().open(player); })) return;
+                List.of(new FormLayout.Button("Open the wardrobe", WARDROBE), new FormLayout.Button("Choose a name style", NAMESTYLE),
+                        new FormLayout.Button("Close", CLOSE)),
+                target -> {
+                    if (!player.isOnline()) return;
+                    if (target.equals(WARDROBE)) plugin.wardrobe().open(player);
+                    else if (target.equals(NAMESTYLE)) player.performCommand("namestyle");
+                })) return;
         Menu menu = new Menu(plugin, player, Theme.title("My level"), 3);
         menu.renderer(() -> {
             var p = plugin.levels().progress(player);
@@ -76,6 +89,9 @@ public final class LevelMenu {
             menu.set(15, Buttons.item(Material.ENDER_CHEST, Theme.MONEY + "<b>Wardrobe",
                     Lore.of().desc("See what you own, what you can unlock and what you can buy.").blank().hint("Click to open")),
                     pl -> plugin.wardrobe().open(pl));
+            menu.set(22, Buttons.item(Material.NAME_TAG, Theme.ACCENT + "Name styles",
+                    Lore.of().kv("Unlocked", nameStyleProgress(p.level())).desc("Set it with /namestyle").blank().hint("Click to choose")),
+                    pl -> pl.performCommand("namestyle"));
             menu.close();
             menu.fillEmpty(Material.GRAY_STAINED_GLASS_PANE);
         });

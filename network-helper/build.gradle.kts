@@ -2,7 +2,7 @@ plugins { java }
 subprojects {
     apply(plugin = "java")
     group = "uk.co.playerready"
-    version = "0.2.0"
+    version = "0.2.1"
     repositories {
         mavenCentral()
         maven("https://repo.papermc.io/repository/maven-public/")
@@ -30,6 +30,8 @@ project(":paper") {
         "implementation"(project(":common"))
         "compileOnly"("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
         "testImplementation"("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
+        "compileOnly"("net.luckperms:api:5.4")
+        "compileOnly"("org.geysermc.floodgate:api:2.2.4-SNAPSHOT")
     }
 }
 project(":velocity") {

@@ -23,3 +23,8 @@ tab-status:
 # Roles come from the LuckPerms meta key pulse.role; a style from pulse.namestyle.
 #tags:
 #  dev: '<aqua>DEV</aqua>'
+# /namestyle picker (writes LuckPerms user meta pulse.namestyle) and the staff /rolemenu (asks the proxy to run /role as the player).
+namestyle:
+  enabled: true
+rolemenu:
+  enabled: true
