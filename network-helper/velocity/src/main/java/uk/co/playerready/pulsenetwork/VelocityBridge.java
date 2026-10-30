@@ -55,6 +55,7 @@ public final class VelocityBridge {
     }
     @Subscribe public void start(ProxyInitializeEvent event) {
         TabConfig tabConfig = null;
+        String hiddenPlayers = "", roleGroups = "";
         try {
             Files.createDirectories(directory);
             Path path = directory.resolve("network.properties");
@@ -66,6 +67,7 @@ public final class VelocityBridge {
             paperBackends = csv(config.getProperty("paper-backends", ""));
             chatBackends = csv(config.getProperty("chat-backends", config.getProperty("backends", "")));
             if (!backends.containsAll(chatBackends)) throw new IllegalArgumentException("Chat backends must be allowed backends");
+            hiddenPlayers = config.getProperty("tab.hidden-players", ""); roleGroups = config.getProperty("roles.groups", "");
             try { tabConfig = TabConfig.parse(config); }
             catch (IllegalArgumentException e) { logger.error("Network tab configuration is invalid; tab stays off: {}", e.getMessage()); }
             if (backends.isEmpty() || !backends.containsAll(queueServers)) throw new IllegalArgumentException("Queue servers must be in the backend allowlist");
@@ -86,6 +88,7 @@ public final class VelocityBridge {
         proxy.getChannelRegistrar().register(CHANNEL);
         if (tabConfig != null && tabConfig.enabled()) {
             tab = new TabService(proxy, logger, tabConfig, backends, proxy.getPluginManager().isLoaded("floodgate"), java.time.Clock.systemUTC());
+            tab.hiddenNames(RoleLogic.names(hiddenPlayers));
             proxy.getEventManager().register(this, tab);
             proxy.getScheduler().buildTask(this, tab::tick).repeat(Duration.ofMillis(tabConfig.minIntervalMs())).schedule();
         }
@@ -101,7 +104,15 @@ public final class VelocityBridge {
         commands.register(commands.metaBuilder("networkparty").aliases("party").plugin(this).build(), (SimpleCommand) invocation -> {
             if (invocation.source() instanceof Player player) partyCommand(player, invocation.arguments());
         });
+        registerRoles(commands, roleGroups, hiddenPlayers);
         proxy.getScheduler().buildTask(this, this::retryJoins).repeat(Duration.ofSeconds(1)).schedule();
+    }
+    private void registerRoles(com.velocitypowered.api.command.CommandManager commands, String roleGroups, String hiddenPlayers) {
+        if (!proxy.getPluginManager().isLoaded("luckperms")) { logger.info("LuckPerms is not loaded; /role is unavailable."); return; }
+        try {
+            var command = new RoleCommand(proxy, logger, new LuckPermsStore(), RoleLogic.parseGroups(roleGroups), RoleLogic.names(hiddenPlayers));
+            commands.register(commands.metaBuilder("role").aliases("networkrole").plugin(this).build(), command);
+        } catch (IllegalArgumentException | LinkageError e) { logger.error("/role is unavailable: {}", e.getMessage()); }
     }
     private static Set<String> csv(String value) {
         var set = new HashSet<String>();

@@ -30,6 +30,7 @@ project(":velocity") {
         "testImplementation"("com.velocitypowered:velocity-api:3.4.0-SNAPSHOT")
         "annotationProcessor"("com.velocitypowered:velocity-api:3.4.0-SNAPSHOT")
         "compileOnly"("org.geysermc.floodgate:api:2.2.4-SNAPSHOT")
+        "compileOnly"("net.luckperms:api:5.4")
     }
 }
 configure(listOf(project(":paper"), project(":velocity"))) {

@@ -68,6 +68,48 @@ Nothing logs player lists, names from the roster or secrets; a failed update log
 - [ ] Excluded or non-allowlisted server leaves the backend's own list untouched; no EssentialsX conflict.
 - [ ] Proxy load acceptable with a full roster; logs contain no player lists or secrets.
 
+## Roles (`/role`) and hidden-from-tab
+
+Proxy-owned `/role` (alias `/networkrole`), available only when LuckPerms is loaded on the proxy. LuckPerms stays the single source of truth: a role is membership of a LuckPerms group, named in config. The command cannot touch any other group or permission.
+
+| Command | Effect |
+|---|---|
+| `/role set <player> <role>` | Adds the role's group |
+| `/role remove <player> <role>` | Asks for `/role confirm` within 30 seconds, then removes the group |
+| `/role who <player>` | Roles and whether the player is hidden from the tab |
+| `/role list [role]` | Holders by username, capped at 50 per role |
+| `/role venues` | The five venue roles with their group and account count |
+| `/role hide <player>` / `/role unhide <player>` | Sets or clears LuckPerms user meta `pulse.tab.hidden` |
+
+Roles: `dev`, `admin`, `staff`, `venue:ports`, `venue:plym`, `venue:tru`, `venue:tau`, `venue:exet`. Players need to have joined the network once; names must match exactly (offline players are fine). Nobody can change their own roles.
+
+### Who may do what
+
+Decided by the sender's **direct group membership**, never by permission (admins hold `*`, which would pass every check). The highest group wins: dev, then admin, then staff.
+
+| Sender | set/remove dev, admin, staff | set/remove venue roles | who, list, venues | hide, unhide |
+|---|---|---|---|---|
+| Console | yes | yes | yes | yes |
+| dev | yes | yes | yes | yes |
+| admin | no | yes | yes | yes |
+| staff | no | yes | yes | no |
+| venue or none | no | no | no | no |
+
+### Config keys (proxy `network.properties`)
+
+- `roles.groups`: role=group pairs, comma separated, e.g. `staff=crew,venue:tru=venue-truro`. Unlisted roles keep the defaults `dev=dev,admin=admin,staff=staff,venue:ports=venue-ports,venue:plym=venue-plym,venue:tru=venue-tru,venue:tau=venue-tau,venue:exet=venue-exet`. Group names are lower case; two roles cannot share a group. A bad value disables `/role` and logs why.
+- `tab.hidden-players`: comma-separated exact names always hidden from the network tab.
+
+Every change logs one proxy line, `ROLE <actor> set|remove <role> for <target>` (hide/unhide log `set|remove tab-hidden`), writes an entry to the LuckPerms action log, and tells online dev and admin players in chat.
+
+### Hidden from the tab: behaviour change
+
+`pulsenetwork.tab.hidden` is no longer checked, because the `*` wildcard granted it to every admin. A player is hidden only by opt-in: LuckPerms user meta `pulse.tab.hidden=true` (use `/role hide`) or the `tab.hidden-players` list. Backend-reported hidden flags still apply. **Players holding `*` are visible in the tab again** until someone hides them.
+
+### Sync delay
+
+The proxy sees a change immediately because the write goes through its own LuckPerms. Backends learn of it through LuckPerms SQL messaging, normally within a few seconds (not yet measured on this network). The tab picks the change up on its next refresh.
+
 ## Local chat delivery (`chat.local-system-delivery`)
 
 Symptom: players on the same backend cannot see each other's ordinary chat, while messages relayed from another server show fine. Since 1.19 player chat is signed with the Microsoft account key. Behind Velocity (and for Floodgate/Bedrock players, who cannot sign) clients can drop or hide player-chat packets whose signature chain does not validate. The proxy's relayed global chat arrives as unsigned system messages, so it is unaffected.

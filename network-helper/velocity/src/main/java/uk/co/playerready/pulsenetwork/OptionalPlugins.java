@@ -35,4 +35,19 @@ final class OptionalPlugins {
             return NONE;
         }
     }
+
+    private Method metaValue;
+    /** A LuckPerms user meta value for an online player, or null when unavailable. */
+    synchronized String metaValue(UUID id, String key) {
+        if (failed) return null;
+        try {
+            meta(id); // Initialises the reflective handles.
+            if (failed || user == null) return null;
+            if (metaValue == null) metaValue = Class.forName("net.luckperms.api.cacheddata.CachedMetaData").getMethod("getMetaValue", String.class);
+            Object u = user.invoke(users.invoke(get.invoke(null)), id);
+            return u == null ? null : (String) metaValue.invoke(meta.invoke(cached.invoke(u)), key);
+        } catch (ReflectiveOperationException | LinkageError | RuntimeException e) {
+            return null;
+        }
+    }
 }
