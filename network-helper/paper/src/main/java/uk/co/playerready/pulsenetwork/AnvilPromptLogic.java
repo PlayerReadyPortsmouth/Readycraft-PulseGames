@@ -15,6 +15,7 @@ final class AnvilPromptLogic {
             return t.length() >= min && t.length() <= max && pattern.matcher(t).matches() ? Optional.empty() : Optional.of(hint);
         }
         static Rule playerName() { return new Rule(Pattern.compile("[.A-Za-z0-9_]+"), 1, 17, "Use 1 to 17 letters, numbers or _ (Bedrock names start with a dot)."); }
+        static Rule nickname() { return new Rule(Pattern.compile("[A-Za-z0-9_]+"), 3, 16, "Use 3 to 16 letters, numbers or _ (no spaces), with at least 2 letters."); }
         static Rule text(int max) { return new Rule(Pattern.compile("[^\\p{Cntrl}]+"), 1, max, "Type 1 to " + max + " characters."); }
     }
     enum State { OPEN, REPROMPT, DONE, CANCELLED }

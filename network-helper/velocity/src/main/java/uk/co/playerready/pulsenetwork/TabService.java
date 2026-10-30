@@ -96,7 +96,7 @@ final class TabService {
             animated |= NameStyle.isAnimated(identity.styleId());
             members.add(new TabRoster.Member(p.getUniqueId(), p.getUsername(), server, (int) Math.min(9999, Math.max(0, p.getPing())), meta[0], meta[1],
                     bedrock(p), hidden(p, flags),
-                    (flags & ServerStatus.AFK) != 0, (flags & ServerStatus.MATCH) != 0, identity.role(), identity.styleId(), identity.level()));
+                    (flags & ServerStatus.AFK) != 0, (flags & ServerStatus.MATCH) != 0, identity.role(), identity.styleId(), identity.level(), identity.nickname()));
         }
         long frame = TabRender.frame(now, config);
         var cache = new HashMap<String, List<TabRender.Row>>();

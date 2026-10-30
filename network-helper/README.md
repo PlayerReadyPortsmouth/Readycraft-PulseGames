@@ -187,6 +187,24 @@ Proxy command, registered with `/role` (needs LuckPerms on the proxy). Read-only
 
 Output (plain text, readable on Bedrock): direct LuckPerms groups; `pulse.role` and the tag it gives (unknown roles are flagged as ignored); `pulse.namestyle` and how many of the styles the player holds (a `*` holder counts all of them); level from the latest STATUS (unknown when stale); hidden-from-tab; Bedrock; current server; then two previews, "Java viewer sees" and "Bedrock viewer sees", written as `{colour:text}` runs of the static first frame, e.g. `{dark_gray:[}{aqua:DEV}{dark_gray:]} {gray:[12]} {red:Ann}`. Java gradients show hex colours; Bedrock shows one named colour.
 
+## Nicknames (`/nick`)
+
+Staff-only display names. Players cannot choose a nickname. Prepared draft, not deployed. Needs LuckPerms on the proxy.
+
+| Command | Effect |
+|---|---|
+| `/nick <name>` / `/nick reset` | Your own nickname |
+| `/nick <player> <name>` / `/nick <player> reset` | Someone else's. Names must match exactly; offline players work through LuckPerms |
+
+- **Storage:** LuckPerms user meta `pulse.nickname` (one value). It is re-checked against the shape rules whenever it is read, so a hand-edited bad value is ignored.
+- **Who may** (direct groups, like `/role`): dev may change anyone; admin may change themselves, staff, dev and ordinary players but not another admin; staff may change themselves, other staff and ordinary players but not a dev or an admin. Everyone else cannot use `/nick`. The console may do anything.
+- **Rules:** 3 to 16 letters, numbers or `_`, at least two letters, no spaces or colour codes, not `reset`. It is refused if it equals, or is within one edit (insert, delete, change) of, any other online player's name or nickname, or any dev, admin or staff username (the target's own names are excluded). Blocked words: a small built-in list plus `nick.blocked-words` in `network.properties` (comma separated; digit lookalikes and underscores are folded, so `sh1t` and `s_h_i_t` match). Refusals never repeat the word.
+- **Where it shows:** tab, local chat, cross-server chat (proxy and Paper) and presence lines. The tab row's profile name stays the username, so sorting and identity do not change. Java viewers get hover text `Real name: <username>` on chat and presence names (not in the tab). Bedrock viewers see `Nick (username)` in chat lines only, plain.
+- **Wire:** `REMOTECHAT` takes an optional eighth field, the nickname. A sender without a nickname still sends seven fields, so a backend that predates nicknames keeps working until someone is nicked; upgrade every Paper backend before setting the first nickname. `STATUS` is unchanged (the proxy and Paper each read the meta themselves).
+- **Admin hub:** Players, then a player: **Set nickname** (anvil, or a Bedrock input) and **Reset nickname** (with a yes/no step). Both send `ROLECMD` fields `nick <player> <name|reset>`; the proxy runs `/nick` as the clicker, so its gating and audit apply.
+- **Audit:** `NICK <actor> set|reset <target> [nick]` on the proxy log plus a LuckPerms action log entry. `/identity` shows the nickname and the real name.
+- **Sync:** the proxy sees a change at once; backends follow LuckPerms messaging (a few seconds).
+
 ## Role menu
 
 `/rolemenu [player]` for players directly in the LuckPerms group `dev`, `admin` or `staff` (group membership, never permissions). Pick an online player (heads, or a form on Bedrock) or type `/rolemenu <name>` for an offline one, then give a role, take one away (with a yes/no step) or "View roles".

@@ -42,4 +42,12 @@ class IdentityReportTest {
         assertEquals(2, IdentityReport.stylesHeld(Set.of("pulse.namestyle.red", "pulse.namestyle.pink", "pulse.other")::contains));
         assertEquals(NameStyle.styleIds().size(), IdentityReport.stylesHeld(p -> true));
     }
+    @Test void nicknameIsReportedWithTheRealNameAndShownInBothPreviews() {
+        var f = new IdentityReport.Facts("Ann", Set.of("staff"), null, null, 0, null, false, false, "lobby", "Captain_A");
+        var lines = IdentityReport.lines(f, tags);
+        assertEquals("Java viewer sees: {default:Captain_A}", lines.get(5));
+        assertEquals("Bedrock viewer sees: {default:Captain_A}{gray: (Ann)}", lines.get(6));
+        assertEquals("Nickname (pulse.nickname): Captain_A; real name: Ann", lines.get(7));
+        assertEquals("Nickname (pulse.nickname): none", IdentityReport.lines(facts(null, null, 0, null, false, false), tags).get(7));
+    }
 }

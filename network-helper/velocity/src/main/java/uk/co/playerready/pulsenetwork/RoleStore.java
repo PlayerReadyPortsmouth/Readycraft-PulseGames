@@ -17,6 +17,10 @@ interface RoleStore {
     CompletableFuture<Set<UUID>> members(String group);
     CompletableFuture<Void> setHidden(UUID id, boolean hidden);
     CompletableFuture<Boolean> isHidden(UUID id);
+    /** User meta {@code pulse.nickname} set directly on the user (loads offline users); null when none. */
+    CompletableFuture<String> nickname(UUID id);
+    /** Sets the single {@code pulse.nickname} user meta value, or clears it when {@code nick} is null. */
+    CompletableFuture<Void> setNickname(UUID id, String nick);
     /** Best-effort entry in the permissions plugin's own action log. */
     void audit(UUID actor, String actorName, UUID target, String targetName, String text);
 }

@@ -14,7 +14,10 @@ final class IdentityReport {
 
     /** Everything the report shows, already read from the providers. {@code level} may be null. */
     record Facts(String name, Set<String> groups, String roleMeta, String styleMeta, int stylesHeld, Integer level,
-                 boolean hidden, boolean bedrock, String server) {}
+                 boolean hidden, boolean bedrock, String server, String nickMeta) {
+        Facts(String name, Set<String> groups, String roleMeta, String styleMeta, int stylesHeld, Integer level, boolean hidden, boolean bedrock, String server) {
+            this(name, groups, roleMeta, styleMeta, stylesHeld, level, hidden, bedrock, server, null);
+        }}
 
     /** Devs, admins and the console may look at anyone; everyone else only at themselves. */
     static boolean mayView(RoleLogic.Level level, boolean self) {
@@ -28,7 +31,7 @@ final class IdentityReport {
 
     /** Plain report lines followed by the two previews. {@code render} is how the row would look to a Java or Bedrock viewer. */
     static List<String> lines(Facts f, NameStyle.Tags tags) {
-        var id = IdentityResolver.resolve(new UUID(1, 1), f.name(), (u, k) -> k.equals(IdentityResolver.ROLE_KEY) ? f.roleMeta() : f.styleMeta(), f.level(), tags);
+        var id = IdentityResolver.resolve(new UUID(1, 1), f.name(), (u, k) -> k.equals(IdentityResolver.ROLE_KEY) ? f.roleMeta() : k.equals(IdentityResolver.NICK_KEY) ? f.nickMeta() : f.styleMeta(), f.level(), tags);
         var out = new ArrayList<String>();
         out.add("Identity of " + f.name() + " on " + (f.server() == null ? "no server" : f.server()) + ":");
         out.add("Groups: " + (f.groups().isEmpty() ? "none" : String.join(", ", new TreeSet<>(f.groups()))));
@@ -38,8 +41,9 @@ final class IdentityReport {
         out.add("Style (pulse.namestyle): " + (style == null ? "none" : id.styleId() != null ? style : style + " (unknown style, ignored)")
                 + "; unlocked styles held: " + f.stylesHeld() + " of " + NameStyle.styleIds().size() + (f.stylesHeld() == NameStyle.styleIds().size() ? " (a wildcard counts)" : ""));
         out.add("Level: " + (f.level() == null ? "unknown (no recent status)" : f.level()) + "; hidden from tab: " + (f.hidden() ? "yes" : "no") + "; Bedrock: " + (f.bedrock() ? "yes" : "no"));
-        out.add("Java viewer sees: " + describe(NameStyle.render(id, false, 0, tags, NameStyle.MAX_VISIBLE)));
-        out.add("Bedrock viewer sees: " + describe(NameStyle.render(id, true, 0, tags, NameStyle.MAX_VISIBLE)));
+        out.add("Java viewer sees: " + describe(NameStyle.renderChat(id, false, tags)));
+        out.add("Bedrock viewer sees: " + describe(NameStyle.renderChat(id, true, tags)));
+        out.add("Nickname (pulse.nickname): " + (id.nickname() == null ? "none" : id.nickname() + "; real name: " + f.name()));
         out.add("(Previews show the static first frame as {colour:text} runs; animated styles move in the Java tab only.)");
         return out;
     }

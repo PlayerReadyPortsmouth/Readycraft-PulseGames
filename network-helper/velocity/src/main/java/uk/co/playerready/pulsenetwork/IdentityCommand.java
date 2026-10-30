@@ -46,7 +46,8 @@ final class IdentityCommand implements SimpleCommand {
             var facts = new IdentityReport.Facts(t.getUsername(), store.cachedGroups(t.getUniqueId()), meta.value(t.getUniqueId(), IdentityResolver.ROLE_KEY),
                     meta.value(t.getUniqueId(), IdentityResolver.STYLE_KEY), IdentityReport.stylesHeld(t::hasPermission),
                     service == null || server == null ? null : service.level(server, t.getUniqueId()), service != null && service.hidden(t),
-                    service != null ? service.bedrock(t) : t.getUniqueId().getMostSignificantBits() == 0, server);
+                    service != null ? service.bedrock(t) : t.getUniqueId().getMostSignificantBits() == 0, server,
+                    meta.value(t.getUniqueId(), IdentityResolver.NICK_KEY));
             IdentityReport.lines(facts, tags).forEach(l -> say(src, l));
         } catch (RuntimeException e) { no(src, "Something went wrong reading the identity. Nothing was changed."); }
     }

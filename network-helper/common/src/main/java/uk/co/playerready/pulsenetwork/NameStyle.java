@@ -17,7 +17,12 @@ public final class NameStyle {
     private static final MiniMessage MM = MiniMessage.miniMessage();
 
     /** {@code role} and {@code styleId} may be null; {@code level} is shown only when positive. */
-    public record Identity(String name, String role, String styleId, Integer level) {}
+    public record Identity(String name, String role, String styleId, Integer level, String nickname) {
+        public Identity(String name, String role, String styleId, Integer level) { this(name, role, styleId, level, null); }
+        /** The nickname if one is set, else the username. */
+        public String displayName() { return nickname == null || nickname.isEmpty() ? name : nickname; }
+        boolean nicked() { return !displayName().equals(name); }
+    }
 
     private interface Painter { Component paint(String name, long tick); }
     private record Def(Painter painter, NamedTextColor bedrock, boolean animated) {}
@@ -117,8 +122,17 @@ public final class NameStyle {
      * {@code [TAG] [12] name}. The name is never truncated; if the row would exceed {@code maxVisible} the level badge
      * goes first, then the tag. Bedrock viewers get one static legacy-safe colour per style and per tag.
      */
-    public static Component render(Identity id, boolean bedrockViewer, long tick, Tags tags, int maxVisible) {
-        String name = id.name();
+    public static Component render(Identity id, boolean bedrockViewer, long tick, Tags tags, int maxVisible) { return render(id, bedrockViewer, tick, tags, maxVisible, true); }
+
+    /** Chat and presence line name: Java viewers get "Real name" on hover, Bedrock viewers see {@code Nick (username)} in grey. Plain name when there is no nickname. */
+    public static Component renderChat(Identity id, boolean bedrockViewer, Tags tags) {
+        var name = render(id, bedrockViewer, 0, tags, MAX_VISIBLE, true);
+        return bedrockViewer && id.nicked() ? Component.text().append(name).append(Component.text(" (" + id.name() + ")", NamedTextColor.GRAY)).build() : name;
+    }
+
+    /** {@code hover=false} gives the plain tab row. */
+    public static Component render(Identity id, boolean bedrockViewer, long tick, Tags tags, int maxVisible, boolean hover) {
+        String name = id.displayName();
         boolean tag = tags.has(id.role());
         String role = tag ? id.role().toLowerCase(Locale.ROOT) : null;
         String badge = id.level() != null && id.level() > 0 ? "[" + id.level() + "]" : null;
@@ -131,6 +145,7 @@ public final class NameStyle {
         Def def = hasStyle(id.styleId()) ? STYLES.get(id.styleId()) : null;
         if (def == null) out.append(Component.text(name));
         else out.append(bedrockViewer ? Component.text(name, def.bedrock()) : def.painter().paint(name, tick));
+        if (hover && !bedrockViewer && id.nicked()) return Component.text().append(out.build()).hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(Component.text("Real name: " + id.name()))).build();
         return out.build();
     }
 }
