@@ -32,22 +32,41 @@ final class TabRender {
 
     static UUID headerId(String server) { return UUID.nameUUIDFromBytes(("pulsenetwork-tab:" + server).getBytes(StandardCharsets.UTF_8)); }
 
-    static Component displayName(TabRoster.Member m, TabConfig config, boolean bedrockViewer) {
+    /** Animation frame for a given time; members without an animated style always render frame 0 so their rows never change. */
+    static long frame(long epochMillis, TabConfig config) { return epochMillis / config.animationMs(); }
+
+    static Component displayName(TabRoster.Member m, TabConfig config, boolean bedrockViewer) { return displayName(m, config, bedrockViewer, 0); }
+
+    /** {@code frame} only matters for animated styles; Bedrock viewers always get a static row. */
+    static Component displayName(TabRoster.Member m, TabConfig config, boolean bedrockViewer, long frame) {
         var out = Component.text().append(Component.empty());
-        if (m.bedrock() && !config.bedrockMarker().isBlank()) out.append(MM.deserialize(config.bedrockMarker()));
-        if (m.prefix() != null && !m.prefix().isBlank()) {
-            out.append(LEGACY.deserialize(m.prefix().replace('§', '&')));
-            if (!Character.isWhitespace(m.prefix().charAt(m.prefix().length() - 1))) out.append(Component.space());
+        int budget = NameStyle.MAX_VISIBLE;
+        if (m.bedrock() && !config.bedrockMarker().isBlank()) {
+            var marker = MM.deserialize(config.bedrockMarker()); out.append(marker);
+            budget -= PlainTextComponentSerializer.plainText().serialize(marker).length();
         }
-        out.append(Component.text(m.name()));
-        if (m.suffix() != null && !m.suffix().isBlank()) out.append(LEGACY.deserialize(m.suffix().replace('§', '&')));
+        // The LuckPerms prefix/suffix is only a fallback for players without a role tag.
+        boolean tagged = config.tags().has(m.role());
+        if (!tagged && m.prefix() != null && !m.prefix().isBlank()) {
+            var prefix = LEGACY.deserialize(m.prefix().replace('§', '&')); out.append(prefix);
+            budget -= PlainTextComponentSerializer.plainText().serialize(prefix).length();
+            if (!Character.isWhitespace(m.prefix().charAt(m.prefix().length() - 1))) { out.append(Component.space()); budget--; }
+        }
+        Component suffix = !tagged && m.suffix() != null && !m.suffix().isBlank() ? LEGACY.deserialize(m.suffix().replace('§', '&')) : null;
+        if (suffix != null) budget -= PlainTextComponentSerializer.plainText().serialize(suffix).length();
+        if (m.afk()) budget -= 6;
+        if (m.match()) budget -= 12;
+        long tick = !bedrockViewer && NameStyle.isAnimated(m.styleId()) ? frame : 0;
+        out.append(NameStyle.render(new NameStyle.Identity(m.name(), m.role(), m.styleId(), m.level()), bedrockViewer, tick, config.tags(), budget));
+        if (suffix != null) out.append(suffix);
         if (m.afk()) out.append(Component.text(" (AFK)", NamedTextColor.GRAY));
         if (m.match()) out.append(Component.text(" [In a game]", NamedTextColor.GOLD));
         return bedrockViewer ? plain(out.build()) : out.build();
     }
 
     /** Rows in display order, including optional per-server header rows. List order is only honoured by 1.21.2+ clients. */
-    static List<Row> rows(List<TabRoster.Group> groups, String viewerServer, TabConfig config, boolean bedrockViewer) {
+    static List<Row> rows(List<TabRoster.Group> groups, String viewerServer, TabConfig config, boolean bedrockViewer) { return rows(groups, viewerServer, config, bedrockViewer, 0); }
+    static List<Row> rows(List<TabRoster.Group> groups, String viewerServer, TabConfig config, boolean bedrockViewer, long frame) {
         var slots = new ArrayList<Row>();
         for (var g : groups) {
             if (config.headers()) {
@@ -56,7 +75,7 @@ final class TabRender {
                 slots.add(new Row(headerId(g.server()), name.substring(0, Math.min(16, name.length())), bedrockViewer ? plain(text) : text, 0, 0, true, false));
             }
             for (var m : g.members())
-                slots.add(new Row(m.id(), m.name(), displayName(m, config, bedrockViewer), quantise(m.ping()), 0, false, g.server().equals(viewerServer)));
+                slots.add(new Row(m.id(), m.name(), displayName(m, config, bedrockViewer, frame), quantise(m.ping()), 0, false, g.server().equals(viewerServer)));
         }
         var result = new ArrayList<Row>(slots.size());
         for (int i = 0; i < slots.size(); i++) {

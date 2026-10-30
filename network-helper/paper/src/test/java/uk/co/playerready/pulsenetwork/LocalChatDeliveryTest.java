@@ -49,4 +49,16 @@ class LocalChatDeliveryTest {
         assertFalse(LocalChatDelivery.isPublic(sender, Set.of(sender), List.of(sender, p2)));
         assertFalse(LocalChatDelivery.isPublic(sender, Set.of(other), List.of()));
     }
+    @Test void senderNameIsChosenPerViewerSoBedrockGetsAFlatStyle() {
+        var java = mock(Player.class); when(java.getUniqueId()).thenReturn(new UUID(5, 5));
+        var bedrock = mock(Player.class); when(bedrock.getUniqueId()).thenReturn(new UUID(0, 5));
+        var id = new NameStyle.Identity("Aurora", "dev", "rainbow", 7);
+        LocalChatDelivery.deliver(List.of(java, bedrock), renderer, sender,
+                v -> NameStyle.render(id, LocalChatDelivery.bedrock(v), 0), Component.text("hi"), null);
+        var lines = org.mockito.ArgumentCaptor.forClass(Component.class);
+        verify(java).sendMessage(lines.capture()); verify(bedrock).sendMessage(lines.capture());
+        assertEquals("<[DEV] [7] Aurora> hi", plain(lines.getAllValues().get(0)));
+        assertEquals(plain(lines.getAllValues().get(0)), plain(lines.getAllValues().get(1)));
+        assertNotEquals(lines.getAllValues().get(0), lines.getAllValues().get(1));
+    }
 }

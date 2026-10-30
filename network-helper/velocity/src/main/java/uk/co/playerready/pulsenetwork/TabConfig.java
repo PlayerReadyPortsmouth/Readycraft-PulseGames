@@ -5,7 +5,7 @@ import java.util.*;
 /** Proxy tab list settings from network.properties ({@code tab.*}). Everything defaults off or conservative. */
 record TabConfig(boolean enabled, List<String> order, Set<String> excluded, Map<String, String> names, boolean headers,
                  String headerFormat, String header, String footer, String staffLine, List<String> tips, int tipSeconds,
-                 String bedrockMarker, boolean higherFirst, long minIntervalMs) {
+                 String bedrockMarker, boolean higherFirst, long minIntervalMs, long animationMs, NameStyle.Tags tags) {
     static final String HEADER = "<gradient:aqua:blue><bold>ReadyCraft</bold></gradient>\n<gray>You are on <white><server></white> · <white><network_online></white> online</gray>";
     static final String FOOTER = "<gray><counts></gray>\n<status_line>\n<yellow><tip></yellow>";
     static final String STAFF = "<dark_gray>Client: <client> · <version></dark_gray>";
@@ -28,10 +28,17 @@ record TabConfig(boolean enabled, List<String> order, Set<String> excluded, Map<
                 p.getProperty("tab.group-header-format", HEADER_FORMAT), p.getProperty("tab.header", HEADER), p.getProperty("tab.footer", FOOTER),
                 p.getProperty("tab.staff-line", STAFF), tips, Math.max(5, Math.min(600, Integer.parseInt(p.getProperty("tab.tip-seconds", "30")))),
                 p.getProperty("tab.bedrock-marker", "<aqua>[B]</aqua> "), Boolean.parseBoolean(p.getProperty("tab.list-order-higher-first", "true")),
-                Math.max(250, Math.min(30_000, Long.parseLong(p.getProperty("tab.min-interval-ms", "1000")))));
+                Math.max(250, Math.min(30_000, Long.parseLong(p.getProperty("tab.min-interval-ms", "1000")))),
+                Math.max(500, Math.min(10_000, Long.parseLong(p.getProperty("tab.animation-ms", "1000")))), tags(p));
         for (String template : List.of(config.header, config.footer, config.staffLine, config.headerFormat, config.bedrockMarker))
             if (template.length() > 2000) throw new IllegalArgumentException("A tab template is too long");
         return config;
+    }
+    /** {@code tags.<role>} keys (MiniMessage; blank removes a role's tag). Also used by the global relay. */
+    static NameStyle.Tags tags(Properties p) {
+        var overrides = new HashMap<String, String>();
+        for (String key : p.stringPropertyNames()) if (key.startsWith("tags.")) overrides.put(key.substring(5), p.getProperty(key));
+        return new NameStyle.Tags(overrides);
     }
     String name(String server) {
         return names.getOrDefault(server, server.isEmpty() ? server : Character.toUpperCase(server.charAt(0)) + server.substring(1));

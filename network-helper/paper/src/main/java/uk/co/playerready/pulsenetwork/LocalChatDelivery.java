@@ -41,9 +41,18 @@ final class LocalChatDelivery {
      */
     static List<Audience> deliver(Collection<? extends Audience> viewers, ChatRenderer renderer, Player sender,
                                   Component displayName, Component message, String template) {
+        return deliver(viewers, renderer, sender, v -> displayName, message, template);
+    }
+
+    /** Floodgate (Bedrock) players have a zero most-significant UUID half. */
+    static boolean bedrock(Audience viewer) { return viewer instanceof Player p && p.getUniqueId() != null && p.getUniqueId().getMostSignificantBits() == 0; }
+
+    /** As above, with the sender's name chosen per viewer (Bedrock viewers get a flattened style). */
+    static List<Audience> deliver(Collection<? extends Audience> viewers, ChatRenderer renderer, Player sender,
+                                  java.util.function.Function<Audience, Component> nameFor, Component message, String template) {
         var snapshot = new ArrayList<Audience>(viewers);
         for (Audience viewer : snapshot) {
-            Component line = null;
+            Component line = null, displayName = nameFor.apply(viewer);
             try { if (renderer != null) line = renderer.render(sender, displayName, message, viewer); }
             catch (RuntimeException e) { /* fall back below */ }
             if (line == null) line = fallback(template, displayName, message);

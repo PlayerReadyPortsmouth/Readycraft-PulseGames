@@ -19,3 +19,7 @@ chat-games:
 tab-status:
   enabled: false
   afk-metadata-keys: [afk, AFK]
+# Role tags shown before names in local chat (MiniMessage, text capped at 6 characters; blank removes a tag).
+# Roles come from the LuckPerms meta key pulse.role; a style from pulse.namestyle.
+#tags:
+#  dev: '<aqua>DEV</aqua>'

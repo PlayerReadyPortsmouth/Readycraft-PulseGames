@@ -273,6 +273,11 @@ public final class PulseGamesPlugin extends JavaPlugin {
                 || events != null && events.holdsPlayer(player);
     }
 
+    /** Level for the network name badge (read reflectively by PulseNetwork); 0 when levels are off or unavailable. */
+    public int networkPlayerLevel(org.bukkit.entity.Player player) {
+        return levels == null || levels.tag(player).isEmpty() ? 0 : levels.level(player);
+    }
+
     public void networkPartyState(org.bukkit.entity.Player player, java.util.UUID leader, java.util.List<java.util.UUID> members) {
         parties.networkState(player, leader, members);
     }

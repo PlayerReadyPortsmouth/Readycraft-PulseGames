@@ -16,6 +16,15 @@ subprojects {
     }
     tasks.withType<Test>().configureEach { useJUnitPlatform() }
 }
+project(":common") {
+    dependencies {
+        // Provided at runtime by both Paper and Velocity.
+        for (module in listOf("adventure-api", "adventure-text-minimessage", "adventure-text-serializer-plain")) {
+            "compileOnly"("net.kyori:$module:4.17.0")
+            "testImplementation"("net.kyori:$module:4.17.0")
+        }
+    }
+}
 project(":paper") {
     dependencies {
         "implementation"(project(":common"))
