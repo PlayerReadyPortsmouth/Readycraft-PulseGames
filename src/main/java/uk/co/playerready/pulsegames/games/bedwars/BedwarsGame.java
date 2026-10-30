@@ -1,7 +1,5 @@
 package uk.co.playerready.pulsegames.games.bedwars;
 
-import uk.co.playerready.pulsegames.core.command.Routes;
-
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
