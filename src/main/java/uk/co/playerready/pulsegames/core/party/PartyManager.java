@@ -1,5 +1,7 @@
 package uk.co.playerready.pulsegames.core.party;
 
+import uk.co.playerready.pulsegames.core.command.Routes;
+
 import org.bukkit.entity.Player;
 import net.kyori.adventure.text.Component;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -146,8 +148,10 @@ public final class PartyManager {
         invites.put(target.getUniqueId(), new Invite(party.leader(), System.currentTimeMillis() + expiry));
         inviter.sendMessage(Text.msg("Invited <yellow>" + target.getName() + "</yellow> to your party."));
         target.sendMessage(Text.msg("<yellow>" + inviter.getName()
-                + "</yellow> invited you to a party. <green><click:run_command:'/party accept'>[ACCEPT]</click></green> "
-                + "<red><click:run_command:'/party deny'>[DENY]</click></red>"));
+                + "</yellow> invited you to a party. <green><click:run_command:'"
+                + Routes.slash(Routes.PARTY_ACCEPT) + "'>[ACCEPT]</click></green> "
+                + "<red><click:run_command:'"
+                + Routes.slash(Routes.PARTY_DENY) + "'>[DENY]</click></red>"));
         target.sendMessage(Text.msg("Type <yellow>/party accept</yellow> or <yellow>/party deny</yellow>. Your leader queues the group together."));
         // Bedrock players get a form instead of the clickable chat line; false (and nothing shown) on Java.
         try {

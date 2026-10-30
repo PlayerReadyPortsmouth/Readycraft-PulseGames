@@ -27,7 +27,7 @@ public final class ProgressionAdminCommand implements ProgressionAdmin.Backend {
         return args.length > 0 && ProgressionAdmin.VERBS.contains(args[0].toLowerCase(Locale.ROOT));
     }
 
-    /** Drops a leading "admin" so both /pulse xp ... and /pulse admin xp ... work; null if not ours. */
+    /** Drops a leading "admin" so both /admin games progress xp ... and the legacy "admin xp ..." spelling work; null if not ours. */
     public static String[] strip(String[] args) {
         if (args.length > 1 && args[0].equalsIgnoreCase("admin")) args = java.util.Arrays.copyOfRange(args, 1, args.length);
         return handles(args) ? args : null;

@@ -24,6 +24,7 @@ Registered positions that do not hold a jack-o'-lantern are skipped, with a cons
 
 - `/pumpkins`: your progress and hints for the ones you have not found (never coordinates).
 - `/pumpkins top`: the first 10 to find them all.
+- `/pumpkins admin`: summary; `admin stats|list|reset <player|all>|enable|disable|add|remove|reload` (the same verbs as below, plus `enable`/`disable`, which write `enabled` to config and reload). The network `/admin` hub reaches it through the hidden `/admin-route hunt ...` command (permission `pumpkinhunt.admin`).
 - Admin: `add <id> [hint...]` (look at the lantern, within 6 blocks), `remove <id>`, `list`, `reload`, `reset <player|all>`, `stats`.
 
 ## Permissions

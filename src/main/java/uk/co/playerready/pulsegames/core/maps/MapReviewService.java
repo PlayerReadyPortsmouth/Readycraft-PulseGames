@@ -37,7 +37,7 @@ public final class MapReviewService {
             if(!MapReviewStore.safe(game) || plugin.registry().get(game)==null || !MapReviewStore.safe(map)) { say(sender,"Unknown game or invalid map ID.");return; }
             if(action.equals("check") || action.equals("report")) {
                 var lines=report(game,map); lines.stream().limit(100).forEach(line->say(sender,line));
-                if(lines.size()>100) say(sender,"Chat report truncated; use /pulse maps export for the full report.");return;
+                if(lines.size()>100) say(sender,"Chat report truncated; use /admin games maps export for the full report.");return;
             }
             if(action.equals("export")) {
                 var rows=report(game,map);
@@ -97,12 +97,12 @@ public final class MapReviewService {
             if(report.checklist().size()>120 || report.validation().issues().size()>120) lines.add("Additional checks truncated; fix the reported issues and rerun validation.");
         }
         lines.add("No worlds/chunks were loaded and no gameplay was simulated. Inspect the build, then test Java, Bedrock and bots separately.");
-        lines.add("External terrain edits require /pulse maps revision before reusing approval evidence. Captures and configuration changes invalidate current evidence.");
+        lines.add("External terrain edits require /admin games maps revision before reusing approval evidence. Captures and configuration changes invalidate current evidence.");
         return List.copyOf(lines);
     }
     /** Read-only readiness dashboard; marks still go through {@code mark}. */
     private void board(CommandSender sender) {
-        if(!(sender instanceof Player player)) { say(sender,"The board is in-game only; use /pulse maps list from the console.");return; }
+        if(!(sender instanceof Player player)) { say(sender,"The board is in-game only; use /admin games maps list from the console.");return; }
         if(store==null) { say(sender,"Review ledger could not be loaded, so there is nothing to show.");return; }
         Map<String,String> names=new LinkedHashMap<>();Map<String,org.bukkit.Material> icons=new HashMap<>();
         plugin.registry().all().stream().sorted(Comparator.comparing(g->g.displayName())).forEach(g->{names.put(g.id(),g.displayName());icons.put(g.id(),g.icon());});
@@ -119,9 +119,9 @@ public final class MapReviewService {
         plugin.arenas().all().forEach(a->keys.add(a.gameId()+"/"+a.id()));
         if(store!=null) store.all().forEach(e->keys.add(e.game()+"/"+e.map()));
         var selected=keys.stream().filter(k->filter==null||k.startsWith(filter+"/")).toList();
-        say(sender,"Map review records ("+selected.size()+"): /pulse maps check <game> <map>");
+        say(sender,"Map review records ("+selected.size()+"): /admin games maps check <game> <map>");
         selected.stream().limit(40).forEach(k->say(sender,k));
-        if(selected.size()>40)say(sender,"Showing 40. Filter with /pulse maps list <game>.");
+        if(selected.size()>40)say(sender,"Showing 40. Filter with /admin games maps list <game>.");
     }
     private String currentFingerprint(Arena arena) {
         String config=fingerprint(arena);
@@ -166,8 +166,8 @@ public final class MapReviewService {
     private static String escape(String text) {return text.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("\"","&quot;");}
     private static void say(CommandSender sender,String text) {sender.sendMessage(Component.text(text));}
     private static void usage(CommandSender sender) {
-        say(sender,"/pulse maps board | list [game] | check/export/register <game> <map>");
-        say(sender,"/pulse maps revision <game> <map> <build-label>");
-        say(sender,"/pulse maps mark <game> <map> <built|visual|java|bedrock|bots> <pass|fail|pending> <evidence note>");
+        say(sender,"/admin games maps board | list [game] | check/export/register <game> <map>");
+        say(sender,"/admin games maps revision <game> <map> <build-label>");
+        say(sender,"/admin games maps mark <game> <map> <built|visual|java|bedrock|bots> <pass|fail|pending> <evidence note>");
     }
 }

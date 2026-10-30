@@ -1,5 +1,7 @@
 package uk.co.playerready.pulsegames.core.game;
 
+import uk.co.playerready.pulsegames.core.command.Routes;
+
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.minimessage.MiniMessage;
@@ -83,7 +85,7 @@ public final class MatchResults {
         while (recent.size() > 1024) recent.remove(recent.keySet().iterator().next());
         result.placeLines().forEach(line -> player.sendMessage(Component.text(line)));
         result.lines().forEach(line -> player.sendMessage(Component.text(line)));
-        player.sendMessage(Component.text("[View results / next game]").clickEvent(ClickEvent.runCommand("/results")));
+        player.sendMessage(Component.text("[View results / next game]").clickEvent(ClickEvent.runCommand(Routes.slash(Routes.RESULTS))));
         player.sendMessage(Component.text("Java and Bedrock: /results opens the action menu."));
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             var current = plugin.instances().byPlayer(player);
@@ -102,7 +104,7 @@ public final class MatchResults {
         while (recent.size() > 1024) recent.remove(recent.keySet().iterator().next());
         String place = result.place() > 0 ? "You finished " + Placements.ordinal(result.place()) + " of " + result.field()
                 + " in " + result.game() + ". " : "Your " + result.game() + " round has ended. ";
-        player.sendMessage(Component.text(place + "[View results]").clickEvent(ClickEvent.runCommand("/results")));
+        player.sendMessage(Component.text(place + "[View results]").clickEvent(ClickEvent.runCommand(Routes.slash(Routes.RESULTS))));
     }
 
     /**

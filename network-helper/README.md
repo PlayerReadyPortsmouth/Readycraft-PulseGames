@@ -2,7 +2,7 @@
 
 ## Cross-server parties — prepared draft, not deployed
 
-PulseNetwork **0.2.4** credits **AurorasChaos (on behalf of Player Ready)**. The current draft adds proxy-owned `/party` (also `/networkparty`) invitations, acceptance, list, leave, disband and private party chat. Invitations expire after 60 seconds; parties hold up to eight online players. Java has a clickable invitation; Bedrock can type `/party accept` or `/party deny`. Leaving the proxy removes a member and promotes another leader if needed. Backend transfers preserve membership; proxy restarts do not preserve parties yet.
+PulseNetwork **0.2.5** credits **AurorasChaos (on behalf of Player Ready)**. The current draft adds proxy-owned `/party` (also `/networkparty`) invitations, acceptance, list, leave, disband and private party chat. Invitations expire after 60 seconds; parties hold up to eight online players. Java has a clickable invitation; Bedrock can type `/party accept` or `/party deny`. Leaving the proxy removes a member and promotes another leader if needed. Backend transfers preserve membership; proxy restarts do not preserve parties yet.
 
 The leader selects an advertised game through `/queues` or `/joinqueue <id>`. Every party member transfers with their **own** saved origin. The destination receives one authenticated group admission only after everyone arrives. Transfer failure or timeout cancels the group and returns transferred members where possible; late successful transfers also return. The destination rejects conflicting local parties rather than overwriting them. A leader acknowledgement completes the whole proxy request atomically. Game capacity, team packing, preview access and admission remain PulseGames decisions.
 
@@ -207,22 +207,42 @@ Staff-only display names. Players cannot choose a nickname. Prepared draft, not 
 
 ## Role menu
 
-`/rolemenu [player]` for players directly in the LuckPerms group `dev`, `admin` or `staff` (group membership, never permissions). Pick an online player (heads, or a form on Bedrock) or type `/rolemenu <name>` for an offline one, then give a role, take one away (with a yes/no step) or "View roles".
+`/admin roles [player]` (old name `/rolemenu`, a hidden alias for one release) for players directly in the LuckPerms group `dev`, `admin` or `staff` (group membership, never permissions). Pick an online player (heads, or a form on Bedrock) or type `/admin roles <name>` for an offline one, then give a role, take one away (with a yes/no step) or "View roles".
 
 It does not change roles itself. The backend sends a signed `ROLECMD` plugin message and the proxy runs `/role set|remove|confirm|who ...` **as that player**, so the proxy's gating, audit line, LuckPerms action log entry and confirm step stay the single path. The result arrives as normal chat. A backend cannot run a proxy command with `performCommand`, which is why the message exists; the proxy only accepts the four forms above, the fixed role list and valid names (`RoleMenuCommands`).
 
 - Needs the backend `enabled: true` with the bridge secret, and a proxy with this change (an older proxy ignores the message, so nothing happens).
 - **Config (`config.yml`):** `rolemenu.enabled` (default `true`).
 
-## Admin hub and anvil input
+## Admin
 
-`/admin` (aliases `/adminmenu`, `/am`) is one menu for players directly in the LuckPerms group `dev`, `admin` or `staff`. It shows only what this server has: **Players** always; **Whitelist** where UltimateWhitelist is enabled (the Lobby; elsewhere a grey "Whitelist lives on the Lobby" button runs `/server lobby`); **Network > Announce** for Dev and Admin whenever the proxy link is enabled (type the text in an anvil or Bedrock form, pick Chat, Title or Action bar, confirm; it is sent as the signed `ANNOUNCE` message through `PaperBridge.announce`, so the proxy's one-per-5-seconds limit and `ANNOUNCE` log line apply); and one button each for PulseGames (`/pulse adminmenu`), PulseAddon (`/pulseadmin menu`) and Pumpkin Hunt (`/pumpkins admin`) when that plugin is enabled. Java gets chest menus, Bedrock gets forms.
+`/admin` is the single admin entry on every Paper server (Lobby, MinigamesTest, SurvivalTest). Bare `/admin` opens the menu; `/admin <area> [args]` does the same by text, and each area has the same name as its menu section. Java gets chest menus, Bedrock gets forms. Tab-complete offers only the areas you can use, and their verbs. An area you may not use, or that this server does not have, answers "Unknown admin area" exactly like a made-up one.
 
-- **Players:** pick an online head or search by name (anvil; offline names work through LuckPerms). Per player: View identity, Set role (`/rolemenu <name>`), Name styles (grant or revoke `pulse.namestyle.<id>` straight in LuckPerms, held styles lit), Hide or Show in tab, Teleport to (same server only). Identity, hide and unhide go to the proxy as the player (`ROLECMD`), so the proxy's own gating and audit still apply.
-- **Whitelist:** Add, Remove (confirm), Switch on or off (confirm), List and Status, run as the console after the permission check (`uw add|remove <name>`, `uw on|off|list|status`).
-- **Who may:** Dev, Admin and Staff open the hub, add to the whitelist and read it. Removing, switching the whitelist, name styles, tab hide and Announce are Dev and Admin only. The group is checked again on every click.
+Who may: players directly in the LuckPerms group `dev`, `admin` or `staff` (group membership, never permissions). The group is checked when the menu opens and again on every click. Each area has a minimum group, set in `config.yml` under `admin.areas.<id>.min-group` (`staff` = dev, admin and staff; `admin` = dev and admin). Defaults below. Owner areas (`games`, `survival`, `hunt`, `server`) are open to staff since Aurora's decision of 30 October 2026; the owning plugin also checks its own permission (`pulsegames.admin`, `pulseaddon.admin`/`pulse.admin`, `pumpkinhunt.admin`), so staff need those nodes in LuckPerms for the menus to open.
+
+| `/admin` area | What it does | Who sees it (default) |
+|---|---|---|
+| `players [name]` | Player picker and per-player page (heads, or search by name; offline names work through LuckPerms); teleport to a player on this server | Staff, admin, dev |
+| `roles [player]` | The role menu: give or take away network roles (the proxy's `/role` rules apply: staff venue roles only) | Staff, admin, dev |
+| `nick <player> <name\|reset>` | Set or reset a nickname through the proxy's `/nick` | Staff, admin, dev |
+| `identity <player>` | Show their identity (proxy `/identity`) | Staff, admin, dev |
+| `whitelist [add\|remove\|on\|off\|list\|status] [player]` | UltimateWhitelist (`uw`), Lobby only; add, list and status for staff, remove/on/off for dev and admin | Staff (add, list, status); admin, dev (remove, on, off) |
+| `styles <player>` | Grant or revoke `pulse.namestyle.<id>` in LuckPerms | Admin, dev |
+| `tab hide\|show <player>` | Hide or show a player in the tab list (proxy `/role hide\|unhide`) | Admin, dev |
+| `announce [text]` | Network announcement as chat, title or action bar (signed `ANNOUNCE`; one per 5 seconds). Needs the proxy link | Admin, dev |
+| `games [...]` | PulseGames admin menu and tools. Only where PulseGames and its route are present | Staff, admin, dev |
+| `survival [...]` | PulseAddon admin menu and tools. Only where PulseAddon and its route are present | Staff, admin, dev |
+| `hunt [...]` | Pumpkin Hunt: stats, list, reset, enable, disable, add, remove, reload. Only where PumpkinHunt and its route are present | Staff, admin, dev |
+| `server [...]` | This server's own owner area: `games` on MinigamesTest, `survival` on SurvivalTest, `hunt` on the Lobby | Staff, admin, dev |
+
+How owner areas work: the hub runs the owner's hidden, stable route command `admin-route <area> [verbs]` as the player, always namespaced because three plugins register the same name: `pulsegames:admin-route games|server`, `pulseaddon:admin-route survival`, `pumpkinhunt:admin-route hunt`. Everything after the area word is passed through, so `/admin games maps list` runs `pulsegames:admin-route games maps list`. The owner decides what the verbs mean and checks its own permission. Every command string the hub runs lives in `AdminRoutes`; a test fails if one appears anywhere else.
+
+Old commands: `/adminmenu`, `/am` and `/rolemenu` still work for one release, are removed from the client's command list (no tab-complete), and print a one-line "use /admin ..." hint. The proxy commands `/role`, `/identity`, `/announce` and `/nick` stay as the engine and console commands behind the areas.
+
+- **Players page:** per player: View identity, Set role, Set/Reset nickname, Name styles (held styles lit), Hide or Show in tab, Teleport to (same server only). Identity, nick, hide and unhide go to the proxy as the player (`ROLECMD`), so the proxy's own gating and audit still apply.
+- **Whitelist:** run as the console after the permission check (`uw add|remove <name>`, `uw on|off|list|status`). Where UltimateWhitelist is absent, a grey "Whitelist lives on the Lobby" button runs `/server lobby`.
 - **Audit:** one console line per action: `ADMIN <actor> <action> <target>`.
-- **Config:** `admin.enabled` (default `true`).
+- **Config:** `admin.enabled` (default `true`) and `admin.areas.<id>.min-group`.
 
 ### AnvilPrompt (copy this pattern)
 

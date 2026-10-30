@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-/** Admin-only, read-only readiness dashboard. Marks still go through {@code /pulse maps mark}. */
+/** Admin-only, read-only readiness dashboard. Marks still go through {@code /admin games maps mark}. */
 public final class MapBoardMenu {
     private static final int GAMES_PER_PAGE = 28, MAPS_PER_PAGE = 4, FILTER_SLOT = 8;
     private final Plugin plugin;

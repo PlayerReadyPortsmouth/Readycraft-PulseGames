@@ -84,6 +84,16 @@ public final class PumpkinHuntManager implements Listener {
         } else {
             plugin.getLogger().warning("[PumpkinHunt] /pumpkins command missing from plugin.yml");
         }
+        var route = plugin.getCommand(HuntAdminRoute.ROUTE_COMMAND);
+        if (route != null && cmd != null && cmd.getExecutor() instanceof PumpkinCommand pc) {
+            route.setExecutor((sender, c, label, a) -> {
+                String[] rest = HuntAdminRoute.stripArea(a);
+                if (rest == null) sender.sendMessage("Unknown admin area.");
+                else pc.adminRoute(sender, rest);
+                return true;
+            });
+            route.setTabCompleter((sender, c, alias, a) -> java.util.List.of());
+        }
     }
 
     /** Disable: write anything pending now. Call before storage closes. */
@@ -173,6 +183,13 @@ public final class PumpkinHuntManager implements Listener {
         Set<String> out = new LinkedHashSet<>();
         for (Lantern l : lanterns) out.add(l.id());
         return out;
+    }
+
+    /** Writes {@code enabled} to config.yml and re-reads everything. */
+    public void setEnabled(boolean on) {
+        plugin.getConfig().set("enabled", on);
+        plugin.saveConfig();
+        reloadAll();
     }
 
     public void saveProgress() { store.save(); }

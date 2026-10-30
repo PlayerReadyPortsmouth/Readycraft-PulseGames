@@ -1,5 +1,7 @@
 package uk.co.playerready.pulsegames.core.party;
 
+import uk.co.playerready.pulsegames.core.command.Routes;
+
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import uk.co.playerready.pulsegames.PulseGamesPlugin;
@@ -42,7 +44,7 @@ public final class PartyMenu {
 
     /** Runs the player's own party command next tick, then redraws once any network reply has had time to land. */
     private void run(Player player, Menu menu, String command) {
-        player.performCommand("party " + command);
+        player.performCommand(Routes.partySub(command));
         if (menu != null) plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (player.isOnline() && player.getOpenInventory().getTopInventory().getHolder() == menu) menu.refresh();
         }, 4L);

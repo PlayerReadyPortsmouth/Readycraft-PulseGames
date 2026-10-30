@@ -147,7 +147,7 @@ public final class WorldService {
         }
     }
 
-    /** Saves a live world and copies it into the template folder (used by /pulse setup save). */
+    /** Saves a live world and copies it into the template folder (used by /admin games setup save). */
     public void saveAsTemplate(World world, String template, Runnable onDone, Consumer<String> onFail) {
         File target;
         try {

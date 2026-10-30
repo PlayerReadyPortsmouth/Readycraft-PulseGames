@@ -1,5 +1,7 @@
 package uk.co.playerready.pulsegames.core.admin;
 
+import uk.co.playerready.pulsegames.core.command.Routes;
+
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -30,7 +32,7 @@ import java.util.function.Consumer;
 import static uk.co.playerready.pulsegames.core.admin.AdminScreen.Entry;
 
 /**
- * {@code /pulse adminmenu}: one place for the things an admin does by command. Every action calls an existing
+ * {@code /admin games adminmenu}: one place for the things an admin does by command. Every action calls an existing
  * service or command (nothing here changes game rules) and logs {@code PGADMIN <actor> <action> <target>}.
  */
 public final class AdminMenu {
@@ -298,8 +300,8 @@ public final class AdminMenu {
         entries.add(Entry.button(Material.SPYGLASS, Theme.NAME + "Diagnose bots", q -> {
             q.closeInventory();
             audit.log(q.getName(), "bots-diagnose", "server");
-            Bukkit.dispatchCommand(q, "pulse bots");
-        }, "Same as /pulse bots"));
+            Bukkit.dispatchCommand(q, Routes.BOTS);
+        }, "Same as /admin games bots"));
         ui.show(p, "Bots", "Maps can still override this.", entries, this::open);
     }
 
@@ -311,18 +313,18 @@ public final class AdminMenu {
                 List.of(Theme.TEXT + "Reload PulseGames", "Config, maps, kits, lobby placements and events."), true, r -> {
                     r.closeInventory();
                     audit.log(r.getName(), "reload", "server");
-                    Bukkit.dispatchCommand(r, "pulse reload");
-                }, this::server), "Same as /pulse reload"));
+                    Bukkit.dispatchCommand(r, Routes.RELOAD);
+                }, this::server), "Same as /admin games reload"));
         entries.add(Entry.button(Material.FILLED_MAP, Theme.NAME + "Map readiness board", q -> {
             q.closeInventory();
             audit.log(q.getName(), "maps-board", "server");
-            Bukkit.dispatchCommand(q, "pulse maps board");
-        }, "Same as /pulse maps board"));
+            Bukkit.dispatchCommand(q, Routes.MAPS_BOARD);
+        }, "Same as /admin games maps board"));
         entries.add(Entry.button(Material.LECTERN, Theme.NAME + "Lobby placements", q -> {
             q.closeInventory();
             audit.log(q.getName(), "lobby-placements", "server");
-            Bukkit.dispatchCommand(q, "pulse lobby");
-        }, "Shows the /pulse lobby commands"));
+            Bukkit.dispatchCommand(q, Routes.LOBBY);
+        }, "Shows the /admin games lobby commands"));
         ui.show(p, "Server", "Shortcuts.", entries, this::open);
     }
 }

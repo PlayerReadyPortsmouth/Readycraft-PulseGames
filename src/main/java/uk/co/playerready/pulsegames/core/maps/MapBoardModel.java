@@ -92,7 +92,7 @@ public final class MapBoardModel {
 
     /** The exact command the prompt shows; the admin replaces the placeholder with their evidence. */
     public static String markCommand(String game, String map, MapReviewStore.Check check) {
-        return "/pulse maps mark " + Objects.requireNonNull(game) + " " + map + " "
+        return "/admin games maps mark " + Objects.requireNonNull(game) + " " + map + " "
                 + check.name().toLowerCase(java.util.Locale.ROOT) + " pass <evidence note>";
     }
 }

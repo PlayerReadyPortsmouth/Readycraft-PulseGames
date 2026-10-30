@@ -46,5 +46,5 @@ final class RoleMenuModel {
     }
 
     static String confirmText(String name, String role) { return "Take the " + roleLabel(role) + " role away from " + name + "?"; }
-    static String playerFormContent() { return "Pick a player, or close this and type /rolemenu <name> for someone who is offline."; }
+    static String playerFormContent() { return "Pick a player, or close this and type /admin roles <name> for someone who is offline."; }
 }

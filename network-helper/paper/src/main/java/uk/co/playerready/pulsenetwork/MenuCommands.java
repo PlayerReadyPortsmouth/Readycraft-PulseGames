@@ -5,7 +5,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.util.List;
 import java.util.function.BiPredicate;
 
-/** Registers /namestyle and /rolemenu. LuckPerms is optional: without it both commands refuse politely. */
+/** Registers /namestyle, /rolemenu (hidden alias) and the /admin hub. LuckPerms is optional: without it both commands refuse politely. */
 final class MenuCommands {
     private MenuCommands() {}
 
@@ -16,12 +16,27 @@ final class MenuCommands {
         }
         plugin.getServer().getPluginManager().registerEvents(new ClickMenu.Guard(), plugin);
         if (plugin.getConfig().getBoolean("namestyle.enabled", true)) bind(plugin, "namestyle", new NameStyleCommand(plugin, lp));
-        if (plugin.getConfig().getBoolean("rolemenu.enabled", true)) bind(plugin, "rolemenu", new RoleMenuCommand(plugin, lp, sendRole));
+        var roles = new RoleMenuCommand(plugin, lp, sendRole);
+        boolean hub = plugin.getConfig().getBoolean("admin.enabled", true);
+        AdminHubCommand hubCommand = hub ? new AdminHubCommand(plugin, lp, sendRole, announcer, roles) : null;
+        // /rolemenu is a hidden alias of /admin roles for one release; the hub prints the hint and opens the same menu.
+        if (plugin.getConfig().getBoolean("rolemenu.enabled", true)) {
+            var old = plugin.getCommand("rolemenu");
+            if (old != null) { old.setExecutor(hubCommand != null ? hubCommand : roles); old.setTabCompleter(roles); }
+        }
+        plugin.getServer().getPluginManager().registerEvents(new HiddenAliases(), plugin);
         plugin.getServer().getPluginManager().registerEvents(AnvilPrompt.listener(), plugin);
-        if (plugin.getConfig().getBoolean("admin.enabled", true)) { var hub = plugin.getCommand("admin"); if (hub != null) hub.setExecutor(new AdminHubCommand(plugin, lp, sendRole, announcer)); }
+        if (hubCommand != null) { var cmd = plugin.getCommand("admin"); if (cmd != null) { cmd.setExecutor(hubCommand); cmd.setTabCompleter(hubCommand); } }
     }
     private static <T extends org.bukkit.command.CommandExecutor & org.bukkit.command.TabCompleter> void bind(JavaPlugin plugin, String name, T handler) {
         var command = plugin.getCommand(name);
         if (command != null) { command.setExecutor(handler); command.setTabCompleter(handler); }
+    }
+
+    /** Takes the old admin words out of the command list sent to clients, so they do not tab-complete. They still work when typed. */
+    static final class HiddenAliases implements org.bukkit.event.Listener {
+        @org.bukkit.event.EventHandler void onSend(org.bukkit.event.player.PlayerCommandSendEvent e) {
+            e.getCommands().removeIf(c -> AdminHubModel.HIDDEN_ALIASES.contains(c.toLowerCase(java.util.Locale.ROOT)) || c.toLowerCase(java.util.Locale.ROOT).startsWith("pulsenetwork:") && AdminHubModel.HIDDEN_ALIASES.contains(c.substring(c.indexOf(':') + 1).toLowerCase(java.util.Locale.ROOT)));
+        }
     }
 }
