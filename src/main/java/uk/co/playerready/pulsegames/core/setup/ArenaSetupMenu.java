@@ -146,7 +146,7 @@ final class ArenaSetupMenu implements Listener {
                     () -> requirement(player, session, entry), "Click to configure", entry.command()));
         }
         buttons.add(button(Material.NAME_TAG, "Name: " + session.displayName,
-                () -> prompt(player, session, "Arena display name", value -> session.displayName = value)));
+                () -> ask(player, session, "Arena display name", value -> session.displayName = value)));
         buttons.add(button(Material.PLAYER_HEAD, "Manage spawns (" + session.spawns.size() + ")", () -> spawns(player, session)));
         buttons.add(button(Material.MAP, "Manage regions (" + session.regions.size() + ")", () -> regions(player, session)));
         buttons.add(button(Material.REPEATER, "Game modes: " + (session.modes.isEmpty() ? "All" : session.modes), () -> modes(player, session)));
@@ -251,7 +251,7 @@ final class ArenaSetupMenu implements Listener {
                                 + " (" + navigationPoints(session.settings, key).size() + ")",
                         () -> navigationPoints(player, session, key), "Waypoints are followed in saved order",
                         "/pulse setup addloc " + key)));
-        buttons.add(button(Material.EMERALD, "Create named safe route", () -> prompt(player, session,
+        buttons.add(button(Material.EMERALD, "Create named safe route", () -> ask(player, session,
                 "Route name (1–32 letters, numbers, underscores or hyphens)", value -> {
                     String key = navigationRouteKey(value);
                     if (session.settings.containsKey(key)) throw new IllegalArgumentException("That route already exists.");
@@ -330,20 +330,20 @@ final class ArenaSetupMenu implements Listener {
     private void limits(Player player, ArenaSetupManager.Session session) {
         List<Button> buttons = new ArrayList<>();
         buttons.add(button(Material.PLAYER_HEAD, "Default minimum: " + (session.minPlayers == null ? 2 : session.minPlayers),
-                () -> prompt(player, session, "Minimum players (positive whole number)", value -> session.minPlayers = positive(value))));
+                () -> ask(player, session, "Minimum players (positive whole number)", value -> session.minPlayers = positive(value))));
         buttons.add(button(Material.PLAYER_HEAD, "Default maximum: " + (session.maxPlayers == null ? Math.max(2, session.spawns.size()) : session.maxPlayers),
-                () -> prompt(player, session, "Maximum players (positive whole number)", value -> session.maxPlayers = positive(value))));
+                () -> ask(player, session, "Maximum players (positive whole number)", value -> session.maxPlayers = positive(value))));
         session.game.modes().stream().filter(mode -> supportsSetupMode(session, mode)).forEach(mode -> {
             String prefix = "modes." + mode.id() + ".";
             for (String key : List.of("min-players", "max-players")) {
                 buttons.add(button(Material.COMPARATOR, mode.displayName() + " " + key + ": " + session.settings.getOrDefault(prefix + key, "default"),
-                        () -> prompt(player, session, mode.displayName() + " " + key + " (number or default)", value -> {
+                        () -> ask(player, session, mode.displayName() + " " + key + " (number or default)", value -> {
                             if (value.equalsIgnoreCase("default")) session.settings.remove(prefix + key);
                             else session.settings.put(prefix + key, positive(value));
                         }), "Overrides only this mode", "Mode minimum: " + mode.minPlayers()));
             }
             if (mode.isTeams()) buttons.add(button(Material.WHITE_BANNER, mode.displayName() + " teams: " + session.settings.getOrDefault(prefix + "team-count", "spawn count"),
-                    () -> prompt(player, session, "Team count (2–32, or default)", value -> {
+                    () -> ask(player, session, "Team count (2–32, or default)", value -> {
                         if (value.equalsIgnoreCase("default")) session.settings.remove(prefix + "team-count");
                         else { int count = positive(value); if (count < 2 || count > 32) throw new IllegalArgumentException("Use 2–32 teams.");
                             session.settings.put(prefix + "team-count", count); }
@@ -372,6 +372,15 @@ final class ArenaSetupMenu implements Listener {
     private void confirm(Player player, ArenaSetupManager.Session session, String title, Runnable action) {
         show(player, session, title, List.of(button(Material.LIME_DYE, "Confirm", action),
                 button(Material.RED_DYE, "Back", () -> open(player, session))), 0);
+    }
+    /** Short answers use an anvil (or a Bedrock input form); the setter throws IllegalArgumentException to ask again. */
+    private void ask(Player player, ArenaSetupManager.Session session, String label, Consumer<String> accept) {
+        player.closeInventory();
+        uk.co.playerready.pulsegames.core.ui.AnvilPrompt.ask(plugin, player, label, value -> {
+            try { accept.accept(value); return null; }
+            catch (NumberFormatException ex) { return "Use a whole number."; }
+            catch (IllegalArgumentException ex) { return ex.getMessage() == null ? "That does not work." : ex.getMessage(); }
+        }, value -> { if (allowed(player, session)) open(player, session); }, () -> { if (allowed(player, session)) open(player, session); });
     }
     private void prompt(Player player, ArenaSetupManager.Session session, String label, Consumer<String> accept) {
         player.closeInventory();
