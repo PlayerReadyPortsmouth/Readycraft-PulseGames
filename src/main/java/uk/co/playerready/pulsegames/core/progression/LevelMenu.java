@@ -1,5 +1,7 @@
 package uk.co.playerready.pulsegames.core.progression;
 
+import uk.co.playerready.pulsegames.core.command.Routes;
+
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import uk.co.playerready.pulsegames.PulseGamesPlugin;
@@ -70,7 +72,7 @@ public final class LevelMenu {
                 target -> {
                     if (!player.isOnline()) return;
                     if (target.equals(WARDROBE)) plugin.wardrobe().open(player);
-                    else if (target.equals(NAMESTYLE)) player.performCommand("namestyle");
+                    else if (target.equals(NAMESTYLE)) player.performCommand(Routes.NAMESTYLE);
                 })) return;
         Menu menu = new Menu(plugin, player, Theme.title("My level"), 3);
         menu.renderer(() -> {
@@ -91,7 +93,7 @@ public final class LevelMenu {
                     pl -> plugin.wardrobe().open(pl));
             menu.set(22, Buttons.item(Material.NAME_TAG, Theme.ACCENT + "Name styles",
                     Lore.of().kv("Unlocked", nameStyleProgress(p.level())).desc("Set it with /namestyle").blank().hint("Click to choose")),
-                    pl -> pl.performCommand("namestyle"));
+                    pl -> pl.performCommand(Routes.NAMESTYLE));
             menu.close();
             menu.fillEmpty(Material.GRAY_STAINED_GLASS_PANE);
         });

@@ -60,6 +60,6 @@ class MapBoardModelTest {
     }
 
     @Test void markCommandIsExact() {
-        assertEquals("/pulse maps mark g m java pass <evidence note>", MapBoardModel.markCommand("g", "m", Check.JAVA));
+        assertEquals("/admin games maps mark g m java pass <evidence note>", MapBoardModel.markCommand("g", "m", Check.JAVA));
     }
 }

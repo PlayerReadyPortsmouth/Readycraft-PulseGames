@@ -46,7 +46,7 @@ public final class ProgressionAdmin {
         this.audit = audit;
     }
 
-    public static final String USAGE = "Usage: /pulse xp <player> add|set <n> | level <player> set <n>|reset | "
+    public static final String USAGE = "Usage: /admin games progress xp <player> add|set <n> | level <player> set <n>|reset | "
             + "namestyle <player> grant|revoke <id|all> | progression <player>";
 
     /** {@code args} start at the verb (a leading "admin" is stripped by the caller). */
@@ -104,7 +104,7 @@ public final class ProgressionAdmin {
                 out.add("<green>" + name + " is now level " + level + " with " + XpRules.xpForLevel(level) + " XP.");
                 unlockLines(out, backend.unlock(player, level));
                 backend.refresh(player);
-                out.add("<gray>Rewards already earned are kept; use /pulse level " + name + " reset to clear them.");
+                out.add("<gray>Rewards already earned are kept; use /admin games progress level " + name + " reset to clear them.");
             }
             case LEVEL_RESET -> {
                 backend.setXp(player, 0);
@@ -112,7 +112,7 @@ public final class ProgressionAdmin {
                 backend.refresh(player);
                 audit(actor, "level-reset", name, "0");
                 out.add("<green>" + name + " reset to level 1 with 0 XP; " + cleared + " cosmetic unlocks cleared.");
-                out.add("<yellow>LuckPerms name-style permissions were not touched. Use /pulse namestyle " + name + " revoke all to remove them.");
+                out.add("<yellow>LuckPerms name-style permissions were not touched. Use /admin games progress namestyle " + name + " revoke all to remove them.");
             }
             case STYLE_GRANT, STYLE_REVOKE -> {
                 boolean grant = p.verb() == Verb.STYLE_GRANT;

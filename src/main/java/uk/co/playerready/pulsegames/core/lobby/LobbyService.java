@@ -35,7 +35,7 @@ public final class LobbyService {
         if (!worldName.equals(warnedMissingWorld)) {
             warnedMissingWorld = worldName;
             plugin.getLogger().warning("lobby.world '" + worldName + "' does not exist; using '"
-                    + fallback.getName() + "' instead. Set it correctly with /pulse setlobby, "
+                    + fallback.getName() + "' instead. Set it correctly with /admin games setlobby, "
                     + "otherwise the hub is protected under the wrong name.");
         }
         return fallback;

@@ -1,5 +1,7 @@
 package uk.co.playerready.pulsegames.core.setup;
 
+import uk.co.playerready.pulsegames.core.command.Routes;
+
 import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
@@ -76,7 +78,7 @@ final class ArenaSetupMenu implements Listener {
             meta.getPersistentDataContainer().set(bookKey, PersistentDataType.BYTE, (byte) 1);
         });
         if (!player.getInventory().addItem(book).isEmpty())
-            player.sendMessage(Text.msg("<yellow>Inventory full. Make space and use /pulse setup book, or open /pulse setup gui."));
+            player.sendMessage(Text.msg("<yellow>Inventory full. Make space and use /admin games setup book, or open /admin games setup gui."));
     }
     @EventHandler
     public void onBook(PlayerInteractEvent event) {
@@ -87,7 +89,7 @@ final class ArenaSetupMenu implements Listener {
         Player player = event.getPlayer();
         ArenaSetupManager.Session session = manager.session(player);
         if (session != null && allowed(player, session)) open(player, session);
-        else player.sendMessage(Text.msg("<yellow>Begin with /pulse setup start <game> <arenaId>."));
+        else player.sendMessage(Text.msg("<yellow>Begin with /admin games setup start <game> <arenaId>."));
     }
     private void palette(Player player, ArenaSetupManager.Session session) {
         List<Button> buttons = new ArrayList<>();
@@ -174,7 +176,7 @@ final class ArenaSetupMenu implements Listener {
         manager.handle(player, args); open(player, session);
     }
     private void requirement(Player player, ArenaSetupManager.Session session, ArenaSetupManager.CheckEntry entry) {
-        String[] args = entry.command().substring("/pulse setup ".length()).trim().split(" +");
+        String[] args = entry.command().substring(Routes.SETUP_PREFIX.length()).trim().split(" +");
         if (args[0].equals("set")) {
             String key = args[1];
             if (key.equals("diamond-generators")) { run(player, session, "addloc", key); return; }
@@ -243,14 +245,14 @@ final class ArenaSetupMenu implements Listener {
                 default -> "Recovery walk targets";
             };
             buttons.add(button(Material.COMPASS, label + " (" + navigationPoints(session.settings, key).size() + ")",
-                    () -> navigationPoints(player, session, key), "/pulse setup addloc " + key,
+                    () -> navigationPoints(player, session, key), "/admin games setup addloc " + key,
                     key.equals("bot-recovery-points") ? "Reachable safe ground; never teleports bots" : "Optional guidance for supported bot controllers"));
         }
         session.settings.keySet().stream().filter(key -> key.startsWith("bot-route-")).sorted().forEach(key ->
                 buttons.add(button(Material.RAIL, "Route: " + key.substring("bot-route-".length())
                                 + " (" + navigationPoints(session.settings, key).size() + ")",
                         () -> navigationPoints(player, session, key), "Waypoints are followed in saved order",
-                        "/pulse setup addloc " + key)));
+                        "/admin games setup addloc " + key)));
         buttons.add(button(Material.EMERALD, "Create named safe route", () -> ask(player, session,
                 "Route name (1–32 letters, numbers, underscores or hyphens)", value -> {
                     String key = navigationRouteKey(value);
@@ -264,7 +266,7 @@ final class ArenaSetupMenu implements Listener {
         List<String> snapshot = navigationPoints(session.settings, key);
         buttons.add(button(Material.EMERALD, "Add your current position (" + snapshot.size() + "/128)", () -> {
             manager.handle(player, new String[]{"addloc", key}); navigationPoints(player, session, key);
-        }, "/pulse setup addloc " + key, "Or: /pulse setup addloc " + key + " x y z [yaw pitch]"));
+        }, "/admin games setup addloc " + key, "Or: /admin games setup addloc " + key + " x y z [yaw pitch]"));
         for (int i = 0; i < snapshot.size(); i++) {
             int index = i;
             buttons.add(button(Material.REDSTONE, "Remove point " + (index + 1), () -> confirm(player, session,
@@ -275,7 +277,7 @@ final class ArenaSetupMenu implements Listener {
                             player.sendMessage(Component.text("These points changed. Review the refreshed list first."));
                             navigationPoints(player, session, key);
                         }
-                    }), snapshot.get(index), "/pulse setup removeloc " + key + " " + (index + 1),
+                    }), snapshot.get(index), "/admin games setup removeloc " + key + " " + (index + 1),
                     "Removing shifts later point numbers"));
         }
         buttons.add(button(Material.BARRIER, key.startsWith("bot-route-") ? "Delete this route" : "Clear all points",
@@ -283,7 +285,7 @@ final class ArenaSetupMenu implements Listener {
                     if (navigationPoints(session.settings, key).equals(snapshot)) session.settings.remove(key);
                     else player.sendMessage(Component.text("These points changed. Review the refreshed list first."));
                     navigation(player, session);
-                }), "/pulse setup clearloc " + key, "Requires confirmation; affects unsaved setup only"));
+                }), "/admin games setup clearloc " + key, "Requires confirmation; affects unsaved setup only"));
         buttons.add(button(Material.ARROW, "Back to bot navigation", () -> navigation(player, session)));
         show(player, session, key, buttons, 0);
     }

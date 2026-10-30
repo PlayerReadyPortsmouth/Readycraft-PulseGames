@@ -49,7 +49,7 @@ import java.util.UUID;
 /**
  * Admin-placed lobby features: game selector NPCs, hologram leaderboards, the daily reward chest and the lobby
  * parkour. Everything is saved in plugins/PulseGames/lobby.yml (see {@link LobbyData}) and rebuilt from it on
- * boot and on /pulse reload. Holograms are vanilla text displays; NPCs come from Citizens.
+ * boot and on /admin games reload. Holograms are vanilla text displays; NPCs come from Citizens.
  */
 public final class LobbyPlacements implements Listener {
     static final String TAG = "pulse-lobby";
@@ -98,7 +98,7 @@ public final class LobbyPlacements implements Listener {
         ticker = plugin.getServer().getScheduler().runTaskTimer(plugin, this::tickParkour, 10L, 4L);
     }
 
-    /** /pulse reload: forget the live NPCs and holograms and rebuild them from lobby.yml. */
+    /** /admin games reload: forget the live NPCs and holograms and rebuild them from lobby.yml. */
     public void reload() {
         despawnAll();
         runs.clear();
@@ -214,7 +214,7 @@ public final class LobbyPlacements implements Listener {
 
     // ---- commands --------------------------------------------------------------------
 
-    /** {@code /pulse lobby ...}; args exclude the word "lobby". */
+    /** {@code /admin games lobby ...}; args exclude the word "lobby". */
     public void handle(Player p, String[] a) {
         String sub = a.length == 0 ? "help" : a[0].toLowerCase(Locale.ROOT);
         String[] rest = a.length == 0 ? a : java.util.Arrays.copyOfRange(a, 1, a.length);
@@ -230,21 +230,21 @@ public final class LobbyPlacements implements Listener {
     private void help(Player p) {
         p.sendMessage(Text.msg("<gold><b>Lobby placements</b> <gray>(stand where you want it, then run the command)"));
         for (String line : List.of(
-                "/pulse lobby npc <game> [mode]</yellow> <gray>- a game selector NPC where you stand",
-                "/pulse lobby npc remove</yellow> <gray>- remove the nearest NPC (within 3 blocks)",
-                "/pulse lobby npc list</yellow> <gray>- every NPC placed",
-                "/pulse lobby board <weekly|alltime> <game|network> [wins|kills|tokens]</yellow> <gray>- a leaderboard",
-                "/pulse lobby board remove</yellow> <gray>- remove the nearest board; <yellow>board list</yellow> <gray>lists them",
-                "/pulse lobby chest</yellow> <gray>- make the chest or barrel you look at the daily reward chest",
-                "/pulse lobby chest remove</yellow> <gray>- stop it being the reward chest",
-                "/pulse lobby parkour <start|checkpoint|end></yellow> <gray>- plate at the block you look at",
-                "/pulse lobby parkour <board|reset|status></yellow> <gray>- top-5 board, clear the course, or check it",
-                "/pulse reload</yellow> <gray>- reload lobby.yml along with the config"))
+                "/admin games lobby npc <game> [mode]</yellow> <gray>- a game selector NPC where you stand",
+                "/admin games lobby npc remove</yellow> <gray>- remove the nearest NPC (within 3 blocks)",
+                "/admin games lobby npc list</yellow> <gray>- every NPC placed",
+                "/admin games lobby board <weekly|alltime> <game|network> [wins|kills|tokens]</yellow> <gray>- a leaderboard",
+                "/admin games lobby board remove</yellow> <gray>- remove the nearest board; <yellow>board list</yellow> <gray>lists them",
+                "/admin games lobby chest</yellow> <gray>- make the chest or barrel you look at the daily reward chest",
+                "/admin games lobby chest remove</yellow> <gray>- stop it being the reward chest",
+                "/admin games lobby parkour <start|checkpoint|end></yellow> <gray>- plate at the block you look at",
+                "/admin games lobby parkour <board|reset|status></yellow> <gray>- top-5 board, clear the course, or check it",
+                "/admin games reload</yellow> <gray>- reload lobby.yml along with the config"))
             p.sendMessage(Text.mm("<yellow>" + line));
     }
 
     private void npcCommand(Player p, String[] a) {
-        if (a.length == 0) { p.sendMessage(Text.msg("<red>Usage: <yellow>/pulse lobby npc <game> [mode]</yellow>, <yellow>remove</yellow> or <yellow>list</yellow>.")); return; }
+        if (a.length == 0) { p.sendMessage(Text.msg("<red>Usage: <yellow>/admin games lobby npc <game> [mode]</yellow>, <yellow>remove</yellow> or <yellow>list</yellow>.")); return; }
         LobbySpot here = LobbySpot.of(p.getLocation());
         switch (a[0].toLowerCase(Locale.ROOT)) {
             case "remove" -> data.nearestNpc(here, REMOVE_RANGE).ifPresentOrElse(n -> {
@@ -252,7 +252,7 @@ public final class LobbyPlacements implements Listener {
                 dropNpc(n.id());
                 save();
                 p.sendMessage(Text.msg("<green>Removed the " + n.game() + " NPC (" + n.id() + ")."));
-            }, () -> p.sendMessage(Text.msg("<red>No NPC within 3 blocks. Stand next to it, or use <yellow>/pulse lobby npc list</yellow>.")));
+            }, () -> p.sendMessage(Text.msg("<red>No NPC within 3 blocks. Stand next to it, or use <yellow>/admin games lobby npc list</yellow>.")));
             case "list" -> {
                 if (data.npcs().isEmpty()) p.sendMessage(Text.msg("<gray>No game NPCs placed yet."));
                 for (var n : data.npcs()) p.sendMessage(Text.msg("<yellow>" + n.id() + "</yellow> " + n.game()
@@ -278,7 +278,7 @@ public final class LobbyPlacements implements Listener {
     }
 
     private void boardCommand(Player p, String[] a) {
-        if (a.length == 0) { p.sendMessage(Text.msg("<red>Usage: <yellow>/pulse lobby board <weekly|alltime> <game|network> [wins|kills|tokens]</yellow>, <yellow>remove</yellow> or <yellow>list</yellow>.")); return; }
+        if (a.length == 0) { p.sendMessage(Text.msg("<red>Usage: <yellow>/admin games lobby board <weekly|alltime> <game|network> [wins|kills|tokens]</yellow>, <yellow>remove</yellow> or <yellow>list</yellow>.")); return; }
         LobbySpot here = LobbySpot.of(p.getLocation());
         String first = a[0].toLowerCase(Locale.ROOT);
         if (first.equals("remove")) {
@@ -287,7 +287,7 @@ public final class LobbyPlacements implements Listener {
                 dropHologram(b.id());
                 save();
                 p.sendMessage(Text.msg("<green>Removed the board (" + b.id() + ")."));
-            }, () -> p.sendMessage(Text.msg("<red>No board within 3 blocks. Stand next to it, or use <yellow>/pulse lobby board list</yellow>.")));
+            }, () -> p.sendMessage(Text.msg("<red>No board within 3 blocks. Stand next to it, or use <yellow>/admin games lobby board list</yellow>.")));
             return;
         }
         if (first.equals("list")) {
@@ -297,7 +297,7 @@ public final class LobbyPlacements implements Listener {
             return;
         }
         if ((!first.equals("weekly") && !first.equals("alltime")) || a.length < 2) {
-            p.sendMessage(Text.msg("<red>Usage: <yellow>/pulse lobby board <weekly|alltime> <game|network> [wins|kills|tokens]")); return;
+            p.sendMessage(Text.msg("<red>Usage: <yellow>/admin games lobby board <weekly|alltime> <game|network> [wins|kills|tokens]")); return;
         }
         String scope = a[1].toLowerCase(Locale.ROOT);
         String game = scope.equals("network") ? null : scope;
@@ -354,7 +354,7 @@ public final class LobbyPlacements implements Listener {
                 p.sendMessage(Text.msg("<green>Placed the parkour top-5 board (" + b.id() + ") here."));
             }
             case "start", "checkpoint", "end" -> placePlate(p, sub);
-            default -> p.sendMessage(Text.msg("<red>Usage: <yellow>/pulse lobby parkour <start|checkpoint|end|board|reset|status>"));
+            default -> p.sendMessage(Text.msg("<red>Usage: <yellow>/admin games lobby parkour <start|checkpoint|end|board|reset|status>"));
         }
     }
 

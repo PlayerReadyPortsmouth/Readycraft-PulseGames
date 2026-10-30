@@ -107,7 +107,7 @@ public final class ShapeService {
             player.sendMessage(Text.msg("<red>Shape error: " + ex.getMessage()));
             return;
         }
-        // Record what we overwrite for /pulse shape undo.
+        // Record what we overwrite for /admin games shape undo.
         Map<Location, BlockData> undo = new LinkedHashMap<>();
         for (Location loc : placements.keySet()) {
             undo.put(loc, loc.getBlock().getBlockData());
@@ -117,7 +117,7 @@ public final class ShapeService {
         player.sendMessage(Text.msg("Pasting <yellow>" + displayName + "</yellow> <gray>("
                 + placements.size() + " blocks)..."));
         applyBatched(placements, () -> player.sendMessage(
-                Text.msg("<green>Paste complete!</green> <gray>Undo with <yellow>/pulse shape undo")));
+                Text.msg("<green>Paste complete!</green> <gray>Undo with <yellow>/admin games shape undo")));
     }
 
     /**
