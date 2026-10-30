@@ -11,6 +11,9 @@ public final class RoleMenuCommands {
     public static final List<String> ROLES = List.of("dev", "admin", "staff", "venue:ports", "venue:plym", "venue:tru", "venue:tau", "venue:exet");
     private RoleMenuCommands() {}
 
+    /** Commands that are not {@code /role} subcommands. */
+    public static boolean bare(String action) { return action.equals("identity") || action.equals("nick"); }
+
     public static boolean validName(String name) { return name != null && name.matches("[.A-Za-z0-9_]{1,17}"); }
 
     /** Wire fields (arguments after {@code /role}), or empty when the request is not one the menu may make. */
@@ -18,6 +21,7 @@ public final class RoleMenuCommands {
         List<String> f = switch (action) {
             case "set", "remove" -> role != null && ROLES.contains(role) ? List.of(action, name == null ? "" : name, role) : null;
             case "who", "hide", "unhide", "identity" -> List.of(action, name == null ? "" : name);
+            case "nick" -> role != null && (role.equals(NickRules.RESET) || NickRules.shapeOk(role)) ? List.of(action, name == null ? "" : name, role) : null; // role carries the nickname
             case "confirm" -> List.of("confirm");
             default -> null;
         };
@@ -27,13 +31,13 @@ public final class RoleMenuCommands {
 
     /** The full command text, for example {@code /role set X venue:ports}. */
     public static Optional<String> line(String action, String name, String role) {
-        return fields(action, name, role).map(f -> "/" + (f.get(0).equals("identity") ? "" : "role ") + String.join(" ", f));
+        return fields(action, name, role).map(f -> "/" + (bare(f.get(0)) ? "" : "role ") + String.join(" ", f));
     }
 
     /** Proxy side: validates received fields and returns the command to run without the slash. */
     public static Optional<String> fromFields(List<String> f) {
         if (f.isEmpty()) return Optional.empty();
         return fields(f.get(0), f.size() > 1 ? f.get(1) : null, f.size() > 2 ? f.get(2) : null)
-                .filter(c -> c.equals(f)).map(c -> (c.get(0).equals("identity") ? "" : "role ") + String.join(" ", c));
+                .filter(c -> c.equals(f)).map(c -> (bare(c.get(0)) ? "" : "role ") + String.join(" ", c));
     }
 }

@@ -130,6 +130,10 @@ final class AdminHubCommand implements CommandExecutor {
         b.add(btn(Material.BOOK, "View identity", "Runs /identity " + t.name(), guarded(p, Gate.HUB, () -> proxy(p, "identity", "view identity", t.name(), List.of("identity", t.name())))));
         b.add(btn(Material.DIAMOND, "Set role", "Opens the role menu", guarded(p, Gate.HUB, () -> { audit(p, "open rolemenu", t.name()); p.closeInventory(); p.performCommand("rolemenu " + t.name()); })));
         b.add(btn(Material.NAME_TAG, "Name styles", "Grant or revoke styles (Dev/Admin)", guarded(p, Gate.ADMIN, () -> styles(p, t))));
+        b.add(btn(Material.WRITABLE_BOOK, "Set nickname", "Type a nickname for " + t.name(), guarded(p, Gate.HUB, () -> ask(p, "Nickname for " + t.name(), AnvilPromptLogic.Rule.nickname(),
+                nick -> proxy(p, "nick", "set nickname", t.name(), List.of("nick", t.name(), nick))))));
+        b.add(btn(Material.BARRIER, "Reset nickname", "Show their real name again", guarded(p, Gate.HUB, () -> confirm(p, "Reset " + t.name() + "'s nickname?",
+                () -> proxy(p, "nick", "reset nickname", t.name(), List.of("nick", t.name(), "reset"))))));
         b.add(btn(Material.ENDER_EYE, "Hide from tab", "Runs /role hide", guarded(p, Gate.ADMIN, () -> proxy(p, "role", "hide", t.name(), List.of("hide", t.name())))));
         b.add(btn(Material.ENDER_PEARL, "Show in tab", "Runs /role unhide", guarded(p, Gate.ADMIN, () -> proxy(p, "role", "unhide", t.name(), List.of("unhide", t.name())))));
         if (online != null && !online.equals(p)) b.add(btn(Material.ELYTRA, "Teleport to", "Go to " + t.name(), guarded(p, Gate.HUB, () -> {
@@ -145,7 +149,7 @@ final class AdminHubCommand implements CommandExecutor {
         if (RoleMenuCommands.fromFields(fields).isEmpty()) { p.sendMessage(line("That is not a request the admin menu can make.")); return; }
         if (!send.test(p, fields)) { p.sendMessage(line("The admin menu cannot reach the network proxy from this server.")); return; }
         audit(p, action, name);
-        p.sendMessage(Component.text("Sent /" + (command.equals("identity") ? "" : "role ") + String.join(" ", fields) + ". The answer arrives in chat.", NamedTextColor.GRAY));
+        p.sendMessage(Component.text("Sent /" + (RoleMenuCommands.bare(command) ? "" : "role ") + String.join(" ", fields) + ". The answer arrives in chat.", NamedTextColor.GRAY));
     }
 
     private void styles(Player p, Target t) {

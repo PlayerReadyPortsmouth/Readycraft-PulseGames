@@ -45,6 +45,15 @@ final class LuckPermsStore implements RoleStore {
     public CompletableFuture<Boolean> isHidden(UUID id) {
         return lp.getUserManager().loadUser(id).thenApply(u -> "true".equalsIgnoreCase(u.getCachedData().getMetaData().getMetaValue(RoleLogic.HIDDEN_META)));
     }
+    public CompletableFuture<String> nickname(UUID id) {
+        return lp.getUserManager().loadUser(id).thenApply(u -> u.getNodes(NodeType.META).stream().filter(n -> n.getMetaKey().equals(IdentityResolver.NICK_KEY)).map(MetaNode::getMetaValue).findFirst().orElse(null));
+    }
+    public CompletableFuture<Void> setNickname(UUID id, String nick) {
+        return lp.getUserManager().modifyUser(id, u -> {
+            u.data().clear(NodeType.META.predicate(n -> n.getMetaKey().equals(IdentityResolver.NICK_KEY)));
+            if (nick != null) u.data().add(MetaNode.builder(IdentityResolver.NICK_KEY, nick).build());
+        });
+    }
     public void audit(UUID actor, String actorName, UUID target, String targetName, String text) {
         try {
             lp.getActionLogger().submit(lp.getActionLogger().actionBuilder().source(actor).sourceName(actorName).target(target)

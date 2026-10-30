@@ -57,7 +57,7 @@ final class TabRender {
         if (m.afk()) budget -= 6;
         if (m.match()) budget -= 12;
         long tick = !bedrockViewer && NameStyle.isAnimated(m.styleId()) ? frame : 0;
-        out.append(NameStyle.render(new NameStyle.Identity(m.name(), m.role(), m.styleId(), m.level()), bedrockViewer, tick, config.tags(), budget));
+        out.append(NameStyle.render(new NameStyle.Identity(m.name(), m.role(), m.styleId(), m.level(), m.nickname()), bedrockViewer, tick, config.tags(), budget, false));
         if (suffix != null) out.append(suffix);
         if (m.afk()) out.append(Component.text(" (AFK)", NamedTextColor.GRAY));
         if (m.match()) out.append(Component.text(" [In a game]", NamedTextColor.GOLD));
