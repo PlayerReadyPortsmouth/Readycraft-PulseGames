@@ -22,3 +22,6 @@ Dispatch `admin-route games` (open menu) and `admin-route games <verb> ...`; the
 3. `/pulse bots` still works and prints the one-line hint; `/pulse` is not offered in tab-complete.
 4. `/admin-route games setup start <game>` then the setup GUI checklist rows still run (prefix parse).
 5. `/lobby` works, `/leave` no longer does. Party menu buttons, name style click in Wardrobe and Level menu, [Join] and [View results] chat clicks work.
+
+## D2 (Aurora, 30 Oct): staff get the admin menu
+The `staff` LuckPerms group is being granted `pulsegames.admin`. It is the parent of every child area node, so staff hold them all. Checked: the admin menu, `admin-route`, `/pulse` alias and every `/admin games` verb gate on `pulsegames.admin` only (no op check, no stricter node). The one exception is deliberate and unchanged: recording a VISUAL map review needs `pulsegames.maps.approve`. The LuckPerms grant is the coordinator's production write, not made here.
