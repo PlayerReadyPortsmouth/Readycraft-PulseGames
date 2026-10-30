@@ -20,7 +20,7 @@ Draft PR from `feat/network-nicknames`. Not released, no versions bumped. Detail
 4. `/identity` shows `Nickname (pulse.nickname)` and the real name.
 5. `/nick reset` brings the real name back everywhere within a few seconds.
 6. Refusals: `/nick ab`, `/nick a b`, `/nick Steve` (an online player), `/nick <staff name>` plus one letter, a blocked word. Each gets a clear message and nothing changes.
-7. Gating: staff cannot change a dev's or an admin's nickname; admin cannot change another admin's; dev can change anyone's; console can too.
+7. Gating: staff cannot change a dev's or an admin's nickname; admin cannot change a dev's or another admin's (only a dev may change a dev's); dev can change anyone's; console can too.
 8. Offline target by exact name works; an unknown name says so.
 9. Admin hub: `/admin`, Players, pick a player, Set nickname (anvil, bad text re-prompts), Reset nickname (asks yes/no).
 10. Console shows `NICK <actor> set|reset <target> <nick>`; the LuckPerms action log has the entry.
