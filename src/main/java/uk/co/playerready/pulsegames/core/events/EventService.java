@@ -291,6 +291,20 @@ public final class EventService {
 
     // ---- admin ----------------------------------------------------------------------
 
+    /** Start of the latest occurrence that has opened or been skipped; anything at or before it will not open. */
+    public Instant lastOpened() { return lastOpened; }
+
+    /** Admin menu: passes over the next scheduled start as if it had already opened. Returns it, or null when none is due. */
+    public Instant skipNext() {
+        if (!enabled()) return null;
+        for (var o : schedule.next(Instant.now(), 5)) {
+            if (!o.start().isAfter(lastOpened)) continue;
+            lastOpened = o.start();
+            return o.start();
+        }
+        return null;
+    }
+
     public void admin(Player player, String[] args) {
         String sub = args.length == 0 ? "" : args[0].toLowerCase(Locale.ROOT);
         switch (sub) {

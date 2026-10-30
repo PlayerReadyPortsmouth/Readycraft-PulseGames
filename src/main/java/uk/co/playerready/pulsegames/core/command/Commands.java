@@ -223,10 +223,11 @@ public final class Commands implements CommandExecutor, TabCompleter {
 
     private void admin(Player player, String[] args) {
         if (args.length == 0) {
-            player.sendMessage(Text.msg("Usage: <yellow>/pulse <setup|shape|build|blueprints|bots|diagnose|maps|lobby|world|games|list|arenas|start|end|setlobby|reload>"));
+            player.sendMessage(Text.msg("Usage: <yellow>/pulse <adminmenu|setup|shape|build|blueprints|bots|diagnose|maps|lobby|world|games|list|arenas|start|end|setlobby|reload>"));
             return;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
+            case "adminmenu" -> plugin.adminMenu().open(player);
             case "results" -> plugin.results().command(player, java.util.Arrays.copyOfRange(args, 1, args.length));
             case "event" -> plugin.events().admin(player, java.util.Arrays.copyOfRange(args, 1, args.length));
             case "practice" -> plugin.practice().handle(player, java.util.Arrays.copyOfRange(args, 1, args.length));
@@ -403,7 +404,7 @@ public final class Commands implements CommandExecutor, TabCompleter {
                 }
                 if (args.length >= 2 && args[0].equalsIgnoreCase("lobby")) return plugin.lobbyPlacements().tab(sender, args);
                 if (args.length == 1) {
-                    return List.of("lobby", "setup", "shape", "build", "blueprints", "bots", "diagnose", "maps", "practice", "event", "results", "xp", "level", "namestyle", "progression", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
+                    return List.of("adminmenu", "lobby", "setup", "shape", "build", "blueprints", "bots", "diagnose", "maps", "practice", "event", "results", "xp", "level", "namestyle", "progression", "world", "games", "list", "arenas", "start", "end", "setlobby", "reload");
                 }
                 if (args.length == 3 && args[0].equalsIgnoreCase("world")) return List.of("void", "normal");
                 if (args.length == 2 && args[0].equalsIgnoreCase("build")) {

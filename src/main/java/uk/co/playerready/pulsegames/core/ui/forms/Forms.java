@@ -48,4 +48,19 @@ public final class Forms {
             return false;
         }
     }
+
+    /**
+     * One line of text from a Bedrock player. {@code error} (may be empty) is shown above the box when asking
+     * again. Returns false when no form was shown; closing the form runs {@code onCancel}.
+     */
+    public static boolean input(Plugin plugin, Player player, String title, String label, String error,
+                                Consumer<String> onText, Runnable onCancel) {
+        if (!supports(plugin, player)) return false;
+        try {
+            CumulusForms.input(plugin, player, title, FormLayout.inputLabel(label, error), onText, onCancel);
+            return true;
+        } catch (Throwable broken) {
+            return false;
+        }
+    }
 }

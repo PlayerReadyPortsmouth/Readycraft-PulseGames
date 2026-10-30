@@ -66,4 +66,9 @@ public final class FormLayout {
     public static boolean useForm(boolean configEnabled, boolean floodgatePresent, boolean bedrock) {
         return configEnabled && floodgatePresent && bedrock;
     }
+
+    /** Label above a text box; a rejected answer's reason goes first so it is the thing they read. */
+    public static String inputLabel(String label, String error) {
+        return error == null || error.isBlank() ? label : error + "\n" + label;
+    }
 }
