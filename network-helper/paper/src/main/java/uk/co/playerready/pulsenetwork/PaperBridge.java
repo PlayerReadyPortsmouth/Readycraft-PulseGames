@@ -83,7 +83,7 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
             var games = getServer().getPluginManager().getPlugin("PulseGames");
             Integer level = levelLookup.level(games, player);
             var identity = IdentityResolver.resolve(player.getUniqueId(), player.getName(), lpMeta, level, tags);
-            return NameStyle.render(identity, bedrockViewer, 0, tags, NameStyle.MAX_VISIBLE);
+            return NameStyle.renderChat(identity, bedrockViewer, tags);
         } catch (RuntimeException e) { return player.displayName(); }
     }
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)

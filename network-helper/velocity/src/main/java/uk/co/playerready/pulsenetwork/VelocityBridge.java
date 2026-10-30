@@ -58,6 +58,7 @@ public final class VelocityBridge {
     @Inject public VelocityBridge(ProxyServer proxy, Logger logger, @DataDirectory Path directory) {
         this.proxy = proxy; this.logger = logger; this.directory = directory;
     }
+    private Set<String> nickBlocked = Set.of();
     @Subscribe public void start(ProxyInitializeEvent event) {
         TabConfig tabConfig = null;
         PresenceConfig presenceConfig = null;
@@ -73,7 +74,7 @@ public final class VelocityBridge {
             paperBackends = csv(config.getProperty("paper-backends", ""));
             chatBackends = csv(config.getProperty("chat-backends", config.getProperty("backends", "")));
             if (!backends.containsAll(chatBackends)) throw new IllegalArgumentException("Chat backends must be allowed backends");
-            hiddenPlayers = config.getProperty("tab.hidden-players", ""); roleGroups = config.getProperty("roles.groups", "");
+            hiddenPlayers = config.getProperty("tab.hidden-players", ""); roleGroups = config.getProperty("roles.groups", ""); nickBlocked = NickRules.words(config.getProperty("nick.blocked-words", ""));
             try { tags = TabConfig.tags(config); }
             catch (IllegalArgumentException e) { logger.error("Role tag configuration is invalid; built-in tags are used: {}", e.getMessage()); }
             try { tabConfig = TabConfig.parse(config); }
@@ -137,6 +138,7 @@ public final class VelocityBridge {
             commands.register(commands.metaBuilder("role").aliases("networkrole").plugin(this).build(), command);
             commands.register(commands.metaBuilder("identity").plugin(this).build(),
                     new IdentityCommand(proxy, store, RoleLogic.parseGroups(roleGroups), lpMeta, () -> tab, tags));
+            commands.register(commands.metaBuilder("nick").plugin(this).build(), new NickCommand(proxy, logger, store, RoleLogic.parseGroups(roleGroups), lpMeta, nickBlocked, () -> tab));
         } catch (IllegalArgumentException | LinkageError e) { logger.error("/role is unavailable: {}", e.getMessage()); }
     }
     private static Set<String> csv(String value) {
