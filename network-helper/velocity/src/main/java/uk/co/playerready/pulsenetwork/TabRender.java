@@ -84,6 +84,26 @@ final class TabRender {
         }
         return result;
     }
+
+    /** Rows for a column plan (Java 1.21.2+ only). Fillers and "+n more" rows are proxy-owned, non-local, and carry stable ids. */
+    static List<Row> rows(TabLayout.Plan plan, String viewerServer, TabConfig config, long frame) {
+        var result = new ArrayList<Row>(plan.slots().size());
+        Component blank = config.filler().isBlank() ? Component.text(" ") : MM.deserialize(config.filler());
+        for (var s : plan.slots()) {
+            int order = TabLayout.order(s.index(), config.higherFirst());
+            switch (s.kind()) {
+                case HEADER -> result.add(new Row(headerId(s.server()), ("~" + s.server()).substring(0, Math.min(16, s.server().length() + 1)),
+                        MM.deserialize(config.headerFormat(), Placeholder.unparsed("server", config.name(s.server())),
+                                Placeholder.unparsed("count", Integer.toString(s.n()))), 0, order, true, false));
+                case MEMBER -> { var m = s.member();
+                    result.add(new Row(m.id(), m.name(), displayName(m, config, false, frame), quantise(m.ping()), order, false, s.server().equals(viewerServer))); }
+                case MORE -> result.add(new Row(TabLayout.moreId(s.server()), "~m" + s.index(),
+                        Component.text("+" + s.n() + " more", NamedTextColor.GRAY), 0, order, true, false));
+                case FILLER -> result.add(new Row(TabLayout.fillerId(s.server(), s.n()), TabLayout.fillerName(s.n()), blank, 0, order, true, false));
+            }
+        }
+        return result;
+    }
     private static Component group(TabConfig config, TabRoster.Group g) {
         return MM.deserialize(config.headerFormat(), Placeholder.unparsed("server", config.name(g.server())),
                 Placeholder.unparsed("count", Integer.toString(g.members().size())));
