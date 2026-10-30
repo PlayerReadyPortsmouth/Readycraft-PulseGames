@@ -143,4 +143,16 @@ class VelocityBridgeTest {
         verify(remote).sendMessage(line.capture());
         assertEquals("[Global · survival] Test: hello", net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(line.getValue()));
     }
+    @Test void paperRecipientsGetRoleStyleAndLevelFieldsThatRenderLikeTheProxyLine() throws Exception {
+        set(bridge,"paperBackends",Set.of("minigamestest"));
+        set(bridge,"lpMeta",(IdentityResolver.Meta)(id,key)->key.equals("pulse.role")?"dev":key.equals("pulse.namestyle")?"sunset":null);
+        var target=remote.getCurrentServer().orElseThrow();
+        bridge.message(message("CHAT","hello"));
+        var bytes=org.mockito.ArgumentCaptor.forClass(byte[].class);
+        verify(target).sendPluginMessage(eq(MinecraftChannelIdentifier.from(Wire.CHANNEL)),bytes.capture());
+        var fields=new Wire(KEY).decode(bytes.getValue()).orElseThrow().fields();
+        assertEquals(List.of("survival",sender.getUniqueId().toString(),"Test","hello","dev","sunset",""),fields);
+        for(boolean bedrock:new boolean[]{false,true})
+            assertEquals(bridge.relayLine(sender,"survival","hello",bedrock),RemoteChat.line("survival",RemoteChat.identity(fields,NameStyle.Tags.DEFAULT),"hello",bedrock,NameStyle.Tags.DEFAULT));
+    }
 }

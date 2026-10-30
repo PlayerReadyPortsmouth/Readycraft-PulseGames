@@ -213,12 +213,13 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
     @Override public void onPluginMessageReceived(String channel, Player player, byte[] bytes) {
         if (!channel.equals(Wire.CHANNEL) || wire == null) return;
         var decoded = wire.decode(bytes);
-        if (decoded.isPresent() && decoded.get().kind().equals("REMOTECHAT") && decoded.get().player().equals(player.getUniqueId()) && decoded.get().fields().size() == 4) {
+        if (decoded.isPresent() && decoded.get().kind().equals("REMOTECHAT") && decoded.get().player().equals(player.getUniqueId()) && RemoteChat.validCount(decoded.get().fields().size())) {
             var fields = decoded.get().fields();
             try {
                 UUID sender = UUID.fromString(fields.get(1));
                 if (getConfig().getBoolean("chat.enabled") && (compatibility == null || compatibility.mayReceive(player, sender, fields.get(2))))
-                    player.sendMessage(Component.text("[Global · " + Wire.plain(fields.get(0)) + "] " + Wire.plain(fields.get(2)) + ": " + Wire.plain(fields.get(3))));
+                    player.sendMessage(RemoteChat.line(Wire.plain(fields.get(0)), RemoteChat.identity(fields, tags), Wire.plain(fields.get(3)),
+                            LocalChatDelivery.bedrock(player), tags));
             } catch (IllegalArgumentException invalid) { /* reject */ }
             return;
         }

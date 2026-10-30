@@ -33,10 +33,26 @@ final class NameStyleCommand implements CommandExecutor, TabCompleter {
             case "" -> open(p);
             case "list" -> list(p);
             case "clear" -> apply(p, null);
+            case "preview" -> { if (args.length == 2) preview(p, args[1].toLowerCase(Locale.ROOT)); else p.sendMessage(line("Use /namestyle preview <style> to see a style as a chat line.")); }
             case "set" -> { if (args.length == 2) apply(p, args[1].toLowerCase(Locale.ROOT)); else p.sendMessage(line("Use /namestyle set <style>, or /namestyle list to see them.")); }
-            default -> p.sendMessage(line("Use /namestyle to pick from a menu, or /namestyle list, /namestyle set <style>, /namestyle clear."));
+            default -> p.sendMessage(line("Use /namestyle to pick from a menu, or /namestyle list, /namestyle set <style>, /namestyle preview <style>, /namestyle clear."));
         }
         return true;
+    }
+
+    /** Shows a style as a chat line without touching meta. Dev and admin may preview locked styles too. */
+    private void preview(Player p, String style) {
+        boolean privileged = lp.inAnyGroup(p.getUniqueId(), NameStyleModel.PREVIEW_GROUPS);
+        switch (NameStyleModel.preview(style, privileged, p::hasPermission)) {
+            case UNKNOWN -> p.sendMessage(line("I do not know that style. Try /namestyle list."));
+            case LOCKED -> p.sendMessage(line("That style is locked. Unlock it by levelling up."));
+            case OK -> {
+                String role = IdentityResolver.resolve(p.getUniqueId(), p.getName(), meta, null, NameStyle.Tags.DEFAULT).role();
+                var shown = NameStyle.render(new NameStyle.Identity(p.getName(), role, style, null), LocalChatDelivery.bedrock(p), 0);
+                p.sendMessage(Component.text("Preview: ", NamedTextColor.YELLOW).append(shown).append(Component.text(": hello there")));
+                if (NameStyle.isAnimated(style)) p.sendMessage(line("This style animates in the tab list; chat shows it still."));
+            }
+        }
     }
 
     private void list(Player p) {
@@ -100,8 +116,10 @@ final class NameStyleCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override public List<String> onTabComplete(CommandSender s, Command c, String l, String[] a) {
-        if (a.length == 1) return List.of("list", "set", "clear").stream().filter(x -> x.startsWith(a[0].toLowerCase(Locale.ROOT))).toList();
-        if (a.length == 2 && a[0].equalsIgnoreCase("set") && s instanceof Player p)
+        if (a.length == 1) return List.of("list", "set", "preview", "clear").stream().filter(x -> x.startsWith(a[0].toLowerCase(Locale.ROOT))).toList();
+        if (a.length == 2 && a[0].equalsIgnoreCase("preview") && s instanceof Player p && lp != null && lp.inAnyGroup(p.getUniqueId(), NameStyleModel.PREVIEW_GROUPS))
+            return NameStyle.styleIds().stream().filter(x -> x.startsWith(a[1].toLowerCase(Locale.ROOT))).toList();
+        if (a.length == 2 && (a[0].equalsIgnoreCase("set") || a[0].equalsIgnoreCase("preview")) && s instanceof Player p)
             return entries(p).stream().filter(NameStyleModel.Entry::unlocked).map(NameStyleModel.Entry::id).filter(x -> x.startsWith(a[1].toLowerCase(Locale.ROOT))).toList();
         return List.of();
     }

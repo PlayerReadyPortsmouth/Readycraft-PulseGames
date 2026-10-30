@@ -96,6 +96,8 @@ public final class NameStyle {
         }
         public boolean has(String role) { return role != null && tags.containsKey(role.toLowerCase(Locale.ROOT)); }
         public Set<String> roles() { return Collections.unmodifiableSet(tags.keySet()); }
+        /** Plain tag text such as {@code [DEV]}, or null for no tag. */
+        public String label(String role) { return has(role) ? "[" + tags.get(role.toLowerCase(Locale.ROOT)).text() + "]" : null; }
         int length(String role) { return tags.get(role).text().length() + 2; }
         Component component(String role, boolean bedrock) {
             var tag = tags.get(role);
