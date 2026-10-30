@@ -1,0 +1,26 @@
+# PumpkinHunt for the ReadyCraft Lobby. Progress lives in progress.json; wording lives in messages.yml.
+# Set enabled: true once the 13 jack-o'-lanterns are placed, then run /pumpkins reload.
+# start / end: optional ISO date (2026-10-24) or date-time (2026-10-24T09:00), read in the timezone below.
+# A bare end date includes the whole day. Blank means no limit on that side.
+# reward-commands run once per player as console on completion; {player} is the finder's name.
+# Registered positions that do not hold a jack-o'-lantern are skipped (console warning).
+enabled: false
+start: ""
+end: ""
+timezone: Europe/London
+broadcast-completion: true
+reward-commands: []
+lanterns:
+  - {id: house_1, world: world, x: 11, y: -4, z: -34, hint: "inside one of the village houses"}
+  - {id: house_2, world: world, x: -6, y: -4, z: -30, hint: "inside one of the village houses"}
+  - {id: house_3, world: world, x: 7, y: -4, z: -19, hint: "inside one of the village houses"}
+  - {id: house_4, world: world, x: 28, y: -4, z: -13, hint: "inside one of the village houses"}
+  - {id: house_5, world: world, x: 0, y: -3, z: -49, hint: "inside one of the village houses"}
+  - {id: house_6, world: world, x: -27, y: -2, z: -4, hint: "inside one of the village houses"}
+  - {id: house_7, world: world, x: -30, y: 0, z: -20, hint: "inside one of the village houses"}
+  - {id: house_8, world: world, x: -43, y: 0, z: -9, hint: "inside one of the village houses"}
+  - {id: field_1, world: world, x: -11, y: -3, z: -51, hint: "among the crops"}
+  - {id: field_2, world: world, x: -27, y: -2, z: -38, hint: "among the crops"}
+  - {id: field_extra_1, world: world, x: -37, y: -4, z: -42, hint: "among the crops"}
+  - {id: field_extra_2, world: world, x: 15, y: -3, z: 11, hint: "among the crops"}
+  - {id: field_extra_3, world: world, x: -34, y: -1, z: 5, hint: "among the crops"}
