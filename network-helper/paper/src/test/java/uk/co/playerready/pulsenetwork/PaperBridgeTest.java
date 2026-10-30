@@ -79,4 +79,14 @@ class PaperBridgeTest {
         bridge.onPluginMessageReceived(Wire.CHANNEL,sender,wire.encode("RESTORE",UUID.randomUUID(),"wrong-player"));
         assertTrue(tasks.isEmpty());verify(sender,never()).teleportAsync(any());
     }
+    @Test void remoteChatRendersStyledWhenExtraFieldsArePresentAndPlainWhenNot() throws Exception {
+        set(bridge,"tags",NameStyle.Tags.DEFAULT);var wire=new Wire("test-only-not-a-deployment-secret-0123456789");
+        var identity=new NameStyle.Identity("Ann","dev","ocean",7);
+        bridge.onPluginMessageReceived(Wire.CHANNEL,sender,wire.encode("REMOTECHAT",sender.getUniqueId(),RemoteChat.fields("survival",UUID.randomUUID(),identity,"hello")));
+        bridge.onPluginMessageReceived(Wire.CHANNEL,sender,wire.encode("REMOTECHAT",sender.getUniqueId(),"survival",UUID.randomUUID().toString(),"Ann","hello"));
+        var line=org.mockito.ArgumentCaptor.forClass(Component.class);verify(sender,times(2)).sendMessage(line.capture());
+        assertEquals(RemoteChat.line("survival",identity,"hello",false,NameStyle.Tags.DEFAULT),line.getAllValues().get(0));
+        assertEquals("[Global \u00b7 survival] [DEV] [7] Ann: hello",net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(line.getAllValues().get(0)));
+        assertEquals("[Global \u00b7 survival] Ann: hello",net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(line.getAllValues().get(1)));
+    }
 }

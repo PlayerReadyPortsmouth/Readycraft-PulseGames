@@ -69,6 +69,15 @@ final class NameStyleModel {
     /** Unlocked entries in button order; the form adds a final "Clear my style" button after them. */
     static List<Entry> formButtons(List<Entry> entries) { return entries.stream().filter(Entry::unlocked).toList(); }
 
+    enum Preview { OK, UNKNOWN, LOCKED }
+    /** Dev and admin may preview any style; everyone else only styles they hold. Previewing never writes anything. */
+    static Preview preview(String id, boolean privileged, Predicate<String> hasPermission) {
+        if (!NameStyle.hasStyle(id)) return Preview.UNKNOWN;
+        return privileged || hasPermission.test(PERMISSION_PREFIX + id) ? Preview.OK : Preview.LOCKED;
+    }
+    /** Groups (direct membership) allowed to preview locked styles. */
+    static final Set<String> PREVIEW_GROUPS = Set.of("dev", "admin");
+
     /** At most one change per five seconds per player. Returns true and records the change when allowed. */
     static boolean allow(Map<UUID, Long> last, UUID id, long now) {
         Long before = last.get(id);
