@@ -19,6 +19,11 @@ final class LuckPermsGranter implements NameStyleGrants.Granter {
                 .exceptionally(error -> { log.warning("Could not grant " + permission + ": " + error); return null; });
     }
 
+    @Override public void revoke(UUID player, String permission) {
+        api.getUserManager().modifyUser(player, user -> user.data().remove(Node.builder(permission).value(true).build()))
+                .exceptionally(error -> { log.warning("Could not revoke " + permission + ": " + error); return null; });
+    }
+
     /** A granter, or null (with a one-line log) when LuckPerms is missing or not ready. */
     static NameStyleGrants.Granter create(org.bukkit.plugin.PluginManager plugins, Logger log) {
         if (plugins.getPlugin("LuckPerms") == null) {

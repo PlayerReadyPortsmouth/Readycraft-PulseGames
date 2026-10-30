@@ -16,7 +16,11 @@ public final class NameStyleGrants {
     public static final String NODE_PREFIX = "pulse.namestyle.";
 
     /** Adds a permission to a player's stored data (persists and syncs). Must not block the main thread. */
-    public interface Granter { void grant(UUID player, String permission); }
+    public interface Granter {
+        void grant(UUID player, String permission);
+        /** Removes a permission; only used by explicit admin commands. */
+        default void revoke(UUID player, String permission) { }
+    }
 
     private final Granter granter;
     private final BooleanSupplier enabled;
@@ -44,5 +48,19 @@ public final class NameStyleGrants {
             granted.add(style);
         }
         return granted;
+    }
+
+    /** Explicit admin grant, regardless of the rollout key. False when LuckPerms is unavailable. */
+    public boolean adminGrant(UUID player, String styleId) {
+        if (granter == null) return false;
+        granter.grant(player, node(styleId));
+        return true;
+    }
+
+    /** Explicit admin revoke. False when LuckPerms is unavailable. */
+    public boolean adminRevoke(UUID player, String styleId) {
+        if (granter == null) return false;
+        granter.revoke(player, node(styleId));
+        return true;
     }
 }
