@@ -89,4 +89,20 @@ class PaperBridgeTest {
         assertEquals("[Global \u00b7 survival] [DEV] [7] Ann: hello",net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(line.getAllValues().get(0)));
         assertEquals("[Global \u00b7 survival] Ann: hello",net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(line.getAllValues().get(1)));
     }
+    @Test void vanillaJoinAndQuitLinesAreBlankedByDefaultAndKeptWhenOff() {
+        var join=mock(org.bukkit.event.player.PlayerJoinEvent.class);var quit=mock(org.bukkit.event.player.PlayerQuitEvent.class);
+        bridge.joinMessage(join);bridge.quitMessage(quit);
+        verify(join).joinMessage(null);verify(quit).quitMessage(null);
+        config.set("presence.suppress-local",false);var join2=mock(org.bukkit.event.player.PlayerJoinEvent.class);var quit2=mock(org.bukkit.event.player.PlayerQuitEvent.class);
+        bridge.joinMessage(join2);bridge.quitMessage(quit2);
+        verify(join2,never()).joinMessage(any());verify(quit2,never()).quitMessage(any());
+    }
+    @Test void announceSendsSignedMessageOnlyForUsableInput() {
+        when(sender.hasMetadata("NPC")).thenReturn(false);
+        try(var bukkit=mockStatic(Bukkit.class)){bukkit.when(Bukkit::getOnlinePlayers).thenReturn(List.of(sender));
+            assertTrue(bridge.announce("Hello <red>all","bar"));assertTrue(bridge.announce("Hi",null));
+            assertFalse(bridge.announce("  ","chat"));assertFalse(bridge.announce("Hi","shout"));}
+        verify(sender,times(2)).sendPluginMessage(eq(bridge),eq(Wire.CHANNEL),any(byte[].class));
+        try(var bukkit=mockStatic(Bukkit.class)){bukkit.when(Bukkit::getOnlinePlayers).thenReturn(List.of());assertFalse(bridge.announce("Hi","chat"));}
+    }
 }

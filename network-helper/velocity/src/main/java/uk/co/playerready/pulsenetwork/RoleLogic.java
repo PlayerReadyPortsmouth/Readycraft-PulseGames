@@ -17,6 +17,9 @@ final class RoleLogic {
     /** Highest group the sender holds. Group membership only: never permissions, because admins hold {@code *}. */
     enum Level { NONE, STAFF, ADMIN, DEV, CONSOLE }
 
+    /** Network announcements: direct admin or dev group, or the console. */
+    static boolean canAnnounce(Level level) { return level.compareTo(Level.ADMIN) >= 0; }
+
     static boolean isVenue(String role) { return role.startsWith("venue:"); }
 
     /** A known role key (case-insensitive), or empty. */
