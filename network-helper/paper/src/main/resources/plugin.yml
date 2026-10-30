@@ -11,6 +11,11 @@ commands:
     permission: pulsenetwork.chat
   localchat:
     description: Keep your normal chat on this server
+  namestyle:
+    description: Pick a name style you have unlocked
+    aliases: [namecolour, namecolor]
+  rolemenu:
+    description: Staff menu for giving and taking away network roles
 permissions:
   pulsenetwork.chat:
     default: true

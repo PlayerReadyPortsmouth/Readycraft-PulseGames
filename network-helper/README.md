@@ -130,6 +130,31 @@ One pure renderer (`NameStyle`, in `common`) draws `[TAG] [12] name` for the pro
 - **Config:** proxy `network.properties`: `tags.<role>=<MiniMessage>` (text capped at 6 characters; blank removes the tag), `tab.animation-ms` (default `1000`, 500 to 10000). Paper `config.yml`: `tags:` section with the same role keys.
 - **Limit:** backends that receive global chat from the proxy (`REMOTECHAT`) still print the plain name; styling remote names there needs a wire change and is not part of this change.
 
+## Name style picker
+
+`/namestyle` (aliases `/namecolour`, `/namecolor`) on every backend running PulseNetwork. Needs LuckPerms; without it the command says so politely. Prepared draft, not deployed.
+
+| Command | Effect |
+|---|---|
+| `/namestyle` | Opens a 27-slot menu (Java) or a form (Bedrock) |
+| `/namestyle list` | Prints unlocked and locked styles |
+| `/namestyle set <id>` | Picks an unlocked style |
+| `/namestyle clear` | Removes your style |
+
+- **Unlocked** means the player holds the LuckPerms permission `pulse.namestyle.<id>` (so a `*` holder has every style). It is checked again on every change, so editing the command does not help.
+- **Selection** writes LuckPerms user meta `pulse.namestyle=<id>` through the LuckPerms API (old value replaced). LuckPerms records it in its action log and syncs it; the tab and chat change within the LuckPerms sync delay, and the confirmation says so. One change per 5 seconds per player.
+- **Java menu:** unlocked styles first as coloured items showing the player's own name in that style, locked ones as grey panes ("Unlock by levelling up"), the current style glows, a barrier clears. **Bedrock:** a form with one button per unlocked style (name and a one-word colour hint) plus "Clear my style"; locked styles are listed in the text below. Bedrock without the Floodgate plugin falls back to the chest menu.
+- **Config (`config.yml`):** `namestyle.enabled` (default `true`).
+
+## Role menu
+
+`/rolemenu [player]` for players directly in the LuckPerms group `dev`, `admin` or `staff` (group membership, never permissions). Pick an online player (heads, or a form on Bedrock) or type `/rolemenu <name>` for an offline one, then give a role, take one away (with a yes/no step) or "View roles".
+
+It does not change roles itself. The backend sends a signed `ROLECMD` plugin message and the proxy runs `/role set|remove|confirm|who ...` **as that player**, so the proxy's gating, audit line, LuckPerms action log entry and confirm step stay the single path. The result arrives as normal chat. A backend cannot run a proxy command with `performCommand`, which is why the message exists; the proxy only accepts the four forms above, the fixed role list and valid names (`RoleMenuCommands`).
+
+- Needs the backend `enabled: true` with the bridge secret, and a proxy with this change (an older proxy ignores the message, so nothing happens).
+- **Config (`config.yml`):** `rolemenu.enabled` (default `true`).
+
 ## Local chat delivery (`chat.local-system-delivery`)
 
 Symptom: players on the same backend cannot see each other's ordinary chat, while messages relayed from another server show fine. Since 1.19 player chat is signed with the Microsoft account key. Behind Velocity (and for Floodgate/Bedrock players, who cannot sign) clients can drop or hide player-chat packets whose signature chain does not validate. The proxy's relayed global chat arrives as unsigned system messages, so it is unaffected.
