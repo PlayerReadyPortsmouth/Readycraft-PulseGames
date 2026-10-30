@@ -1,5 +1,5 @@
 name: PulseNetwork
-version: '0.1.6'
+version: '0.2.0'
 authors: ['AurorasChaos (on behalf of Player Ready)']
 main: uk.co.playerready.pulsenetwork.PaperBridge
 api-version: '1.21'
