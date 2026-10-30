@@ -379,6 +379,9 @@ progression:
   levels-enabled: true
   # Tell the lobby (never other servers) when someone reaches level 5, 10, 15 ...
   announce-levels: true
+  # Grant the LuckPerms permission pulse.namestyle.<id> when a name style level reward is reached
+  # (and as first-sight catch-up). Needs LuckPerms; never removes a permission. Styles are picked with /namestyle.
+  namestyle-grants: true
   event-id: "" # Stable event ID; only matches completed during this configured event count.
 
 # Quick Play hotbar item/menu button and the daily featured game.

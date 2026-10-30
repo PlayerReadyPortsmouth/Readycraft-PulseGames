@@ -246,12 +246,26 @@ public final class PulseGamesPlugin extends JavaPlugin {
             java.io.File file = new java.io.File(getDataFolder(), "cosmetics.yml");
             if (!file.exists()) saveResource("cosmetics.yml", false);
             var yaml = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(file);
-            CosmeticsService.loadExtra(yaml.getConfigurationSection("cosmetics"))
+            CosmeticsService.loadExtra(withBundledNameStyles(yaml.getConfigurationSection("cosmetics")))
                     .forEach(problem -> getLogger().warning("cosmetics.yml: " + problem));
         } catch (RuntimeException ex) {
             getLogger().warning("cosmetics.yml unreadable, using the built-in cosmetics only: " + ex);
         }
     }
+    /** An older saved cosmetics.yml has no name styles; add the bundled ones so an update delivers them. */
+    private org.bukkit.configuration.ConfigurationSection withBundledNameStyles(org.bukkit.configuration.ConfigurationSection saved) {
+        var merged = new org.bukkit.configuration.MemoryConfiguration();
+        if (saved != null) for (String id : saved.getKeys(false)) merged.set(id, saved.get(id));
+        if (merged.getKeys(false).stream().anyMatch(id -> "name_style".equalsIgnoreCase(merged.getString(id + ".slot", "")))) return merged;
+        try (var in = getResource("cosmetics.yml")) {
+            if (in == null) return merged;
+            var bundled = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(new java.io.InputStreamReader(in)).getConfigurationSection("cosmetics");
+            if (bundled != null) for (String id : bundled.getKeys(false))
+                if ("name_style".equalsIgnoreCase(bundled.getString(id + ".slot", "")) && !merged.contains(id)) merged.set(id, bundled.get(id));
+        } catch (java.io.IOException | RuntimeException ignored) { }
+        return merged;
+    }
+
     public uk.co.playerready.pulsegames.core.events.EventService events() { return events; }
     /** Public optional bridge API; called on the server thread by PulseNetwork. */
     public java.util.List<java.util.Map<String, String>> networkQueues() {

@@ -28,7 +28,21 @@ import java.util.UUID;
 public final class LevelService implements Listener {
     private final PulseGamesPlugin plugin;
 
+    private NameStyleGrants nameStyles;
+
     public LevelService(PulseGamesPlugin plugin) { this.plugin = plugin; }
+
+    /** Created lazily so LuckPerms is looked up once, after every plugin has loaded. */
+    private NameStyleGrants nameStyles() {
+        if (nameStyles == null) {
+            NameStyleGrants.Granter granter = null;
+            try { granter = LuckPermsGranter.create(plugin.getServer().getPluginManager(), plugin.getLogger()); }
+            catch (Throwable missing) { plugin.getLogger().info("LuckPerms not found: name styles will not be granted."); }
+            nameStyles = new NameStyleGrants(granter,
+                    () -> plugin.getConfig().getBoolean("progression.namestyle-grants", true));
+        }
+        return nameStyles;
+    }
 
     private boolean enabled() { return plugin.getConfig().getBoolean("progression.levels-enabled", true); }
 
@@ -122,9 +136,11 @@ public final class LevelService implements Listener {
         for (Cosmetic reward : CosmeticsService.levelRewards()) {
             if (reward.level() > level || plugin.economy().isUnlocked(player, reward.id())) continue;
             plugin.economy().unlock(player, reward.id());
-            if (tell) player.sendMessage(Text.msg("<green><b>New cosmetic unlocked:</b> <yellow>" + reward.name()
-                    + " <gray>Open /wardrobe to use it."));
+            boolean style = reward.nameStyleId() != null;
+            if (tell) player.sendMessage(Text.msg("<green><b>New " + (style ? "name style" : "cosmetic") + " unlocked:</b> <yellow>"
+                    + reward.name() + (style ? " <gray>Set it with /namestyle." : " <gray>Open /wardrobe to use it.")));
         }
+        nameStyles().grant(player.getUniqueId(), level, player::hasPermission, CosmeticsService.levelRewards());
     }
 
     // ---- lobby nametag -----------------------------------------------------------------
