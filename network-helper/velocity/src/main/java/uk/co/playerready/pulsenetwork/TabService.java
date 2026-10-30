@@ -34,6 +34,9 @@ final class TabService {
     private final Map<UUID, Viewer> viewers = new ConcurrentHashMap<>();
     private volatile boolean everyoneDirty = true;
     private long lastWarning;
+    private volatile Set<String> hiddenNames = Set.of();
+    /** Config {@code tab.hidden-players}: lower-case exact names always hidden from the tab. */
+    void hiddenNames(Set<String> names) { this.hiddenNames = names; }
 
     TabService(ProxyServer proxy, Logger logger, TabConfig config, Set<String> backends, boolean floodgate, Clock clock) {
         this.proxy = proxy; this.logger = logger; this.config = config; this.clock = clock; this.floodgate = floodgate;
@@ -72,7 +75,7 @@ final class TabService {
             var flags = status(server) == null ? 0 : status(server).flags().getOrDefault(p.getUniqueId(), 0);
             String[] meta = optional.meta(p.getUniqueId());
             members.add(new TabRoster.Member(p.getUniqueId(), p.getUsername(), server, (int) Math.min(9999, Math.max(0, p.getPing())), meta[0], meta[1],
-                    bedrock(p), (flags & ServerStatus.HIDDEN) != 0 || p.hasPermission("pulsenetwork.tab.hidden"),
+                    bedrock(p), (flags & ServerStatus.HIDDEN) != 0 || RoleLogic.tabHidden(p.getUniqueId(), p.getUsername(), id -> optional.metaValue(id, RoleLogic.HIDDEN_META), hiddenNames),
                     (flags & ServerStatus.AFK) != 0, (flags & ServerStatus.MATCH) != 0));
         }
         var cache = new HashMap<String, List<TabRender.Row>>();
