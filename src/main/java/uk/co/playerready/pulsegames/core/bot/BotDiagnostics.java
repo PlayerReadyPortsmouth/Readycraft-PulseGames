@@ -46,7 +46,7 @@ public final class BotDiagnostics {
         if (current.isEmpty()) return List.of("No active bot snapshots. Bots appear after their lobby fill delay.");
         if (selector == null || selector.isBlank()) {
             List<String> lines = new ArrayList<>();
-            lines.add("Current bots: " + current.size() + ". Inspect one: /pulse bots inspect <name or UUID>");
+            lines.add("Current bots: " + current.size() + ". Inspect one: /admin games bots inspect <name or UUID>");
             current.stream().limit(LIST_LIMIT).forEach(bot -> lines.add(bot.name() + " | " + bot.gameId()
                     + " | " + bot.state() + " | " + bot.difficulty().name().toLowerCase(Locale.ROOT)));
             if (current.size() > LIST_LIMIT) lines.add("Showing the first " + LIST_LIMIT + "; use a bot's name or UUID to inspect another.");
@@ -55,7 +55,7 @@ public final class BotDiagnostics {
         String key = selector.strip();
         var matches = current.stream().filter(bot -> bot.name().equalsIgnoreCase(key)
                 || (bot.id() != null && bot.id().toString().equalsIgnoreCase(key))).limit(2).toList();
-        if (matches.isEmpty()) return List.of("No active bot matches that name or UUID. Use /pulse bots inspect to list current bots.");
+        if (matches.isEmpty()) return List.of("No active bot matches that name or UUID. Use /admin games bots inspect to list current bots.");
         if (matches.size() > 1) return List.of("More than one bot has that name. Inspect using its UUID instead.");
         Snapshot bot = matches.getFirst();
         return List.of(

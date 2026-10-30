@@ -30,8 +30,8 @@ import java.util.UUID;
 
 /**
  * Fully in-game arena creation: build your map in any world, run
- * /pulse setup start <game> <id>, mark everything with the wand and
- * commands, then /pulse setup save - the world is captured as a template
+ * /admin games setup start <game> <id>, mark everything with the wand and
+ * commands, then /admin games setup save - the world is captured as a template
  * and the arena goes live without touching a config file.
  */
 public final class ArenaSetupManager implements Listener {
@@ -73,7 +73,7 @@ public final class ArenaSetupManager implements Listener {
         return sessions.get(player.getUniqueId());
     }
 
-    // ---- subcommand dispatch (called from /pulse setup ...) ----------------------
+    // ---- subcommand dispatch (called from /admin games setup ...) ----------------------
 
     public void handle(Player player, String[] args) {
         if (!player.hasPermission("pulsegames.admin")) return;
@@ -92,7 +92,7 @@ public final class ArenaSetupManager implements Listener {
         }
         Session session = session(player);
         if (session == null) {
-            player.sendMessage(Text.msg("<red>No setup session. Begin with <yellow>/pulse setup start <game> <arenaId>"));
+            player.sendMessage(Text.msg("<red>No setup session. Begin with <yellow>/admin games setup start <game> <arenaId>"));
             return;
         }
         // Every point below is stored as bare coordinates and re-read against the
@@ -131,19 +131,19 @@ public final class ArenaSetupManager implements Listener {
                 player.sendMessage(Text.msg("Spawns cleared."));
             }
             case "removespawn" -> {
-                if (args.length != 2) throw new IllegalArgumentException("Usage: /pulse setup removespawn <1-based index>");
+                if (args.length != 2) throw new IllegalArgumentException("Usage: /admin games setup removespawn <1-based index>");
                 int index = Integer.parseInt(args[1]) - 1;
                 if (index < 0 || index >= session.spawns.size()) throw new IllegalArgumentException("Spawn index is out of range.");
                 session.spawns.remove(index);
                 player.sendMessage(Text.msg("<green>Spawn removed; later spawn numbers shift down."));
             }
             case "removeregion" -> {
-                if (args.length != 2) throw new IllegalArgumentException("Usage: /pulse setup removeregion <name>");
+                if (args.length != 2) throw new IllegalArgumentException("Usage: /admin games setup removeregion <name>");
                 session.regions.remove(SetupCoordinates.key(args[1]));
                 player.sendMessage(Text.msg("<green>Region removed."));
             }
             case "region" -> {
-                if (args.length != 2 && args.length != 8) throw new IllegalArgumentException("Usage: /pulse setup region <name> [x1 y1 z1 x2 y2 z2]");
+                if (args.length != 2 && args.length != 8) throw new IllegalArgumentException("Usage: /admin games setup region <name> [x1 y1 z1 x2 y2 z2]");
                 String name = SetupCoordinates.key(args[1]);
                 Location first = session.pos1, second = session.pos2;
                 if (args.length == 8) {
@@ -157,7 +157,7 @@ public final class ArenaSetupManager implements Listener {
             }
             case "setloc" -> {
                 if (args.length < 2) {
-                    player.sendMessage(Text.msg("<red>Usage: /pulse setup setloc <key>"));
+                    player.sendMessage(Text.msg("<red>Usage: /admin games setup setloc <key>"));
                     return;
                 }
                 session.settings.put(SetupCoordinates.key(args[1]), LocUtil.serialize(SetupCoordinates.point(session.world, player.getLocation(), args, 2, false)));
@@ -165,7 +165,7 @@ public final class ArenaSetupManager implements Listener {
             }
             case "addloc" -> {
                 if (args.length < 2) {
-                    player.sendMessage(Text.msg("<red>Usage: /pulse setup addloc <list-key>"));
+                    player.sendMessage(Text.msg("<red>Usage: /admin games setup addloc <list-key>"));
                     return;
                 }
                 String key = SetupCoordinates.key(args[1]);
@@ -179,7 +179,7 @@ public final class ArenaSetupManager implements Listener {
                 player.sendMessage(Text.msg("<green>Added location #" + list.size() + " to <yellow>" + key + "</yellow>."));
             }
             case "removeloc", "clearloc" -> {
-                if (args.length != (sub.equals("removeloc") ? 3 : 2)) throw new IllegalArgumentException("Usage: /pulse setup " + sub + " <key>" + (sub.equals("removeloc") ? " <1-based index>" : ""));
+                if (args.length != (sub.equals("removeloc") ? 3 : 2)) throw new IllegalArgumentException("Usage: /admin games setup " + sub + " <key>" + (sub.equals("removeloc") ? " <1-based index>" : ""));
                 String key = SetupCoordinates.key(args[1]);
                 Object existing = session.settings.get(key);
                 if (!(existing instanceof List<?> list)) throw new IllegalArgumentException("That setting is not a location list.");
@@ -193,7 +193,7 @@ public final class ArenaSetupManager implements Listener {
             }
             case "set" -> {
                 if (args.length < 3) {
-                    player.sendMessage(Text.msg("<red>Usage: /pulse setup set <key> <value>"));
+                    player.sendMessage(Text.msg("<red>Usage: /admin games setup set <key> <value>"));
                     return;
                 }
                 String key = args[1].toLowerCase(Locale.ROOT);
@@ -238,16 +238,16 @@ public final class ArenaSetupManager implements Listener {
 
     private void start(Player player, String[] args) {
         if (args.length < 3) {
-            player.sendMessage(Text.msg("<red>Usage: /pulse setup start <game> <arenaId> <gray>- run this standing in your map world"));
+            player.sendMessage(Text.msg("<red>Usage: /admin games setup start <game> <arenaId> <gray>- run this standing in your map world"));
             return;
         }
         GameType game = plugin.registry().get(args[1]);
         if (game == null) {
-            player.sendMessage(Text.msg("<red>Unknown game <yellow>" + args[1] + "</yellow>. See /pulse games"));
+            player.sendMessage(Text.msg("<red>Unknown game <yellow>" + args[1] + "</yellow>. See /admin games types"));
             return;
         }
         String arenaId = args[2].toLowerCase(Locale.ROOT);
-        // The id becomes a map-template folder that /pulse setup save deletes
+        // The id becomes a map-template folder that /admin games setup save deletes
         // recursively, so anything that could escape plugins/PulseGames/maps is refused.
         if (!WorldService.isValidTemplateId(arenaId)) {
             player.sendMessage(Text.msg("<red>Invalid arena id <yellow>" + args[2]
@@ -278,7 +278,7 @@ public final class ArenaSetupManager implements Listener {
                 "check / gui <dark_gray>- requirement checklist",
                 "palette list|scan|add|remove|global <dark_gray>- Prop Hunt disguises",
                 "save / cancel")) {
-            player.sendMessage(Text.mm(" <gray>/pulse setup " + line));
+            player.sendMessage(Text.mm(" <gray>/admin games setup " + line));
         }
     }
 
@@ -323,30 +323,30 @@ public final class ArenaSetupManager implements Listener {
 
     List<CheckEntry> checklist(Session session) {
         List<CheckEntry> entries = new ArrayList<>();
-        entries.add(new CheckEntry("Waiting lobby", "/pulse setup lobby", session.lobby != null, true));
-        entries.add(new CheckEntry("Spectator point", "/pulse setup spectator", session.spectator != null, true));
+        entries.add(new CheckEntry("Waiting lobby", "/admin games setup lobby", session.lobby != null, true));
+        entries.add(new CheckEntry("Spectator point", "/admin games setup spectator", session.spectator != null, true));
         for (SetupRequirement req : session.game.setup()) {
             switch (req.kind()) {
                 case SPAWNS -> entries.add(new CheckEntry(
                         req.min() + "+ spawns - " + req.description() + " (" + session.spawns.size() + " set)",
-                        "/pulse setup addspawn", session.spawns.size() >= req.min(), req.required()));
+                        "/admin games setup addspawn", session.spawns.size() >= req.min(), req.required()));
                 case REGION -> entries.add(new CheckEntry(
                         "Region '" + req.key() + "' - " + req.description(),
-                        "/pulse setup region " + req.key(),
+                        "/admin games setup region " + req.key(),
                         session.regions.containsKey(req.key()), req.required()));
                 case REGION_PREFIX -> {
                     long count = session.regions.keySet().stream().filter(k -> k.startsWith(req.key())).count();
                     entries.add(new CheckEntry(
                             req.min() + "+ regions '" + req.key() + "1..N' - " + req.description() + " (" + count + " set)",
-                            "/pulse setup region " + req.key() + "1", count >= req.min(), req.required()));
+                            "/admin games setup region " + req.key() + "1", count >= req.min(), req.required()));
                 }
                 case LOCATION_SETTING -> entries.add(new CheckEntry(
                         "Location '" + req.key() + "' - " + req.description(),
-                        "/pulse setup setloc " + req.key(),
+                        "/admin games setup setloc " + req.key(),
                         session.settings.containsKey(req.key()), req.required()));
                 case VALUE_SETTING -> entries.add(new CheckEntry(
                         "Setting '" + req.key() + "' - " + req.description(),
-                        "/pulse setup set " + req.key() + " ",
+                        "/admin games setup set " + req.key() + " ",
                         session.settings.containsKey(req.key()), req.required()));
             }
         }
@@ -361,7 +361,7 @@ public final class ArenaSetupManager implements Listener {
             player.sendMessage(Text.mm(" " + icon + " <click:suggest_command:'" + entry.command() + "'><gray>"
                     + entry.label() + "</gray></click>"));
         }
-        player.sendMessage(Text.mm(" <gray>Then: <click:suggest_command:'/pulse setup save'><yellow>/pulse setup save</yellow></click>"));
+        player.sendMessage(Text.mm(" <gray>Then: <click:suggest_command:'/admin games setup save'><yellow>/admin games setup save</yellow></click>"));
     }
 
     public ArenaValidation.Report validation(Session session) { return ArenaValidation.check(session); }
@@ -381,7 +381,7 @@ public final class ArenaSetupManager implements Listener {
         if (action.equals("global")) {
             session.settings.remove("prop-palette");session.settings.put("prop-palette-source", "global");
         } else if (action.equals("add") || action.equals("remove")) {
-            if (args.length != 3) throw new IllegalArgumentException("Usage: /pulse setup palette add|remove <material>");
+            if (args.length != 3) throw new IllegalArgumentException("Usage: /admin games setup palette add|remove <material>");
             var config = new YamlConfiguration();session.settings.forEach(config::set);
             var options = uk.co.playerready.pulsegames.games.prophunt.PropPalette.read(plugin.getConfig());
             Material material = Material.matchMaterial(args[2]);
@@ -392,7 +392,7 @@ public final class ArenaSetupManager implements Listener {
             if (action.equals("add")) selected.add(material.name()); else selected.remove(material.name());
             if (selected.isEmpty()) throw new IllegalArgumentException("Keep at least one disguise.");
             session.settings.put("prop-palette", List.copyOf(selected));session.settings.put("prop-palette-source", "reviewed");
-        } else if (!action.equals("list")) throw new IllegalArgumentException("Usage: /pulse setup palette list|scan|add|remove|global");
+        } else if (!action.equals("list")) throw new IllegalArgumentException("Usage: /admin games setup palette list|scan|add|remove|global");
         var config = new YamlConfiguration();session.settings.forEach(config::set);
         player.sendMessage(Text.msg("<yellow>Disguises: <white>" + String.join(", ",
                 uk.co.playerready.pulsegames.games.prophunt.PropPalette.read(plugin.getConfig(), config).stream().map(o -> o.material().name()).toList())));
@@ -401,7 +401,7 @@ public final class ArenaSetupManager implements Listener {
     private final java.util.Set<Session> paletteScanning = new java.util.HashSet<>();
     private void scanPalette(Player player, Session session) {
         Cuboid region = session.regions.get("palette");
-        if (region == null) { player.sendMessage(Text.msg("<yellow>First select the playable map: /pulse setup region palette <x1> <y1> <z1> <x2> <y2> <z2>")); return; }
+        if (region == null) { player.sendMessage(Text.msg("<yellow>First select the playable map: /admin games setup region palette <x1> <y1> <z1> <x2> <y2> <z2>")); return; }
         var supported = uk.co.playerready.pulsegames.games.prophunt.PropPalette.read(plugin.getConfig());
         var scan = new uk.co.playerready.pulsegames.games.prophunt.PropPaletteScan(session.world,region,supported);
         if (!paletteScanning.add(session)) return;

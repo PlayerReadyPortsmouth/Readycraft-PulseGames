@@ -15,7 +15,7 @@ commands:
     aliases: [p]
   lobby:
     description: Return to the main lobby.
-    aliases: [hub, leave]
+    aliases: [hub]
   stats:
     description: View your minigame stats.
   duels:
@@ -48,12 +48,52 @@ commands:
     description: Tournaments - see the next ones, join, watch the bracket or see the last results.
     usage: /event [join|leave|bracket|results]
     aliases: [tournament]
+  admin-route:
+    description: Internal. Hub route for the PulseGames admin area; use /admin games instead.
+    usage: /admin-route games [verb] [args]
+    permission: pulsegames.admin
   pulse:
-    description: PulseGames admin commands.
-    usage: /pulse <setup|maps|practice|event|bots|list|start|end|setlobby|reload>
+    description: Retiring alias of /admin games, kept hidden for one release.
+    usage: /admin games <setup|maps|practice|event|bots|types|matches|start|end|setlobby|reload>
     permission: pulsegames.admin
 
 permissions:
+  pulsegames.admin:
+    description: Parent of every PulseGames admin node.
+    default: op
+    children:
+      pulsegames.admin.games: true
+      pulsegames.admin.matches: true
+      pulsegames.admin.players: true
+      pulsegames.admin.events: true
+      pulsegames.admin.bots: true
+      pulsegames.admin.server: true
+      pulsegames.admin.maps: true
+      pulsegames.admin.setup: true
+  pulsegames.admin.games:
+    description: Registered games, arenas, worlds, shapes and lobby placements.
+    default: false
+  pulsegames.admin.matches:
+    description: List, force-start and force-end running matches.
+    default: false
+  pulsegames.admin.players:
+    description: Progression verbs (XP, level, name styles).
+    default: false
+  pulsegames.admin.events:
+    description: Start, list and cancel tournaments and practice runs.
+    default: false
+  pulsegames.admin.bots:
+    description: Bot status and inspection.
+    default: false
+  pulsegames.admin.server:
+    description: The PulseGames admin menu, reload and set lobby.
+    default: false
+  pulsegames.admin.maps:
+    description: Map readiness board, review and export.
+    default: false
+  pulsegames.admin.setup:
+    description: Arena setup sessions.
+    default: false
   pulsegames.maps.approve:
     description: Record human visual map review evidence separately from map setup access.
     default: op

@@ -1,5 +1,7 @@
 package uk.co.playerready.pulsegames.core.economy;
 
+import uk.co.playerready.pulsegames.core.command.Routes;
+
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
@@ -108,7 +110,7 @@ public final class WardrobeMenu implements TabbedShop.Source {
         }
         if (economy.isUnlocked(player, c.id()) && c.nameStyleId() != null) {
             // The network picks and shows the style; run the same command the player would type.
-            player.performCommand("namestyle set " + c.nameStyleId());
+            player.performCommand(Routes.namestyleSet(c.nameStyleId()));
             return;
         }
         if (economy.isUnlocked(player, c.id())) {

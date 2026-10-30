@@ -240,7 +240,7 @@ public final class GameCatalog {
                 List.of(spawns(2, "one per team base (spawn N = team N)"),
                         regions("bed", 2, "one region around each team's bed (bedN = team N)"),
                         location("generator1", "team 1 resource generator (repeat per team)"),
-                        optional(setting("diamond-generators", "set with /pulse setup addloc diamond-generators"))),
+                        optional(setting("diamond-generators", "set with /admin games setup addloc diamond-generators"))),
                 false));
 
         registry.register(new GameType("buildbattle", "Build Battle",

@@ -1,7 +1,7 @@
 # PulseGames core configuration
 
 lobby:
-  # Set in-game with /pulse setlobby. Must be the name of a world that actually
+  # Set in-game with /admin games setlobby. Must be the name of a world that actually
   # exists on this server, otherwise every lobby guard (damage, void safety,
   # hub block protection) has nothing to match against.
   world: world
@@ -9,7 +9,7 @@ lobby:
   # Give the game-menu compass on lobby join
   give-menu-item: true
 
-  # Placements made with /pulse lobby ... are saved in plugins/PulseGames/lobby.yml (see docs/LOBBY-PLACEMENTS.md).
+  # Placements made with /admin games lobby ... are saved in plugins/PulseGames/lobby.yml (see docs/LOBBY-PLACEMENTS.md).
   # Game selector NPC skins: a Minecraft account name per game. Unlisted games use the built-in default
   # (an MHF head such as MHF_TNT). Example override:
   #   npcs:
@@ -454,7 +454,7 @@ events:
   between-rounds-seconds: 15
   # Hard stop for a single round, then it is decided on placement or score.
   match-minutes: 10
-  # Seconds of sign-up for /pulse event start.
+  # Seconds of sign-up for /admin games event start.
   admin-lead-seconds: 60
   # Show the event as an extra queue row so the proxy announces it with a Join link on other servers.
   network-announce: true

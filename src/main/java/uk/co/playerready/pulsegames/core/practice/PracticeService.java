@@ -53,8 +53,8 @@ public final class PracticeService {
             } catch(IllegalArgumentException invalid) { say(player,"Use easy, normal or hard, and a whole bot count from 1 to 31."); }
             return;
         }
-        say(player,"/pulse practice start <game> <mode> <map> <easy|normal|hard> [bots]");
-        say(player,"/pulse practice <report|end|repeat> — private, no records/rewards or skill calibration.");
+        say(player,"/admin games practice start <game> <mode> <map> <easy|normal|hard> [bots]");
+        say(player,"/admin games practice <report|end|repeat> — private, no records/rewards or skill calibration.");
     }
 
     public void begin(Player owner, Scenario scenario) {

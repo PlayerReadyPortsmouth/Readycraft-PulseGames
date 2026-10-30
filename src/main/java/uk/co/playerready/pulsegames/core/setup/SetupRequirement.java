@@ -7,15 +7,15 @@ package uk.co.playerready.pulsegames.core.setup;
 public record SetupRequirement(Kind kind, String key, int min, String description, boolean required) {
 
     public enum Kind {
-        /** At least {@code min} spawn points (/pulse setup addspawn). */
+        /** At least {@code min} spawn points (/admin games setup addspawn). */
         SPAWNS,
-        /** A single named region (/pulse setup region <key>). */
+        /** A single named region (/admin games setup region <key>). */
         REGION,
         /** At least {@code min} regions named key1, key2... */
         REGION_PREFIX,
-        /** A location setting set where you stand (/pulse setup setloc <key>). */
+        /** A location setting set where you stand (/admin games setup setloc <key>). */
         LOCATION_SETTING,
-        /** A plain value setting (/pulse setup set <key> <value>). */
+        /** A plain value setting (/admin games setup set <key> <value>). */
         VALUE_SETTING
     }
 

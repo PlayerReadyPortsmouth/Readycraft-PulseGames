@@ -1,5 +1,7 @@
 package uk.co.playerready.pulsegames.core.events;
 
+import uk.co.playerready.pulsegames.core.command.Routes;
+
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -321,8 +323,8 @@ public final class EventService {
                 player.sendMessage(Text.msg("Event cancelled."));
             }
             case "start" -> {
-                if (event != null) { player.sendMessage(Text.msg("<red>An event is already active. /pulse event cancel first.")); return; }
-                if (args.length < 3) { player.sendMessage(Text.msg("<red>Usage: /pulse event start <game> <mode> [bracket|points]")); return; }
+                if (event != null) { player.sendMessage(Text.msg("<red>An event is already active. /admin games event cancel first.")); return; }
+                if (args.length < 3) { player.sendMessage(Text.msg("<red>Usage: /admin games event start <game> <mode> [bracket|points]")); return; }
                 Format format = args.length > 3 && args[3].equalsIgnoreCase("bracket") ? Format.BRACKET : Format.POINTS;
                 if (args.length > 3 && !args[3].equalsIgnoreCase("bracket") && !args[3].equalsIgnoreCase("points")) {
                     player.sendMessage(Text.msg("<red>Format must be bracket or points.")); return;
@@ -333,7 +335,7 @@ public final class EventService {
                 if (!open(when, List.of(pick), true)) player.sendMessage(Text.msg("<red>That game or mode is not available, or has no maps."));
                 else player.sendMessage(Text.msg("Tournament opened. It starts in " + plugin.getConfig().getInt("events.admin-lead-seconds", 60) + " seconds."));
             }
-            default -> player.sendMessage(Text.msg("Usage: <yellow>/pulse event <start <game> <mode> [bracket|points]|cancel|list>"));
+            default -> player.sendMessage(Text.msg("Usage: <yellow>/admin games event <start <game> <mode> [bracket|points]|cancel|list>"));
         }
     }
 
@@ -384,7 +386,7 @@ public final class EventService {
             if (p.hasMetadata("NPC")) continue;
             p.sendMessage(Text.msg("<gold><b>Tournament starting in " + when + " on Minigames: " + event.title()
                     + "!</b> <gray>(" + kind + ", tokens x" + trim(event.pick.multiplier()) + ")"));
-            p.sendMessage(Text.mm("<gray>   Join with <yellow>/event join</yellow> or <click:run_command:'/event join'><hover:show_text:'Join the tournament'>"
+            p.sendMessage(Text.mm("<gray>   Join with <yellow>/event join</yellow> or <click:run_command:'" + Routes.slash(Routes.EVENT_JOIN) + "'><hover:show_text:'Join the tournament'>"
                     + "<green><b>[Join]</b></green></hover></click> <gray>- or use <yellow>/queues</yellow> from another server. Joining is optional."));
             if (plugin.instances().byPlayer(p) == null)
                 Text.title(p, "<gold><b>Tournament time!", "<gray>" + event.title() + " in " + when + " - /event join");
