@@ -16,8 +16,27 @@ public final class PulseContentBridge implements AutoCloseable {
     private final PulseGamesPlugin plugin;
     private final Set<OwnedVisual> handles = new HashSet<>();
     private Api api;
+    private final Set<String> optionalItemWarnings = new HashSet<>();
 
     public PulseContentBridge(PulseGamesPlugin plugin) { this.plugin = plugin; }
+
+    /** Cosmetic item factory; unavailable content must leave the caller's vanilla icon usable. */
+    public org.bukkit.inventory.ItemStack optionalItem(String id, Player viewer) {
+        if (id == null || id.length() > 128 || !id.matches("[a-z0-9_.-]+:[a-z0-9_./-]+") || viewer == null) return null;
+        try {
+            Plugin provider = plugin.getServer().getPluginManager().getPlugin("PulseContent");
+            if (provider == null || !provider.isEnabled()) return null;
+            if (!Boolean.TRUE.equals(provider.getClass().getMethod("isContentReady",Player.class).invoke(provider,viewer))) return null;
+            Object result = provider.getClass().getMethod("createItem",String.class,int.class).invoke(provider,id,1);
+            if (result instanceof org.bukkit.inventory.ItemStack stack && stack.getType() != org.bukkit.Material.AIR && stack.getType() != org.bukkit.Material.CAVE_AIR && stack.getType() != org.bukkit.Material.VOID_AIR && stack.getAmount() > 0)
+                return stack.clone();
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError unavailable) {
+            // Mixed pack versions and optional models fall back without changing the item's gameplay.
+            if (optionalItemWarnings.size() < 32 && optionalItemWarnings.add(id))
+                plugin.getLogger().warning("Optional kart item " + id + " unavailable; using vanilla icon.");
+        }
+        return null;
+    }
 
     /** Optional wardrobe capability is independent of prop APIs and must never break a match. */
     public void wardrobeContext(Player player, String game, String phase) {
@@ -153,6 +172,36 @@ public final class PulseContentBridge implements AutoCloseable {
             return null;
         } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
             return "PulseKarts needs the compatible PulseContent kart API and racing_kart model.";
+        }
+    }
+
+    public String kartPoseStartProblem(String id, List<Player> viewers) {
+        try {
+            Plugin provider = kartProvider();
+            if (!Integer.valueOf(1).equals(provider.getClass().getMethod("kartPoseApiVersion").invoke(provider)))
+                return "This track requires the PulseContent surface-rotation API.";
+            Method ready = provider.getClass().getMethod("isKartPoseReady", String.class, Player.class);
+            for (Player viewer : viewers) {
+                if (viewer.hasMetadata("NPC")) continue;
+                if (!Boolean.TRUE.equals(ready.invoke(provider,id,viewer)))
+                    return "Every racer needs a compatible surface-rotation renderer and pack.";
+            }
+            return null;
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
+            return "This track requires the PulseContent surface-rotation API.";
+        }
+    }
+
+    public void setKartPose(org.bukkit.entity.Entity anchor, double x, double y, double z, double w) {
+        double norm = x*x+y*y+z*z+w*w;
+        if (!Double.isFinite(norm) || Math.abs(norm-1) > 0.01)
+            throw new IllegalArgumentException("Kart pose must be a finite unit quaternion");
+        try {
+            Plugin provider = kartProvider();
+            provider.getClass().getMethod("setKartPose", Plugin.class, org.bukkit.entity.Entity.class,
+                    double.class,double.class,double.class,double.class).invoke(provider,plugin,anchor,x,y,z,w);
+        } catch (ReflectiveOperationException | LinkageError failure) {
+            throw new IllegalStateException("Could not update kart surface pose", failure);
         }
     }
 

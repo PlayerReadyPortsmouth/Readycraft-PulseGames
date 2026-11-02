@@ -19,8 +19,22 @@ final class KartAir {
     }
     private boolean flying, tricked;
     private int airTicks, spinTicks = -1;
+    private KartPadConfig.JumpProfile profile;
 
     boolean flying() { return flying; }
+    boolean configuredFlight() { return flying && profile != null; }
+    double gravity() { return configuredFlight() ? profile.gravity() : 24; }
+    double airSteering() { return configuredFlight() ? profile.airSteering() : 1; }
+
+    /** Previous support permits a swept pad crossing at a ramp lip, before the chassis falls away. */
+    KartPhysics.State launch(KartPhysics.State motion, KartPadConfig.JumpProfile profile, boolean wasSupported) {
+        if (flying || (!motion.grounded() && !wasSupported) || motion.speed() < profile.minSpeed()) return motion;
+        this.profile = profile;
+        flying = true; tricked = false; airTicks = 0; spinTicks = -1;
+        float yaw = profile.yaw() == null ? motion.yaw() : profile.yaw().floatValue();
+        return new KartPhysics.State(motion.x(), motion.y(), motion.z(), yaw, motion.speed(),
+                profile.launchSpeed(), false);
+    }
 
     /** Vertical launch speed in blocks/second: 5 at a standstill up to 12.5 at 1.5x top speed, scaled by power. */
     static double launchSpeed(double speed, double power) {
@@ -31,6 +45,7 @@ final class KartAir {
     /** The launched chassis state, or the same state when the kart is too slow or already in the air. */
     KartPhysics.State launch(KartPhysics.State motion, double power) {
         if (flying || !motion.grounded() || motion.speed() < MIN_LAUNCH_SPEED) return motion;
+        profile = null;
         flying = true; tricked = false; airTicks = 0; spinTicks = -1;
         return new KartPhysics.State(motion.x(), motion.y(), motion.z(), motion.yaw(), motion.speed(),
                 launchSpeed(motion.speed(), power), false);
@@ -49,7 +64,7 @@ final class KartAir {
         if (trickPressed && !tricked && airTicks >= TRICK_MIN_AIR_TICKS) { tricked = true; spinTicks = 0; started = true; }
         double spin = 0;
         if (spinTicks >= 0 && spinTicks < TRICK_SPIN_TICKS) { spinTicks++; spin = spinTicks * SPIN_DEGREES_PER_TICK; }
-        return new Step(started, false, false, airTicks > MAX_AIR_TICKS, spin % 360);
+        return new Step(started, false, false, airTicks > (profile == null ? MAX_AIR_TICKS : profile.maxAirTicks()), spin % 360);
     }
-    void cancel() { flying = tricked = false; airTicks = 0; spinTicks = -1; }
+    void cancel() { profile = null; flying = tricked = false; airTicks = 0; spinTicks = -1; }
 }

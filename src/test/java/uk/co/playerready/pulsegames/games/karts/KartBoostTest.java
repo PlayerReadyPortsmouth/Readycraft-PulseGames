@@ -25,4 +25,9 @@ class KartBoostTest {
   var boost=new KartBoost();boost.apply(KartBoost.Source.PANEL,1,0,10);boost.apply(KartBoost.Source.PANEL,Double.NaN,0,10);boost.apply(KartBoost.Source.PANEL,1.5,0,0);
   assertFalse(boost.active(1));
  }
+ @Test void rejectsInfiniteFactorsAndCapsFiniteBoostsAtPhysicsLimit() {
+  var boost=new KartBoost();boost.apply(KartBoost.Source.PANEL,Double.POSITIVE_INFINITY,0,10);
+  assertEquals(1,boost.multiplier(1));
+  boost.apply(KartBoost.Source.PANEL,20,0,10);assertEquals(2,boost.multiplier(1));
+ }
 }

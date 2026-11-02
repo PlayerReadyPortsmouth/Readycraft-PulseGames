@@ -1,11 +1,27 @@
 # Minigames development and play-test tracker
 
-Last updated: 29 October 2026. Owner: Aurora. Agents should update this file as
+Last updated: 31 October 2026. Owner: Aurora. Agents should update this file as
 work and player feedback arrive; keep it in the PulseGames repository.
 
 Readable report: [HTML](MINIGAMES-TRACKER.html) · [PDF](MINIGAMES-TRACKER.pdf).
 After editing this source, regenerate both exports with
 `node tools/render-minigames-tracker.mjs --pdf`; see [update instructions](tools/TRACKER-README.md).
+
+## 31 October - Copper Circuit kart items and track presentation (local candidate)
+
+**PulseGames 0.11.0 local candidate; default off, not deployed, no Java/Bedrock client acceptance.** Adds repair kit (clears spin/slow with brief protection), a delayed line-of-sight pulse wave and a six-second magnet for collectable boxes. The original eight-item table remains unchanged when showcase access is off. Optional custom icons cover all eleven items, with vanilla fallbacks. Bots have basic use decisions; balancing and surface-route behaviour still need played acceptance.
+
+Authored boost/jump markers, modular checkpoint/finish gantries, podium, trophy, marshal and spectator-drone props use bounded, disposable world visuals. Missing functional models retain small particle markers. Props never create triggers or collision; marshals and drones are scenery, not actual staff or cameras. The companion original Copper Circuit asset sources provide 11 item models and 12 world props. Complete client rendering remains unverified.
+
+`karts.showcase` is a separate default-off whole-race gate: every human racer must be eligible. Configured physics still requires `karts.track-physics`. Builder syntax, the eight-block gantry assembly, fallback limits and acceptance checklist: [showcase guide](docs/PULSEKARTS-SHOWCASE.md). Targeted test results and artifact status will be recorded in the handoff; no production flags, installs or restarts are authorised by this candidate.
+
+## 31 October - Configurable kart jumps, boost panels and surface driving (local candidate)
+
+**Local implementation only, default off; not committed, deployed or played.** PulseGames 0.10.0 adds individually configured jump impulses/gravity/airtime/air steering, boost factor/duration/direction, and authored contact surfaces for banks, walls and ceilings. Surface motion uses local steering, an oriented chassis collision shape and full model pose; side release preserves momentum or recovers when upright clearance is unsafe. Existing map settings retain their legacy behaviour.
+
+Every human racer on a configured track must pass `karts.track-physics` trial access. Revocation cleans up and force-cancels without a normal race result. Surface tracks require the matching PulseContent pose API; the Java/Bedrock companion and regenerated kart pack must be installed together for mixed-client acceptance. Vanilla rider bodies/cameras remain upright. No automatic arbitrary-wall detection, branch graphs or lap-record boards are claimed here.
+
+Builder instructions and bounded settings: [track physics](docs/PULSEKARTS-TRACK-PHYSICS.md). The [surface example](docs/examples/kart-surface-settings.json) contains contact data, not a built playable map. Validation and artifact status belong in [the handoff](docs/handoffs/2026-10-31-kart-track-physics.md). Before enabling: drive low/normal/boosted jumps, vertical wall and ceiling transitions, side departures, reset/reconnect and mixed-client model alignment. Aurora's separate approval is required for each MinigamesTest restart.
 
 ## 29 October - Bundle 0.6.0: token shop and menu ports, shared game shops, Bedrock forms, party/stats/settings, map board (candidate)
 
