@@ -273,6 +273,21 @@ bedwars:
 # PulseKarts bot driving. Owner: Aurora / ReadyCraft. Review: 2026-11-26.
 # Every value is clamped to a safe range; a missing or zero value uses the default shown.
 karts:
+  # Owner: Aurora / ReadyCraft. Review: 2026-11-14. Empty allowlist admits nobody.
+  # Trial for expanded items, custom icons and authored cosmetic track props.
+  # Remove after mixed-client acceptance and stable rollout; preserve map prop data.
+  showcase:
+    enabled: false
+    broad: false
+    canary-players: []
+  # Owner: Aurora / ReadyCraft. Review: 2026-11-14.
+  # Configured jump/boost profiles and surface-driving tracks require every human
+  # racer on this UUID list, or explicit broad rollout. Empty list admits nobody.
+  # Remove after mixed Java/Bedrock playtests and stable rollout; retain map data.
+  track-physics:
+    enabled: false
+    broad: false
+    canary-players: []
   bots:
     # Top speed as a fraction of the kart's physics maximum (12 blocks/s x style speed).
     speed-fraction:
