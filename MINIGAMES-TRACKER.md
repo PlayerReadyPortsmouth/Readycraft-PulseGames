@@ -1,11 +1,17 @@
 # Minigames development and play-test tracker
 
-Last updated: 31 October 2026. Owner: Aurora. Agents should update this file as
+Last updated: 2 November 2026. Owner: Aurora. Agents should update this file as
 work and player feedback arrive; keep it in the PulseGames repository.
 
 Readable report: [HTML](MINIGAMES-TRACKER.html) · [PDF](MINIGAMES-TRACKER.pdf).
 After editing this source, regenerate both exports with
 `node tools/render-minigames-tracker.mjs --pdf`; see [update instructions](tools/TRACKER-README.md).
+
+## 2 November - PulseGames 0.11.0 MinigamesTest installation
+
+Aurora authorised the GitHub push and MinigamesTest deployment/restart. PulseGames draft [PR #99](https://github.com/PlayerReadyPortsmouth/Readycraft-PulseGames/pull/99) and companion PulseAddon draft [PR #84](https://github.com/PlayerReadyPortsmouth/ReadyCraft-PulseAddon/pull/84) are open; neither is merged. The 0.11.0 jar was checksum-verified and installed after backing up 0.9.8 and its config under `/root/pulsegames-backups/20261102T010041Z-kart-0.11.0`. Player checks were empty before the restart.
+
+The track-physics and showcase settings remain absent from server config, therefore disabled by code defaults. Companion pose adapters and model sources are pushed only; existing PulseContent 0.5.8 remains installed. This deploy does not enable new items, models or wall driving. Final pack assembly and Java/Bedrock play acceptance remain outstanding. Targeted kart/bridge checks: 248 passed (gate `20261102-005941-fb7`). Startup verification is recorded in the deployment handoff.
 
 ## 31 October - Copper Circuit kart items and track presentation (local candidate)
 
