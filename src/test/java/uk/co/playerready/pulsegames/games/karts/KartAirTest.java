@@ -42,4 +42,33 @@ class KartAirTest {
   var air=new KartAir();assertEquals(KartAir.Step.IDLE,air.tick(false,true));
   air.launch(ground(12),1);air.cancel();assertEquals(KartAir.Step.IDLE,air.tick(false,true));
  }
+ @Test void configuredJumpUsesItsOwnImpulseGravityAndFlightDeadline() {
+  var air=new KartAir();
+  var profile=new KartPadConfig.JumpProfile(9,8,100,3,40,-90d,.25);
+  var lip=new KartPhysics.State(0,2,0,0,12,-1,false);
+  assertSame(lip,air.launch(lip,profile,false));
+  var launched=air.launch(lip,profile,true);
+  assertEquals(9,launched.verticalSpeed());assertEquals(-90,launched.yaw());
+  assertEquals(12,launched.speed());assertEquals(8,air.gravity());assertEquals(.25,air.airSteering());
+  for(int i=0;i<100;i++)assertFalse(air.tick(false,false).capped());
+  assertTrue(air.tick(false,false).capped());
+  air.cancel();assertEquals(24,air.gravity());assertFalse(air.configuredFlight());
+ }
+ @Test void configuredJumpActuallyHasSustainedAirtimeAndPredictableLanding() {
+  var air=new KartAir();
+  var profile=new KartPadConfig.JumpProfile(9,8,100,3,40,null,.25);
+  var motion=air.launch(ground(12),profile,true);
+  KartPhysics.CollisionSpace floor=(x,y,z,w,h)->y>=0;
+  double apex=0;int ticks=0;
+  do {
+   motion=KartPhysics.tick(motion,new KartPhysics.Input(0,0),1,floor,KartStyle.BALANCED,0,air.gravity(),true);
+   apex=Math.max(apex,motion.y());ticks++;
+   air.tick(motion.grounded(),false);
+  } while(air.flying()&&ticks<150);
+  assertTrue(ticks>=43&&ticks<=46,"flight ticks: "+ticks);
+  assertTrue(apex>4.7&&apex<5.1,"apex: "+apex);
+  assertTrue(motion.grounded());assertFalse(air.flying());
+  assertEquals(12,motion.speed(),1e-9,"airborne coasting preserves launch momentum");
+  assertTrue(motion.z()>25,"proper jump spans a meaningful distance");
+ }
 }

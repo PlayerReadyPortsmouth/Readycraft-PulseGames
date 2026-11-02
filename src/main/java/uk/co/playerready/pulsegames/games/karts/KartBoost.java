@@ -12,7 +12,8 @@ final class KartBoost {
 
     /** Re-applying a live source extends it by maximum (never addition) and keeps the stronger factor. */
     void apply(Source source, double boostFactor, long now, int ticks) {
-        if (ticks <= 0 || !(boostFactor > 1)) return;
+        if (ticks <= 0 || !Double.isFinite(boostFactor) || !(boostFactor > 1)) return;
+        boostFactor = Math.min(2, boostFactor);
         int i = source.ordinal();
         long end = now + ticks;
         if (now >= until[i]) { factor[i] = boostFactor; until[i] = end; }

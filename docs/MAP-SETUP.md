@@ -150,6 +150,7 @@ The checklist shows all of this in-game; this is the reference with map-building
   - Bullet items need a valid `bot-waypointN` route with `bots-enabled: true` (a reviewed route); without both they are never handed out.
 - Malformed optional entries (numbering gaps, unknown block, `jump-power` out of range, a rail point outside every
   section) stop the race from starting with a message naming the entry.
+- **Configurable pads and real surface driving (default-off candidate):** see [track physics](PULSEKARTS-TRACK-PHYSICS.md) for per-pad jump/boost profiles, authored contact normals, rollout access and renderer requirements. Legacy `antigrav` regions above remain visual/speed-only.
 - Build: ice is no longer needed (controller speed is independent of surface).
 
 ### Skywars (`skywars` - solo, doubles, insane)
