@@ -201,8 +201,8 @@ class NetworkTabTest {
         assertNotEquals(a.get(1).display(), b.get(1).display(), "Rae animates");
     }
     @Test void tagConfigOverridesAndFrameDerivesFromAnimationInterval() {
-        var config = with("tags.dev", "<gold>CREATOR</gold>");
-        assertEquals("[CREATO] Aurora", text(TabRender.displayName(styled("Aurora", "", "dev", null, null, false), config, false)));
+        var config = with("tags.dev", "<gold>CREATOR_OF_IT</gold>");
+        assertEquals("[CREATOR_OF] Aurora", text(TabRender.displayName(styled("Aurora", "", "dev", null, null, false), config, false)));
         assertEquals(3, TabRender.frame(3_999, CONFIG));
         assertEquals(1, TabRender.frame(3_999, with("tab.animation-ms", "10000")) + 1);
     }
