@@ -26,7 +26,7 @@ class NameStyleTest {
     }
     static List<TextColor> nameColours(Component c, int nameLength) { var all = colours(c); return all.subList(all.size() - nameLength, all.size()); }
 
-    @ParameterizedTest @CsvSource({"dev,[DEV] Aurora,AQUA", "admin,[ADMIN] Aurora,RED", "staff,[STAFF] Aurora,GREEN", "venue,[VENUE] Aurora,YELLOW"})
+    @ParameterizedTest @CsvSource({"dev,[DEV] Aurora,AQUA", "admin,[ADMIN] Aurora,RED", "staff,[STAFF] Aurora,GREEN", "venue,[VENUE] Aurora,YELLOW", "bughunter,[Bug Hunter] Aurora,RED"})
     void everyRoleHasATagAndBedrockGetsOneStaticColour(String role, String expected, String bedrockColour) {
         assertEquals(expected, text(NameStyle.render(id(role, null, null), false, 0)));
         var bedrock = NameStyle.render(id(role, null, null), true, 0);
@@ -39,7 +39,7 @@ class NameStyleTest {
     }
     @Test void venueTagIsGenericNeverATown() {
         assertFalse(text(NameStyle.render(id("venue", null, null), false, 0)).toLowerCase().contains("ports"));
-        assertEquals(Set.of("dev", "admin", "staff", "venue"), NameStyle.Tags.DEFAULT.roles());
+        assertEquals(Set.of("dev", "admin", "staff", "venue", "bughunter"), NameStyle.Tags.DEFAULT.roles());
     }
     @Test void everyStyleRendersTheNameUnchangedInText() {
         assertTrue(NameStyle.styleIds().size() >= 16);
@@ -91,9 +91,9 @@ class NameStyleTest {
         assertEquals("Sixteen_Chars_Ab", text(NameStyle.render(longName, false, 0, tags, 3)));
         for (int budget = 10; budget < 40; budget++) assertTrue(text(NameStyle.render(longName, false, 0, tags, budget)).length() <= Math.max(budget, 16));
     }
-    @Test void configuredTagsOverrideCapAtSixCharactersAndNeverParsePlayerText() {
-        var tags = new NameStyle.Tags(Map.of("dev", "<gold><bold>DEVELOPER</bold></gold>", "staff", " "));
-        assertEquals("[DEVELO] Aurora", text(NameStyle.render(id("dev", null, null), false, 0, tags, 32)));
+    @Test void configuredTagsOverrideCapAtTenCharactersAndNeverParsePlayerText() {
+        var tags = new NameStyle.Tags(Map.of("dev", "<gold><bold>DEVELOPERS!</bold></gold>", "staff", " "));
+        assertEquals("[DEVELOPERS] Aurora", text(NameStyle.render(id("dev", null, null), false, 0, tags, 32)));
         assertEquals("Aurora", text(NameStyle.render(id("staff", null, null), false, 0, tags, 32)), "blank removes a tag");
         var tricky = new NameStyle.Identity("<red>[STAFF]", null, null, null);
         assertEquals("<red>[STAFF]", text(NameStyle.render(tricky, false, 0)));

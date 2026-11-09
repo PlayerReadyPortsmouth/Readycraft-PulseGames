@@ -13,7 +13,7 @@ import java.util.*;
  * colour are configurable. Player text is always {@code Component.text}, never parsed. Nothing here does I/O.
  */
 public final class NameStyle {
-    public static final int MAX_VISIBLE = 32, MAX_TAG = 6;
+    public static final int MAX_VISIBLE = 32, MAX_TAG = 10;
     private static final MiniMessage MM = MiniMessage.miniMessage();
 
     /** {@code role} and {@code styleId} may be null; {@code level} is shown only when positive. */
@@ -75,7 +75,8 @@ public final class NameStyle {
     /** Role tags: id to MiniMessage template. Text is capped at {@value #MAX_TAG} characters once tags are stripped. */
     public static final class Tags {
         public static final Map<String, String> DEFAULTS = Map.of("dev", "<aqua>DEV</aqua>", "admin", "<gradient:red:gold>ADMIN</gradient>",
-                "staff", "<green>STAFF</green>", "venue", "<yellow>VENUE</yellow>");
+                "staff", "<green>STAFF</green>", "venue", "<yellow>VENUE</yellow>",
+                "bughunter", "<gradient:red:gold>Bug Hunter</gradient>");
         public static final Tags DEFAULT = new Tags(Map.of());
         private record Tag(Component full, String text, NamedTextColor bedrock) {}
         private final Map<String, Tag> tags = new LinkedHashMap<>();
