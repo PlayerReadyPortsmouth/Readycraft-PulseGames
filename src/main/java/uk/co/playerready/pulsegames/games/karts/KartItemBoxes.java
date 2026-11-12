@@ -24,14 +24,19 @@ final class KartItemBoxes {
      * so a kart at full speed (0.6 blocks per tick) cannot skip a 1.2-block pickup radius.
      */
     int collect(KartPhysics.State from, KartPhysics.State to, long tick) {
+        return collect(from, to, tick, RADIUS, index -> true);
+    }
+    /** Enlarged pickups still consume one shared box; blocked candidates cannot hide a nearer visible one. */
+    int collect(KartPhysics.State from, KartPhysics.State to, long tick, double radius, java.util.function.IntPredicate visible) {
+        if (!Double.isFinite(radius) || radius < RADIUS || radius > 3.5) throw new IllegalArgumentException("Invalid pickup radius");
         int best = -1;
-        double bestDistance = RADIUS;
+        double bestDistance = radius;
         for (int i = 0; i < positions.size(); i++) {
             if (!available(i, tick)) continue;
             var box = positions.get(i);
             double distance = segmentDistance(from.x(), from.y() + KART_LIFT, from.z(), to.x(), to.y() + KART_LIFT, to.z(),
                     box.x(), box.y() + BOX_LIFT, box.z());
-            if (distance <= bestDistance) { best = i; bestDistance = distance; }
+            if (distance <= bestDistance && visible.test(i)) { best = i; bestDistance = distance; }
         }
         if (best >= 0) readyAt[best] = tick + RESPAWN_TICKS;
         return best;

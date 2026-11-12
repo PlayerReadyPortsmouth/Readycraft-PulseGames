@@ -219,7 +219,10 @@ public final class GameCatalog {
                         optional(regions("jump", 1, "jump pads at the ramp lip: launch scaled by speed; press jump in the air for a trick")),
                         optional(regions("antigrav", 1, "anti-gravity sections: +10% speed, glow, and a boost when karts touch")),
                         optional(location("antigrav-path1", "ordered ribbon points through the sections; repeat consecutively (antigrav-path2...)")),
-                        optional(setting("jump-power", "vertical scale for every jump, 0.5-1.5 (default 1)")),
+                        optional(setting("jump-power", "legacy vertical scale for every jump, 0.5-1.5 (default 1)")),
+                        optional(setting("jump1-launch-speed", "per-pad trial: vertical blocks/second; see PULSEKARTS-TRACK-PHYSICS.md for gravity and air steering")),
+                        optional(setting("boost1-factor", "per-pad trial: speed multiplier 1.01-2; boost1-ticks sets duration")),
+                        optional(setting("antigrav-surface1", "surface trial: x,y,z,nx,ny,nz,halfWidth nodes separated by semicolons; matching pose renderer required")),
                         setting("void-y", "off-track fall level")),
                 false));
 
