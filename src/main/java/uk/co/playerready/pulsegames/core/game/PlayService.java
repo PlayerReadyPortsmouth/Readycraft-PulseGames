@@ -93,6 +93,9 @@ public final class PlayService {
             return;
         }
         List<Player> group = party == null ? List.of(player) : List.copyOf(party.onlineMembers());
+        if (plugin.seasons() != null && plugin.seasons().seasonalGame(type.id()) && group.stream().anyMatch(p -> !plugin.seasons().canPlay(p, type.id()))) {
+            player.sendMessage(Text.msg("<red>This seasonal game is outside its season or trial group.")); return;
+        }
         if (group.isEmpty() || group.size() > Math.min(mode.maxPlayers(), 64)) {
             player.sendMessage(Text.msg("<red>Your party is too big for this mode."));
             return;
@@ -102,7 +105,7 @@ public final class PlayService {
                     + mode.teamSize() + ". Choose a larger team size or a solo mode."));
             return;
         }
-        if (type.wip() && !plugin.gamePublic(type) && group.stream().anyMatch(member -> !plugin.canUseNewFeatures(member))) {
+        if (type.wip() && (plugin.seasons() == null || !plugin.seasons().seasonalGame(type.id())) && !plugin.gamePublic(type) && group.stream().anyMatch(member -> !plugin.canUseNewFeatures(member))) {
             player.sendMessage(Text.msg("<red>This preview is limited to the configured test players."));
             return;
         }

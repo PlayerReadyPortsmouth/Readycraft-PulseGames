@@ -985,7 +985,7 @@ public final class GameInstance {
         countdown = plugin.getConfig().getInt("end.celebrate-seconds", 10);
         String winnerNames = creditedWinners.isEmpty() ? "Nobody"
                 : String.join("<gray>, </gray><yellow>", creditedWinners.stream().map(Player::getName).toList());
-        MiniGame.EndSummary summary = coop ? coopSummary(creditedWinners) : null;
+        MiniGame.EndSummary summary = coopSummary(creditedWinners);
         List<String> summaryLines = summary == null ? List.of() : summary.lines();
         List<String> summaryPlain = summaryLines.stream().map(Text::plain).toList();
         broadcast("<gold><b>Round over!</b></gold> <gray>" + (coop ? (anyWinner ? "The squad pulled it off." : "The squad's run has ended.")
@@ -1062,6 +1062,8 @@ public final class GameInstance {
             }
         });
         if (plugin.ranked() != null) plugin.ranked().matchEnded(this, creditedWinners, reason);
+        if (!reason.equals("forced") && plugin.seasons() != null)
+            players().stream().filter(p -> !isBot(p)).forEach(p -> plugin.seasons().award(p, type.id()));
         runLogic("onEnd", () -> logic.onEnd(creditedWinners));
         if (endListener != null) {
             try { endListener.accept(creditedWinners); }

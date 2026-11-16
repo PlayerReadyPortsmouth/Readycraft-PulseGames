@@ -47,6 +47,10 @@ public final class CosmeticsService {
                     Material.GOLD_INGOT, 250, "A triumphant fanfare when you win"),
             new Cosmetic("we-bells", Cosmetic.Category.WIN_EFFECT, "Victory Bells",
                     Material.BELL, 250, "Bright bells ring out when you win"),
+            new Cosmetic("xm-snow-trail", Cosmetic.Category.TRAIL, "Christmas Snow",
+                    Material.SNOWBALL, -1, "Earned by finishing a Christmas game"),
+            new Cosmetic("xm-bells", Cosmetic.Category.WIN_EFFECT, "Christmas Bells",
+                    Material.BELL, -1, "Earned by finishing a Christmas game"),
             // Kit unlocks (selectable in Kit PvP FFA)
             new Cosmetic("kit-tank", Cosmetic.Category.KIT, "Tank Kit",
                     Material.NETHERITE_CHESTPLATE, 800, "Heavy armor, slow but unstoppable"),
@@ -136,7 +140,7 @@ public final class CosmeticsService {
                 world.playSound(loc, Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
                 world.playSound(loc, Sound.ENTITY_FIREWORK_ROCKET_TWINKLE, 1f, 1.2f);
             }
-            case "we-bells" -> {
+            case "xm-bells", "we-bells" -> {
                 world.playSound(loc, Sound.BLOCK_BELL_USE, 1f, 1.2f);
                 world.playSound(loc, Sound.BLOCK_NOTE_BLOCK_BELL, 1f, 1.5f);
             }
@@ -151,6 +155,7 @@ public final class CosmeticsService {
         var world = player.getWorld();
         Location loc = player.getLocation().add(0, 0.2, 0);
         switch (id) {
+            case "xm-snow-trail" -> world.spawnParticle(Particle.SNOWFLAKE, loc, 3, 0.15, 0.1, 0.15, 0.01);
             case "tr-flame" -> world.spawnParticle(Particle.FLAME, loc, 3, 0.1, 0.05, 0.1, 0.01);
             case "tr-hearts" -> world.spawnParticle(Particle.HEART, loc, 1, 0.2, 0.1, 0.2);
             case "tr-sparkle" -> world.spawnParticle(Particle.END_ROD, loc, 2, 0.15, 0.1, 0.15, 0.01);

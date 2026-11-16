@@ -79,7 +79,7 @@ public final class PrivateMatchService {
             leader.sendMessage(Text.msg("<red>Pick a game and mode that can be played privately."));
             return false;
         }
-        if (type.wip() && !plugin.gamePublic(type) && group.stream().anyMatch(m -> !plugin.canUseNewFeatures(m))) {
+        if (type.wip() && (plugin.seasons() == null || !plugin.seasons().seasonalGame(type.id())) && !plugin.gamePublic(type) && group.stream().anyMatch(m -> !plugin.canUseNewFeatures(m))) {
             leader.sendMessage(Text.msg("<red>This preview is limited to the configured test players."));
             return false;
         }
