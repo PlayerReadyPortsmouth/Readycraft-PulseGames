@@ -1,0 +1,71 @@
+# Owned by AurorasChaos (on behalf of Player Ready). Runtime reload: /season reload
+# Review after Christmas 2026 playtesting; keep disabled until Java + Bedrock checks pass.
+enabled: false
+timezone: Europe/London
+# Empty = everyone once enabled. UUIDs only; NPCs never receive rewards.
+canary-players: []
+seasons:
+  halloween:
+    start: '10-01'
+    end: '11-07'
+    games: []
+    chat-set: halloween
+    decorations: [WITCH]
+    overlay: halloween
+    cosmetic-rewards: []
+    wear-out-of-season: true
+  christmas:
+    start: '12-01'
+    end: '12-30'
+    games: [presentpanic, grinchhunt]
+    chat-set: christmas
+    decorations: [SNOWFLAKE]
+    content-cosmetics: [pulse:snow_steps, pulse:christmas_holly, pulse:christmas_sparkle]
+    overlay: christmas
+    cosmetic-rewards: [xm-snow-trail, xm-bells]
+    wear-out-of-season: true
+  newyear:
+    start: '12-31'
+    end: '01-07'
+    games: []
+    chat-set: newyear
+    decorations: [END_ROD]
+    overlay: newyear
+    cosmetic-rewards: []
+    wear-out-of-season: true
+  valentines:
+    start: '02-07'
+    end: '02-21'
+    games: []
+    chat-set: valentines
+    decorations: [HEART]
+    overlay: valentines
+    cosmetic-rewards: []
+    wear-out-of-season: true
+  easter:
+    easter: true
+    days-before: 7
+    days-after: 1
+    games: []
+    chat-set: easter
+    decorations: [CHERRY_LEAVES]
+    overlay: easter
+    cosmetic-rewards: []
+    wear-out-of-season: true
+  summer:
+    start: '07-01'
+    end: '08-31'
+    games: []
+    chat-set: summer
+    decorations: [HAPPY_VILLAGER]
+    overlay: summer
+    cosmetic-rewards: []
+    wear-out-of-season: true
+
+# Optional additive Java overlay for a 1.21.4 server without PulseContent runtime.
+# Set the URL + SHA-1 of the exported christmas-java-1.21.4.zip; never set a random pack hash.
+# Bedrock and players declining the pack use readable vanilla models.
+resource-packs:
+  christmas:
+    url: ''
+    sha1: ''

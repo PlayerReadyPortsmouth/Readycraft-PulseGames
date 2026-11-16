@@ -31,12 +31,12 @@ class CosmeticCatalogueTest {
         shipped().items().forEach(c -> assertTrue(ids.add(c.id()), c.id()));
     }
 
-    @Test void everyItemHasASlotAndAPriceOrALevelButNotBoth() {
+    @Test void everyItemHasASlotAndExactlyOneAcquisitionPath() {
         var all = new java.util.ArrayList<>(CosmeticsService.BUILTIN);
         all.addAll(shipped().items());
         for (Cosmetic c : all) {
             assertNotNull(c.category(), c.id());
-            assertTrue(c.price() > 0 ^ c.level() > 0, c.id());
+            assertEquals(1, (c.price() > 0 ? 1 : 0) + (c.level() > 0 ? 1 : 0) + (c.earnedOnly() ? 1 : 0), c.id());
         }
         shipped().items().stream().filter(c -> c.category() != Cosmetic.Category.NAME_STYLE).forEach(c -> assertNotNull(c.effect(), c.id()));
     }

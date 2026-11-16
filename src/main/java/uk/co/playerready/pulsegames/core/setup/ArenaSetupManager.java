@@ -77,6 +77,18 @@ public final class ArenaSetupManager implements Listener {
 
     public void handle(Player player, String[] args) {
         if (!player.hasPermission("pulsegames.admin")) return;
+        if (args.length > 0 && (args[0].equals("markers") || args[0].equals("christmas-test"))) {
+            try {
+                if (args[0].equals("christmas-test") && args.length == 2) {
+                    uk.co.playerready.pulsegames.core.seasonal.ChristmasTestMaps.build(plugin, player, args[1]);
+                } else if (args[0].equals("markers") && (args.length == 9 || args.length == 10 && args[9].equals("check"))) {
+                    int[] a = {Integer.parseInt(args[3]), Integer.parseInt(args[4]), Integer.parseInt(args[5])};
+                    int[] b = {Integer.parseInt(args[6]), Integer.parseInt(args[7]), Integer.parseInt(args[8])};
+                    plugin.markerImporter().scan(player, player.getWorld(), args[1], args[2], a, b, args.length == 10);
+                } else player.sendMessage("/admin games setup markers <presentpanic|grinchhunt> <id> <x1> <y1> <z1> <x2> <y2> <z2> [check] | christmas-test <game>");
+            } catch (IllegalArgumentException invalid) { player.sendMessage(invalid.getMessage()); }
+            return;
+        }
         if (args.length == 0) {
             help(player);
             return;

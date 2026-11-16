@@ -91,6 +91,7 @@ public final class EconomyService {
 
     /** Returns true if the player could afford it and it was deducted. */
     public synchronized boolean spend(Player player, int amount) {
+        if (amount <= 0) return false;
         int balance = tokens(player);
         if (balance < amount) return false;
         data.set(key(player) + ".tokens", balance - amount);
@@ -160,10 +161,17 @@ public final class EconomyService {
     public synchronized int unlockedCount(Player player) { return data.getStringList(key(player) + ".unlocks").size(); }
 
     public synchronized String equipped(Player player, Cosmetic.Category category) {
-        return data.getString(key(player) + ".equipped." + category.name().toLowerCase(Locale.ROOT));
+        String id = data.getString(key(player) + ".equipped." + category.name().toLowerCase(Locale.ROOT));
+        if (id != null && plugin instanceof uk.co.playerready.pulsegames.PulseGamesPlugin games
+                && games.seasons() != null && !games.seasons().wearable(id)) return null;
+        return id;
     }
 
     public synchronized void equip(Player player, Cosmetic.Category category, String cosmeticId) {
+        if (cosmeticId != null && plugin instanceof uk.co.playerready.pulsegames.PulseGamesPlugin games
+                && games.seasons() != null && !games.seasons().wearable(cosmeticId)) {
+            player.sendMessage(Text.msg("<yellow>You keep this cosmetic; it can be worn during its season.")); return;
+        }
         data.set(key(player) + ".equipped." + category.name().toLowerCase(Locale.ROOT), cosmeticId);
         dirty = true;
     }

@@ -346,6 +346,18 @@ public final class GameCatalog {
                         region("finish", "Sprint finish area"),
                         setting("void-y", "fall level below the mini-game areas")),
                 false));
+        registry.register(new GameType("presentpanic", "Present Panic",
+                "Grab, wrap and load presents before the sleighs depart!", Material.CHEST,
+                List.of(GameMode.teams("teams", "Teams", 2, 24, 6)),
+                uk.co.playerready.pulsegames.games.christmas.PresentPanicGame::new,
+                List.of(spawns(4, "import the pp markers with setup markers")), true)
+                .withCard(card("Wrap and load for your team!", "Sneak at benches; snowballs drop the top present", "Matching paper and bows score more")));
+        registry.register(new GameType("grinchhunt", "Grinch Hunt",
+                "Follow snowy footprints and save the village presents!", Material.LIME_DYE,
+                List.of(GameMode.ffa("classic", "Classic", 2, 24)),
+                uk.co.playerready.pulsegames.games.christmas.GrinchHuntGame::new,
+                List.of(spawns(12, "import the gh markers with setup markers")), true)
+                .withCard(card("Track the prints, save the presents!", "Grinches steal; villagers tag and reveal", "Follow the freshest footprints")));
         applyObjectiveCards(registry);
     }
 
