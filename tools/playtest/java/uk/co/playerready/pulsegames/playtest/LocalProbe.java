@@ -148,7 +148,10 @@ public final class LocalProbe extends JavaPlugin implements CommandExecutor {
         GameInstance round=current;
         final GameState[] last={null}; final org.bukkit.scheduler.BukkitTask[] observer={null};
         observer[0]=getServer().getScheduler().runTaskTimer(this,() -> {
-            if(round.state()!=last[0]) {last[0]=round.state();log("STATE "+id+" "+last[0]);}
+            if(round.state()!=last[0]) {
+                last[0]=round.state();log("STATE "+id+" "+last[0]);
+                if(last[0]==GameState.RUNNING && id.equals("grinchhunt")) round.runLater(20,() -> exerciseGadgets(round));
+            }
             if(round.state()==GameState.RESETTING)observer[0].cancel();
         },1,1);
         final org.bukkit.scheduler.BukkitTask[] waiting={null};
@@ -161,6 +164,18 @@ public final class LocalProbe extends JavaPlugin implements CommandExecutor {
             if(!supported)try{injectProbeNpcs(round,Math.min(round.maxPlayers()-1,3));}catch(Exception e){throw new RuntimeException(e);}
             log("QUEUED "+id+" "+mode.id()+" controller="+(supported?"supported":"lifecycle-only"));
         },1,1);
+    }
+    private void exerciseGadgets(GameInstance round) {
+        if(round.state()!=GameState.RUNNING)return;
+        int used=0;
+        for(Player player:round.players()) if(round.isActive(player)) {
+            player.getInventory().setHeldItemSlot(0);
+            round.logic().onInteract(new org.bukkit.event.player.PlayerInteractEvent(player,
+                    org.bukkit.event.block.Action.RIGHT_CLICK_AIR,player.getInventory().getItem(0),null,
+                    org.bukkit.block.BlockFace.UP,org.bukkit.inventory.EquipmentSlot.HAND));
+            used++;
+        }
+        log("GADGETS grinchhunt ordinary-use events="+used);
     }
     @SuppressWarnings("unchecked") private void injectProbeNpcs(GameInstance round,int count) throws Exception {
         Field providerField=BotService.class.getDeclaredField("provider");providerField.setAccessible(true);
