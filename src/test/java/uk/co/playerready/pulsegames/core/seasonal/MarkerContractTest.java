@@ -14,6 +14,13 @@ class MarkerContractTest {
         assertTrue(MarkerContract.savedProblems("presentpanic", rows).stream().anyMatch(e -> e.contains("pp.sleigh.red")));
         assertFalse(MarkerContract.savedProblems("grinchhunt", List.of("bad row")).isEmpty());
     }
+    @Test void smallWorkshopGivesEveryTeamTheSameBowToSleighDistance() {
+        var points = ChristmasTestMaps.markers("presentpanic").stream().collect(java.util.stream.Collectors.toMap(ChristmasTestMaps.Marker::key, m -> m, (a,b) -> a));
+        for (String team : MarkerContract.COLOURS) {
+            var bow=points.get("pp.bow."+team); var sleigh=points.get("pp.sleigh."+team);
+            assertEquals(25.0, Math.hypot(bow.x()-sleigh.x(),bow.z()-sleigh.z()),0.001,team);
+        }
+    }
     @Test void flatMapsMeetTheExactBuilderContract() {
         for(String game:List.of("presentpanic","grinchhunt")) {
             var m=ChristmasTestMaps.markers(game);

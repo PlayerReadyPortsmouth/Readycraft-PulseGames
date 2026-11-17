@@ -22,8 +22,8 @@ public final class ChristmasTestMaps {
             for(int t=0;t<4;t++) {
                 String c=MarkerContract.COLOURS.get(t);int x=t%2==0?-28:28,z=t<2?-22:22;
                 for(int i=0;i<6;i++)add(m,"pp.spawn."+c,x+(i%3)*2,65,z+(i/3)*2);
-                add(m,"pp.bow."+c,x,65,z/2);add(m,"pp.sleigh."+c,-24+t*16,65,-36);
-                add(m,"pp.sleigh."+c+".launch",-24+t*16,105,-40);
+                add(m,"pp.bow."+c,x,65,z/2);add(m,"pp.sleigh."+c,x,65,t<2?-36:36);
+                add(m,"pp.sleigh."+c+".launch",x,105,t<2?-40:40);
                 for(int i=0;i<4;i++)add(m,"pp.wrap."+MarkerContract.COLOURS.get(i)+"."+t,x/2+i*3-4,65,z/2);
             }
             for(int belt=1;belt<=2;belt++) {
