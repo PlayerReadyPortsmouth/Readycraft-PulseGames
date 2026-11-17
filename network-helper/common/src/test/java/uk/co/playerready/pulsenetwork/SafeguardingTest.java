@@ -22,6 +22,22 @@ class SafeguardingTest {
         p.setProperty("safeguarding.test-backends", ""); assertFalse(SafeguardingConfig.parse(p).applies("minigamestest"));
         p.setProperty("safeguarding.retention-days", "0"); assertThrows(IllegalArgumentException.class, () -> SafeguardingConfig.parse(p));
     }
+    @Test void malformedInactiveSettingsCannotDisableTheProductionBridge() {
+        Properties properties = new Properties();
+        properties.setProperty("safeguarding.retention-days", "not-a-number");
+        properties.setProperty("safeguarding.test-backends", "invalid backend name!");
+        properties.setProperty("safeguarding.discord-webhook-env", "not an environment variable");
+        properties.setProperty("safeguarding.readyapp-endpoint", "not a URI");
+        properties.setProperty("safeguarding.readyapp-token-env", "invalid token reference");
+        properties.setProperty("safeguarding.extra-words", "ignored-while-off");
+        for (String environment : List.of("", "production", "TEST", "tes")) {
+            if (environment.isEmpty()) properties.remove("safeguarding.environment"); else properties.setProperty("safeguarding.environment", environment);
+            var config = assertDoesNotThrow(() -> SafeguardingConfig.parse(properties));
+            assertFalse(config.testEnvironment()); assertFalse(config.filter()); assertFalse(config.logging());
+            assertFalse(config.applies("minigamestest")); assertTrue(config.backends().isEmpty());
+            assertEquals("", config.webhookEnv()); assertEquals("", config.readyAppEndpoint()); assertEquals("", config.readyAppTokenEnv()); assertEquals("", config.extraWords());
+        }
+    }
     @Test void obfuscatedContactAndAgePatterns() {
         var filter = new SafeguardingFilter("");
         assertEquals(SafeguardingFilter.Severity.URGENT, filter.evaluate("I'm 25 and you're 12").severity());

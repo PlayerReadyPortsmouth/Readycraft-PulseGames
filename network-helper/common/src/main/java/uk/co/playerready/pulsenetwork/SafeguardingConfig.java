@@ -7,6 +7,8 @@ public record SafeguardingConfig(boolean testEnvironment, boolean filter, boolea
                                  Set<String> backends, String extraWords, String webhookEnv, String readyAppEndpoint, String readyAppTokenEnv) {
     public static SafeguardingConfig parse(Properties p) {
         boolean test = "test".equals(p.getProperty("safeguarding.environment", "").trim());
+        // Flag-off must not validate new settings or retain/resolve any secret references.
+        if (!test) return new SafeguardingConfig(false, false, false, 90, Set.of(), "", "", "", "");
         var backends = new HashSet<String>();
         for (String name : p.getProperty("safeguarding.test-backends", "minigamestest,survivaltest").split(",")) {
             name = name.trim(); if (!name.isEmpty()) { if (!Wire.id(name)) throw new IllegalArgumentException("Invalid safeguarding backend"); backends.add(name); }
