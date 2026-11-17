@@ -58,7 +58,7 @@ public final class LocalProbe extends JavaPlugin implements CommandExecutor {
         games.getConfig().set("features.broad",true); games.getConfig().set("bots.enabled",true);
         games.getConfig().set("games.preview",games.registry().all().stream().map(GameType::id).toList());
         games.getConfig().set("bots.wait-seconds",1); games.getConfig().set("countdown.lobby-seconds",3);
-        games.getConfig().set("countdown.start-seconds",0); games.getConfig().set("end.celebrate-seconds",2);
+        games.getConfig().set("countdown.start-seconds",0); games.getConfig().set("end.celebrate-seconds",5);
         games.getConfig().set("lobby.world","world");
         games.saveConfig();
         World hub=Bukkit.getWorld("world");

@@ -79,7 +79,7 @@ try:
         while elapsed<duration:
             pause(min(10,duration-elapsed)); elapsed+=min(10,duration-elapsed)
             command('rc1 sample'); pause(.3)
-        command('rc1 timeout');pause(3);command('rc1 sample');pause(.3)
+        command('rc1 timeout');pause(6);command('rc1 sample');pause(.3)
         observed=lines[n:]
         result={'game':game,'running':any('RC1 STATE '+game+' RUNNING' in l for l in observed),
                 'controller':'supported' if any('controller=supported' in l for l in observed) else 'lifecycle-only',
