@@ -3,7 +3,7 @@
 Dependencies: Paper 1.21.4, compatible Citizens, built PulseGames and playtestJar,
 and a separately installed mineflayer package. No production service is contacted.
 """
-import argparse, json, os, pathlib, queue, shutil, subprocess, threading, time
+import argparse, json, os, pathlib, queue, re, shutil, subprocess, threading, time
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--server-dir', required=True, type=pathlib.Path)
@@ -96,6 +96,10 @@ try:
                 'controller':'supported' if any('controller=supported' in l for l in observed) else 'lifecycle-only',
                 'samples':[l.strip() for l in observed if 'RC1 SAMPLE' in l],
                 'errors':[l.strip() for l in observed if any(e in l for e in ('SEVERE','Exception','Bot controller failed','RC1 PROBE FAILED'))]}
+        if game == 'presentpanic' and not any(re.search(r'delivered=\{[^}]', l) for l in result['samples']):
+            result['errors'].append('Seasonal objective check failed: no bot delivery observed')
+        if game == 'grinchhunt' and not any(re.search(r'banked=[1-9]', l) for l in result['samples']):
+            result['errors'].append('Seasonal objective check failed: no cave banking observed')
         results.append(result)
         command('rc1 cleanup');cleaned=wait_for('RC1 CLEANUP',n);pause(3)
         assert 'active=0;' in cleaned and 'instances=0' in cleaned, 'Contestants or instances leaked after '+game
