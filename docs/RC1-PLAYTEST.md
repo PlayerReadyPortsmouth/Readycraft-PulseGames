@@ -8,9 +8,16 @@ Present Panic preserves unfinished cargo at sleighs, scores unwrapped stolen toy
 as zero, uses the same wrapping clock for bots and humans (the former bot loop
 was 2.5 times slower), shows named paper/own-team prompts, warns at mismatched paper and offers
 use-to-toggle wrapping alongside sneak-hold on both editions. Bow, hit and delivery
-cues use vanilla fallbacks. Grinch Hunt resets temporary catch-up speed after
+cues use vanilla fallbacks. NPC cargo slows preserve Citizens' original movement
+attribute base and apply the same role/cargo ratio; Paper's walk-speed setter had
+replaced that base and made bots crawl. Cleanup restores both values. The small
+workshop now gives all four teams equal 25-block bow-to-sleigh return routes.
+Citizens node arrival uses a 0.45-block margin instead of 0.15.
+Grinch Hunt resets temporary catch-up speed after
 its condition expires, announces map-specific timeout requirements, reports the
-actual end condition and has a clue-based bot controller. Both games validate
+actual end condition and has a clue-based bot controller. Villagers only pursue
+visible Grinches or visible public clues; their ordinary melee tags use the normal
+three-hit, immunity and heart-escape rules, with a difficulty cooldown. Both games validate
 complete marker manifests in setup and before starting. Late spectators or pack
 loss downgrade existing displays and cues to vanilla; sniffer dogs become visible
 again when their custom model is removed.
@@ -54,5 +61,43 @@ still require a human session.
 
 ## Observed results
 
-See the final rc1 job status and accompanying evidence manifest. Do not interpret
-this draft's implementation notes as completed acceptance results.
+17 November 2026, disposable loopback Paper 1.21.4 build 232 / Citizens 2.0.37
+build 3733, synthetic Java observer and real Citizens NPCs:
+
+- 356 selected seasonal/setup/guide/bot/kart/form/platform checks passed at
+  3e7cdfe. After playtest fixes, 167 bot/Christmas/seasonal checks passed at
+  c46459c; the final eight Christmas action checks passed at c07c2ff. These
+  selections overlap; do not add them as unique test coverage.
+- Both exported schematics independently passed NBT/sign/support/CSV checks:
+  88 Present Panic and 63 Grinch Hunt markers, unique coordinates. All four
+  workshop return routes are 25 blocks.
+- Catalogue trial: all 26 guide menus contained the instruction and reward cards;
+  25 games reached RUNNING (17 supported controllers plus eight explicitly started
+  NPC lifecycle probes). Every attempt passed actor/instance/cloned-world cleanup.
+  Nonseasonal smoke time follows each game's preparation freeze. Default modes only.
+- Karts correctly refused: “PulseKarts needs the compatible PulseContent kart API
+  and racing_kart model.” The built content adapter targets Paper 26.2 / Java 25;
+  it was not installed on this 1.21.4 fixture. No readiness bypass or fake renderer
+  was used. This is blocked gameplay coverage, not a kart gameplay pass.
+- Present Panic initially had zero deliveries. After preserving the NPC movement
+  base and moving the stationary observer off the route, all three NPCs wrapped,
+  bowed and delivered nine presents in 120 seconds. Team points finished 18–42;
+  the natural end animation and full cleanup passed. Cargo bases scaled from the
+  observed Citizens base 0.3 rather than Paper's human base 0.1.
+- Grinch Hunt twice banked 15 through ordinary theft/navigation, naturally ending
+  at 64 and 56 seconds. Eleven NPCs plus the observer exercised the two-Grinch
+  threshold and ordinary gadget-use events. No captures occurred in these rounds;
+  the visible-only melee/cooldown regression passed, but village/role balance and
+  tactical gadget use need human acceptance.
+
+The full catalogue gate reported failure for zero Present Panic deliveries and
+Karts admission. The focused Present Panic retest then passed; Karts remains blocked.
+Earlier probe and test-fixture failures are retained with their causes in the job
+status/evidence. No GitHub Actions results were used.
+
+Guide items and round/reward messages were observed on the Java protocol client.
+Mineflayer did not decode the newer scoreboard score packets reliably, so no HUD
+image/render acceptance is claimed. Real Java/Bedrock devices, touch controls,
+optional-pack decline/reconnect, sound judgement and production-map balance remain
+unverified. Keep the candidate draft and flags off. Durable evidence and jars:
+`/mnt/data/artifacts/rc1/`; status: `~/agent-jobs/native/w3/rc1-STATUS.md`.
