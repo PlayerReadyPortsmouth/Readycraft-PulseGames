@@ -32,7 +32,9 @@ role balance, input controls, audio, rewards and cleanup are accepted.
 Use a fresh disposable server directory with Paper 1.21.4 and Citizens supporting
 that version. The observed dependency hashes and results belong in the job status.
 Create `RC1_LOCAL_ONLY`, `eula.txt`, and server.properties binding 127.0.0.1:25641
-with offline mode, secure-profile enforcement disabled and no spawn protection.
+with offline mode, secure-profile enforcement disabled, allow-flight=true and no spawn protection.
+The synthetic Java observer has client physics disabled across world transitions;
+Citizens NPC physics and movement remain active.
 The probe refuses non-loopback or unmarked servers. It is never bundled in PulseGames.
 Install mineflayer separately outside the repo, then run through the shared queue:
 
