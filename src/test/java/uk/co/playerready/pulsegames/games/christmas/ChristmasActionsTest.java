@@ -66,8 +66,13 @@ class ChristmasActionsTest {
         Set<UUID> grinches = field(logic, "grinches"); grinches.add(thief.getUniqueId());
         when(thief.isInvisible()).thenReturn(true);
         assertNull(logic.botDestination(villager));
+        logic.botTick(villager, 0, uk.co.playerready.pulsegames.core.bot.BotDifficulty.NORMAL);
+        verify(villager,never()).attack(any());
         when(thief.isInvisible()).thenReturn(false);
         assertEquals(thief.getLocation(), logic.botDestination(villager));
+        logic.botTick(villager, 0, uk.co.playerready.pulsegames.core.bot.BotDifficulty.NORMAL);
+        logic.botTick(villager, 0, uk.co.playerready.pulsegames.core.bot.BotDifficulty.NORMAL);
+        verify(villager,times(1)).attack(thief);
         when(villager.hasLineOfSight(thief)).thenReturn(false);
         assertNull(logic.botDestination(villager));
     }

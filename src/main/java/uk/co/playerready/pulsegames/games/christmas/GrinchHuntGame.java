@@ -53,7 +53,7 @@ public final class GrinchHuntGame extends MiniGame implements BotMovement {
     private final Map<UUID, Snowball> snowballs = new HashMap<>();
     private final Map<UUID, Integer> stolen = new HashMap<>(), tags = new HashMap<>(), recovered = new HashMap<>();
     private final Map<UUID, ItemDisplay> eyes = new HashMap<>();
-    private final Map<UUID, Integer> patrol = new HashMap<>();
+    private final Map<UUID, Integer> patrol = new HashMap<>(), nextBotTag = new HashMap<>();
     private ChristmasVisuals visuals;
     private BukkitTask loop;
     private int tick, banked;
@@ -560,7 +560,7 @@ public final class GrinchHuntGame extends MiniGame implements BotMovement {
     }
     @Override public void onCleanup() {
         ended = true; if (loop != null) loop.cancel();
-        for (Player player : game.players()) restore(player); cleanupEntities();
+        for (Player player : game.players()) restore(player); cleanupEntities(); nextBotTag.clear();
         if (started && game.world() != null) { game.world().setTime(originalTime); game.world().setStorm(originalStorm); }
     }
     @Override public void onInventoryClick(Player player, InventoryClickEvent event) { event.setCancelled(true); }
@@ -610,7 +610,13 @@ public final class GrinchHuntGame extends MiniGame implements BotMovement {
             return;
         }
         Player target = visibleGrinch(bot);
-        bot.setSneaking(target != null && near(bot.getLocation(), target.getLocation(), 2.2));
-        // The ordinary three-second hold is resolved by stepVillager, including immunity and escape.
+        boolean inReach = target != null && near(bot.getLocation(), target.getLocation(), 2.2);
+        bot.setSneaking(inReach);
+        if (inReach && tick >= nextBotTag.getOrDefault(bot.getUniqueId(), 0)) {
+            nextBotTag.put(bot.getUniqueId(), tick + difficulty.meleeTicks);
+            bot.swingMainHand();
+            bot.attack(target); // Ordinary damage event enforces the three-hit, immunity and heart rules.
+        }
+        // The ordinary three-second hold is also resolved by stepVillager.
     }
 }
