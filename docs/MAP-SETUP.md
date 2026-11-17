@@ -150,6 +150,7 @@ The checklist shows all of this in-game; this is the reference with map-building
   - Bullet items need a valid `bot-waypointN` route with `bots-enabled: true` (a reviewed route); without both they are never handed out.
 - Malformed optional entries (numbering gaps, unknown block, `jump-power` out of range, a rail point outside every
   section) stop the race from starting with a message naming the entry.
+- **Configurable pads and real surface driving (default-off candidate):** see [track physics](PULSEKARTS-TRACK-PHYSICS.md) for per-pad jump/boost profiles, authored contact normals, rollout access and renderer requirements. Legacy `antigrav` regions above remain visual/speed-only.
 - Build: ice is no longer needed (controller speed is independent of surface).
 
 ### Skywars (`skywars` - solo, doubles, insane)
@@ -511,3 +512,34 @@ see `PLAYTEST-WORKFLOW.md` for finite purchase, defence and protected-break chec
 ## Quake
 
 See [QUAKE.md](QUAKE.md) for the arena checklist, weapon rules, team variants and bot testing. Quake uses ordinary spawns and optional bot navigation hints; no special regions are required.
+
+
+## Christmas games (RC1 draft)
+
+Present Panic (`presentpanic`, `teams`) and Grinch Hunt (`grinchhunt`, `classic`)
+are registered in `GameCatalog` and appear in the normal `/pulse setup` checklist.
+Their required **marker manifest** check validates the whole contract, repeated
+spawn signs and finite coordinates. Generic spawns alone cannot pass validation or
+start a round. Saved-map checks run the same contract without loading a template.
+
+1. Place the standing oak `[pulse]` signs described in [CHRISTMAS.md](CHRISTMAS.md).
+2. Start `/pulse setup start presentpanic <new-id>` (or `grinchhunt`) in that build world.
+3. Run `/pulse setup markers <game> <new-id> x1 y1 z1 x2 y2 z2 check` with the actual
+   map corners. Check-only scans retain every sign and report missing/duplicate keys.
+4. Repeat without `check` to capture. Successful import fills the matching open
+   setup session's lobby, spectator, spawns and marker checklist. Import publishes
+   the arena itself; another `setup save` is unnecessary.
+5. `/pulse setup check` and `/pulse setup validate` show remaining configuration
+   and physical issues. Review the saved map in `/pulse maps` before approving it.
+
+Present Panic needs six spawns per colour; four wrapping stations per colour;
+a bow station, sleigh and launch per colour; two consecutive conveyor paths with
+feed points; the naughty board; four spectators; return and bounds markers.
+Grinch Hunt needs three Grinch and twelve villager spawns; at least sixteen trees,
+ten chimneys and three bells; cave pile/door/back, kennel, paired fresh-snow and
+cleared-path corners; four spectators; return and bounds markers.
+
+Both seasons and bots remain disabled by default. Local trials also need the
+existing feature canary, `bots.enabled`, and `settings.bots-enabled` map opt-in.
+Flat maps and green configuration checks do not establish fair route timings or
+Java/Bedrock client acceptance.

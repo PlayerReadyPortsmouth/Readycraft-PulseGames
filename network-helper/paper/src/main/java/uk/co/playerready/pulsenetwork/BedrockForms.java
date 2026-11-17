@@ -36,7 +36,11 @@ final class BedrockForms {
         var api = org.geysermc.floodgate.api.FloodgateApi.getInstance();
         if (!api.isFloodgatePlayer(player.getUniqueId())) return false;
         return api.sendForm(player.getUniqueId(), org.geysermc.cumulus.form.CustomForm.builder().title(title).input(label, placeholder)
-                .validResultHandler(r -> { String t = r.asInput(0); Bukkit.getScheduler().runTask(plugin, () -> onText.accept(t == null ? "" : t)); })
+                .validResultHandler(r -> { String t = r.asInput(0); Bukkit.getScheduler().runTask(plugin, () -> {
+                    String text = t == null ? "" : t;
+                    if (plugin instanceof PaperBridge bridge && !bridge.safetyInput(player, "form", text)) { onClosed.run(); return; }
+                    onText.accept(text);
+                }); })
                 .closedOrInvalidResultHandler(() -> Bukkit.getScheduler().runTask(plugin, onClosed)).build());
     }
 }

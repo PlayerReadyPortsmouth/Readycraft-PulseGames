@@ -1,0 +1,12 @@
+name: RC1LocalProbe
+version: '1.0'
+main: uk.co.playerready.pulsegames.playtest.LocalProbe
+api-version: '1.21.4'
+depend: [PulseGames, Citizens]
+authors: ['AurorasChaos (on behalf of Player Ready)']
+commands:
+  rc1:
+    permission: rc1.local
+permissions:
+  rc1.local:
+    default: op

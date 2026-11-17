@@ -1,5 +1,5 @@
 name: PulseNetwork
-version: '0.2.6'
+version: '0.2.8'
 authors: ['AurorasChaos (on behalf of Player Ready)']
 main: uk.co.playerready.pulsenetwork.PaperBridge
 api-version: '1.21'
@@ -19,6 +19,31 @@ commands:
   admin:
     description: 'The admin hub: /admin [players|roles|nick|styles|identity|tab|whitelist|announce|games|survival|hunt|server]'
     aliases: [adminmenu, am]
+  safetyflagged:
+    aliases: [flagged]
+    description: Review private test safeguarding flags
+    permission: pulsenetwork.safeguarding.review
+  safetyhistory:
+    aliases: [history]
+    description: Review a player's private safety history by UUID
+    permission: pulsenetwork.safeguarding.review
+  safetycontext:
+    description: Review surrounding safety evidence by reference
+    permission: pulsenetwork.safeguarding.review
+  safetymute:
+    description: Restrict chat by UUID and seconds (0 means indefinite)
+    permission: pulsenetwork.safeguarding.review
+  safetyunmute:
+    description: Remove a chat restriction by UUID
+    permission: pulsenetwork.safeguarding.review
+  safetyslow:
+    description: Set test slow mode in seconds (0 means off)
+    permission: pulsenetwork.safeguarding.review
+  safetyreport:
+    aliases: [report]
+    description: Report a player to safeguarding staff with a confirmation
 permissions:
+  pulsenetwork.safeguarding.review:
+    default: false
   pulsenetwork.chat:
     default: true

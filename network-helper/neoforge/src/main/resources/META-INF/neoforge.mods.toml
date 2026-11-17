@@ -3,8 +3,9 @@ loaderVersion="[4,)"
 license="All Rights Reserved"
 [[mods]]
 modId="pulsenetwork"
-version="0.1.0"
+version="0.2.8"
 displayName="PulseNetwork"
+authors="AurorasChaos (on behalf of Player Ready)"
 description='''Server-only global chat bridge; queue joins run on Velocity.'''
 [[dependencies.pulsenetwork]]
 modId="neoforge"

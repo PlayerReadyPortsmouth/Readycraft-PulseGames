@@ -1,0 +1,59 @@
+package uk.co.playerready.pulsegames.core.seasonal;
+import org.junit.jupiter.api.Test;
+import org.bukkit.configuration.file.YamlConfiguration;
+import java.util.*;
+import static org.junit.jupiter.api.Assertions.*;
+class MarkerContractTest {
+    @Test void persistedManifestRequiresValidRecordsCoordinatesAndTheWholeContract() {
+        var rows = new ArrayList<Map<String,Object>>(ChristmasTestMaps.markers("presentpanic").stream()
+                .map(m -> Map.<String,Object>of("key",m.key(),"location",m.x()+","+m.y()+","+m.z())).toList());
+        assertTrue(MarkerContract.savedProblems("presentpanic", rows).isEmpty());
+        rows.set(0, Map.of("key", rows.getFirst().get("key"), "location", "NaN,65,0"));
+        assertTrue(MarkerContract.savedProblems("presentpanic", rows).stream().anyMatch(e -> e.contains("coordinates")));
+        rows.removeIf(r -> r.get("key").equals("pp.sleigh.red"));
+        assertTrue(MarkerContract.savedProblems("presentpanic", rows).stream().anyMatch(e -> e.contains("pp.sleigh.red")));
+        assertFalse(MarkerContract.savedProblems("grinchhunt", List.of("bad row")).isEmpty());
+    }
+    @Test void smallWorkshopGivesEveryTeamTheSameBowToSleighDistance() {
+        var points = ChristmasTestMaps.markers("presentpanic").stream().collect(java.util.stream.Collectors.toMap(ChristmasTestMaps.Marker::key, m -> m, (a,b) -> a));
+        for (String team : MarkerContract.COLOURS) {
+            var bow=points.get("pp.bow."+team); var sleigh=points.get("pp.sleigh."+team);
+            assertEquals(25.0, Math.hypot(bow.x()-sleigh.x(),bow.z()-sleigh.z()),0.001,team);
+        }
+    }
+    @Test void flatMapsMeetTheExactBuilderContract() {
+        for(String game:List.of("presentpanic","grinchhunt")) {
+            var m=ChristmasTestMaps.markers(game);
+            assertEquals(List.of(),MarkerContract.problems(game,m.stream().map(ChristmasTestMaps.Marker::key).toList()));
+            assertEquals(m.size(),m.stream().map(p->p.x()+","+p.y()+","+p.z()).distinct().count(),"overlapping signs");
+        }
+    }
+    @Test void duplicateSingletonAndMissingPairAreRejected() {
+        var keys=new ArrayList<>(ChristmasTestMaps.markers("grinchhunt").stream().map(ChristmasTestMaps.Marker::key).toList());
+        keys.add("gh.tree.1");keys.remove("gh.path.cleared.1.max");
+        var problems=MarkerContract.problems("grinchhunt",keys);
+        assertTrue(problems.stream().anyMatch(p->p.contains("Duplicate marker: gh.tree.1")));
+        assertTrue(problems.stream().anyMatch(p->p.contains("gh.path.cleared.1.max")));
+    }
+    @Test void nodeGapsTyposAndFacingAreRejected() {
+        var keys=new ArrayList<>(ChristmasTestMaps.markers("presentpanic").stream().map(ChristmasTestMaps.Marker::key).toList());
+        keys.remove("pp.belt.1.2");keys.add("pp.belt.1.90");
+        assertTrue(MarkerContract.problems("presentpanic",keys).stream().anyMatch(p->p.contains("pp.belt.1.2")));
+        assertFalse(MarkerContract.validKey("presentpanic","pp.spawn.yellow"));
+        assertFalse(MarkerContract.validKey("grinchhunt","GH.tree.1"));
+        assertThrows(IllegalArgumentException.class,()->MarkerContract.yaw("north"));
+        assertEquals(-90,MarkerContract.yaw("e"));
+    }
+    @Test void yamlRoundTripRetainsDotsAndRepeatedSpawns() throws Exception {
+        List<Map<String,Object>> rows=ChristmasTestMaps.markers("presentpanic").stream()
+                .map(m->Map.<String,Object>of("key",m.key(),"location",m.x()+","+m.y()+","+m.z())).toList();
+        var y=MarkerImporter.definition("presentpanic","xm_pp",rows);
+        YamlConfiguration read=new YamlConfiguration();read.loadFromString(y.saveToString());
+        assertEquals(6,read.getMapList("settings.markers").stream().filter(m->m.get("key").equals("pp.spawn.red")).count());
+        assertEquals(4,read.getStringList("spawns").size());
+    }
+    @Test void numericPathOrderIsNotLexical() {
+        var keys=new ArrayList<>(List.of("pp.belt.1.10","pp.belt.1.2","pp.belt.1.1"));keys.sort(ChristmasMarkers::naturalCompare);
+        assertEquals(List.of("pp.belt.1.1","pp.belt.1.2","pp.belt.1.10"),keys);
+    }
+}

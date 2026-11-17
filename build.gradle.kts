@@ -39,3 +39,25 @@ tasks.jar {
 tasks.test {
     useJUnitPlatform()
 }
+
+// Uses Paper API only to load the shared marker definitions; no server is started.
+tasks.register<JavaExec>("exportChristmasTestMaps") {
+    dependsOn(tasks.classes)
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("uk.co.playerready.pulsegames.core.seasonal.ChristmasTestMapExport")
+    args(layout.buildDirectory.dir("christmas-test-maps").get().asFile.absolutePath)
+}
+tasks.jar { finalizedBy("exportChristmasTestMaps") }
+
+// Disposable server probe. Never included in the production jar.
+val playtest by sourceSets.creating {
+    java.srcDir("tools/playtest/java")
+    resources.srcDir("tools/playtest/resources")
+    compileClasspath += sourceSets.main.get().output + sourceSets.main.get().compileClasspath
+}
+tasks.register<Jar>("playtestJar") {
+    dependsOn(playtest.classesTaskName)
+    from(playtest.output)
+    archiveBaseName.set("RC1-LocalProbe")
+    destinationDirectory.set(layout.buildDirectory.dir("playtest"))
+}

@@ -16,7 +16,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /** Owns ephemeral contestants and bounded game-specific decisions, all on the server thread. */
 public final class BotService implements AutoCloseable {
-    private static final Set<String> SUPPORTED = Set.of("karts:sprint", "karts:cup", "quake:classic", "duels:classic", "duels:op", "duels:sumo", "duels:crystal", "duels:mace",
+    private static final Set<String> SUPPORTED = Set.of("grinchhunt:classic", "presentpanic:teams", "karts:sprint", "karts:cup", "quake:classic", "duels:classic", "duels:op", "duels:sumo", "duels:crystal", "duels:mace",
             "koth:solo", "koth:teams", "kitpvp:ffa", "kitpvp:oitc", "prophunt:classic", "prophunt:infection", "skywars:solo", "skywars:doubles", "skywars:insane", "bedwars:duos", "bedwars:quads", "dodgeball:solo", "dodgeball:teams",
             "villagerdefense:easy", "villagerdefense:hard",
             "readyplayerz:classic", "readyplayerz:frenzy", "blockparty:classic", "blockparty:hardcore",
@@ -213,7 +213,7 @@ public final class BotService implements AutoCloseable {
         var sorted = levels.values().stream().sorted().toList();
         BotDifficulty group = sorted.isEmpty() ? BotDifficulty.NORMAL : sorted.get((sorted.size() - 1) / 2);
         long teams = game.teams().stream().filter(t -> !t.members().isEmpty()).count();
-        double expected = game.logic().cooperative() || game.type().id().equals("prophunt") ? 0.5
+        double expected = game.logic().cooperative() || Set.of("prophunt", "grinchhunt").contains(game.type().id()) ? 0.5
                 : teams > 1 ? 1.0 / teams : 1.0 / Math.max(2, game.players().size());
         skillRounds.put(game, new SkillRound(mode, Map.copyOf(levels), group, expected));
     }

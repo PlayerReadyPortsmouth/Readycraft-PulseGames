@@ -1,8 +1,12 @@
+> RC3: the optional test-only Paper 1.21.4/Velocity safeguarding guards, agreed 90-day retention,
+> privacy staff note and acceptance limits are documented in [RC3-SAFEGUARDING.md](RC3-SAFEGUARDING.md).
+> They are inert unless the exact test profile and backend scope are configured. No deployment is claimed.
+
 # PulseNetwork
 
 ## Cross-server parties — prepared draft, not deployed
 
-PulseNetwork **0.2.6** credits **AurorasChaos (on behalf of Player Ready)**. The current draft adds proxy-owned `/party` (also `/networkparty`) invitations, acceptance, list, leave, disband and private party chat. Invitations expire after 60 seconds; parties hold up to eight online players. Java has a clickable invitation; Bedrock can type `/party accept` or `/party deny`. Leaving the proxy removes a member and promotes another leader if needed. Backend transfers preserve membership; proxy restarts do not preserve parties yet.
+PulseNetwork **0.2.8** credits **AurorasChaos (on behalf of Player Ready)**. The current draft adds proxy-owned `/party` (also `/networkparty`) invitations, acceptance, list, leave, disband and private party chat. Invitations expire after 60 seconds; parties hold up to eight online players. Java has a clickable invitation; Bedrock can type `/party accept` or `/party deny`. Leaving the proxy removes a member and promotes another leader if needed. Backend transfers preserve membership; proxy restarts do not preserve parties yet.
 
 The leader selects an advertised game through `/queues` or `/joinqueue <id>`. Every party member transfers with their **own** saved origin. The destination receives one authenticated group admission only after everyone arrives. Transfer failure or timeout cancels the group and returns transferred members where possible; late successful transfers also return. The destination rejects conflicting local parties rather than overwriting them. A leader acknowledgement completes the whole proxy request atomically. Game capacity, team packing, preview access and admission remain PulseGames decisions.
 
@@ -364,7 +368,7 @@ Paper uses a bounded HMAC-SHA256 authenticated plugin-message channel. Velocity 
 
 Create sends authenticated chat to a proxy HTTP listener bound **only to 127.0.0.1**. This avoids optional-mod payload negotiation and requires no client changes. The proxy also checks the signed backend name against its modded allowlist and the sender's current connection. The listener is off unless `local-ingress-port` is configured, uses bounded workers/body size and accepts chat only. All relevant ready-gamed Minecraft containers currently share host networking; do not expose this port publicly when changing that arrangement.
 
-No payload, player message or shared secret is logged. Generate a fresh random secret of at least 32 characters privately during approved installation; never commit it. Use the same secret across these helpers and restrict configuration file access.
+The bridge transport does not log payloads, player messages or shared secrets. The separately configured RC3 test guard writes private retained safeguarding journals; see its privacy note above. Generate a fresh random secret of at least 32 characters privately during approved installation; never commit it. Use the same secret across these helpers and restrict configuration file access.
 
 Snapshots refresh every five seconds and expire after twenty seconds. Withdrawals stop advertisements when games start/close. Announcements are limited to once per game/mode/server per minute. Bots do not create advertisements without a human. Preview/WIP games are not advertised publicly. Full rosters may still offer joining when humans can reclaim bot seats. Backend admission remains authoritative.
 

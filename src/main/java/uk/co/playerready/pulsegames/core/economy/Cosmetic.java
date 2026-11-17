@@ -11,6 +11,9 @@ public record Cosmetic(String id, Category category, String name, Material icon,
         this(id, category, name, icon, price, description, 0, null);
     }
 
+    /** Event-earned cosmetics cannot be bought with the gameplay wallet. */
+    public boolean earnedOnly() { return price < 0; }
+
     /** Unlocked by reaching a level instead of by paying tokens. */
     public boolean levelUnlock() { return level > 0; }
 

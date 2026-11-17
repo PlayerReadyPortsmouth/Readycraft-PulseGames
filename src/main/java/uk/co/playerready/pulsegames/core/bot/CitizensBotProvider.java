@@ -69,8 +69,9 @@ public final class CitizensBotProvider implements BotProvider {
                 throw new IllegalStateException("Citizens did not spawn a player NPC");
             Object navigator = call(api.navigator, npc);
             Object parameters = call(api.parameters, navigator);
-            // One-block safe tiles need an actual arrival, not Citizens' broad default margin.
-            call(api.distanceMargin, parameters, 0.15);
+            // Stay inside a one-block tile, but let Citizens advance past its movement
+            // controller's stopping radius. 0.15 made slower elves orbit their first node.
+            call(api.distanceMargin, parameters, 0.45);
             call(api.pathDistanceMargin, parameters, 0.0);
             call(api.useNewPathfinder, parameters, true);
             call(api.teleportMargin, parameters, -1.0);

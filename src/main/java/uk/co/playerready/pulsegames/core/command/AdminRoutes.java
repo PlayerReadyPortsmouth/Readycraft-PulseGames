@@ -206,6 +206,7 @@ public final class AdminRoutes {
             case "lobby" -> plugin.lobbyPlacements().handle(player, java.util.Arrays.copyOfRange(args, 1, args.length));
             case "reload" -> {
                 plugin.reloadConfig();
+                if (plugin.seasons() != null) plugin.seasons().reload();
                 plugin.arenas().load();
                 plugin.kits().load();
                 plugin.lobbyPlacements().reload();
@@ -289,9 +290,11 @@ public final class AdminRoutes {
             return plugin.shapes().available();
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("setup")) {
-            return List.of("start", "wand", "pos1", "pos2", "lobby", "spectator", "addspawn", "clearspawns",
+            return List.of("markers", "christmas-test", "start", "wand", "pos1", "pos2", "lobby", "spectator", "addspawn", "clearspawns",
                     "region", "removeregion", "removespawn", "setloc", "addloc", "removeloc", "clearloc", "set", "palette", "check", "validate", "gui", "book", "save", "cancel");
         }
+        if (args.length == 3 && args[0].equalsIgnoreCase("setup") && List.of("markers", "christmas-test").contains(args[1]))
+            return List.of("presentpanic", "grinchhunt");
         if (args.length == 3 && args[0].equalsIgnoreCase("setup") && args[1].equalsIgnoreCase("palette"))
             return List.of("list", "scan", "add", "remove", "global");
         if (args.length == 3 && args[0].equalsIgnoreCase("setup") && args[1].equalsIgnoreCase("start")) {

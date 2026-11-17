@@ -35,6 +35,131 @@ class VelocityBridgeTest {
     PluginMessageEvent message(String kind,String...fields) {
         return new PluginMessageEvent(source,sender,MinecraftChannelIdentifier.from(Wire.CHANNEL),wire.encode(kind,sender.getUniqueId(),fields));
     }
+    @org.junit.jupiter.api.io.TempDir Path safeguardingDirectory;
+    private NetworkSafeguarding safeguarding(String environment) throws Exception {
+        Properties properties = new Properties(); properties.setProperty("safeguarding.environment", environment);
+        properties.setProperty("safeguarding.test-backends", "survival,minigamestest");
+        var service = new NetworkSafeguarding(properties, safeguardingDirectory, proxy, mock(Logger.class));
+        set(bridge, "safeguarding", service); return service;
+    }
+    @Test void testSafeguardingBlocksGlobalAndPartyBeforeFanoutAndPersistsUrgent() throws Exception {
+        try (var service = safeguarding("test")) {
+            when(remote.hasPermission(NetworkSafeguarding.REVIEW)).thenReturn(true);
+            bridge.message(message("CHAT", "test@example.org"));
+            verify(remote, never()).sendMessage(any(Component.class));
+            bridge.message(message("PARTYCMD", "chat", "keep this a secret"));
+            var notice = org.mockito.ArgumentCaptor.forClass(Component.class);
+            verify(remote).sendMessage(notice.capture());
+            assertTrue(net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(notice.getValue()).contains("URGENT safeguarding"));
+            String journal = java.nio.file.Files.readString(safeguardingDirectory.resolve("safeguarding").resolve(java.time.LocalDate.now(java.time.ZoneOffset.UTC) + ".tsv"));
+            assertFalse(journal.contains("test@example.org")); assertTrue(journal.contains("withheld: personal/contact information")); assertTrue(journal.contains("grooming-pattern")); assertTrue(journal.contains("blocked"));
+        }
+    }
+    @Test void journalFailureHoldsMonitoredMessagesWithoutLeakingText() throws Exception {
+        try (var service = safeguarding("test")) {
+            var journal = safeguardingDirectory.resolve("safeguarding").resolve(java.time.LocalDate.now(java.time.ZoneOffset.UTC) + ".tsv");
+            java.nio.file.Files.createDirectory(journal);
+            bridge.message(message("CHAT", "safe but cannot journal"));
+            bridge.message(message("PARTYCMD", "chat", "safe too"));
+            verify(remote, never()).sendMessage(any(Component.class));
+            verify(sender, times(2)).sendMessage(any(Component.class));
+        }
+    }
+    @Test void urgentAlertsSurviveJournalFailureAndRemainMetadataOnly() throws Exception {
+        try (var service = safeguarding("test")) {
+            when(remote.hasPermission(NetworkSafeguarding.REVIEW)).thenReturn(true);
+            var journal = safeguardingDirectory.resolve("safeguarding").resolve(java.time.LocalDate.now(java.time.ZoneOffset.UTC) + ".tsv");
+            java.nio.file.Files.createDirectory(journal);
+            bridge.message(message("CHAT", "kill myself test@example.org"));
+            bridge.message(message("PARTYCMD", "chat", "keep this a secret"));
+            var notices = org.mockito.ArgumentCaptor.forClass(Component.class);
+            verify(remote, times(3)).sendMessage(notices.capture());
+            var plain = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText();
+            assertEquals(2, notices.getAllValues().stream().filter(line -> plain.serialize(line).contains("URGENT safeguarding")).count());
+            assertTrue(notices.getAllValues().stream().noneMatch(line -> plain.serialize(line).contains("test@example.org") || plain.serialize(line).contains("kill myself")));
+        }
+    }
+    @Test void urgentContactEvidenceStillWithholdsPersonalDetails() throws Exception {
+        try (var service = safeguarding("test")) {
+            bridge.message(message("CHAT", "kill myself my email is test@example.org"));
+            String journal = java.nio.file.Files.readString(safeguardingDirectory.resolve("safeguarding").resolve(java.time.LocalDate.now(java.time.ZoneOffset.UTC) + ".tsv"));
+            assertFalse(journal.contains("test@example.org")); assertTrue(journal.contains("withheld: personal/contact information")); assertTrue(journal.contains("URGENT"));
+        }
+    }
+    @Test void privateReviewCommandsExposeRecordsOnlyToPermissionHolders() throws Exception {
+        try (var service = safeguarding("test")) {
+            var manager = mock(com.velocitypowered.api.command.CommandManager.class);
+            when(proxy.getCommandManager()).thenReturn(manager);
+            var builder = mock(com.velocitypowered.api.command.CommandMeta.Builder.class, RETURNS_SELF);
+            when(manager.metaBuilder(anyString())).thenReturn(builder);
+            when(builder.build()).thenReturn(mock(com.velocitypowered.api.command.CommandMeta.class));
+            service.register(bridge);
+            var registered = org.mockito.ArgumentCaptor.forClass(com.velocitypowered.api.command.Command.class);
+            verify(manager, times(3)).register(any(com.velocitypowered.api.command.CommandMeta.class), registered.capture());
+            service.allow(sender, "survival", "global", "test@example.org"); clearInvocations(sender);
+            var invocation = mock(com.velocitypowered.api.command.SimpleCommand.Invocation.class);
+            when(invocation.source()).thenReturn(sender); when(invocation.arguments()).thenReturn(new String[0]);
+            for (var command : registered.getAllValues()) ((com.velocitypowered.api.command.SimpleCommand) command).execute(invocation);
+            verify(sender, never()).sendMessage(any(Component.class));
+            when(sender.hasPermission(NetworkSafeguarding.REVIEW)).thenReturn(true);
+            ((com.velocitypowered.api.command.SimpleCommand) registered.getAllValues().get(1)).execute(invocation);
+            var output = org.mockito.ArgumentCaptor.forClass(Component.class);
+            verify(sender, times(3)).sendMessage(output.capture());
+            var plain = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText();
+            assertTrue(output.getAllValues().stream().anyMatch(line -> plain.serialize(line).contains("withheld: personal/contact information")));
+            assertTrue(output.getAllValues().stream().noneMatch(line -> plain.serialize(line).contains("test@example.org")));
+        }
+    }
+    @Test void invalidReadyAppEndpointsCannotLeakScopedCredentialToRedirectOrQuery() {
+        for (String endpoint : List.of("http://example.org/safeguarding", "https://user@example.org/safeguarding", "https://example.org/safeguarding?token=bad", "https://example.org/other", "https://example.org:8443/safeguarding"))
+            assertNull(NetworkSafeguarding.readyApp(endpoint));
+        assertNotNull(NetworkSafeguarding.readyApp("https://example.org/safeguarding"));
+    }
+    @Test void testProfileIsolatesProductionSourceFromTestRecipients() throws Exception {
+        Properties config = new Properties(); config.setProperty("safeguarding.environment", "test"); config.setProperty("safeguarding.test-backends", "minigamestest");
+        try (var service = new NetworkSafeguarding(config, safeguardingDirectory, proxy, mock(Logger.class))) {
+            set(bridge, "safeguarding", service);
+            bridge.message(message("CHAT", "unmonitored production source"));
+            verify(remote, never()).sendMessage(any(Component.class));
+            assertFalse(service.mayRelay("survival", "minigamestest")); assertFalse(service.mayRelay("minigamestest", "survival")); assertTrue(service.mayRelay("survival", "creative"));
+        }
+    }
+    @Test void proxyPrivateAliasesAreDeniedAndCredentialArgumentsWithheld() throws Exception {
+        try (var service = safeguarding("test")) {
+            var event = mock(com.velocitypowered.api.event.command.CommandExecuteEvent.class);
+            when(event.getCommandSource()).thenReturn(sender); when(event.getCommand()).thenReturn("essentials:msg Friend hello");
+            bridge.safetyCommand(event); verify(event).setResult(any(com.velocitypowered.api.event.command.CommandExecuteEvent.CommandResult.class));
+            var credentials = mock(com.velocitypowered.api.event.command.CommandExecuteEvent.class);
+            when(credentials.getCommandSource()).thenReturn(sender); when(credentials.getCommand()).thenReturn("login never-a-real-password"); bridge.safetyCommand(credentials);
+            String journal = java.nio.file.Files.readString(safeguardingDirectory.resolve("safeguarding").resolve(java.time.LocalDate.now(java.time.ZoneOffset.UTC) + ".tsv"));
+            assertFalse(journal.contains("never-a-real-password")); assertTrue(journal.contains("held-private"));
+        }
+    }
+    @Test void proxyEssentialsAliasesAndMailAreHeldBeforeAnyPluginConsumesThem() throws Exception {
+        try (var service = safeguarding("test")) {
+            for (String command : List.of("essentials:emsg Friend hello", "etell Friend hello", "ewhisper Friend hello", "epm Friend hello", "er hello", "ereply hello", "mail send Friend kill myself", "mail", "authme:email synthetic-otp-739201")) {
+                var event = mock(com.velocitypowered.api.event.command.CommandExecuteEvent.class);
+                when(event.getCommandSource()).thenReturn(sender); when(event.getCommand()).thenReturn(command);
+                bridge.safetyCommand(event); verify(event).setResult(any(com.velocitypowered.api.event.command.CommandExecuteEvent.CommandResult.class));
+            }
+            String journal = java.nio.file.Files.readString(safeguardingDirectory.resolve("safeguarding").resolve(java.time.LocalDate.now(java.time.ZoneOffset.UTC) + ".tsv"));
+            assertTrue(journal.contains("welfare")); assertTrue(journal.contains("held-private")); assertFalse(journal.contains("synthetic-otp-739201")); assertTrue(journal.contains("private mail arguments withheld"));
+        }
+    }
+    @Test void productionEnvironmentRemainsByteForByteRelayBehaviourAndWritesNoJournal() throws Exception {
+        try (var service = safeguarding("production")) {
+            bridge.message(message("CHAT", "test@example.org"));
+            verify(remote).sendMessage(any(Component.class)); assertFalse(java.nio.file.Files.exists(safeguardingDirectory.resolve("safeguarding")));
+        }
+    }
+    @Test void untrustedPacketsCannotCreateSafeguardingRecordsOrStaffAlerts() throws Exception {
+        try (var service = safeguarding("test")) {
+            var event = new PluginMessageEvent(sender, source, MinecraftChannelIdentifier.from(Wire.CHANNEL), wire.encode("CHAT", sender.getUniqueId(), "kill myself"));
+            bridge.message(event);
+            verify(remote, never()).sendMessage(any(Component.class));
+            try (var files = java.nio.file.Files.list(safeguardingDirectory.resolve("safeguarding"))) { assertEquals(0, files.count()); }
+        }
+    }
     @Test void reconnectToGameResumesReturnTicketWithoutForcingReturn() throws Exception {
         Class<?> visitClass = Class.forName(VelocityBridge.class.getName() + "$Visit");
         var ctor = visitClass.getDeclaredConstructors()[0]; ctor.setAccessible(true);

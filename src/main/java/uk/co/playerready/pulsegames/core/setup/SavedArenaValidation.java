@@ -48,6 +48,7 @@ public final class SavedArenaValidation {
                 "Spectator location is checked by the same setup rules."));
         for (SetupRequirement requirement : type.setup()) {
             int count = switch (requirement.kind()) {
+                case MARKERS -> uk.co.playerready.pulsegames.core.seasonal.MarkerContract.savedProblems(type.id(), arena.settings().get("markers")).isEmpty() ? 1 : 0;
                 case SPAWNS -> arena.spawnCount();
                 case REGION -> arena.regions().containsKey(requirement.key()) ? 1 : 0;
                 case REGION_PREFIX -> (int) arena.regions().keySet().stream()

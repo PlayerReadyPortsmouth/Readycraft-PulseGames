@@ -16,7 +16,9 @@ public record SetupRequirement(Kind kind, String key, int min, String descriptio
         /** A location setting set where you stand (/admin games setup setloc <key>). */
         LOCATION_SETTING,
         /** A plain value setting (/admin games setup set <key> <value>). */
-        VALUE_SETTING
+        VALUE_SETTING,
+        /** The complete seasonal marker manifest, including coordinates and repeated keys. */
+        MARKERS
     }
 
     public static SetupRequirement spawns(int min, String description) {
@@ -37,6 +39,10 @@ public record SetupRequirement(Kind kind, String key, int min, String descriptio
 
     public static SetupRequirement setting(String key, String description) {
         return new SetupRequirement(Kind.VALUE_SETTING, key, 1, description, true);
+    }
+
+    public static SetupRequirement markers(String description) {
+        return new SetupRequirement(Kind.MARKERS, "markers", 1, description, true);
     }
 
     public static SetupRequirement optional(SetupRequirement requirement) {
