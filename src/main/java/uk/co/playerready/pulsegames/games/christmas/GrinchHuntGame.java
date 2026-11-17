@@ -613,7 +613,7 @@ public final class GrinchHuntGame extends MiniGame implements BotMovement {
         boolean inReach = target != null && near(bot.getLocation(), target.getLocation(), 2.2);
         bot.setSneaking(inReach);
         if (inReach && tick >= nextBotTag.getOrDefault(bot.getUniqueId(), 0)) {
-            nextBotTag.put(bot.getUniqueId(), tick + difficulty.meleeTicks);
+            nextBotTag.put(bot.getUniqueId(), tick + difficulty.meleeDelayTicks());
             bot.swingMainHand();
             bot.attack(target); // Ordinary damage event enforces the three-hit, immunity and heart rules.
         }
