@@ -99,7 +99,7 @@ public final class GrinchHuntGame extends MiniGame implements BotMovement {
             if (index < count) {
                 grinches.add(id); player.setInvisible(true);
                 teleportSpawn(player, "gh.grinch.spawn", index);
-                player.sendMessage(Text.msg("<green>You are the Grinch! Sneak at trees to steal, return to the cave pile. Bank 15, or be carrying a present when time runs out!"));
+                player.sendMessage(Text.msg("<green>You are the Grinch! Sneak at trees to steal, return to the cave pile. Bank 15, or hold " + heldMinimum() + (heldMinimum() == 1 ? " present" : " presents") + " when time runs out!"));
                 player.sendMessage(Text.msg("<yellow>Five hotbar abilities. Your eyes appear when revealed. Sneak for faint prints. Heart escape and cave back exit can each save you once."));
             } else {
                 roles.put(id, VillagerRole.values()[villager++ % VillagerRole.values().length]);
@@ -154,6 +154,7 @@ public final class GrinchHuntGame extends MiniGame implements BotMovement {
     private void step() {
         if (ended || game.state() != GameState.RUNNING) return;
         tick += 2;
+        if (tick % 20 == 0) visuals.refreshViewers();
         for (Iterator<Print> iterator = prints.iterator(); iterator.hasNext();) {
             Print print = iterator.next();
             if (tick >= print.expires || !print.display.isValid()) { visuals.remove(print.display); iterator.remove(); }
@@ -170,6 +171,9 @@ public final class GrinchHuntGame extends MiniGame implements BotMovement {
         for (Map.Entry<UUID, Wolf> entry : dogs.entrySet()) {
             Wolf dog = entry.getValue();
             ItemDisplay model = dogModels.get(entry.getKey());
+            if (model != null && !visuals.custom()) {
+                dog.setInvisible(false); visuals.remove(model); dogModels.remove(entry.getKey()); model = null;
+            }
             if (model != null && dog.isValid()) model.teleport(dog.getLocation());
             if (!dog.isValid() || tick % 20 != 0) continue;
             Print freshest = freshestPrint();
@@ -484,7 +488,7 @@ public final class GrinchHuntGame extends MiniGame implements BotMovement {
         if (game.alivePlayers().stream().noneMatch(this::activeGrinch)) { finish(false, "no-grinch"); return; }
         if (game.alivePlayers().stream().noneMatch(p -> !isGrinch(p))) { finish(true, "no-villagers"); return; }
         if (elapsed == timeLimitSeconds() / 2 && banked < 4) game.broadcast("<green>Catch-up cheer: the Grinch gets a little speed to help fill the cave!");
-        if (timeLimitSeconds() - elapsed == 30) game.broadcast("<gold>30 seconds! Grinches need " + heldMinimum() + " held presents at morning; villagers must catch them all!");
+        if (timeLimitSeconds() - elapsed == 30) game.broadcast("<gold>30 seconds! Grinches need " + heldMinimum() + (heldMinimum() == 1 ? " held present" : " held presents") + " at morning; villagers must catch them all!");
         if (banked >= 10 && elapsed % 15 == 0) {
             for (Player grinch : game.alivePlayers()) if (activeGrinch(grinch)) {
                 grinch.getWorld().playSound(grinch.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1.5f, 1.8f);
@@ -504,7 +508,7 @@ public final class GrinchHuntGame extends MiniGame implements BotMovement {
         boolean grinchWin = winners.stream().anyMatch(this::isGrinch);
         int held = game.alivePlayers().stream().filter(this::activeGrinch).mapToInt(p -> cargo(p).size()).sum();
         return new EndSummary(grinchWin ? "A very Grinchy Christmas!" : "Christmas is saved!",
-                grinchWin ? banked >= 15 ? "15 presents banked in the cave" : outcomeReason.equals("no-villagers") ? "No villagers remain in the hunt" : held + " presents still held at morning" : "The village celebrates together",
+                grinchWin ? banked >= 15 ? "15 presents banked in the cave" : outcomeReason.equals("no-villagers") ? "No villagers remain in the hunt" : held + (held == 1 ? " present" : " presents") + " still held at morning" : "The village celebrates together",
                 List.of("<gold>Cave presents: " + banked + "/15", "<yellow>Still carried: " + held, mvp("Present Pilferer", stolen), mvp("Village Tracker", tags), mvp("Christmas Saver", recovered)));
     }
     private String mvp(String title, Map<UUID, Integer> scores) {

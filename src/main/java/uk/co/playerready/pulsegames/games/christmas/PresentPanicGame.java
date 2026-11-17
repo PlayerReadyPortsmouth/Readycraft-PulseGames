@@ -12,7 +12,6 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
-import uk.co.playerready.pulsegames.core.bot.BotDifficulty;
 import uk.co.playerready.pulsegames.core.bot.BotMovement;
 import uk.co.playerready.pulsegames.core.game.*;
 import uk.co.playerready.pulsegames.core.seasonal.ChristmasMarkers;
@@ -146,6 +145,7 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
     private void step() {
         if (game.state() != GameState.RUNNING || ended) return;
         tick += 2;
+        if (tick % 20 == 0) visuals.refreshViewers();
         if (event != Event.NONE && tick >= eventUntil) { event = Event.NONE; naughtyTeam = -1; game.broadcast("<green>The workshop is back to normal!"); }
         if (tick % (event == Event.CONVEYOR_RUSH ? 20 : 40) == 0) for (Belt belt : belts) spawnToy(belt);
         Iterator<Toy> iterator = toys.iterator();
@@ -165,7 +165,7 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         }
         for (Player player : game.alivePlayers()) {
             if (!game.isActive(player)) continue;
-            if (!player.hasMetadata("NPC")) processWrap(player, player.isSneaking() || wrapAssist.contains(player.getUniqueId()));
+            processWrap(player, player.hasMetadata("NPC") ? botWrapping(player) : player.isSneaking() || wrapAssist.contains(player.getUniqueId()));
             Location sleigh = markers.point("pp.sleigh." + TEAMS.get(team(player)));
             if (near(player.getLocation(), sleigh, 2.2)) deposit(player);
             if (event == Event.SNOW_SQUALL && tick % 10 == 0) {
@@ -205,6 +205,12 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         return markers.keys("pp.wrap.").stream().filter(key -> near(at, markers.point(key), 2.6))
                 .min(Comparator.comparingDouble(key -> at.distanceSquared(markers.point(key)))).orElse(null);
     }
+    private boolean botWrapping(Player bot) {
+        Present next = nextUnwrapped(stack(bot));
+        if (next == null) return true; // Bow processing still requires the team's own station.
+        String station = wrappingStation(bot);
+        return station != null && station.startsWith("pp.wrap." + next.toy().key() + ".");
+    }
     private void processWrap(Player player, boolean holding) {
         UUID id = player.getUniqueId();
         if (!holding || stack(player).isEmpty()) { wrapping.remove(id); return; }
@@ -213,6 +219,7 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
             if (stack(player).stream().anyMatch(p -> !p.bow()) && near(player.getLocation(), markers.point("pp.bow." + TEAMS.get(team(player))), 2.6)) {
                 bowAll(stack(player)); updateCarry(player);
                 player.sendActionBar(Text.mm("<gold>Bow added! Correctly matched presents are worth 6."));
+                player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 0.45f, 1.5f);
             }
             return;
         }
@@ -298,6 +305,8 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         Vector away = victim.getLocation().toVector().subtract(shooter.getLocation().toVector()).setY(0);
         if (away.lengthSquared() > 0.01) victim.setVelocity(away.normalize().multiply(0.65).setY(0.22));
         dropTop(victim);
+        victim.sendActionBar(Text.mm("<yellow>Snowball hit! Check your stack for a dropped present."));
+        victim.playSound(victim.getLocation(), Sound.BLOCK_SNOW_BREAK, 0.45f, 1.3f);
         victim.getWorld().spawnParticle(Particle.SNOWFLAKE, victim.getLocation().add(0, 1, 0), 8, 0.3, 0.4, 0.3, 0);
     }
     @Override public void onDamageByPlayer(Player victim, Player damager, EntityDamageByEntityEvent event) { event.setCancelled(true); }
@@ -339,7 +348,10 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         List<String> lines = new ArrayList<>();
         for (int i = 0; i < game.teams().size(); i++) lines.add("<gold>" + TEAMS.get(i) + " sleigh: " + points.getOrDefault(i, 0));
         lines.add(mvp("Master Wrapper", wraps)); lines.add(mvp("Present Packer", delivered)); lines.add(mvp("Sneaky Elf", steals));
-        return new EndSummary("Sleighs away!", winners.isEmpty() ? "Christmas cheer wins the day" : "The busiest sleigh wins!", lines);
+        int best = points.values().stream().mapToInt(Integer::intValue).max().orElse(0);
+        List<String> leaders = java.util.stream.IntStream.range(0, game.teams().size()).filter(i -> best > 0 && points.getOrDefault(i,0) == best).mapToObj(TEAMS::get).toList();
+        String result = winners.isEmpty() ? "No winning sleigh this time" : String.join(" / ", leaders) + (leaders.size() == 1 ? " sleigh wins!" : " sleighs share the win!");
+        return new EndSummary("Sleighs away!", result, lines);
     }
     private String mvp(String name, Map<UUID, Integer> values) {
         return values.entrySet().stream().max(Map.Entry.comparingByValue()).map(entry -> "<green>" + name + ": " + game.players().stream()
@@ -392,8 +404,8 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         toys.clear(); snowballs.clear(); carrying.clear(); wrapping.clear(); wrapAssist.clear();
     }
     @Override public List<String> sidebar(Player player) {
-        List<String> lines = new ArrayList<>(List.of("<gold>Role: " + role(player), "<yellow>Carry: " + stack(player).size() + "/" + capacity(role(player)), phaseCountdown()));
-        for (int i = 0; i < game.teams().size(); i++) lines.add("<gray>" + TEAMS.get(i) + ": <white>" + points.getOrDefault(i, 0));
+        List<String> lines = new ArrayList<>(List.of("<gold>" + role(player) + " <yellow>Carry: " + stack(player).size() + "/" + capacity(role(player)), phaseCountdown()));
+        for (int i = 0; i < game.teams().size(); i++) lines.add((i == team(player) ? "<gold>Your " : "<gray>") + TEAMS.get(i) + ": <white>" + points.getOrDefault(i, 0));
         lines.add("<aqua>Sneak at a bench to wrap");
         if (event != Event.NONE) lines.add("<gold>" + event.name().replace('_', ' '));
         return lines;
@@ -410,12 +422,5 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         }
         return toys.stream().filter(t -> t.belt != null && t.display.isValid()).map(t -> t.display.getLocation())
                 .min(Comparator.comparingDouble(p -> p.distanceSquared(bot.getLocation()))).orElse(markers.point("pp.belt.1.feed"));
-    }
-    @Override public void botTick(Player bot, long ignored, BotDifficulty difficulty) {
-        processWrap(bot, true);
-        if (!stack(bot).isEmpty() && stack(bot).peekLast().paper() != null) {
-            Location sleigh = markers.point("pp.sleigh." + TEAMS.get(team(bot)));
-            if (near(bot.getLocation(), sleigh, 2.2)) deposit(bot);
-        }
     }
 }

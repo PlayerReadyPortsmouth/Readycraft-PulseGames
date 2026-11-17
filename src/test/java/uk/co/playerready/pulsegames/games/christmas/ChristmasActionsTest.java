@@ -71,6 +71,44 @@ class ChristmasActionsTest {
         when(villager.hasLineOfSight(thief)).thenReturn(false);
         assertNull(logic.botDestination(villager));
     }
+
+    @Test void grinchCatchUpSpeedEndsOnceTheCaveHasFourPresents() throws Exception {
+        GameInstance game = game(); Player thief = player(0);
+        var block = mock(org.bukkit.block.Block.class); when(block.isPassable()).thenReturn(true);
+        when(world.getBlockAt(anyInt(), anyInt(), anyInt())).thenReturn(block);
+        when(world.getBlockAt(any(Location.class))).thenReturn(block);
+        GrinchHuntGame logic = new GrinchHuntGame(game);
+        Map<UUID, Float> original = field(logic, "speeds"); original.put(thief.getUniqueId(), 0.2f);
+        set(logic, "tick", 4000);
+        invoke(logic, "stepGrinch", new Class<?>[]{Player.class}, thief);
+        verify(thief).setWalkSpeed(0.23f);
+        set(logic, "banked", 4);
+        invoke(logic, "stepGrinch", new Class<?>[]{Player.class}, thief);
+        verify(thief).setWalkSpeed(0.2f);
+    }
+
+    @Test void botsAndHumansUseTheSameWrappingClock() throws Exception {
+        GameInstance game=game(); Player human=player(0), bot=player(0);
+        when(game.alivePlayers()).thenReturn(List.of(human,bot));
+        when(human.isSneaking()).thenReturn(true); when(bot.hasMetadata("NPC")).thenReturn(true);
+        game.arena().settings().set("markers",List.of(Map.of("key","pp.wrap.red.1","location","0,65,0"),Map.of("key","pp.wrap.blue.1","location","10,65,0")));
+        PresentPanicGame logic=new PresentPanicGame(game);set(logic,"visuals",mock(ChristmasVisuals.class));
+        Map<UUID,Role> roles=field(logic,"roles");
+        Map<UUID,Deque<Present>> carrying=field(logic,"carrying");
+        for(Player p:List.of(human,bot)) {
+            roles.put(p.getUniqueId(),Role.WRAPPER);
+            carrying.put(p.getUniqueId(),new ArrayDeque<>(List.of(new Present(Colour.RED,null,false,0,false))));
+        }
+        for(int i=0;i<14;i++)invoke(logic,"step",new Class<?>[0]);
+        Map<UUID,?> progress=field(logic,"wrapping");
+        assertNotNull(progress.get(bot.getUniqueId()));
+        assertEquals(28,(int)field(progress.get(human.getUniqueId()),"ticks"));
+        assertEquals(28,(int)field(progress.get(bot.getUniqueId()),"ticks"));
+        when(game.alivePlayers()).thenReturn(List.of(bot));
+        when(bot.getLocation()).thenReturn(new Location(world,10,65,0));
+        invoke(logic,"step",new Class<?>[0]);
+        assertFalse(progress.containsKey(bot.getUniqueId()),"Passing a wrong-colour bench must not auto-wrap a bot's toy");
+    }
     @Test void trackedSnowballDropsTopOnlyAndRivalCanStealBeforeOriginalTeamReclaims() throws Exception {
         GameInstance game = game(); Player victim = player(0), rival = player(1);
         when(rival.getLocation()).thenAnswer(i -> new Location(world, 1, 65, 0));

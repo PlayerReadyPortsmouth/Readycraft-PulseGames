@@ -17,8 +17,9 @@ server = args.server_dir.resolve()
 assert (server/'RC1_LOCAL_ONLY').is_file(), 'Create an RC1_LOCAL_ONLY sentinel in the disposable server first'
 assert 'server-ip=127.0.0.1' in (server/'server.properties').read_text()
 assert (server/'paper.jar').is_file() and (server/'plugins/Citizens.jar').is_file()
-jar = root/'build/libs/PulseGames-0.10.1.jar'
-probe = root/'build/playtest/RC1-LocalProbe-0.10.1.jar'
+version = next(line.split('=',1)[1] for line in (root/'gradle.properties').read_text().splitlines() if line.startswith('pluginVersion='))
+jar = root/f'build/libs/PulseGames-{version}.jar'
+probe = root/f'build/playtest/RC1-LocalProbe-{version}.jar'
 shutil.copy2(jar, server/'plugins/PulseGames.jar')
 shutil.copy2(probe, server/'plugins/RC1-LocalProbe.jar')
 config = server/'plugins/PulseGames'; config.mkdir(parents=True, exist_ok=True)
@@ -64,8 +65,9 @@ try:
     command('rc1 prepare'); wait_for('RC1 PREPARED',timeout=180)
     n=len(lines);command('rc1 catalogue')
     catalogue=wait_for('RC1 CATALOGUE',n).split('RC1 CATALOGUE ',1)[1].strip().split(',')
-    selected=args.games.split(',') if args.games else catalogue
+    selected=args.games.split(',') if args.games else ['presentpanic','grinchhunt']+[g for g in catalogue if g not in ('presentpanic','grinchhunt')]
     for game in selected:
+        c=len(client_lines); command('rc1 guide '+game); wait_for('WINDOW ',c,timeout=15,source=client_lines)
         n=len(lines); command('rc1 round '+game); wait_for('RC1 QUEUED '+game,n)
         elapsed = 0; duration = args.seasonal_seconds if game in ('presentpanic','grinchhunt') else args.smoke_seconds
         while elapsed<duration:
@@ -73,7 +75,7 @@ try:
             command('rc1 sample'); pause(.3)
         command('rc1 timeout');pause(3);command('rc1 sample');pause(.3)
         observed=lines[n:]
-        result={'game':game,'running':any('RC1 SAMPLE '+game+' state=RUNNING' in l for l in observed),
+        result={'game':game,'running':any('RC1 STATE '+game+' RUNNING' in l for l in observed),
                 'controller':'supported' if any('controller=supported' in l for l in observed) else 'lifecycle-only',
                 'samples':[l.strip() for l in observed if 'RC1 SAMPLE' in l],
                 'errors':[l.strip() for l in observed if any(e in l for e in ('SEVERE','Exception','Bot controller failed','RC1 PROBE FAILED'))]}

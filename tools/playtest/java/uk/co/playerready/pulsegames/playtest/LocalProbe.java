@@ -41,6 +41,10 @@ public final class LocalProbe extends JavaPlugin implements CommandExecutor {
                 case "prepare" -> prepare();
                 case "round" -> round(args[1], args.length > 2 ? args[2] : null);
                 case "sample" -> sample();
+                case "guide" -> {
+                    Method pick=games.gameMenu().getClass().getDeclaredMethod("pick",Player.class,GameType.class);pick.setAccessible(true);
+                    pick.invoke(games.gameMenu(),Bukkit.getPlayerExact("Rc1Tester"),games.registry().get(args[1]));
+                }
                 case "timeout" -> { if(current != null) current.logic().onTimeUp(); }
                 case "end" -> { if(current != null) current.forceEnd(); }
                 case "cleanup" -> cleanup();
@@ -52,9 +56,12 @@ public final class LocalProbe extends JavaPlugin implements CommandExecutor {
     }
     private void prepare() {
         games.getConfig().set("features.broad",true); games.getConfig().set("bots.enabled",true);
+        games.getConfig().set("games.preview",games.registry().all().stream().map(GameType::id).toList());
         games.getConfig().set("bots.wait-seconds",1); games.getConfig().set("countdown.lobby-seconds",3);
         games.getConfig().set("countdown.start-seconds",0); games.getConfig().set("end.celebrate-seconds",2);
         games.getConfig().set("lobby.world","world");
+        World hub=Bukkit.getWorld("world");
+        for(int x=-4;x<=4;x++)for(int z=-4;z<=4;z++)hub.getBlockAt(x,99,z).setType(Material.STONE,false);
         getServer().dispatchCommand(getServer().getConsoleSender(), "season set christmas");
         World flat = new WorldCreator("rc1_flat_build").generator(new WorldService.VoidGenerator()).createWorld();
         flat.setGameRule(GameRule.DO_MOB_SPAWNING,false);
@@ -119,7 +126,7 @@ public final class LocalProbe extends JavaPlugin implements CommandExecutor {
             final org.bukkit.scheduler.BukkitTask[] imported={null};
             imported[0]=getServer().getScheduler().runTaskTimer(this,() -> {
                 Arena arena=games.arenas().byId(id,"rc1_"+id);
-                if(arena!=null) {imported[0].cancel();arena.settings().set("bots-enabled",true);arena.settings().set("time-limit",60);arenas.put(id,arena);done.run();}
+                if(arena!=null) {imported[0].cancel();arena.settings().set("bots-enabled",true);arena.settings().set("time-limit",120);arenas.put(id,arena);done.run();}
             },20,20);
         },20,20);
     }
@@ -130,10 +137,16 @@ public final class LocalProbe extends JavaPlugin implements CommandExecutor {
         if(current==null)throw new IllegalStateException("Cannot create "+id);
         samples=0;
         GameInstance round=current;
+        final GameState[] last={null}; final org.bukkit.scheduler.BukkitTask[] observer={null};
+        observer[0]=getServer().getScheduler().runTaskTimer(this,() -> {
+            if(round.state()!=last[0]) {last[0]=round.state();log("STATE "+id+" "+last[0]);}
+            if(round.state()==GameState.RESETTING)observer[0].cancel();
+        },1,1);
         final org.bukkit.scheduler.BukkitTask[] waiting={null};
         waiting[0]=getServer().getScheduler().runTaskTimer(this,() -> {
             if(round.state()!=GameState.WAITING)return;
             waiting[0].cancel();
+            human.closeInventory();
             if(!round.add(human)) {log("ROUND FAILED human admission "+id);return;}
             boolean supported=games.bots().supports(id,mode.rulesId());
             if(!supported)try{injectProbeNpcs(round,Math.min(round.maxPlayers()-1,3));}catch(Exception e){throw new RuntimeException(e);}
@@ -161,7 +174,7 @@ public final class LocalProbe extends JavaPlugin implements CommandExecutor {
             if(current.type().id().equals("presentpanic")) detail=" points="+field(current.logic(),"points")+" delivered="+field(current.logic(),"delivered");
             if(current.type().id().equals("grinchhunt")) detail=" banked="+field(current.logic(),"banked")+" stolen="+field(current.logic(),"stolen")+" caught="+field(current.logic(),"caught");
         }catch(Exception e){throw new RuntimeException(e);}
-        log("SAMPLE "+current.type().id()+" state="+current.state()+" bots="+games.bots().count(current)+" time="+current.gameTime()+" entities="+(current.world()==null?0:current.world().getEntities().size())+detail);
+        log("SAMPLE "+current.type().id()+" state="+current.state()+" bots="+games.bots().count(current)+" time="+current.gameTime()+" entities="+(current.world()==null||current.state()==GameState.RESETTING?0:current.world().getEntities().size())+detail);
         if(current.state()==GameState.RUNNING && ++samples==1)for(Player p:current.players())log("ACTOR "+p.getName()+" at="+p.getLocation().toVector());
     }
     private Object field(Object owner,String name) throws Exception {Field f=owner.getClass().getDeclaredField(name);f.setAccessible(true);return f.get(owner);}
