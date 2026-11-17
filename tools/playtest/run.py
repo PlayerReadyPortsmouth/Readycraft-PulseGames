@@ -79,6 +79,7 @@ try:
         while elapsed<duration:
             pause(min(10,duration-elapsed)); elapsed+=min(10,duration-elapsed)
             command('rc1 sample'); pause(.3)
+            if any('RC1 STATE '+game+' RESETTING' in line for line in lines[n:]): break
         command('rc1 timeout');pause(6);command('rc1 sample');pause(.3)
         observed=lines[n:]
         result={'game':game,'running':any('RC1 STATE '+game+' RUNNING' in l for l in observed),
@@ -86,9 +87,12 @@ try:
                 'samples':[l.strip() for l in observed if 'RC1 SAMPLE' in l],
                 'errors':[l.strip() for l in observed if any(e in l for e in ('SEVERE','Exception','Bot controller failed','RC1 PROBE FAILED'))]}
         results.append(result)
-        command('rc1 cleanup');wait_for('RC1 CLEANUP',n);pause(3)
+        command('rc1 cleanup');cleaned=wait_for('RC1 CLEANUP',n);pause(3)
+        assert 'active=0;' in cleaned and 'instances=0' in cleaned, 'Contestants or instances leaked after '+game
+        assert not any(p.is_dir() for p in server.glob('pulse_*')), 'A cloned match world remains after '+game
         (server/'results.json').write_text(json.dumps(results,indent=2)+'\n')
     print('RC1_FINISHED '+json.dumps({'games':len(results),'started':sum(r['running'] for r in results),'errors':sum(len(r['errors']) for r in results)}),flush=True)
+    if any(not r['running'] or r['errors'] for r in results): raise RuntimeError('Review failed gameplay probes in results.json')
 finally:
     if client is not None:
         client.terminate()
