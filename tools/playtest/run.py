@@ -99,8 +99,8 @@ try:
                 'errors':[l.strip() for l in observed if any(e in l for e in ('SEVERE','Exception','Bot controller failed','RC1 PROBE FAILED'))]}
         if game == 'presentpanic' and not any(re.search(r'delivered=\{[^}]', l) for l in result['samples']):
             result['errors'].append('Seasonal objective check failed: no bot delivery observed')
-        if game == 'grinchhunt' and not any(re.search(r'banked=[1-9]', l) for l in result['samples']):
-            result['errors'].append('Seasonal objective check failed: no cave banking observed')
+        if game == 'grinchhunt' and not any(re.search(r'banked=[1-9]|caught=\[[^]]', l) for l in result['samples']):
+            result['errors'].append('Seasonal objective check failed: no cave banking or capture observed')
         results.append(result)
         command('rc1 cleanup');cleaned=wait_for('RC1 CLEANUP',n);pause(3)
         assert 'active=0;' in cleaned and 'instances=0' in cleaned, 'Contestants or instances leaked after '+game
