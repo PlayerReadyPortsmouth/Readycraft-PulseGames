@@ -1,3 +1,7 @@
+> RC3 draft: the optional test-only Paper 1.21.4/Velocity safeguarding guards, policy proposal,
+> privacy staff note and acceptance limits are documented in [RC3-SAFEGUARDING.md](RC3-SAFEGUARDING.md).
+> They are inert unless the exact test profile and backend scope are configured. No deployment is claimed.
+
 # PulseNetwork
 
 ## Cross-server parties — prepared draft, not deployed
@@ -364,7 +368,7 @@ Paper uses a bounded HMAC-SHA256 authenticated plugin-message channel. Velocity 
 
 Create sends authenticated chat to a proxy HTTP listener bound **only to 127.0.0.1**. This avoids optional-mod payload negotiation and requires no client changes. The proxy also checks the signed backend name against its modded allowlist and the sender's current connection. The listener is off unless `local-ingress-port` is configured, uses bounded workers/body size and accepts chat only. All relevant ready-gamed Minecraft containers currently share host networking; do not expose this port publicly when changing that arrangement.
 
-No payload, player message or shared secret is logged. Generate a fresh random secret of at least 32 characters privately during approved installation; never commit it. Use the same secret across these helpers and restrict configuration file access.
+The bridge transport does not log payloads, player messages or shared secrets. The separately configured RC3 test guard writes private retained safeguarding journals; see its privacy note above. Generate a fresh random secret of at least 32 characters privately during approved installation; never commit it. Use the same secret across these helpers and restrict configuration file access.
 
 Snapshots refresh every five seconds and expire after twenty seconds. Withdrawals stop advertisements when games start/close. Announcements are limited to once per game/mode/server per minute. Bots do not create advertisements without a human. Preview/WIP games are not advertised publicly. Full rosters may still offer joining when humans can reclaim bot seats. Backend admission remains authoritative.
 

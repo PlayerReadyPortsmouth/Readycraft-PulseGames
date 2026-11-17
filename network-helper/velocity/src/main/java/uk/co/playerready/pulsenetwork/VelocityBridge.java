@@ -21,7 +21,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Plugin(id="pulsenetwork", name="PulseNetwork", version="0.2.6", description="Public chat relay and minigame queue joins", authors={"AurorasChaos (on behalf of Player Ready)"},
+@Plugin(id="pulsenetwork", name="PulseNetwork", version="0.2.7", description="Public chat relay and minigame queue joins", authors={"AurorasChaos (on behalf of Player Ready)"},
         dependencies = {@com.velocitypowered.api.plugin.Dependency(id="floodgate", optional=true),
                 @com.velocitypowered.api.plugin.Dependency(id="luckperms", optional=true)})
 public final class VelocityBridge {
@@ -31,6 +31,7 @@ public final class VelocityBridge {
     private final Path directory;
     private Wire wire;
     private LocalChatIngress ingress;
+    private NetworkSafeguarding safeguarding;
     private TabService tab;
     private PresenceService presence;
     private Announcer announcer;
@@ -70,6 +71,7 @@ public final class VelocityBridge {
             Properties config = new Properties(); try (var reader = Files.newBufferedReader(path)) { config.load(reader); }
             if (!Boolean.parseBoolean(config.getProperty("enabled"))) { logger.info("PulseNetwork is disabled until configured."); return; }
             wire = new Wire(config.getProperty("bridge-secret"));
+            safeguarding = new NetworkSafeguarding(config, directory, proxy, logger);
             backends = csv(config.getProperty("backends", "")); queueServers = csv(config.getProperty("queue-servers", ""));
             paperBackends = csv(config.getProperty("paper-backends", ""));
             chatBackends = csv(config.getProperty("chat-backends", config.getProperty("backends", "")));
@@ -95,7 +97,7 @@ public final class VelocityBridge {
                     chat(player, backend, message.fields().get(1));return true;
                 });
             }
-        } catch (IOException | IllegalArgumentException e) { wire = null; logger.error("PulseNetwork configuration is invalid: {}", e.getMessage()); return; }
+        } catch (IOException | IllegalArgumentException e) { wire = null; logger.error("PulseNetwork configuration is invalid; check private server configuration. Bridge remains disabled."); return; }
         proxy.getChannelRegistrar().register(CHANNEL);
         if (tabConfig != null && tabConfig.enabled()) {
             tab = new TabService(proxy, logger, tabConfig, backends, proxy.getPluginManager().isLoaded("floodgate"), java.time.Clock.systemUTC());
@@ -112,6 +114,7 @@ public final class VelocityBridge {
             proxy.getEventManager().register(this, presence);
         }
         var commands = proxy.getCommandManager();
+        if (safeguarding != null && safeguarding.enabled()) safeguarding.register(this);
         commands.register(commands.metaBuilder("queues").plugin(this).build(), (SimpleCommand) invocation -> {
             if (invocation.source() instanceof Player p) showQueues(p, invocation.arguments().length > 0 && invocation.arguments()[0].equalsIgnoreCase("chat"));
         });
@@ -147,6 +150,25 @@ public final class VelocityBridge {
             if (!Wire.id(s.trim())) throw new IllegalArgumentException("Invalid backend name"); set.add(s.trim());
         }
         return Set.copyOf(set);
+    }
+    @Subscribe(order = com.velocitypowered.api.event.PostOrder.FIRST)
+    public void safetyCommand(com.velocitypowered.api.event.command.CommandExecuteEvent event) {
+        if (safeguarding == null || !(event.getCommandSource() instanceof Player player)) return;
+        String raw = event.getCommand(); int space = raw.indexOf(' ');
+        String name = (space < 0 ? raw : raw.substring(0, space)).toLowerCase(Locale.ROOT); int colon = name.lastIndexOf(':'); if (colon >= 0) name = name.substring(colon + 1);
+        boolean mail = Set.of("mail", "email").contains(name);
+        if (space < 0 && !mail) return;
+        if (Set.of("safetyflagged", "safetyhistory", "safetycontext", "safetymute", "safetyunmute", "safetyslow", "safetyreport", "networkflagged", "networkhistory", "networkcontext", "history", "flagged", "report").contains(name)) return;
+        String backend = player.getCurrentServer().map(c -> c.getServerInfo().getName()).orElse("");
+        boolean dm = Set.of("msg", "tell", "w", "pm", "whisper", "m", "message", "dm", "reply", "r", "emsg", "etell", "ewhisper", "epm", "er", "ereply", "mail", "email").contains(name);
+        boolean textCommand = dm || Set.of("nick", "nickname", "announce", "party", "networkparty", "me", "say").contains(name);
+        String text = textCommand ? space < 0 ? "" : raw.substring(space + 1) : "[command arguments withheld]";
+        try {
+            if (!safeguarding.allow(player, backend, mail ? "proxy-mail" : dm ? "proxy-private" : "command:" + name, text)) event.setResult(com.velocitypowered.api.event.command.CommandExecuteEvent.CommandResult.denied());
+        } catch (RuntimeException failure) {
+            event.setResult(com.velocitypowered.api.event.command.CommandExecuteEvent.CommandResult.denied());
+            logger.error("Safeguarding proxy command check failed; command held without logging arguments.");
+        }
     }
     @Subscribe public void message(PluginMessageEvent event) {
         if (!event.getIdentifier().equals(CHANNEL)) return;
@@ -199,12 +221,13 @@ public final class VelocityBridge {
         Set<String> chatAllowed = chatBackends == null ? backends : chatBackends;
         if (!chatAllowed.contains(server)) return;
         body = Wire.plain(body); if (body.isBlank() || body.length() > 512) return;
+        if (safeguarding != null && !safeguarding.allow(player, server, "global", body)) return;
         long now = System.currentTimeMillis();
         Long previous = chatTimes.put(player.getUniqueId(), now); if (previous != null && now - previous < 1000) return;
         var identity = identity(player, server);
         Component[] lines = {RemoteChat.line(server, identity, body, false, tags), null};
         for (Player receiver : proxy.getAllPlayers()) if (receiver.getCurrentServer()
-                .map(s -> chatAllowed.contains(s.getServerInfo().getName()) && !s.getServerInfo().getName().equals(server)).orElse(false)) {
+                .map(s -> chatAllowed.contains(s.getServerInfo().getName()) && !s.getServerInfo().getName().equals(server) && (safeguarding == null || safeguarding.mayRelay(server, s.getServerInfo().getName()))).orElse(false)) {
             var connection = receiver.getCurrentServer().orElseThrow();
             if (paperBackends.contains(connection.getServerInfo().getName()))
                 connection.sendPluginMessage(CHANNEL, wire.encode("REMOTECHAT", receiver.getUniqueId(), RemoteChat.fields(server, player.getUniqueId(), identity, body)));
@@ -253,6 +276,12 @@ public final class VelocityBridge {
     }
     private void partyCommand(Player player, String[] args) {
         if (!allowed(player)) return;
+        if (args.length >= 2 && args[0].equalsIgnoreCase("chat")) {
+            String text = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
+            if (text.length() > 512) { player.sendMessage(Component.text("Party messages are limited to 512 characters.")); return; }
+            String backend = player.getCurrentServer().map(s -> s.getServerInfo().getName()).orElse("");
+            if (safeguarding != null && !safeguarding.allow(player, backend, "party:" + Objects.toString(parties.leader(player.getUniqueId()), player.getUniqueId().toString()), text)) return;
+        }
         long now = System.currentTimeMillis();
         Long previous = partyTimes.put(player.getUniqueId(), now);
         if (previous != null && now - previous < 1000) return;
@@ -282,7 +311,9 @@ public final class VelocityBridge {
                     if (args.length < 2) throw new IllegalArgumentException("Use /party chat <message>.");
                     String text = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
                     if (text.length() > 512) throw new IllegalArgumentException("Party messages are limited to 512 characters.");
-                    for (UUID id : parties.members(player.getUniqueId())) proxy.getPlayer(id).ifPresent(member ->
+                    String origin = player.getCurrentServer().map(c -> c.getServerInfo().getName()).orElse("");
+                    for (UUID id : parties.members(player.getUniqueId())) proxy.getPlayer(id).filter(member -> member.getCurrentServer()
+                            .map(c -> safeguarding == null || safeguarding.mayRelay(origin, c.getServerInfo().getName())).orElse(false)).ifPresent(member ->
                             member.sendMessage(Component.text("[Party] " + player.getUsername() + ": " + text)));
                 }
                 case "list" -> player.sendMessage(Component.text("Party: " + String.join(", ", parties.members(player.getUniqueId()).stream()
@@ -452,6 +483,7 @@ public final class VelocityBridge {
     @Subscribe public void stop(com.velocitypowered.api.event.proxy.ProxyShutdownEvent event) {
         if (presence != null) presence.stopping();
         if (ingress != null) ingress.close();
+        if (safeguarding != null) safeguarding.close();
         pending.clear();visits.clear();reconnectUntil.clear();resuming.clear();cancelledGroups.clear();
     }
 }

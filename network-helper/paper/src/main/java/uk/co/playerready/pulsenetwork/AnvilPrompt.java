@@ -98,6 +98,7 @@ final class AnvilPrompt {
             ((AnvilView) e.getView()).setRepairCost(0);
         }
         @EventHandler(priority = EventPriority.HIGHEST) public void click(InventoryClickEvent e) {
+            if (e.isCancelled()) return;
             var s = of(e.getView());
             if (s == null) return;
             e.setCancelled(true);
