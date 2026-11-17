@@ -16,6 +16,7 @@ import java.util.*;
 /** Observe final local chat; never cancel, rewrite, or replay chat events. */
 public final class PaperBridge extends JavaPlugin implements Listener, PluginMessageListener {
     private Wire wire;
+    private PaperSafeguarding safeguarding;
     private ReturnLocations returnLocations;
     private final Map<UUID, String> restores = new HashMap<>();
     private LocalChatGames chatGames;
@@ -32,6 +33,8 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
     private NameStyle.Tags tags = NameStyle.Tags.DEFAULT;
     @Override public void onEnable() {
         saveDefaultConfig();
+        safeguarding = new PaperSafeguarding(this);
+        safeguarding.register();
         MenuCommands.register(this, (player, fields) -> { if (wire == null) return false; send(player, "ROLECMD", fields.toArray(String[]::new)); return true; },
                 new AdminHubModel.Announcer() { public boolean enabled() { return wire != null; } public boolean announce(String text, String style) { return PaperBridge.this.announce(text, style); } });
         try { returnLocations = ReturnLocations.load(new java.io.File(getDataFolder(), "return-locations.yml").toPath()); }
@@ -53,6 +56,8 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
         chatGames = new LocalChatGames(this);
         getServer().getScheduler().runTaskTimer(this, chatGames::tick, 20, 20);
     }
+    boolean safetyInput(Player player, String surface, String text) { return safeguarding == null || safeguarding.check(player, surface, text); }
+    @Override public void onDisable() { if (safeguarding != null) safeguarding.close(); }
     private NameStyle.Tags loadTags() {
         var section = getConfig().getConfigurationSection("tags");
         var overrides = new HashMap<String, String>();
@@ -61,6 +66,7 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
         catch (IllegalArgumentException e) { getLogger().warning("Invalid tags configuration; built-in role tags are used."); return NameStyle.Tags.DEFAULT; }
     }
     @Override public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (command.getName().startsWith("safety")) return safeguarding != null && safeguarding.onCommand(sender, command, label, args);
         if (!(sender instanceof Player player)) return true;
         if (wire == null || !getConfig().getBoolean("chat.enabled")) { player.sendMessage(Component.text("Global chat is not enabled on this server yet.")); return true; }
         if (args.length != 0) { player.sendMessage(Component.text("Use /g to toggle global chat, then type normally. Use /localchat to switch back.")); return true; }
@@ -220,8 +226,11 @@ public final class PaperBridge extends JavaPlugin implements Listener, PluginMes
     /** Optional backend integration; proxy owns party commands across every server. */
     public boolean networkPartyCommand(Player player, String[] arguments) {
         if (wire == null) return false;
-        if (arguments.length > 0 && arguments[0].equalsIgnoreCase("chat"))
-            arguments = new String[]{"chat", String.join(" ", Arrays.copyOfRange(arguments, 1, arguments.length))};
+        if (arguments.length > 0 && arguments[0].equalsIgnoreCase("chat")) {
+            String text = String.join(" ", Arrays.copyOfRange(arguments, 1, arguments.length));
+            if (!safetyInput(player, "party", text)) return true;
+            arguments = new String[]{"chat", text};
+        }
         if (arguments.length > 12 || Arrays.stream(arguments).anyMatch(value -> value.length() > 512)) {
             player.sendMessage(Component.text("That party command is too long.")); return true;
         }
