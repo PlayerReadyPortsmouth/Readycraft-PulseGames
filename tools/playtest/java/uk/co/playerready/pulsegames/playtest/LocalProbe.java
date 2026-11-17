@@ -174,7 +174,12 @@ public final class LocalProbe extends JavaPlugin implements CommandExecutor {
             human.closeInventory();
             if(!round.add(human)) {log("ROUND FAILED human admission "+id);return;}
             boolean supported=games.bots().supports(id,mode.rulesId());
-            if(!supported)try{injectProbeNpcs(round,Math.min(round.maxPlayers()-1,3));}catch(Exception e){throw new RuntimeException(e);}
+            if(!supported)try {
+                injectProbeNpcs(round,Math.min(round.maxPlayers()-1,3));
+                // Explicit lifecycle start: normal queue reconciliation correctly removes unsupported bots.
+                // start() still validates game/map readiness; this does not add queue-controller support.
+                round.start();
+            } catch(Exception e){throw new RuntimeException(e);}
             log("QUEUED "+id+" "+mode.id()+" controller="+(supported?"supported":"lifecycle-only"));
         },1,1);
     }
