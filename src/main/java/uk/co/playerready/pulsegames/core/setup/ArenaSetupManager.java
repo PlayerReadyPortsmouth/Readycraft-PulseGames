@@ -333,12 +333,29 @@ public final class ArenaSetupManager implements Listener {
 
     record CheckEntry(String label, String command, boolean done, boolean required) {}
 
+    /** A successful sign capture also completes any matching, open setup checklist. */
+    public void markersImported(String gameId, String arenaId, World world, uk.co.playerready.pulsegames.core.arena.Arena arena) {
+        if (arena == null) return;
+        sessions.forEach((id, session) -> {
+            if (!session.game.id().equals(gameId) || !session.arenaId.equals(arenaId) || !world.equals(session.world)) return;
+            session.lobby = arena.rawLobby(); session.spectator = arena.rawSpectator();
+            session.spawns.clear(); session.spawns.addAll(arena.rawSpawns());
+            session.settings.putAll(arena.settings().getValues(true));
+            session.minPlayers = arena.minPlayers(); session.maxPlayers = arena.maxPlayers(); session.modes = arena.modes();
+            Player player = plugin.getServer().getPlayer(id);
+            if (player != null) sendChecklist(player, session);
+        });
+    }
+
     List<CheckEntry> checklist(Session session) {
         List<CheckEntry> entries = new ArrayList<>();
         entries.add(new CheckEntry("Waiting lobby", "/admin games setup lobby", session.lobby != null, true));
         entries.add(new CheckEntry("Spectator point", "/admin games setup spectator", session.spectator != null, true));
         for (SetupRequirement req : session.game.setup()) {
             switch (req.kind()) {
+                case MARKERS -> entries.add(new CheckEntry(req.description(),
+                        "/admin games setup markers " + session.game.id() + " " + session.arenaId + " <x1> <y1> <z1> <x2> <y2> <z2> check",
+                        uk.co.playerready.pulsegames.core.seasonal.MarkerContract.savedProblems(session.game.id(), session.settings.get("markers")).isEmpty(), req.required()));
                 case SPAWNS -> entries.add(new CheckEntry(
                         req.min() + "+ spawns - " + req.description() + " (" + session.spawns.size() + " set)",
                         "/admin games setup addspawn", session.spawns.size() >= req.min(), req.required()));

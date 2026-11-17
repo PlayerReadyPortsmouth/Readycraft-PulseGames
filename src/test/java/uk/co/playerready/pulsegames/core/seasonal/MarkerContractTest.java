@@ -4,6 +4,16 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 class MarkerContractTest {
+    @Test void persistedManifestRequiresValidRecordsCoordinatesAndTheWholeContract() {
+        var rows = new ArrayList<Map<String,Object>>(ChristmasTestMaps.markers("presentpanic").stream()
+                .map(m -> Map.<String,Object>of("key",m.key(),"location",m.x()+","+m.y()+","+m.z())).toList());
+        assertTrue(MarkerContract.savedProblems("presentpanic", rows).isEmpty());
+        rows.set(0, Map.of("key", rows.getFirst().get("key"), "location", "NaN,65,0"));
+        assertTrue(MarkerContract.savedProblems("presentpanic", rows).stream().anyMatch(e -> e.contains("coordinates")));
+        rows.removeIf(r -> r.get("key").equals("pp.sleigh.red"));
+        assertTrue(MarkerContract.savedProblems("presentpanic", rows).stream().anyMatch(e -> e.contains("pp.sleigh.red")));
+        assertFalse(MarkerContract.savedProblems("grinchhunt", List.of("bad row")).isEmpty());
+    }
     @Test void flatMapsMeetTheExactBuilderContract() {
         for(String game:List.of("presentpanic","grinchhunt")) {
             var m=ChristmasTestMaps.markers(game);

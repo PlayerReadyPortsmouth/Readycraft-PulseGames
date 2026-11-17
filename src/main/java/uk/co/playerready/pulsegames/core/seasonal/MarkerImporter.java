@@ -81,6 +81,7 @@ public final class MarkerImporter {
                     recovery.set("status","captured");YamlFiles.writeAtomically(manifest,recovery.saveToString());
                     arena.getParentFile().mkdirs();YamlFiles.writeAtomically(arena,definition.saveToString());
                     plugin.arenas().load();plugin.maps().captured(game,id);
+                    plugin.setup().markersImported(game,id,world,plugin.arenas().byId(game,id));
                     say(sender,"Saved "+id+" with "+rows.size()+" markers and removed the signs. Seasonal gate still applies.");
                 } catch(IOException|RuntimeException failure) {restore(signs);say(sender,"Arena publication failed; signs restored. Manifest: "+manifest+". "+failure.getMessage());}
                 finally {busy=false;}

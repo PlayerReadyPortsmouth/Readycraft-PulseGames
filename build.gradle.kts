@@ -48,3 +48,16 @@ tasks.register<JavaExec>("exportChristmasTestMaps") {
     args(layout.buildDirectory.dir("christmas-test-maps").get().asFile.absolutePath)
 }
 tasks.jar { finalizedBy("exportChristmasTestMaps") }
+
+// Disposable server probe. Never included in the production jar.
+val playtest by sourceSets.creating {
+    java.srcDir("tools/playtest/java")
+    resources.srcDir("tools/playtest/resources")
+    compileClasspath += sourceSets.main.get().output + sourceSets.main.get().compileClasspath
+}
+tasks.register<Jar>("playtestJar") {
+    dependsOn(playtest.classesTaskName)
+    from(playtest.output)
+    archiveBaseName.set("RC1-LocalProbe")
+    destinationDirectory.set(layout.buildDirectory.dir("playtest"))
+}

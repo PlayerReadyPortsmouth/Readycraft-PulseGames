@@ -216,7 +216,7 @@ public final class GameMenu {
         lore.kv("Modes", String.valueOf(game.modes().size()));
         lore.status(activity(count));
         if (featured) lore.status(Theme.MONEY + "Featured today: x" + plugin.quickPlay().multiplier() + " tokens");
-        lore.blank().hint(game.modes().size() == 1 ? "Click to play" : "Click to choose a mode");
+        lore.blank().hint("Click for rules and play");
         String name = Theme.NAME + game.displayName() + "</b>"
                 + (count.waiting() > 0 ? " " + Theme.GOOD + "· " + count.waiting() + " waiting" : "");
         ItemStack icon = Buttons.count(Buttons.item(game.icon(), name, lore), cue(count.waiting()));
@@ -235,6 +235,14 @@ public final class GameMenu {
             player.sendMessage(Text.msg("<red>" + game.displayName() + " is coming soon!"));
             return;
         }
+        if (plugin.canUseNewFeatures(player) || plugin.seasons() != null && plugin.seasons().seasonalGame(game.id()) && plugin.seasons().canPlay(player, game.id())) {
+            GameGuide.open(plugin, player, game, () -> continuePick(player, game), () -> openGames(player));
+            return;
+        }
+        continuePick(player, game);
+    }
+
+    private void continuePick(Player player, GameType game) {
         if (game.modes().size() == 1) {
             player.closeInventory();
             plugin.playService().join(player, game, game.defaultMode());

@@ -15,6 +15,7 @@ public final class PresentRules {
         }
     }
     public static int score(Present present, boolean doublePoints) {
+        if (present.paper == null) return 0;
         int base = present.paper == null ? 0 : present.toy == present.paper ? present.bow ? 6 : 3 : 1;
         return (base + (present.stolen ? 1 : 0)) * (doublePoints ? 2 : 1);
     }

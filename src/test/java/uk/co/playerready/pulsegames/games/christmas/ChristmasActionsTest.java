@@ -39,6 +39,38 @@ class ChristmasActionsTest {
     void invoke(Object owner, String name, Class<?>[] types, Object... args) throws Exception {
         Method method = owner.getClass().getDeclaredMethod(name, types); method.setAccessible(true); method.invoke(owner, args);
     }
+    @Test void sleighKeepsUnfinishedCargoAndPaysOnlyForWrappedPresents() throws Exception {
+        GameInstance game = game(); Player player = player(0);
+        PresentPanicGame logic = new PresentPanicGame(game);
+        set(logic, "visuals", mock(ChristmasVisuals.class));
+        Map<UUID, Deque<Present>> carrying = field(logic, "carrying");
+        Present unfinished = new Present(Colour.RED, null, false, 0, false);
+        carrying.put(player.getUniqueId(), new ArrayDeque<>(List.of(unfinished)));
+        invoke(logic, "deposit", new Class<?>[]{Player.class}, player);
+        assertEquals(List.of(unfinished), new ArrayList<>(carrying.get(player.getUniqueId())));
+        verify(game, never()).addScore(any(), anyInt());
+        carrying.get(player.getUniqueId()).add(new Present(Colour.RED, Colour.RED, true, 0, false));
+        try (var ignored = mockConstruction(ItemStack.class)) {
+            invoke(logic, "deposit", new Class<?>[]{Player.class}, player);
+        }
+        verify(game).addScore(player, 6);
+        assertEquals(List.of(unfinished), new ArrayList<>(carrying.get(player.getUniqueId())));
+        Map<UUID, Integer> delivered = field(logic, "delivered"); assertEquals(1, delivered.get(player.getUniqueId()));
+    }
+
+    @Test void villagerBotsDoNotChaseInvisibleGrinchPositions() throws Exception {
+        GameInstance game = game(); Player thief = player(0), villager = player(1);
+        when(game.alivePlayers()).thenReturn(List.of(thief, villager));
+        when(villager.canSee(thief)).thenReturn(true); when(villager.hasLineOfSight(thief)).thenReturn(true);
+        GrinchHuntGame logic = new GrinchHuntGame(game);
+        Set<UUID> grinches = field(logic, "grinches"); grinches.add(thief.getUniqueId());
+        when(thief.isInvisible()).thenReturn(true);
+        assertNull(logic.botDestination(villager));
+        when(thief.isInvisible()).thenReturn(false);
+        assertEquals(thief.getLocation(), logic.botDestination(villager));
+        when(villager.hasLineOfSight(thief)).thenReturn(false);
+        assertNull(logic.botDestination(villager));
+    }
     @Test void trackedSnowballDropsTopOnlyAndRivalCanStealBeforeOriginalTeamReclaims() throws Exception {
         GameInstance game = game(); Player victim = player(0), rival = player(1);
         when(rival.getLocation()).thenAnswer(i -> new Location(world, 1, 65, 0));

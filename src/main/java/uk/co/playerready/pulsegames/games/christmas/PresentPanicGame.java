@@ -45,6 +45,7 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
     private final Map<UUID, Role> roles = new HashMap<>();
     private final Map<UUID, Float> speeds = new HashMap<>();
     private final Map<UUID, Wrap> wrapping = new HashMap<>();
+    private final Set<UUID> wrapAssist = new HashSet<>();
     private final Map<UUID, Integer> throwsAt = new HashMap<>(), roleAt = new HashMap<>();
     private final Map<UUID, Integer> wraps = new HashMap<>(), steals = new HashMap<>(), delivered = new HashMap<>();
     private final Map<UUID, Snowball> snowballs = new HashMap<>();
@@ -73,6 +74,8 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         if (game.plugin().seasons() == null || !game.plugin().seasons().gameEnabled("presentpanic")) return "Present Panic is not in the active season.";
         if (players.stream().anyMatch(p -> !p.hasMetadata("NPC") && !game.plugin().seasons().canPlay(p, "presentpanic")))
             return "Present Panic is limited to the current seasonal trial players.";
+        var markerProblems = uk.co.playerready.pulsegames.core.seasonal.MarkerContract.savedProblems("presentpanic", game.arena().settings().get("markers"));
+        if (!markerProblems.isEmpty()) return markerProblems.getFirst();
         for (String team : TEAMS) if (markers.points("pp.spawn." + team).isEmpty() || markers.point("pp.sleigh." + team) == null)
             return "Present Panic needs the pp.spawn and pp.sleigh markers for every team.";
         if (markers.keys("pp.wrap.").isEmpty() || markers.point("pp.belt.1.feed") == null) return "Import the Present Panic map markers first.";
@@ -110,7 +113,7 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
             Colour colour = Colour.valueOf(station.split("\\.")[2].toUpperCase(Locale.ROOT));
             visuals.spawn(markers.point(station).clone().add(0, 0.35, 0), "christmas_wrapping_paper_" + colour.key(), material(colour), 0.75f);
         }
-        game.broadcast("<gold>Grab toys from the belt. Sneak by a wrapping bench to HOLD and wrap. Match the toy colour, add a bow, load your sleigh!");
+        game.broadcast("<gold>Grab toys from the belt. Sneak by a wrapping bench, or use a carried toy to toggle wrapping. Match the toy colour, add a bow, load your sleigh!");
         game.broadcast("<yellow>Blaze rod: snowball. Iron nugget: change elf role. Snowball hits drop the top present; anyone can steal it.");
         loop = game.runRepeating(1, 2, this::step);
     }
@@ -138,7 +141,7 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         for (int slot = 1; slot <= 4; slot++) player.getInventory().setItem(slot, null);
         int slot = 1;
         for (Present present : stack(player)) player.getInventory().setItem(slot++, tool(material(present.toy()),
-                present.toy().key() + " toy" + (present.paper() == null ? " · unwrapped" : " · " + present.paper().key() + " paper" + (present.bow() ? " + bow" : "")), "Carry to a bench or your sleigh"));
+                present.toy().key() + " toy" + (present.paper() == null ? " · unwrapped" : " · " + present.paper().key() + " paper" + (present.bow() ? " + bow" : "")), "Use to toggle wrapping at a bench; sneak also works"));
     }
     private void step() {
         if (game.state() != GameState.RUNNING || ended) return;
@@ -162,7 +165,7 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         }
         for (Player player : game.alivePlayers()) {
             if (!game.isActive(player)) continue;
-            if (!player.hasMetadata("NPC")) processWrap(player, player.isSneaking());
+            if (!player.hasMetadata("NPC")) processWrap(player, player.isSneaking() || wrapAssist.contains(player.getUniqueId()));
             Location sleigh = markers.point("pp.sleigh." + TEAMS.get(team(player)));
             if (near(player.getLocation(), sleigh, 2.2)) deposit(player);
             if (event == Event.SNOW_SQUALL && tick % 10 == 0) {
@@ -219,7 +222,8 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         int progress = current != null && station.equals(current.station) ? current.ticks + 2 : 2;
         int required = wrapTicks(role(player), event == Event.PAPER_SHORTAGE);
         wrapping.put(id, new Wrap(station, progress));
-        player.sendActionBar(Text.mm("<gold>Wrapping " + Math.min(100, progress * 100 / required) + "% <gray>Keep sneaking"));
+        Colour paper = Colour.valueOf(station.split("\\.")[2].toUpperCase(Locale.ROOT));
+        player.sendActionBar(Text.mm((paper == top.toy() ? "<gold>" : "<yellow>Wrong colour! ") + "Wrapping " + Math.min(100, progress * 100 / required) + "% <gray>" + paper.key() + " paper"));
         if (progress >= required) {
             Colour colour = Colour.valueOf(station.split("\\.")[2].toUpperCase(Locale.ROOT));
             wrapNext(stack(player), colour);
@@ -229,13 +233,22 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
     }
     private void deposit(Player player) {
         if (stack(player).isEmpty()) return;
-        int earned = 0;
-        for (Present present : stack(player)) earned += score(present, timeLimitSeconds() * 20 - tick <= 600);
+        int earned = 0, amount = 0;
+        for (Iterator<Present> iterator = stack(player).iterator(); iterator.hasNext();) {
+            Present present = iterator.next();
+            if (present.paper() == null) continue;
+            earned += score(present, timeLimitSeconds() * 20 - tick <= 600);
+            amount++; iterator.remove();
+        }
+        if (amount == 0) {
+            if (tick % 20 == 0) player.sendActionBar(Text.mm("<yellow>Wrap your toys first. Unfinished toys stay in your stack."));
+            return;
+        }
         if (event == Event.NAUGHTY_LIST && team(player) == naughtyTeam) earned++;
         points.merge(team(player), earned, Integer::sum);
         game.addScore(player, earned);
-        delivered.merge(player.getUniqueId(), stack(player).size(), Integer::sum);
-        stack(player).clear(); wrapping.remove(player.getUniqueId()); updateCarry(player);
+        delivered.merge(player.getUniqueId(), amount, Integer::sum);
+        wrapping.remove(player.getUniqueId()); updateCarry(player);
         player.sendActionBar(Text.mm("<green>Loaded! +" + earned + " team points"));
         visuals.sound(player.getLocation(), "delivery", Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1, 1.3f);
     }
@@ -262,6 +275,12 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         if (event.getHand() != EquipmentSlot.HAND || !event.getAction().isRightClick() || event.getItem() == null) return;
         event.setCancelled(true);
         Player player = event.getPlayer();
+        if (!game.isActive(player)) return;
+        if (java.util.Arrays.asList(COLOUR_BLOCKS).contains(event.getItem().getType())) {
+            if (!wrapAssist.add(player.getUniqueId())) wrapAssist.remove(player.getUniqueId());
+            wrapping.remove(player.getUniqueId());
+            player.sendActionBar(Text.mm(wrapAssist.contains(player.getUniqueId()) ? "<green>Wrapping ON: stand by a bench or bow station" : "<gray>Wrapping OFF: sneak to wrap manually"));
+        }
         if (event.getItem().getType() == Material.BLAZE_ROD) throwSnowball(player);
         if (event.getItem().getType() == Material.IRON_NUGGET && tick >= roleAt.getOrDefault(player.getUniqueId(), 0)) {
             Role next = Role.values()[(role(player).ordinal() + 1) % Role.values().length];
@@ -287,6 +306,14 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
     @Override public void onInventoryDrag(Player player, org.bukkit.event.inventory.InventoryDragEvent event) { event.setCancelled(true); }
 
     @Override public void onSecond(int elapsed) {
+        for (Player player : game.alivePlayers()) if (!player.hasMetadata("NPC") && !wrapping.containsKey(player.getUniqueId())) {
+            Present next = nextUnwrapped(stack(player));
+            String hint = stack(player).isEmpty() ? "Grab a toy from a conveyor"
+                    : next != null ? "Find " + next.toy().key() + " paper; sneak or use toy"
+                    : stack(player).stream().anyMatch(p -> !p.bow()) ? "Add bows, then load your " + TEAMS.get(team(player)) + " sleigh"
+                    : "Load your " + TEAMS.get(team(player)) + " sleigh!";
+            player.sendActionBar(Text.mm("<yellow>" + hint));
+        }
         if (elapsed > 0 && elapsed % 45 == 0 && timeLimitSeconds() - elapsed > 30) {
             event = Event.values()[1 + random.nextInt(4)]; eventUntil = tick + 300;
             naughtyTeam = java.util.stream.IntStream.range(0, Math.max(1, game.teams().size())).boxed()
@@ -347,7 +374,7 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
     }
     @Override public void onQuit(Player player) {
         if (!ended && visuals != null) while (!stack(player).isEmpty()) dropTop(player);
-        carrying.remove(player.getUniqueId()); wrapping.remove(player.getUniqueId()); restore(player);
+        carrying.remove(player.getUniqueId()); wrapping.remove(player.getUniqueId()); wrapAssist.remove(player.getUniqueId()); restore(player);
     }
     @Override public void onDeath(Player victim, Player killer) {
         while (!stack(victim).isEmpty()) dropTop(victim);
@@ -362,7 +389,7 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         ended = true; if (loop != null) loop.cancel();
         for (Player player : game.players()) restore(player);
         if (visuals != null) visuals.close(); snowballs.values().forEach(Entity::remove);
-        toys.clear(); snowballs.clear(); carrying.clear(); wrapping.clear();
+        toys.clear(); snowballs.clear(); carrying.clear(); wrapping.clear(); wrapAssist.clear();
     }
     @Override public List<String> sidebar(Player player) {
         List<String> lines = new ArrayList<>(List.of("<gold>Role: " + role(player), "<yellow>Carry: " + stack(player).size() + "/" + capacity(role(player)), phaseCountdown()));

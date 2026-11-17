@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 
 import static uk.co.playerready.pulsegames.core.setup.SetupRequirement.location;
+import static uk.co.playerready.pulsegames.core.setup.SetupRequirement.markers;
 import static uk.co.playerready.pulsegames.core.setup.SetupRequirement.optional;
 import static uk.co.playerready.pulsegames.core.setup.SetupRequirement.region;
 import static uk.co.playerready.pulsegames.core.setup.SetupRequirement.regions;
@@ -350,13 +351,13 @@ public final class GameCatalog {
                 "Grab, wrap and load presents before the sleighs depart!", Material.CHEST,
                 List.of(GameMode.teams("teams", "Teams", 2, 24, 6)),
                 uk.co.playerready.pulsegames.games.christmas.PresentPanicGame::new,
-                List.of(spawns(4, "import the pp markers with setup markers")), true)
+                List.of(spawns(4, "one team base per colour"), markers("Present Panic: complete pp marker manifest")), true)
                 .withCard(card("Wrap and load for your team!", "Sneak at benches; snowballs drop the top present", "Matching paper and bows score more")));
         registry.register(new GameType("grinchhunt", "Grinch Hunt",
                 "Follow snowy footprints and save the village presents!", Material.LIME_DYE,
                 List.of(GameMode.ffa("classic", "Classic", 2, 24)),
                 uk.co.playerready.pulsegames.games.christmas.GrinchHuntGame::new,
-                List.of(spawns(12, "import the gh markers with setup markers")), true)
+                List.of(spawns(12, "villager waiting spawns"), markers("Grinch Hunt: complete gh marker manifest")), true)
                 .withCard(card("Track the prints, save the presents!", "Grinches steal; villagers tag and reveal", "Follow the freshest footprints")));
         applyObjectiveCards(registry);
     }

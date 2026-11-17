@@ -25,6 +25,12 @@ public final class ArenaValidation {
         for(int i=0;i<s.spawns.size();i++)point(out,"Spawn "+(i+1),s.spawns.get(i),w,true,true,requireLoadedWorld);
         for(SetupRequirement req:s.game.setup()){
             switch(req.kind()){
+                case MARKERS -> {
+                    uk.co.playerready.pulsegames.core.seasonal.MarkerContract.savedProblems(s.game.id(), s.settings.get("markers")).forEach(message -> error(out,message));
+                    Object raw=s.settings.get("markers");
+                    if(raw instanceof List<?> rows) for(Object value:rows) if(value instanceof Map<?,?> row && row.get("location") instanceof String location)
+                        point(out,"Marker " + row.get("key"),location,w,true,false,requireLoadedWorld);
+                }
                 case SPAWNS -> {if(req.required()&&s.spawns.size()<req.min())error(out,"Set at least "+req.min()+" spawns.");}
                 case REGION -> {if(req.required()&&!s.regions.containsKey(req.key()))error(out,"Missing region: "+req.key());}
                 case REGION_PREFIX -> {

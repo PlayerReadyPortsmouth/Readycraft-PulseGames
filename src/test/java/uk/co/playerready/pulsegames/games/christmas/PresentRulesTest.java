@@ -22,7 +22,8 @@ class PresentRulesTest {
         assertEquals(3, score(owned.pickedUp(0), false));
         assertEquals(4, score(owned.pickedUp(1), false));
         assertEquals(4, score(owned.pickedUp(1).pickedUp(0).pickedUp(1), false));
-        assertEquals(1, score(toy().pickedUp(0).pickedUp(1), false));
+        assertEquals(0, score(toy().pickedUp(0).pickedUp(1), false));
+        assertEquals(0, score(toy().pickedUp(0).pickedUp(1), true));
         assertEquals(14, score(owned.withBow().pickedUp(1), true));
     }
     @Test void bowsCannotWrapUnfinishedToysAndRewrappingRemovesBow() {
