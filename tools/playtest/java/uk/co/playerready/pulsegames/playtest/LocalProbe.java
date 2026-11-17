@@ -142,7 +142,7 @@ public final class LocalProbe extends JavaPlugin implements CommandExecutor {
     private void round(String id,String modeId) throws Exception {
         Player human=Bukkit.getPlayerExact("Rc1Tester"); if(human==null)throw new IllegalStateException("Connect local Rc1Tester client first");
         GameType type=games.registry().get(id); var mode=modeId==null?(id.equals("dropper")?type.mode("race"):type.defaultMode()):type.mode(modeId);
-        current=games.instances().createPractice(type,mode,arenas.get(id),BotDifficulty.NORMAL,3);
+        current=games.instances().createPractice(type,mode,arenas.get(id),BotDifficulty.NORMAL,id.equals("grinchhunt")?11:3);
         if(current==null)throw new IllegalStateException("Cannot create "+id);
         samples=0;
         GameInstance round=current;
@@ -184,7 +184,7 @@ public final class LocalProbe extends JavaPlugin implements CommandExecutor {
             if(current.type().id().equals("grinchhunt")) detail=" banked="+field(current.logic(),"banked")+" stolen="+field(current.logic(),"stolen")+" caught="+field(current.logic(),"caught");
         }catch(Exception e){throw new RuntimeException(e);}
         log("SAMPLE "+current.type().id()+" state="+current.state()+" bots="+games.bots().count(current)+" time="+current.gameTime()+" entities="+(current.world()==null||current.state()==GameState.RESETTING?0:current.world().getEntities().size())+detail);
-        if(current.state()==GameState.RUNNING && ++samples==1)for(Player p:current.players())log("ACTOR "+p.getName()+" at="+p.getLocation().toVector());
+        if(current.state()==GameState.RUNNING && ++samples%2==1)for(Player p:current.players())log("ACTOR "+p.getName()+" at="+p.getLocation().toVector());
     }
     private Object field(Object owner,String name) throws Exception {Field f=owner.getClass().getDeclaredField(name);f.setAccessible(true);return f.get(owner);}
     private void cleanup() {

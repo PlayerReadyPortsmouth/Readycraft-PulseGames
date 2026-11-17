@@ -222,7 +222,9 @@ public final class GrinchHuntGame extends MiniGame implements BotMovement {
             visuals.remove(trap.display); traps.remove(trap);
             game.broadcast("<gold>A present trap has caught a trail!");
         }
-        player.setWalkSpeed(tick > timeLimitSeconds() * 10 && banked < 4 ? 0.23f : speeds.getOrDefault(id, 0.2f));
+        float desiredSpeed = tick > timeLimitSeconds() * 10 && banked < 4 ? 0.23f : speeds.getOrDefault(id, 0.2f);
+        // CraftPlayer.setWalkSpeed also resets MOVEMENT_SPEED, disrupting Citizens navigation if repeated.
+        if (Float.compare(player.getWalkSpeed(), desiredSpeed) != 0) player.setWalkSpeed(desiredSpeed);
     }
     private void steal(Player player) {
         for (Map.Entry<String, Tree> entry : trees.entrySet()) {

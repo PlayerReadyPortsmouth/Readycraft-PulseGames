@@ -79,12 +79,19 @@ class ChristmasActionsTest {
         when(world.getBlockAt(any(Location.class))).thenReturn(block);
         GrinchHuntGame logic = new GrinchHuntGame(game);
         Map<UUID, Float> original = field(logic, "speeds"); original.put(thief.getUniqueId(), 0.2f);
+        when(thief.getWalkSpeed()).thenReturn(0.2f); set(logic, "tick", 1000);
+        invoke(logic, "stepGrinch", new Class<?>[]{Player.class}, thief);
+        verify(thief,never()).setWalkSpeed(anyFloat());
         set(logic, "tick", 4000);
         invoke(logic, "stepGrinch", new Class<?>[]{Player.class}, thief);
         verify(thief).setWalkSpeed(0.23f);
+        when(thief.getWalkSpeed()).thenReturn(0.23f);
         set(logic, "banked", 4);
         invoke(logic, "stepGrinch", new Class<?>[]{Player.class}, thief);
         verify(thief).setWalkSpeed(0.2f);
+        when(thief.getWalkSpeed()).thenReturn(0.2f);
+        invoke(logic, "stepGrinch", new Class<?>[]{Player.class}, thief);
+        verify(thief,times(1)).setWalkSpeed(0.2f);
     }
 
     @Test void botsAndHumansUseTheSameWrappingClock() throws Exception {
