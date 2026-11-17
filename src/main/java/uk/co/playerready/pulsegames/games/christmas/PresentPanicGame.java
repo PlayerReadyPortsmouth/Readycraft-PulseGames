@@ -43,6 +43,8 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
     private final Map<UUID, Deque<Present>> carrying = new HashMap<>();
     private final Map<UUID, Role> roles = new HashMap<>();
     private final Map<UUID, Float> speeds = new HashMap<>();
+    private final Map<UUID, Double> npcBaseSpeeds = new HashMap<>();
+    private final java.util.function.Function<Player, org.bukkit.attribute.AttributeInstance> movementSpeed;
     private final Map<UUID, Wrap> wrapping = new HashMap<>();
     private final Set<UUID> wrapAssist = new HashSet<>();
     private final Map<UUID, Integer> throwsAt = new HashMap<>(), roleAt = new HashMap<>();
@@ -59,7 +61,10 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
     private int naughtyTeam = -1;
     private boolean ended;
 
-    public PresentPanicGame(GameInstance game) { super(game); markers = new ChristmasMarkers(game); }
+    public PresentPanicGame(GameInstance game) { this(game, p -> p.getAttribute(org.bukkit.attribute.Attribute.MOVEMENT_SPEED)); }
+    PresentPanicGame(GameInstance game, java.util.function.Function<Player, org.bukkit.attribute.AttributeInstance> movementSpeed) {
+        super(game); markers = new ChristmasMarkers(game); this.movementSpeed = movementSpeed;
+    }
 
     @Override public boolean managesCompletion() { return true; }
     @Override public boolean environmentalDamage() { return false; }
@@ -136,7 +141,13 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         return item;
     }
     private void updateCarry(Player player) {
-        player.setWalkSpeed(walkSpeed(role(player), stack(player).size()));
+        float speed = walkSpeed(role(player), stack(player).size());
+        var attribute = player.hasMetadata("NPC") ? movementSpeed.apply(player) : null;
+        Double npcBase = attribute == null ? null : npcBaseSpeeds.computeIfAbsent(player.getUniqueId(), id -> attribute.getBaseValue());
+        player.setWalkSpeed(speed);
+        // Paper's setter replaces MOVEMENT_SPEED with a human base. Citizens needs its own
+        // original base scaled by the same role/cargo ratio, rather than that replacement.
+        if (npcBase != null) attribute.setBaseValue(npcBase * speed / Math.max(0.01f, speeds.getOrDefault(player.getUniqueId(), 0.2f)));
         for (int slot = 1; slot <= 4; slot++) player.getInventory().setItem(slot, null);
         int slot = 1;
         for (Present present : stack(player)) player.getInventory().setItem(slot++, tool(material(present.toy()),
@@ -382,6 +393,8 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
     }
     private void restore(Player player) {
         Float original = speeds.remove(player.getUniqueId()); if (original != null) player.setWalkSpeed(original);
+        Double npcBase = npcBaseSpeeds.remove(player.getUniqueId());
+        if (npcBase != null) { var attribute = movementSpeed.apply(player); if (attribute != null) attribute.setBaseValue(npcBase); }
         player.removePotionEffect(org.bukkit.potion.PotionEffectType.SLOWNESS);
     }
     @Override public void onQuit(Player player) {

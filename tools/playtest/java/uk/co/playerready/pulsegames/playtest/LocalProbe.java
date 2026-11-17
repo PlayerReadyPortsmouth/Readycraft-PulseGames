@@ -161,6 +161,9 @@ public final class LocalProbe extends JavaPlugin implements CommandExecutor {
         observer[0]=getServer().getScheduler().runTaskTimer(this,() -> {
             if(round.state()!=last[0]) {
                 last[0]=round.state();log("STATE "+id+" "+last[0]);
+                if(last[0]==GameState.RUNNING && id.equals("presentpanic")) round.runLater(1,() -> {
+                    if(human.isOnline()) human.teleport(round.arena().spectator(round.world()));
+                });
                 if(last[0]==GameState.RUNNING && id.equals("grinchhunt")) round.runLater(20,() -> exerciseGadgets(round));
             }
             if(round.state()==GameState.RESETTING)observer[0].cancel();
@@ -218,7 +221,7 @@ public final class LocalProbe extends JavaPlugin implements CommandExecutor {
         }catch(Exception e){throw new RuntimeException(e);}
         log("SAMPLE "+current.type().id()+" state="+current.state()+" bots="+games.bots().count(current)+" time="+current.gameTime()+" entities="+(current.world()==null||current.state()==GameState.RESETTING?0:current.world().getEntities().size())+detail);
         if(current.state()==GameState.RUNNING && ++samples%2==1) {
-            for(Player p:current.players())log("ACTOR "+p.getName()+" at="+p.getLocation().toVector()+" speed="+p.getWalkSpeed());
+            for(Player p:current.players())log("ACTOR "+p.getName()+" at="+p.getLocation().toVector()+" speed="+p.getWalkSpeed()+" moveBase="+p.getAttribute(org.bukkit.attribute.Attribute.MOVEMENT_SPEED).getBaseValue());
             games.bots().diagnostics().stream().filter(d -> d.gameId().equals(current.id())).limit(4).forEach(d -> log("BOT "+d));
         }
     }

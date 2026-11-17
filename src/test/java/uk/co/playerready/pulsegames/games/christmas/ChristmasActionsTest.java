@@ -111,6 +111,24 @@ class ChristmasActionsTest {
         verify(thief,times(3)).setWalkSpeed(0.23f);
     }
 
+    @Test void cargoSpeedPreservesAndRestoresTheCitizensMovementBase() throws Exception {
+        GameInstance game=game(); Player bot=player(0); when(bot.hasMetadata("NPC")).thenReturn(true);
+        var attribute=mock(org.bukkit.attribute.AttributeInstance.class); double[] base={0.3};
+        when(attribute.getBaseValue()).thenAnswer(c -> base[0]);
+        doAnswer(c -> {base[0]=c.getArgument(0);return null;}).when(attribute).setBaseValue(anyDouble());
+        doAnswer(c -> {base[0]=(float)c.getArgument(0)/2.0;return null;}).when(bot).setWalkSpeed(anyFloat());
+        PresentPanicGame logic=new PresentPanicGame(game,p -> attribute);
+        Map<UUID,Float> speeds=field(logic,"speeds");speeds.put(bot.getUniqueId(),0.2f);
+        invoke(logic,"updateCarry",new Class<?>[]{Player.class},bot);
+        assertEquals(0.36,base[0],0.000001);
+        Map<UUID,Deque<Present>> carrying=field(logic,"carrying");
+        carrying.get(bot.getUniqueId()).addAll(List.of(new Present(Colour.RED,null,false,0,false),new Present(Colour.BLUE,null,false,0,false)));
+        try(var ignored=mockConstruction(ItemStack.class)) {invoke(logic,"updateCarry",new Class<?>[]{Player.class},bot);}
+        assertEquals(0.285,base[0],0.000001);
+        invoke(logic,"restore",new Class<?>[]{Player.class},bot);
+        assertEquals(0.3,base[0],0.000001);
+    }
+
     @Test void botsAndHumansUseTheSameWrappingClock() throws Exception {
         GameInstance game=game(); Player human=player(0), bot=player(0);
         when(game.alivePlayers()).thenReturn(List.of(human,bot));
