@@ -675,6 +675,8 @@ needed. Do not bypass team/role requirements and call that a completed test.
 | Supermarket Sweep | No accepted map/test recorded | None | Yes | Shopping-list decisions, real chest/inventory actions and checkout |
 | Party Games | No accepted map/test recorded | None | Yes | Controller switching between colour matching, sumo and sprint |
 | Quake | Deployed 0.3.14; no arena configured yet | Weapon choice, visible-target combat, abilities, adaptive difficulty; live service ready | Solo and team variants; needs built maps | Build four or more spawns, cover and walkable routes; test navigation, hit feedback and balance on Java/Bedrock. |
+| Present Panic | Flat engineering schematic and 88 exact markers; RC1 local three-NPC trial delivered 9 presents in 120 seconds; real map and two-client acceptance pending | Prepared: collect, wrap, bow, deliver and cargo movement restoration | Teams minimum 2; arena/team capacity still applies | RCD TEST acceptance: full rounds, scoring, readable wrapping/cargo cues, real Java/Bedrock pack acceptance |
+| Grinch Hunt | Flat engineering schematic and 63 exact markers; RC1 local natural bank/end trials; no captures observed in those rounds | Prepared: visible-clue patrol and reachable melee tags with cooldown | Minimum 2; role thresholds still apply | RCD TEST acceptance: full village/Grinch rounds, captures, clue/heart cues and tactical gadgets on both clients |
 
 ## Verified server arena names
 
