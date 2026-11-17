@@ -52,8 +52,8 @@ admin:
     tab: {min-group: admin}
     announce: {min-group: admin}
 
-# RC3 draft: inert outside exact test environment and explicit backend/test-backends scope.
-# Filtering/logging default ON within that test scope. 90 days is a proposal for Aurora.
+# Inert outside exact test environment and explicit backend/test-backends scope.
+# Filtering/logging default ON within that test scope. Aurora agreed 90 days, 17 Nov 2026.
 safeguarding:
   environment: ''
   backend: ''

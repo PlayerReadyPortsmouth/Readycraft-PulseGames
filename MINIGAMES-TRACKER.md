@@ -1,11 +1,17 @@
 # Minigames development and play-test tracker
 
-Last updated: 31 October 2026. Owner: Aurora. Agents should update this file as
+Last updated: 17 November 2026. Owner: Aurora. Agents should update this file as
 work and player feedback arrive; keep it in the PulseGames repository.
 
 Readable report: [HTML](MINIGAMES-TRACKER.html) · [PDF](MINIGAMES-TRACKER.pdf).
 After editing this source, regenerate both exports with
 `node tools/render-minigames-tracker.mjs --pdf`; see [update instructions](tools/TRACKER-README.md).
+
+## 17 November - RCD combined test release candidate
+
+**Prepared integration: PulseGames 0.11.2; not yet deployed by this snapshot.** Combines Christmas games #101 and minigames round #103 with their Present Panic scoring, wrapping and Citizens movement fixes, equal workshop return routes, visible Grinch tagging, complete setup marker validation and Java/Bedrock game guides. Existing feature gates remain default off. Network safeguarding #102 is included as PulseNetwork 0.2.8 source; the RCD deployment uses PulseAddon backend protection, avoiding two independent filters on the same chat event. No proxy deployment is authorised.
+
+Aurora approved a TEST-only deploy to MinigamesTest and SurvivalTest on 17 November around 08:20 and agreed **90-day chat-log retention**. Build/test receipts, actual deployed versions, console smoke results and remaining in-game acceptance belong in `/home/ara/agent-jobs/native/w3/rcd-STATUS.md`. That deployment record supersedes this preparation snapshot. This entry does not claim rendering, menus, new maps or rounds have been accepted on either real client.
 
 ## 31 October - Copper Circuit kart items and track presentation (local candidate)
 

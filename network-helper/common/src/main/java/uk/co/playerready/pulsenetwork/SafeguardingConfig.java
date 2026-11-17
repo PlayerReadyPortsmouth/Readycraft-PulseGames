@@ -14,7 +14,7 @@ public record SafeguardingConfig(boolean testEnvironment, boolean filter, boolea
             name = name.trim(); if (!name.isEmpty()) { if (!Wire.id(name)) throw new IllegalArgumentException("Invalid safeguarding backend"); backends.add(name); }
         }
         int days = Integer.parseInt(p.getProperty("safeguarding.retention-days", "90"));
-        if (days < 1 || days > 90) throw new IllegalArgumentException("Safeguarding retention must be 1..90 days pending policy approval");
+        if (days < 1 || days > 90) throw new IllegalArgumentException("Safeguarding retention must be 1..90 days; approved retention is 90 days");
         String env = p.getProperty("safeguarding.discord-webhook-env", "").trim();
         if (!env.isEmpty() && !env.matches("[A-Z][A-Z0-9_]{0,79}")) throw new IllegalArgumentException("Use an environment variable name for the webhook");
         return new SafeguardingConfig(test, test && Boolean.parseBoolean(p.getProperty("safeguarding.filter", "true")),

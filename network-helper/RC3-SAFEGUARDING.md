@@ -1,4 +1,4 @@
-# RC3 proxy safeguarding draft
+# RC3 proxy safeguarding: RCD integration
 
 This change has not been deployed or enabled on any server. PulseNetwork now includes an
 independent **Paper 1.21.4** test safeguarding listener as well as the Velocity gate.
@@ -7,6 +7,15 @@ The new backend listener covers local chat, direct-message commands, commands wi
 signs, books, anvil result clicks and the helper's Java/Bedrock text prompts before delivery.
 The proxy separately protects cross-server relay. A proxy cannot retract origin-server
 chat: enable and accept the appropriate backend listener too. The NeoForge adapter is unchanged.
+
+## RCD decision — 17 November 2026
+
+Aurora approved the test deployment and agreed chat-log retention of **90 days** on
+17 November 2026. Configure `safeguarding.retention-days=90` (YAML: `retention-days: 90`).
+This approval covers the named test backends only, not a shared proxy deployment.
+Where PulseAddon supplies backend protection, keep the independent PulseNetwork guard
+inert to avoid duplicate interception; the RCD bundle builds it but does not deploy it.
+Case preservation and backup expiry remain safeguarding-lead operational responsibilities.
 
 ## Configuration and scope
 
@@ -28,7 +37,7 @@ safeguarding.readyapp-token-env=
 ```
 
 Filtering and logging default true inside that explicit test scope. Retention defaults
-to the **90-day proposal pending Aurora's policy decision**, and accepts 1–90 days. Empty
+to the **90 days agreed by Aurora on 17 November 2026**, and accepts 1–90 days. Empty
 test-backends means nobody. These properties are startup snapshots; changing them needs
 a separately authorised restart. The owner is Aurora; review by 24 November 2026 before
 any rollout. Keep safeguarding enforcement as a permanent control, and remove the test
@@ -189,8 +198,8 @@ identity lookup. Message text may still contain disclosures the heuristic does n
 detected personal/contact details are withheld. Party channel identifiers use the
 party leader's Minecraft UUID. Review is restricted to authorised safeguarding staff.
 Command credentials and unapproved command arguments are withheld; report drafts and confirmed
-reports are separate records. These records support player safety and concern review, and are proposed for deletion
-after 90 days subject to Aurora confirming the policy and privacy notice.
+reports are separate records. These records support player safety and concern review and
+are deleted after the agreed 90 days (Aurora, 17 November 2026).
 
 Daily TSV journals are in the plugin data `safeguarding/` directory with POSIX 0700/0600
 permissions. A non-POSIX filesystem refuses monitored logging rather than silently making
@@ -217,7 +226,7 @@ Those are conservative PII matches, and need staff/product calibration before ro
 The queued Gradle test repeats these counts. This small,
 hand-labelled English corpus does not estimate real-world accuracy.
 
-Before any rollout: Aurora confirms retention and privacy text; safeguarding staff review
+Before any wider rollout: safeguarding staff approve privacy text and review
 the word/rule lists and calibration; obtain separate test deployment/restart approval;
 verify Java and Bedrock blocked/allowed public and party chat, context/permissions,
 retention rollover, delivery failures, staff availability, Discord and ReadyApp routing

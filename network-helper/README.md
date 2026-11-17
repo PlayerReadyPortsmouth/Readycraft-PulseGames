@@ -1,4 +1,4 @@
-> RC3 draft: the optional test-only Paper 1.21.4/Velocity safeguarding guards, policy proposal,
+> RC3: the optional test-only Paper 1.21.4/Velocity safeguarding guards, agreed 90-day retention,
 > privacy staff note and acceptance limits are documented in [RC3-SAFEGUARDING.md](RC3-SAFEGUARDING.md).
 > They are inert unless the exact test profile and backend scope are configured. No deployment is claimed.
 
@@ -6,7 +6,7 @@
 
 ## Cross-server parties — prepared draft, not deployed
 
-PulseNetwork **0.2.6** credits **AurorasChaos (on behalf of Player Ready)**. The current draft adds proxy-owned `/party` (also `/networkparty`) invitations, acceptance, list, leave, disband and private party chat. Invitations expire after 60 seconds; parties hold up to eight online players. Java has a clickable invitation; Bedrock can type `/party accept` or `/party deny`. Leaving the proxy removes a member and promotes another leader if needed. Backend transfers preserve membership; proxy restarts do not preserve parties yet.
+PulseNetwork **0.2.8** credits **AurorasChaos (on behalf of Player Ready)**. The current draft adds proxy-owned `/party` (also `/networkparty`) invitations, acceptance, list, leave, disband and private party chat. Invitations expire after 60 seconds; parties hold up to eight online players. Java has a clickable invitation; Bedrock can type `/party accept` or `/party deny`. Leaving the proxy removes a member and promotes another leader if needed. Backend transfers preserve membership; proxy restarts do not preserve parties yet.
 
 The leader selects an advertised game through `/queues` or `/joinqueue <id>`. Every party member transfers with their **own** saved origin. The destination receives one authenticated group admission only after everyone arrives. Transfer failure or timeout cancels the group and returns transferred members where possible; late successful transfers also return. The destination rejects conflicting local parties rather than overwriting them. A leader acknowledgement completes the whole proxy request atomically. Game capacity, team packing, preview access and admission remain PulseGames decisions.
 
