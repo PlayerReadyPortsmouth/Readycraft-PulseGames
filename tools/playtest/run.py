@@ -73,7 +73,7 @@ try:
         window=json.loads(wait_for('WINDOW ',c,timeout=15,source=client_lines).split('WINDOW ',1)[1])
         assert any(i['slot']==11 and i['name']=='writable_book' for i in window['items']), 'Missing how-to-play card: '+game
         assert any(i['slot']==13 and i['name']=='gold_nugget' for i in window['items']), 'Missing rewards card: '+game
-        n=len(lines); command('rc1 round '+game); wait_for('RC1 QUEUED '+game,n)
+        n=len(lines); command('rc1 round '+game); queued=wait_for('RC1 QUEUED '+game,n)
         try:
             wait_for('RC1 STATE '+game+' RUNNING',n,timeout=30)
         except TimeoutError:
@@ -85,7 +85,8 @@ try:
             assert not any(p.is_dir() for p in server.glob('pulse_*')), 'Failed admission leaked a world: '+game
             (server/'results.json').write_text(json.dumps(results,indent=2)+'\n')
             continue
-        elapsed = 0; duration = args.seasonal_seconds if game in ('presentpanic','grinchhunt') else args.smoke_seconds
+        freeze=re.search(r'freeze=(\d+)',queued)
+        elapsed = 0; duration = args.seasonal_seconds if game in ('presentpanic','grinchhunt') else args.smoke_seconds+(int(freeze[1]) if freeze else 0)
         while elapsed<duration:
             pause(min(10,duration-elapsed)); elapsed+=min(10,duration-elapsed)
             command('rc1 sample'); pause(.3)

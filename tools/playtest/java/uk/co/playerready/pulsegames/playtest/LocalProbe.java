@@ -180,7 +180,7 @@ public final class LocalProbe extends JavaPlugin implements CommandExecutor {
                 // start() still validates game/map readiness; this does not add queue-controller support.
                 round.start();
             } catch(Exception e){throw new RuntimeException(e);}
-            log("QUEUED "+id+" "+mode.id()+" controller="+(supported?"supported":"lifecycle-only"));
+            log("QUEUED "+id+" "+mode.id()+" controller="+(supported?"supported":"lifecycle-only")+" freeze="+round.logic().startFreezeSeconds());
         },1,1);
     }
     private void exerciseGadgets(GameInstance round) {
