@@ -392,10 +392,13 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         }
     }
     private void restore(Player player) {
+        restoreSpeed(player);
+        player.removePotionEffect(org.bukkit.potion.PotionEffectType.SLOWNESS);
+    }
+    private void restoreSpeed(Player player) {
         Float original = speeds.remove(player.getUniqueId()); if (original != null) player.setWalkSpeed(original);
         Double npcBase = npcBaseSpeeds.remove(player.getUniqueId());
         if (npcBase != null) { var attribute = movementSpeed.apply(player); if (attribute != null) attribute.setBaseValue(npcBase); }
-        player.removePotionEffect(org.bukkit.potion.PotionEffectType.SLOWNESS);
     }
     @Override public void onQuit(Player player) {
         if (!ended && visuals != null) while (!stack(player).isEmpty()) dropTop(player);

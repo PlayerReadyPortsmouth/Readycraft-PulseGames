@@ -125,7 +125,7 @@ class ChristmasActionsTest {
         carrying.get(bot.getUniqueId()).addAll(List.of(new Present(Colour.RED,null,false,0,false),new Present(Colour.BLUE,null,false,0,false)));
         try(var ignored=mockConstruction(ItemStack.class)) {invoke(logic,"updateCarry",new Class<?>[]{Player.class},bot);}
         assertEquals(0.285,base[0],0.000001);
-        invoke(logic,"restore",new Class<?>[]{Player.class},bot);
+        invoke(logic,"restoreSpeed",new Class<?>[]{Player.class},bot);
         assertEquals(0.3,base[0],0.000001);
     }
 
