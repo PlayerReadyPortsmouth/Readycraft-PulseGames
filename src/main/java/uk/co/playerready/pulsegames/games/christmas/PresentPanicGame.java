@@ -219,7 +219,7 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
             if (stack(player).stream().anyMatch(p -> !p.bow()) && near(player.getLocation(), markers.point("pp.bow." + TEAMS.get(team(player))), 2.6)) {
                 bowAll(stack(player)); updateCarry(player);
                 player.sendActionBar(Text.mm("<gold>Bow added! Correctly matched presents are worth 6."));
-                player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 0.45f, 1.5f);
+                player.playSound(player.getLocation(), "minecraft:block.note_block.bell", 0.45f, 1.5f);
             }
             return;
         }
@@ -235,7 +235,7 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
             Colour colour = Colour.valueOf(station.split("\\.")[2].toUpperCase(Locale.ROOT));
             wrapNext(stack(player), colour);
             wraps.merge(id, 1, Integer::sum); wrapping.remove(id); updateCarry(player);
-            visuals.sound(player.getLocation(), "wrap", Sound.BLOCK_WOOL_PLACE, 1, 1.4f);
+            visuals.sound(player.getLocation(), "wrap", "minecraft:block.wool.place", 1, 1.4f);
         }
     }
     private void deposit(Player player) {
@@ -257,7 +257,7 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         delivered.merge(player.getUniqueId(), amount, Integer::sum);
         wrapping.remove(player.getUniqueId()); updateCarry(player);
         player.sendActionBar(Text.mm("<green>Loaded! +" + earned + " team points"));
-        visuals.sound(player.getLocation(), "delivery", Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1, 1.3f);
+        visuals.sound(player.getLocation(), "delivery", "minecraft:entity.experience_orb.pickup", 1, 1.3f);
     }
     private void dropTop(Player player) {
         if (stack(player).isEmpty()) return;
@@ -275,7 +275,7 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         Snowball ball = player.launchProjectile(Snowball.class, player.getEyeLocation().getDirection().multiply(1.4));
         snowballs.put(ball.getUniqueId(), ball);
         game.runLater(80, () -> { snowballs.remove(ball.getUniqueId()); ball.remove(); });
-        player.playSound(player.getLocation(), Sound.ENTITY_SNOWBALL_THROW, 0.6f, 1.3f);
+        player.playSound(player.getLocation(), "minecraft:entity.snowball.throw", 0.6f, 1.3f);
         return true;
     }
     @Override public void onInteract(PlayerInteractEvent event) {
@@ -306,7 +306,7 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         if (away.lengthSquared() > 0.01) victim.setVelocity(away.normalize().multiply(0.65).setY(0.22));
         dropTop(victim);
         victim.sendActionBar(Text.mm("<yellow>Snowball hit! Check your stack for a dropped present."));
-        victim.playSound(victim.getLocation(), Sound.BLOCK_SNOW_BREAK, 0.45f, 1.3f);
+        victim.playSound(victim.getLocation(), "minecraft:block.snow.break", 0.45f, 1.3f);
         victim.getWorld().spawnParticle(Particle.SNOWFLAKE, victim.getLocation().add(0, 1, 0), 8, 0.3, 0.4, 0.3, 0);
     }
     @Override public void onDamageByPlayer(Player victim, Player damager, EntityDamageByEntityEvent event) { event.setCancelled(true); }
@@ -369,7 +369,7 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
             if (from == null || to == null || visuals == null) continue;
             ItemDisplay sleigh = visuals.spawn(from.clone().add(0, 1, 0), "christmas_sleigh", Material.MINECART, 2);
             if (sleigh == null) continue;
-            visuals.sound(from, "launch", Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 0.8f, 1.2f);
+            visuals.sound(from, "launch", "minecraft:entity.firework_rocket.launch", 0.8f, 1.2f);
             for (int step = 1; step <= 40; step++) {
                 final double part = step / 40.0;
                 game.runLater(step * 2L, () -> {
@@ -406,7 +406,7 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
     @Override public List<String> sidebar(Player player) {
         List<String> lines = new ArrayList<>(List.of("<gold>" + role(player) + " <yellow>Carry: " + stack(player).size() + "/" + capacity(role(player)), phaseCountdown()));
         for (int i = 0; i < game.teams().size(); i++) lines.add((i == team(player) ? "<gold>Your " : "<gray>") + TEAMS.get(i) + ": <white>" + points.getOrDefault(i, 0));
-        lines.add("<aqua>Sneak at a bench to wrap");
+        lines.add(wrapAssist.contains(player.getUniqueId()) ? "<aqua>Auto wrap ON; use toy to stop" : "<aqua>Sneak or use toy to wrap");
         if (event != Event.NONE) lines.add("<gold>" + event.name().replace('_', ' '));
         return lines;
     }

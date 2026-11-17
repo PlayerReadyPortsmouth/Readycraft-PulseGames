@@ -211,7 +211,7 @@ public final class GrinchHuntGame extends MiniGame implements BotMovement {
         if (near(at, markers.point("gh.cave.pile"), 2.3) && !cargo(player).isEmpty()) {
             int amount = cargo(player).size(); banked += amount; cargo(player).clear(); game.addScore(player, amount);
             game.broadcast("<green>The cave pile now holds " + banked + "/15 presents!");
-            visuals.sound(at, "delivery", Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.65f, 1.2f);
+            visuals.sound(at, "delivery", "minecraft:entity.experience_orb.pickup", 0.65f, 1.2f);
             for (int i = banked - amount; i < banked && i < 15; i++) visuals.spawn(markers.point("gh.cave.pile").clone().add((i % 3 - 1) * 0.6, 0.35 + i / 9 * 0.5, (i / 3 % 3 - 1) * 0.6),
                     "christmas_present_green", Material.GREEN_WOOL, 0.5f);
             if (banked >= 15) { finish(true, "fifteen-presents"); return; }
@@ -229,7 +229,7 @@ public final class GrinchHuntGame extends MiniGame implements BotMovement {
             Tree tree = entry.getValue();
             if (tree.stock > 0 && near(player.getLocation(), tree.at, 2.2)) {
                 tree.stock--; cargo(player).add(entry.getKey()); stolen.merge(player.getUniqueId(), 1, Integer::sum); renderTree(tree);
-                visuals.sound(tree.at, "alarm", Sound.BLOCK_BELL_USE, 1.5f, 1.4f);
+                visuals.sound(tree.at, "alarm", "minecraft:block.bell.use", 1.5f, 1.4f);
                 tree.at.getWorld().spawnParticle(Particle.FIREWORK, tree.at, 10, 1, 1, 1, 0);
                 game.broadcast("<gold>Tree alarm! A present was taken near " + entry.getKey().substring("gh.tree.".length()) + ".");
                 reveal(player, banked >= 10 ? 50 : 20);
@@ -285,7 +285,7 @@ public final class GrinchHuntGame extends MiniGame implements BotMovement {
     private void reveal(Player grinch, int ticks) {
         revealUntil.merge(grinch.getUniqueId(), tick + ticks, Math::max); grinch.setInvisible(false);
         grinch.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, ticks, 0, false, false));
-        if (visuals != null) visuals.sound(grinch.getLocation(), "reveal", Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.4f, 1.3f);
+        if (visuals != null) visuals.sound(grinch.getLocation(), "reveal", "minecraft:block.amethyst_block.chime", 0.4f, 1.3f);
     }
     private boolean ready(Player player, String ability, int cooldown) {
         String key = player.getUniqueId() + ":" + ability;

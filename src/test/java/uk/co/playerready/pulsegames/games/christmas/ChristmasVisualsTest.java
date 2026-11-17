@@ -1,7 +1,6 @@
 package uk.co.playerready.pulsegames.games.christmas;
 
 import org.bukkit.Location;
-import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.Player;
@@ -23,7 +22,7 @@ class ChristmasVisualsTest {
         Player java=mock(Player.class), bedrock=mock(Player.class);
         var viewers=new ArrayList<>(List.of(java)); when(game.everyone()).thenAnswer(i -> List.copyOf(viewers));
         when(game.plugin().seasons().customVisualsReady(java)).thenReturn(true);
-        World world=mock(World.class); Location at=new Location(world,0,65,0); Sound fallback=null; // Avoid server-backed Sound registry initialisation in a plain JVM.
+        World world=mock(World.class); Location at=new Location(world,0,65,0); String fallback="minecraft:block.wool.place";
         try(var platform=mockStatic(PlatformDetector.class)) {
             platform.when(() -> PlatformDetector.isBedrock(bedrock)).thenReturn(true);
             ChristmasVisuals visuals=new ChristmasVisuals(game); assertTrue(visuals.custom());
@@ -44,13 +43,13 @@ class ChristmasVisualsTest {
     @Test void packLossUsesVanillaSoundEvenBeforeTheNextGameTick() {
         GameInstance game=mock(GameInstance.class,RETURNS_DEEP_STUBS); Player player=mock(Player.class);
         when(game.everyone()).thenReturn(List.of(player)); when(game.plugin().seasons().customVisualsReady(player)).thenReturn(true);
-        World world=mock(World.class); Location at=new Location(world,0,65,0); Sound fallback=null; // Avoid server-backed Sound registry initialisation in a plain JVM.
+        World world=mock(World.class); Location at=new Location(world,0,65,0); String fallback="minecraft:block.wool.place";
         try(var platform=mockStatic(PlatformDetector.class)) {
             ChristmasVisuals visuals=new ChristmasVisuals(game); assertTrue(visuals.custom());
             when(game.plugin().seasons().customVisualsReady(player)).thenReturn(false);
             visuals.sound(at,"alarm",fallback,.5f,1);
             verify(world).playSound(at,fallback,.5f,1);
-            verify(world,never()).playSound(eq(at),anyString(),anyFloat(),anyFloat());
+            verify(world,never()).playSound(eq(at),eq("pulse:christmas.alarm"),anyFloat(),anyFloat());
         }
     }
 }

@@ -45,7 +45,7 @@ public final class LocalProbe extends JavaPlugin implements CommandExecutor {
                     Method pick=games.gameMenu().getClass().getDeclaredMethod("pick",Player.class,GameType.class);pick.setAccessible(true);
                     pick.invoke(games.gameMenu(),Bukkit.getPlayerExact("Rc1Tester"),games.registry().get(args[1]));
                 }
-                case "timeout" -> { if(current != null) current.logic().onTimeUp(); }
+                case "timeout" -> { if(current != null && current.state()==GameState.RUNNING) current.logic().onTimeUp(); }
                 case "end" -> { if(current != null) current.forceEnd(); }
                 case "cleanup" -> cleanup();
                 case "catalogue" -> log("CATALOGUE " + String.join(",", games.registry().all().stream().map(GameType::id).toList()));
@@ -60,6 +60,7 @@ public final class LocalProbe extends JavaPlugin implements CommandExecutor {
         games.getConfig().set("bots.wait-seconds",1); games.getConfig().set("countdown.lobby-seconds",3);
         games.getConfig().set("countdown.start-seconds",0); games.getConfig().set("end.celebrate-seconds",2);
         games.getConfig().set("lobby.world","world");
+        games.saveConfig();
         World hub=Bukkit.getWorld("world");
         for(int x=-4;x<=4;x++)for(int z=-4;z<=4;z++)hub.getBlockAt(x,99,z).setType(Material.STONE,false);
         getServer().dispatchCommand(getServer().getConsoleSender(), "season set christmas");
@@ -71,8 +72,16 @@ public final class LocalProbe extends JavaPlugin implements CommandExecutor {
         flat.setSpawnLocation(0,65,0);
         games.worlds().saveAsTemplate(flat,"rc1_flat",() -> {
             for(GameType type:games.registry().all()) if(!Set.of("presentpanic","grinchhunt").contains(type.id())) arenas.put(type.id(), arena(type));
-            seasonal("presentpanic",() -> seasonal("grinchhunt",() -> log("PREPARED arenas="+arenas.size())));
+            seasonal("presentpanic",() -> seasonal("grinchhunt",this::prepared));
         }, error -> log("PREPARE FAILED "+error));
+    }
+    private void prepared() {
+        // Each import reloads ArenaService; apply local opt-ins to the final loaded objects.
+        for(String id:List.of("presentpanic","grinchhunt")) {
+            Arena arena=games.arenas().byId(id,"rc1_"+id);
+            arena.settings().set("bots-enabled",true);arena.settings().set("time-limit",120);arenas.put(id,arena);
+        }
+        log("PREPARED arenas="+arenas.size());
     }
     private Arena arena(GameType type) {
         var settings = new YamlConfiguration(); var regions = new LinkedHashMap<String,Cuboid>();

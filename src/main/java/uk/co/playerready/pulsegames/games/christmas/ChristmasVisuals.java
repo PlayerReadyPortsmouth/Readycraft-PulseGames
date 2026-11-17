@@ -97,7 +97,7 @@ final class ChristmasVisuals implements AutoCloseable {
     void remove(ItemDisplay display) { if (display != null) { display.remove(); owned.remove(display); } }
     int size() { return owned.size(); }
     boolean custom() { return custom; }
-    void sound(Location at, String cue, org.bukkit.Sound fallback, float volume, float pitch) {
+    void sound(Location at, String cue, String fallback, float volume, float pitch) {
         refreshViewers();
         if (custom) at.getWorld().playSound(at, "pulse:christmas." + cue, volume, pitch);
         else at.getWorld().playSound(at, fallback, volume, pitch);

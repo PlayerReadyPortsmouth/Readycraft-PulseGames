@@ -30,6 +30,8 @@ lines = []; client_lines = []; events = queue.Queue()
 def pump(process, output, target):
     with output.open('w') as stream:
         for line in process.stdout:
+            if 'set-cookie' in line.lower():
+                line='[dependency response cookie header redacted]\n'
             stream.write(line); stream.flush(); target.append(line)
             if 'RC1 ' in line or 'RC1_CLIENT' in line or 'SEVERE' in line: print(line.strip(), flush=True)
             events.put(None)
@@ -67,8 +69,12 @@ try:
     catalogue=wait_for('RC1 CATALOGUE',n).split('RC1 CATALOGUE ',1)[1].strip().split(',')
     selected=args.games.split(',') if args.games else ['presentpanic','grinchhunt']+[g for g in catalogue if g not in ('presentpanic','grinchhunt')]
     for game in selected:
-        c=len(client_lines); command('rc1 guide '+game); wait_for('WINDOW ',c,timeout=15,source=client_lines)
+        c=len(client_lines); command('rc1 guide '+game)
+        window=json.loads(wait_for('WINDOW ',c,timeout=15,source=client_lines).split('WINDOW ',1)[1])
+        assert any(i['slot']==11 and i['name']=='writable_book' for i in window['items']), 'Missing how-to-play card: '+game
+        assert any(i['slot']==13 and i['name']=='gold_nugget' for i in window['items']), 'Missing rewards card: '+game
         n=len(lines); command('rc1 round '+game); wait_for('RC1 QUEUED '+game,n)
+        wait_for('RC1 STATE '+game+' RUNNING',n,timeout=30)
         elapsed = 0; duration = args.seasonal_seconds if game in ('presentpanic','grinchhunt') else args.smoke_seconds
         while elapsed<duration:
             pause(min(10,duration-elapsed)); elapsed+=min(10,duration-elapsed)
