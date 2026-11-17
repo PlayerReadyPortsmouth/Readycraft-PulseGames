@@ -92,6 +92,9 @@ public final class SeasonService implements CommandExecutor,TabCompleter {
     public boolean wearable(String cosmetic) {
         return windows.stream().filter(w->w.rewards().contains(cosmetic)).allMatch(w->w.wearable()||Objects.equals(active(),w.id()));
     }
+    public Set<String> rewardIds(String game) {
+        return current().filter(w -> w.games().contains(game)).map(SeasonCalendar.Window::rewards).orElse(Set.of());
+    }
     public void award(Player player,String game) {
         if(player.hasMetadata("NPC")||!canPlay(player,game))return;
         current().filter(w->w.games().contains(game)).ifPresent(w->w.rewards().forEach(id-> {

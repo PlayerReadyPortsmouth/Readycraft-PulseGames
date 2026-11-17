@@ -33,8 +33,12 @@ final class GameGuide {
 
     static void open(PulseGamesPlugin plugin, Player player, GameType game, Runnable play, Runnable back) {
         List<String> instructions = steps(game);
-        String rewards = rewards(plugin.getConfig().getInt("economy.win-reward", 50),
+        String tokenRewards = rewards(plugin.getConfig().getInt("economy.win-reward", 50),
                 plugin.getConfig().getInt("economy.participation-reward", 10));
+        String cosmetics = plugin.seasons() == null ? "" : plugin.seasons().rewardIds(game.id()).stream()
+                .map(uk.co.playerready.pulsegames.core.economy.CosmeticsService::byId).filter(java.util.Objects::nonNull)
+                .map(uk.co.playerready.pulsegames.core.economy.Cosmetic::name).sorted().collect(java.util.stream.Collectors.joining(", "));
+        String rewards = tokenRewards + (cosmetics.isEmpty() ? "" : " Complete a round to unlock " + cosmetics + ". Forced stops do not unlock cosmetics. Equip them in the wardrobe.");
         String body = "HOW TO PLAY\n" + String.join("\n\n", instructions) + "\n\nREWARDS\n" + rewards
                 + "\n\nUse /lobby to leave. Your ready item votes to start sooner.";
         if (Forms.list(plugin, player, game.displayName(), body, List.of(
