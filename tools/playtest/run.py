@@ -96,6 +96,7 @@ try:
         result={'game':game,'running':any('RC1 STATE '+game+' RUNNING' in l for l in observed),
                 'controller':'supported' if any('controller=supported' in l for l in observed) else 'lifecycle-only',
                 'samples':[l.strip() for l in observed if 'RC1 SAMPLE' in l],
+                'boards':[json.loads(l.split('BOARD ',1)[1]) for l in client_lines[c:] if l.startswith('BOARD ')],
                 'errors':[l.strip() for l in observed if any(e in l for e in ('SEVERE','Exception','Bot controller failed','RC1 PROBE FAILED'))]}
         if game == 'presentpanic' and not any(re.search(r'delivered=\{[^}]', l) for l in result['samples']):
             result['errors'].append('Seasonal objective check failed: no bot delivery observed')

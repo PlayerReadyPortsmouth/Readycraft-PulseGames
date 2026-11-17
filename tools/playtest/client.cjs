@@ -8,3 +8,11 @@ bot.on('windowOpen', window => setTimeout(() => console.log('WINDOW ' + JSON.str
 bot.on('error', error => console.log('CLIENT_ERROR ' + error.message));
 bot.on('kicked', reason => console.log('CLIENT_KICKED ' + JSON.stringify(reason)));
 process.on('SIGTERM', () => { bot.quit(); setTimeout(()=>process.exit(),500); });
+
+let lastBoard = '';
+setInterval(() => {
+  const board = bot.scoreboard.sidebar;
+  if (!board) return;
+  const next = JSON.stringify({title:board.title, lines:board.items.map(i=>i.displayName.toString())});
+  if (next !== lastBoard) { console.log('BOARD '+next); lastBoard=next; }
+}, 2000);
