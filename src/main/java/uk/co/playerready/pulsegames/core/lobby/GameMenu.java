@@ -171,7 +171,7 @@ public final class GameMenu {
         for (int i = 0; i < page.items().size(); i++) {
             GameType game = page.items().get(i);
             menu.set(contentSlot(i), gameIcon(game, counts.getOrDefault(game.id(), new QueueCounts.Count(0, 0)),
-                    game.id().equals(featured)), p -> pick(p, game));
+                    game.id().equals(featured), guideEnabled(player, game)), p -> pick(p, game));
         }
         menu.set(QUICK_PLAY_SLOT, Buttons.glow(Buttons.item(Material.ENDER_EYE, Theme.GOOD + "<b>Quick Play</b>",
                 Lore.of().desc("Jump into the busiest game that is starting now.").blank().hint("Click to play"))),
@@ -204,7 +204,7 @@ public final class GameMenu {
                         .blank().hint("Click to choose"));
     }
 
-    private ItemStack gameIcon(GameType game, QueueCounts.Count count, boolean featured) {
+    private ItemStack gameIcon(GameType game, QueueCounts.Count count, boolean featured, boolean guide) {
         if (!plugin.gameAvailable(game)) {
             // Testers and admins only: grey and clearly not playable yet.
             return Buttons.item(Material.GRAY_DYE, Theme.TEXT + game.displayName() + " <dark_gray>(soon)",
@@ -216,7 +216,7 @@ public final class GameMenu {
         lore.kv("Modes", String.valueOf(game.modes().size()));
         lore.status(activity(count));
         if (featured) lore.status(Theme.MONEY + "Featured today: x" + plugin.quickPlay().multiplier() + " tokens");
-        lore.blank().hint("Click for rules and play");
+        lore.blank().hint(guide ? "Click for rules and play" : game.modes().size() == 1 ? "Click to play" : "Click to choose a mode");
         String name = Theme.NAME + game.displayName() + "</b>"
                 + (count.waiting() > 0 ? " " + Theme.GOOD + "· " + count.waiting() + " waiting" : "");
         ItemStack icon = Buttons.count(Buttons.item(game.icon(), name, lore), cue(count.waiting()));
@@ -235,11 +235,15 @@ public final class GameMenu {
             player.sendMessage(Text.msg("<red>" + game.displayName() + " is coming soon!"));
             return;
         }
-        if (plugin.canUseNewFeatures(player) || plugin.seasons() != null && plugin.seasons().seasonalGame(game.id()) && plugin.seasons().canPlay(player, game.id())) {
+        if (guideEnabled(player, game)) {
             GameGuide.open(plugin, player, game, () -> continuePick(player, game), () -> openGames(player));
             return;
         }
         continuePick(player, game);
+    }
+
+    private boolean guideEnabled(Player player, GameType game) {
+        return plugin.canUseNewFeatures(player) || plugin.seasons() != null && plugin.seasons().seasonalGame(game.id()) && plugin.seasons().canPlay(player, game.id());
     }
 
     private void continuePick(Player player, GameType game) {
