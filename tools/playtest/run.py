@@ -74,7 +74,17 @@ try:
         assert any(i['slot']==11 and i['name']=='writable_book' for i in window['items']), 'Missing how-to-play card: '+game
         assert any(i['slot']==13 and i['name']=='gold_nugget' for i in window['items']), 'Missing rewards card: '+game
         n=len(lines); command('rc1 round '+game); wait_for('RC1 QUEUED '+game,n)
-        wait_for('RC1 STATE '+game+' RUNNING',n,timeout=30)
+        try:
+            wait_for('RC1 STATE '+game+' RUNNING',n,timeout=30)
+        except TimeoutError:
+            results.append({'game':game,'running':False,'controller':'not-started','samples':[],
+                            'errors':['No RUNNING transition; inspect admission/dependency messages'],
+                            'messages':[l.strip() for l in client_lines[-25:]]})
+            command('rc1 cleanup'); cleaned=wait_for('RC1 CLEANUP',n); pause(3)
+            assert 'active=0;' in cleaned and 'instances=0' in cleaned, 'Failed admission leaked actors: '+game
+            assert not any(p.is_dir() for p in server.glob('pulse_*')), 'Failed admission leaked a world: '+game
+            (server/'results.json').write_text(json.dumps(results,indent=2)+'\n')
+            continue
         elapsed = 0; duration = args.seasonal_seconds if game in ('presentpanic','grinchhunt') else args.smoke_seconds
         while elapsed<duration:
             pause(min(10,duration-elapsed)); elapsed+=min(10,duration-elapsed)
