@@ -82,9 +82,14 @@ class ChristmasActionsTest {
         when(thief.getWalkSpeed()).thenReturn(0.2f); set(logic, "tick", 1000);
         invoke(logic, "stepGrinch", new Class<?>[]{Player.class}, thief);
         verify(thief,never()).setWalkSpeed(anyFloat());
+        when(thief.getWalkSpeed()).thenReturn(0.6f); // Navigation may own a different current speed.
+        invoke(logic, "stepGrinch", new Class<?>[]{Player.class}, thief);
+        verify(thief,never()).setWalkSpeed(anyFloat());
         set(logic, "tick", 4000);
         invoke(logic, "stepGrinch", new Class<?>[]{Player.class}, thief);
         verify(thief).setWalkSpeed(0.23f);
+        invoke(logic, "stepGrinch", new Class<?>[]{Player.class}, thief);
+        verify(thief,times(1)).setWalkSpeed(0.23f);
         when(thief.getWalkSpeed()).thenReturn(0.23f);
         set(logic, "banked", 4);
         invoke(logic, "stepGrinch", new Class<?>[]{Player.class}, thief);

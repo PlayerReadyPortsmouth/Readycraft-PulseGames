@@ -40,6 +40,7 @@ public final class GrinchHuntGame extends MiniGame implements BotMovement {
     private final Map<UUID, Integer> hits = new HashMap<>(), lastHit = new HashMap<>(), immuneUntil = new HashMap<>(), revealUntil = new HashMap<>(), quietUntil = new HashMap<>();
     private final Map<UUID, Location> lastFoot = new HashMap<>();
     private final Map<UUID, Float> speeds = new HashMap<>();
+    private final Set<UUID> catchUpBoosted = new HashSet<>();
     private final Map<UUID, Boolean> invisibleBefore = new HashMap<>();
     private final Map<UUID, VillagerRole> roles = new HashMap<>();
     private final Map<String, Integer> cooldowns = new HashMap<>();
@@ -222,9 +223,10 @@ public final class GrinchHuntGame extends MiniGame implements BotMovement {
             visuals.remove(trap.display); traps.remove(trap);
             game.broadcast("<gold>A present trap has caught a trail!");
         }
-        float desiredSpeed = tick > timeLimitSeconds() * 10 && banked < 4 ? 0.23f : speeds.getOrDefault(id, 0.2f);
+        boolean boosted = tick > timeLimitSeconds() * 10 && banked < 4;
         // CraftPlayer.setWalkSpeed also resets MOVEMENT_SPEED, disrupting Citizens navigation if repeated.
-        if (Float.compare(player.getWalkSpeed(), desiredSpeed) != 0) player.setWalkSpeed(desiredSpeed);
+        if (boosted ? catchUpBoosted.add(id) : catchUpBoosted.remove(id))
+            player.setWalkSpeed(boosted ? 0.23f : speeds.getOrDefault(id, 0.2f));
     }
     private void steal(Player player) {
         for (Map.Entry<String, Tree> entry : trees.entrySet()) {
@@ -527,6 +529,7 @@ public final class GrinchHuntGame extends MiniGame implements BotMovement {
         cleanupEntities();
     }
     private void restore(Player player) {
+        catchUpBoosted.remove(player.getUniqueId());
         Boolean invisible = invisibleBefore.remove(player.getUniqueId()); if (invisible != null) player.setInvisible(invisible);
         Float speed = speeds.remove(player.getUniqueId()); if (speed != null) player.setWalkSpeed(speed);
         for (PotionEffectType type : List.of(PotionEffectType.SPEED, PotionEffectType.SLOWNESS, PotionEffectType.GLOWING, PotionEffectType.BLINDNESS)) player.removePotionEffect(type);
@@ -545,6 +548,7 @@ public final class GrinchHuntGame extends MiniGame implements BotMovement {
         game.respawn(victim, 2);
     }
     @Override public void onRespawn(Player player) {
+        catchUpBoosted.remove(player.getUniqueId());
         teleportSpawn(player, isGrinch(player) ? "gh.grinch.spawn" : "gh.villager.spawn", 0);
         if (isGrinch(player) && !caught.contains(player.getUniqueId())) player.setInvisible(true);
         equip(player); immuneUntil.put(player.getUniqueId(), tick + 60);
