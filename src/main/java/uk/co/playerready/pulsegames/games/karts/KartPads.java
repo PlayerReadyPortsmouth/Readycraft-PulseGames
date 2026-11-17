@@ -9,6 +9,7 @@ import java.util.UUID;
 final class KartPads {
     static final int BOOST_COOLDOWN = 20;
     private final Map<String, Long> readyAt = new HashMap<>();
+    private final Map<String, Boolean> contact = new HashMap<>();
 
     /** True when this kart may use the pad now; arms a per-kart, per-pad cooldown. */
     boolean trigger(UUID kart, String pad, long tick, int cooldown) {
@@ -24,7 +25,47 @@ final class KartPads {
         readyAt.put(ka, tick + cooldown); readyAt.put(kb, tick + cooldown);
         return true;
     }
-    void forget(UUID kart) { readyAt.keySet().removeIf(key -> key.startsWith(kart.toString())); }
+    void forget(UUID kart) {
+        String prefix = kart + "/";
+        readyAt.keySet().removeIf(key -> key.startsWith(prefix));
+        contact.keySet().removeIf(key -> key.startsWith(prefix));
+    }
+
+    /** Continuous material strips are one contact: stopping or crossing neighbouring tiles cannot refresh it. */
+    boolean contactEntry(UUID kart, String pad, boolean touching, long tick, int cooldown) {
+        String key = kart + "/" + pad;
+        boolean previous = contact.getOrDefault(key, false);
+        if (touching) contact.put(key, true); else contact.remove(key);
+        return touching && !previous && trigger(kart, pad, tick, cooldown);
+    }
+
+    /** Profiled pads require forward travel; optional authored yaw additionally rejects wrong-way approaches. */
+    boolean entry(UUID kart, String pad, Cuboid box, KartPhysics.State from, KartPhysics.State to,
+                  Double directionYaw, long tick, int cooldown) {
+        return forwardEntry(box, from, to, directionYaw) && trigger(kart, pad, tick, cooldown);
+    }
+
+    static boolean forwardEntry(Cuboid box, KartPhysics.State from, KartPhysics.State to, Double directionYaw) {
+        if (to.speed() <= 0 || !enters(box, from, to)) return false;
+        double yaw = directionYaw == null ? from.yaw() : directionYaw;
+        if (!Double.isFinite(yaw)) return false;
+        double radians = Math.toRadians(yaw);
+        return forwardEntry(box, from, to, -Math.sin(radians), 0, Math.cos(radians));
+    }
+
+    /** Surface-frame overload also handles panels while travelling vertically on a wall. */
+    boolean entry(UUID kart, String pad, Cuboid box, KartPhysics.State from, KartPhysics.State to,
+                  double forwardX, double forwardY, double forwardZ, long tick, int cooldown) {
+        return forwardEntry(box, from, to, forwardX, forwardY, forwardZ) && trigger(kart, pad, tick, cooldown);
+    }
+
+    static boolean forwardEntry(Cuboid box, KartPhysics.State from, KartPhysics.State to,
+                                double forwardX, double forwardY, double forwardZ) {
+        if (to.speed() <= 0 || !enters(box, from, to)
+                || !Double.isFinite(forwardX) || !Double.isFinite(forwardY) || !Double.isFinite(forwardZ)) return false;
+        return (to.x() - from.x()) * forwardX + (to.y() - from.y()) * forwardY
+                + (to.z() - from.z()) * forwardZ > 1e-6;
+    }
 
     /** Block-coordinate containment, matching {@link Cuboid#contains} without needing a Location. */
     static boolean inside(Cuboid box, double x, double y, double z) {

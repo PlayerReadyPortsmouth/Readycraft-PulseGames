@@ -25,6 +25,11 @@ public final class KartPhysics {
         default boolean clearAt(double x, double y, double z, float yaw) {
             return clear(x,y,z,WIDTH,HEIGHT);
         }
+        default boolean clearPose(KartPose pose) {
+            double[] bounds=poseBounds(pose);
+            return clear((bounds[0]+bounds[3])/2,bounds[1],(bounds[2]+bounds[5])/2,
+                    Math.max(bounds[3]-bounds[0],bounds[5]-bounds[2]),bounds[4]-bounds[1]);
+        }
     }
 
     public static State tick(State state, Input input, double speedMultiplier, CollisionSpace space) {
@@ -37,12 +42,25 @@ public final class KartPhysics {
 
     public static State tick(State state, Input input, double speedMultiplier, CollisionSpace space, KartStyle style,
                              double slipDegrees) {
+        return tick(state,input,speedMultiplier,space,style,slipDegrees,24);
+    }
+
+    public static State tick(State state, Input input, double speedMultiplier, CollisionSpace space, KartStyle style,
+                             double slipDegrees, double gravity) {
+        return tick(state,input,speedMultiplier,space,style,slipDegrees,gravity,false);
+    }
+
+    public static State tick(State state, Input input, double speedMultiplier, CollisionSpace space, KartStyle style,
+                             double slipDegrees, double gravity, boolean preserveAirMomentum) {
+        if (!Double.isFinite(gravity) || gravity < 1 || gravity > 48) throw new IllegalArgumentException("Gravity must be 1..48");
         double multiplier = finiteClamp(speedMultiplier, 0, 2);
         double speed = state.speed();
-        if (input.throttle() == 0) speed = approach(speed, 0, 5 * DT);
-        else if (speed * input.throttle() < 0) speed = approach(speed, 0, 22 * DT);
-        else speed += input.throttle() * 9 * style.acceleration() * DT;
-        speed = Math.clamp(speed, -REVERSE_SPEED * multiplier, MAX_SPEED * multiplier * style.speed());
+        if (!(preserveAirMomentum && !state.grounded())) {
+            if (input.throttle() == 0) speed = approach(speed, 0, 5 * DT);
+            else if (speed * input.throttle() < 0) speed = approach(speed, 0, 22 * DT);
+            else speed += input.throttle() * 9 * style.acceleration() * DT;
+            speed = Math.clamp(speed, -REVERSE_SPEED * multiplier, MAX_SPEED * multiplier * style.speed());
+        }
         float yaw = (float) ((state.yaw() + input.steering() * 126 * style.steering() * DT
                 * Math.min(1, Math.abs(speed) / 2) * Math.signum(speed)) % 360);
         double x = state.x(), y = state.y(), z = state.z();
@@ -95,9 +113,9 @@ public final class KartPhysics {
             }
         }
         // A positive vertical speed is a launch (jump pad): it must lift off even while still touching the ground.
-        double vertical = grounded && state.verticalSpeed() <= 0 ? 0 : Math.max(-12, state.verticalSpeed() - 24 * DT);
+        double vertical = grounded && state.verticalSpeed() <= 0 ? 0 : Math.max(-12, state.verticalSpeed() - gravity * DT);
         // Always probe down, including after climbing a slab or leaving an edge.
-        if (vertical == 0) vertical = -24 * DT;
+        if (vertical == 0) vertical = -gravity * DT;
         double dy = vertical * DT;
         int verticalSteps = Math.max(1, (int) Math.ceil(Math.abs(dy) / SUBSTEP));
         grounded = false;
@@ -126,6 +144,21 @@ public final class KartPhysics {
             @Override public boolean clearAt(double x,double y,double z,float yaw) {
                 return clearShape(x,y,z,yaw,BODY_WIDTH,BODY_LENGTH,HEIGHT);
             }
+            @Override public boolean clearPose(KartPose pose) {
+                double[] b=poseBounds(pose);
+                if(b[1]<world.getMinHeight()||b[4]>=world.getMaxHeight())return false;
+                int minX=(int)Math.floor(b[0]+EPSILON),maxX=(int)Math.floor(b[3]-EPSILON);
+                int minZ=(int)Math.floor(b[2]+EPSILON),maxZ=(int)Math.floor(b[5]-EPSILON);
+                for(int cx=minX>>4;cx<=maxX>>4;cx++)for(int cz=minZ>>4;cz<=maxZ>>4;cz++)
+                    if(!world.isChunkLoaded(cx,cz))return false;
+                for(int x=minX;x<=maxX;x++)for(int z=minZ;z<=maxZ;z++)
+                    for(int y=(int)Math.floor(b[1]+EPSILON);y<=Math.floor(b[4]-EPSILON);y++) {
+                        Block block=world.getBlockAt(x,y,z);
+                        if(block.isLiquid())return false;
+                        if(!block.isPassable()&&poseOverlaps(pose,block.getBoundingBox()))return false;
+                    }
+                return true;
+            }
             private boolean clearShape(double x,double y,double z,float yaw,double width,double length,double height) {
                 if (!Double.isFinite(x+y+z+yaw) || y < world.getMinHeight() || y+height >= world.getMaxHeight()) return false;
                 double radians=Math.toRadians(yaw), c=Math.cos(radians), s=Math.sin(radians);
@@ -148,6 +181,43 @@ public final class KartPhysics {
                 return true;
             }
         };
+    }
+    private static double[] poseBounds(KartPose p) {
+        var centre=p.position().add(p.up().multiply(HEIGHT/2));
+        double ex=(Math.abs(p.right().x())*BODY_WIDTH+Math.abs(p.forward().x())*BODY_LENGTH+Math.abs(p.up().x())*HEIGHT)/2;
+        double ey=(Math.abs(p.right().y())*BODY_WIDTH+Math.abs(p.forward().y())*BODY_LENGTH+Math.abs(p.up().y())*HEIGHT)/2;
+        double ez=(Math.abs(p.right().z())*BODY_WIDTH+Math.abs(p.forward().z())*BODY_LENGTH+Math.abs(p.up().z())*HEIGHT)/2;
+        return new double[]{centre.x()-ex,centre.y()-ey,centre.z()-ez,centre.x()+ex,centre.y()+ey,centre.z()+ez};
+    }
+    /** Full 15-axis OBB/AABB test, including banked and inverted chassis. */
+    static boolean poseOverlaps(KartPose p,BoundingBox box) {
+        var centre=p.position().add(p.up().multiply(HEIGHT/2));
+        var delta=new KartPose.Vec((box.getMinX()+box.getMaxX())/2-centre.x(),
+                (box.getMinY()+box.getMaxY())/2-centre.y(),(box.getMinZ()+box.getMaxZ())/2-centre.z());
+        KartPose.Vec[] local={p.right(),p.up(),p.forward()};
+        KartPose.Vec[] world={new KartPose.Vec(1,0,0),new KartPose.Vec(0,1,0),new KartPose.Vec(0,0,1)};
+        java.util.List<KartPose.Vec> axes=new java.util.ArrayList<>(15);
+        java.util.Collections.addAll(axes,local);java.util.Collections.addAll(axes,world);
+        for(var a:local)for(var b:world){var cross=a.cross(b);if(cross.length()>1e-8)axes.add(cross.unit());}
+        for(var axis:axes) {
+            double radius=(BODY_WIDTH*Math.abs(axis.dot(p.right()))+HEIGHT*Math.abs(axis.dot(p.up()))+BODY_LENGTH*Math.abs(axis.dot(p.forward())))/2;
+            double other=(box.getWidthX()*Math.abs(axis.x())+box.getHeight()*Math.abs(axis.y())+box.getWidthZ()*Math.abs(axis.z()))/2;
+            if(Math.abs(delta.dot(axis))>=radius+other-EPSILON)return false;
+        }
+        return true;
+    }
+    public static boolean overlaps(KartPose a,KartPose b) {
+        var delta=b.position().add(b.up().multiply(HEIGHT/2)).subtract(a.position().add(a.up().multiply(HEIGHT/2)));
+        KartPose.Vec[] aa={a.right(),a.up(),a.forward()},bb={b.right(),b.up(),b.forward()};
+        java.util.List<KartPose.Vec> axes=new java.util.ArrayList<>(15);
+        java.util.Collections.addAll(axes,aa);java.util.Collections.addAll(axes,bb);
+        for(var x:aa)for(var y:bb){var cross=x.cross(y);if(cross.length()>1e-8)axes.add(cross.unit());}
+        for(var axis:axes) {
+            double ar=(BODY_WIDTH*Math.abs(axis.dot(a.right()))+HEIGHT*Math.abs(axis.dot(a.up()))+BODY_LENGTH*Math.abs(axis.dot(a.forward())))/2;
+            double br=(BODY_WIDTH*Math.abs(axis.dot(b.right()))+HEIGHT*Math.abs(axis.dot(b.up()))+BODY_LENGTH*Math.abs(axis.dot(b.forward())))/2;
+            if(Math.abs(delta.dot(axis))>=ar+br-EPSILON)return false;
+        }
+        return true;
     }
     /** Separating-axis test; touching chassis edges do not overlap. */
     public static boolean overlaps(State a, State b) {

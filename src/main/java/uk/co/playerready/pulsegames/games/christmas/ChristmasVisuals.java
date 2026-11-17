@@ -23,14 +23,22 @@ final class ChristmasVisuals implements AutoCloseable {
     static final int LIMIT = 230;
     static final int WORLD_LIMIT = 240;
     private final Set<ItemDisplay> owned = new LinkedHashSet<>();
-    private final boolean custom;
+    private final GameInstance game;
+    private final Plugin content;
+    private final boolean hasModels;
+    private boolean custom;
 
     ChristmasVisuals(GameInstance game) {
+        this.game = game;
+        content = game.plugin().getServer().getPluginManager().getPlugin("PulseContent");
+        hasModels = hasChristmasModels(content);
+        custom = viewersReady();
+    }
+
+    private boolean viewersReady() {
         boolean ready = true;
         try {
-            Plugin content = game.plugin().getServer().getPluginManager().getPlugin("PulseContent");
-            boolean hasModels = hasChristmasModels(content);
-            for (Player player : game.players()) {
+            for (Player player : game.everyone()) {
                 if (player.hasMetadata("NPC")) continue;
                 boolean acknowledged = game.plugin().seasons() != null && game.plugin().seasons().customVisualsReady(player);
                 if (!acknowledged && hasModels)
@@ -41,7 +49,18 @@ final class ChristmasVisuals implements AutoCloseable {
                 }
             }
         } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) { ready = false; }
-        custom = ready;
+        return ready;
+    }
+
+    /** Late spectators or pack loss must not leave unknown models or silent custom sounds. */
+    void refreshViewers() {
+        if (!custom || viewersReady()) return;
+        custom = false; // Downgrade for the rest of the round, avoiding visual flicker.
+        for (ItemDisplay display : owned) {
+            ItemStack fallback = display.getItemStack();
+            fallback.editMeta(meta -> meta.setItemModel(null));
+            display.setItemStack(fallback);
+        }
     }
 
     private static boolean hasChristmasModels(Plugin content) {
@@ -58,6 +77,7 @@ final class ChristmasVisuals implements AutoCloseable {
     }
 
     ItemDisplay spawn(Location at, String model, Material fallback, float scale) {
+        refreshViewers();
         // Leave room for Present Panic's 48 snowballs and the engine's capped finishing fireworks.
         if (at == null || at.getWorld() == null || owned.size() >= LIMIT || at.getWorld().getEntities().size() >= WORLD_LIMIT) return null;
         ItemStack item = new ItemStack(fallback);
@@ -77,7 +97,8 @@ final class ChristmasVisuals implements AutoCloseable {
     void remove(ItemDisplay display) { if (display != null) { display.remove(); owned.remove(display); } }
     int size() { return owned.size(); }
     boolean custom() { return custom; }
-    void sound(Location at, String cue, org.bukkit.Sound fallback, float volume, float pitch) {
+    void sound(Location at, String cue, String fallback, float volume, float pitch) {
+        refreshViewers();
         if (custom) at.getWorld().playSound(at, "pulse:christmas." + cue, volume, pitch);
         else at.getWorld().playSound(at, fallback, volume, pitch);
     }

@@ -12,6 +12,12 @@ final class KartItemBalance {
     private static final PulseKartsGame.Item[] ORDER = {
             PulseKartsGame.Item.SHELL, PulseKartsGame.Item.TURBO, PulseKartsGame.Item.BANANA, PulseKartsGame.Item.SHIELD,
             PulseKartsGame.Item.TRIPLE_SHELL, PulseKartsGame.Item.STAR, PulseKartsGame.Item.LIGHTNING, PulseKartsGame.Item.BULLET};
+    private static final PulseKartsGame.Item[] SHOWCASE_ORDER = java.util.stream.Stream.concat(
+            java.util.Arrays.stream(ORDER), java.util.stream.Stream.of(PulseKartsGame.Item.REPAIR_KIT,
+                    PulseKartsGame.Item.PULSE_WAVE, PulseKartsGame.Item.MAGNET)).toArray(PulseKartsGame.Item[]::new);
+    private static final int[][] SHOWCASE_WEIGHTS = {
+            {20, 15, 5}, {15, 15, 10}, {20, 10, 0}, {15, 10, 5}, {5, 10, 10}, {0, 8, 15}, {0, 4, 10}, {0, 3, 20},
+            {10, 10, 10}, {5, 8, 5}, {10, 7, 10}};
     /** Rows follow ORDER; columns are LEADER, MIDDLE, BACK. */
     private static final int[][] WEIGHTS = {
             {25, 20, 5}, {20, 20, 15}, {30, 15, 0}, {20, 10, 5}, {5, 15, 15}, {0, 10, 20}, {0, 5, 15}, {0, 5, 25}};
@@ -25,13 +31,18 @@ final class KartItemBalance {
     }
 
     static int[] weights(KartStyle style, Tier tier, Set<PulseKartsGame.Item> unavailable) {
+        return weights(style, tier, unavailable, false);
+    }
+    static int[] weights(KartStyle style, Tier tier, Set<PulseKartsGame.Item> unavailable, boolean showcase) {
         Objects.requireNonNull(style, "style"); Objects.requireNonNull(tier, "tier");
-        int[] out = new int[ORDER.length];
-        for (int i = 0; i < ORDER.length; i++) {
-            if (unavailable.contains(ORDER[i])) continue;
-            int weight = WEIGHTS[i][tier.ordinal()];
-            if (style == KartStyle.TRICKSTER && (ORDER[i] == PulseKartsGame.Item.TURBO
-                    || ORDER[i] == PulseKartsGame.Item.LIGHTNING)) weight *= 2;
+        var order = showcase ? SHOWCASE_ORDER : ORDER;
+        var table = showcase ? SHOWCASE_WEIGHTS : WEIGHTS;
+        int[] out = new int[order.length];
+        for (int i = 0; i < order.length; i++) {
+            if (unavailable.contains(order[i])) continue;
+            int weight = table[i][tier.ordinal()];
+            if (style == KartStyle.TRICKSTER && (order[i] == PulseKartsGame.Item.TURBO
+                    || order[i] == PulseKartsGame.Item.LIGHTNING)) weight *= 2;
             out[i] = weight;
         }
         return out;
@@ -43,14 +54,19 @@ final class KartItemBalance {
     }
     /** {@code roll} is any int; it is reduced modulo the table total. An empty table falls back to turbo. */
     static PulseKartsGame.Item choose(KartStyle style, int roll, Tier tier, Set<PulseKartsGame.Item> unavailable) {
-        int[] weights = weights(style, tier, unavailable);
+        return choose(style, roll, tier, unavailable, false);
+    }
+    static PulseKartsGame.Item choose(KartStyle style, int roll, Tier tier, Set<PulseKartsGame.Item> unavailable, boolean showcase) {
+        int[] weights = weights(style, tier, unavailable, showcase);
+        var order = showcase ? SHOWCASE_ORDER : ORDER;
         int total = 0;
         for (int weight : weights) total += weight;
         if (total == 0) return PulseKartsGame.Item.TURBO;
         int value = Math.floorMod(roll, total);
-        for (int i = 0; i < weights.length; i++) { value -= weights[i]; if (value < 0) return ORDER[i]; }
+        for (int i = 0; i < weights.length; i++) { value -= weights[i]; if (value < 0) return order[i]; }
         return PulseKartsGame.Item.TURBO;
     }
     /** Items a roulette may flash while spinning. */
-    static PulseKartsGame.Item[] roulettePool() { return ORDER.clone(); }
+    static PulseKartsGame.Item[] roulettePool() { return roulettePool(false); }
+    static PulseKartsGame.Item[] roulettePool(boolean showcase) { return (showcase ? SHOWCASE_ORDER : ORDER).clone(); }
 }

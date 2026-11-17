@@ -177,6 +177,11 @@ final class ArenaSetupMenu implements Listener {
     }
     private void requirement(Player player, ArenaSetupManager.Session session, ArenaSetupManager.CheckEntry entry) {
         String[] args = entry.command().substring(Routes.SETUP_PREFIX.length()).trim().split(" +");
+        if (args[0].equals("markers")) {
+            player.closeInventory();
+            player.sendMessage(uk.co.playerready.pulsegames.core.util.Text.msg("<yellow>Place the game's [pulse] signs, then scan your map bounds. Replace the coordinate placeholders: <white>" + entry.command().replace("<", "[").replace(">", "]")));
+            return;
+        }
         if (args[0].equals("set")) {
             String key = args[1];
             if (key.equals("diamond-generators")) { run(player, session, "addloc", key); return; }

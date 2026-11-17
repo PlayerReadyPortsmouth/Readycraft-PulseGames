@@ -10,6 +10,24 @@ public final class MarkerContract {
     private static final Pattern PP=Pattern.compile("pp\\.(spawn\\.(red|green|blue|gold)|belt\\.[12]\\.(feed|[1-9][0-9]*)|wrap\\.(red|green|blue|gold)\\."+ID+"|bow\\.(red|green|blue|gold)|sleigh\\.(red|green|blue|gold)(\\.launch)?|event\\.naughty|spectator|return|bounds\\.(min|max))");
     private static final Pattern GH=Pattern.compile("gh\\.(grinch\\.spawn|villager\\.spawn|tree\\."+ID+"|cave\\.(pile|door|back)|chimney\\."+ID+"|snow\\.fresh\\."+ID+"\\.(min|max)|path\\.cleared\\."+ID+"\\.(min|max)|bell\\."+ID+"|kennel|spectator|return|bounds\\.(min|max))");
     private MarkerContract() {}
+    /** Validate persisted records too: a hand-edited YAML must not bypass the sign importer. */
+    public static List<String> savedProblems(String game, Object raw) {
+        if (!(raw instanceof List<?> rows)) return List.of("Import the " + game + " marker manifest with setup markers.");
+        List<String> errors = new ArrayList<>();
+        List<String> keys = new ArrayList<>();
+        for (Object value : rows) {
+            if (!(value instanceof Map<?, ?> row) || !(row.get("key") instanceof String key)
+                    || !(row.get("location") instanceof String location)) {
+                errors.add("Each marker needs a key and location.");
+                continue;
+            }
+            keys.add(key);
+            try { uk.co.playerready.pulsegames.core.util.LocUtil.parse(location, null); }
+            catch (RuntimeException invalid) { errors.add("Invalid marker coordinates: " + key); }
+        }
+        errors.addAll(problems(game, keys));
+        return errors.stream().distinct().toList();
+    }
     public static boolean validKey(String game,String key) {
         return (game.equals("presentpanic") ? PP : GH).matcher(key).matches();
     }

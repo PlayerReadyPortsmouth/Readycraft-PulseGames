@@ -12,7 +12,6 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
-import uk.co.playerready.pulsegames.core.bot.BotDifficulty;
 import uk.co.playerready.pulsegames.core.bot.BotMovement;
 import uk.co.playerready.pulsegames.core.game.*;
 import uk.co.playerready.pulsegames.core.seasonal.ChristmasMarkers;
@@ -44,7 +43,10 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
     private final Map<UUID, Deque<Present>> carrying = new HashMap<>();
     private final Map<UUID, Role> roles = new HashMap<>();
     private final Map<UUID, Float> speeds = new HashMap<>();
+    private final Map<UUID, Double> npcBaseSpeeds = new HashMap<>();
+    private final java.util.function.Function<Player, org.bukkit.attribute.AttributeInstance> movementSpeed;
     private final Map<UUID, Wrap> wrapping = new HashMap<>();
+    private final Set<UUID> wrapAssist = new HashSet<>();
     private final Map<UUID, Integer> throwsAt = new HashMap<>(), roleAt = new HashMap<>();
     private final Map<UUID, Integer> wraps = new HashMap<>(), steals = new HashMap<>(), delivered = new HashMap<>();
     private final Map<UUID, Snowball> snowballs = new HashMap<>();
@@ -59,7 +61,10 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
     private int naughtyTeam = -1;
     private boolean ended;
 
-    public PresentPanicGame(GameInstance game) { super(game); markers = new ChristmasMarkers(game); }
+    public PresentPanicGame(GameInstance game) { this(game, p -> p.getAttribute(org.bukkit.attribute.Attribute.MOVEMENT_SPEED)); }
+    PresentPanicGame(GameInstance game, java.util.function.Function<Player, org.bukkit.attribute.AttributeInstance> movementSpeed) {
+        super(game); markers = new ChristmasMarkers(game); this.movementSpeed = movementSpeed;
+    }
 
     @Override public boolean managesCompletion() { return true; }
     @Override public boolean environmentalDamage() { return false; }
@@ -73,6 +78,8 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         if (game.plugin().seasons() == null || !game.plugin().seasons().gameEnabled("presentpanic")) return "Present Panic is not in the active season.";
         if (players.stream().anyMatch(p -> !p.hasMetadata("NPC") && !game.plugin().seasons().canPlay(p, "presentpanic")))
             return "Present Panic is limited to the current seasonal trial players.";
+        var markerProblems = uk.co.playerready.pulsegames.core.seasonal.MarkerContract.savedProblems("presentpanic", game.arena().settings().get("markers"));
+        if (!markerProblems.isEmpty()) return markerProblems.getFirst();
         for (String team : TEAMS) if (markers.points("pp.spawn." + team).isEmpty() || markers.point("pp.sleigh." + team) == null)
             return "Present Panic needs the pp.spawn and pp.sleigh markers for every team.";
         if (markers.keys("pp.wrap.").isEmpty() || markers.point("pp.belt.1.feed") == null) return "Import the Present Panic map markers first.";
@@ -110,7 +117,7 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
             Colour colour = Colour.valueOf(station.split("\\.")[2].toUpperCase(Locale.ROOT));
             visuals.spawn(markers.point(station).clone().add(0, 0.35, 0), "christmas_wrapping_paper_" + colour.key(), material(colour), 0.75f);
         }
-        game.broadcast("<gold>Grab toys from the belt. Sneak by a wrapping bench to HOLD and wrap. Match the toy colour, add a bow, load your sleigh!");
+        game.broadcast("<gold>Grab toys from the belt. Sneak by a wrapping bench, or use a carried toy to toggle wrapping. Match the toy colour, add a bow, load your sleigh!");
         game.broadcast("<yellow>Blaze rod: snowball. Iron nugget: change elf role. Snowball hits drop the top present; anyone can steal it.");
         loop = game.runRepeating(1, 2, this::step);
     }
@@ -134,15 +141,22 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         return item;
     }
     private void updateCarry(Player player) {
-        player.setWalkSpeed(walkSpeed(role(player), stack(player).size()));
+        float speed = walkSpeed(role(player), stack(player).size());
+        var attribute = player.hasMetadata("NPC") ? movementSpeed.apply(player) : null;
+        Double npcBase = attribute == null ? null : npcBaseSpeeds.computeIfAbsent(player.getUniqueId(), id -> attribute.getBaseValue());
+        player.setWalkSpeed(speed);
+        // Paper's setter replaces MOVEMENT_SPEED with a human base. Citizens needs its own
+        // original base scaled by the same role/cargo ratio, rather than that replacement.
+        if (npcBase != null) attribute.setBaseValue(npcBase * speed / Math.max(0.01f, speeds.getOrDefault(player.getUniqueId(), 0.2f)));
         for (int slot = 1; slot <= 4; slot++) player.getInventory().setItem(slot, null);
         int slot = 1;
         for (Present present : stack(player)) player.getInventory().setItem(slot++, tool(material(present.toy()),
-                present.toy().key() + " toy" + (present.paper() == null ? " · unwrapped" : " · " + present.paper().key() + " paper" + (present.bow() ? " + bow" : "")), "Carry to a bench or your sleigh"));
+                present.toy().key() + " toy" + (present.paper() == null ? " · unwrapped" : " · " + present.paper().key() + " paper" + (present.bow() ? " + bow" : "")), "Use to toggle wrapping at a bench; sneak also works"));
     }
     private void step() {
         if (game.state() != GameState.RUNNING || ended) return;
         tick += 2;
+        if (tick % 20 == 0) visuals.refreshViewers();
         if (event != Event.NONE && tick >= eventUntil) { event = Event.NONE; naughtyTeam = -1; game.broadcast("<green>The workshop is back to normal!"); }
         if (tick % (event == Event.CONVEYOR_RUSH ? 20 : 40) == 0) for (Belt belt : belts) spawnToy(belt);
         Iterator<Toy> iterator = toys.iterator();
@@ -162,7 +176,7 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         }
         for (Player player : game.alivePlayers()) {
             if (!game.isActive(player)) continue;
-            if (!player.hasMetadata("NPC")) processWrap(player, player.isSneaking());
+            processWrap(player, player.hasMetadata("NPC") ? botWrapping(player) : player.isSneaking() || wrapAssist.contains(player.getUniqueId()));
             Location sleigh = markers.point("pp.sleigh." + TEAMS.get(team(player)));
             if (near(player.getLocation(), sleigh, 2.2)) deposit(player);
             if (event == Event.SNOW_SQUALL && tick % 10 == 0) {
@@ -202,6 +216,12 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         return markers.keys("pp.wrap.").stream().filter(key -> near(at, markers.point(key), 2.6))
                 .min(Comparator.comparingDouble(key -> at.distanceSquared(markers.point(key)))).orElse(null);
     }
+    private boolean botWrapping(Player bot) {
+        Present next = nextUnwrapped(stack(bot));
+        if (next == null) return true; // Bow processing still requires the team's own station.
+        String station = wrappingStation(bot);
+        return station != null && station.startsWith("pp.wrap." + next.toy().key() + ".");
+    }
     private void processWrap(Player player, boolean holding) {
         UUID id = player.getUniqueId();
         if (!holding || stack(player).isEmpty()) { wrapping.remove(id); return; }
@@ -210,6 +230,7 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
             if (stack(player).stream().anyMatch(p -> !p.bow()) && near(player.getLocation(), markers.point("pp.bow." + TEAMS.get(team(player))), 2.6)) {
                 bowAll(stack(player)); updateCarry(player);
                 player.sendActionBar(Text.mm("<gold>Bow added! Correctly matched presents are worth 6."));
+                player.playSound(player.getLocation(), "minecraft:block.note_block.bell", 0.45f, 1.5f);
             }
             return;
         }
@@ -219,25 +240,35 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         int progress = current != null && station.equals(current.station) ? current.ticks + 2 : 2;
         int required = wrapTicks(role(player), event == Event.PAPER_SHORTAGE);
         wrapping.put(id, new Wrap(station, progress));
-        player.sendActionBar(Text.mm("<gold>Wrapping " + Math.min(100, progress * 100 / required) + "% <gray>Keep sneaking"));
+        Colour paper = Colour.valueOf(station.split("\\.")[2].toUpperCase(Locale.ROOT));
+        player.sendActionBar(Text.mm((paper == top.toy() ? "<gold>" : "<yellow>Wrong colour! ") + "Wrapping " + Math.min(100, progress * 100 / required) + "% <gray>" + paper.key() + " paper"));
         if (progress >= required) {
             Colour colour = Colour.valueOf(station.split("\\.")[2].toUpperCase(Locale.ROOT));
             wrapNext(stack(player), colour);
             wraps.merge(id, 1, Integer::sum); wrapping.remove(id); updateCarry(player);
-            visuals.sound(player.getLocation(), "wrap", Sound.BLOCK_WOOL_PLACE, 1, 1.4f);
+            visuals.sound(player.getLocation(), "wrap", "minecraft:block.wool.place", 1, 1.4f);
         }
     }
     private void deposit(Player player) {
         if (stack(player).isEmpty()) return;
-        int earned = 0;
-        for (Present present : stack(player)) earned += score(present, timeLimitSeconds() * 20 - tick <= 600);
+        int earned = 0, amount = 0;
+        for (Iterator<Present> iterator = stack(player).iterator(); iterator.hasNext();) {
+            Present present = iterator.next();
+            if (present.paper() == null) continue;
+            earned += score(present, timeLimitSeconds() * 20 - tick <= 600);
+            amount++; iterator.remove();
+        }
+        if (amount == 0) {
+            if (tick % 20 == 0) player.sendActionBar(Text.mm("<yellow>Wrap your toys first. Unfinished toys stay in your stack."));
+            return;
+        }
         if (event == Event.NAUGHTY_LIST && team(player) == naughtyTeam) earned++;
         points.merge(team(player), earned, Integer::sum);
         game.addScore(player, earned);
-        delivered.merge(player.getUniqueId(), stack(player).size(), Integer::sum);
-        stack(player).clear(); wrapping.remove(player.getUniqueId()); updateCarry(player);
+        delivered.merge(player.getUniqueId(), amount, Integer::sum);
+        wrapping.remove(player.getUniqueId()); updateCarry(player);
         player.sendActionBar(Text.mm("<green>Loaded! +" + earned + " team points"));
-        visuals.sound(player.getLocation(), "delivery", Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1, 1.3f);
+        visuals.sound(player.getLocation(), "delivery", "minecraft:entity.experience_orb.pickup", 1, 1.3f);
     }
     private void dropTop(Player player) {
         if (stack(player).isEmpty()) return;
@@ -255,13 +286,19 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         Snowball ball = player.launchProjectile(Snowball.class, player.getEyeLocation().getDirection().multiply(1.4));
         snowballs.put(ball.getUniqueId(), ball);
         game.runLater(80, () -> { snowballs.remove(ball.getUniqueId()); ball.remove(); });
-        player.playSound(player.getLocation(), Sound.ENTITY_SNOWBALL_THROW, 0.6f, 1.3f);
+        player.playSound(player.getLocation(), "minecraft:entity.snowball.throw", 0.6f, 1.3f);
         return true;
     }
     @Override public void onInteract(PlayerInteractEvent event) {
         if (event.getHand() != EquipmentSlot.HAND || !event.getAction().isRightClick() || event.getItem() == null) return;
         event.setCancelled(true);
         Player player = event.getPlayer();
+        if (!game.isActive(player)) return;
+        if (java.util.Arrays.asList(COLOUR_BLOCKS).contains(event.getItem().getType())) {
+            if (!wrapAssist.add(player.getUniqueId())) wrapAssist.remove(player.getUniqueId());
+            wrapping.remove(player.getUniqueId());
+            player.sendActionBar(Text.mm(wrapAssist.contains(player.getUniqueId()) ? "<green>Wrapping ON: stand by a bench or bow station" : "<gray>Wrapping OFF: sneak to wrap manually"));
+        }
         if (event.getItem().getType() == Material.BLAZE_ROD) throwSnowball(player);
         if (event.getItem().getType() == Material.IRON_NUGGET && tick >= roleAt.getOrDefault(player.getUniqueId(), 0)) {
             Role next = Role.values()[(role(player).ordinal() + 1) % Role.values().length];
@@ -279,6 +316,8 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         Vector away = victim.getLocation().toVector().subtract(shooter.getLocation().toVector()).setY(0);
         if (away.lengthSquared() > 0.01) victim.setVelocity(away.normalize().multiply(0.65).setY(0.22));
         dropTop(victim);
+        victim.sendActionBar(Text.mm("<yellow>Snowball hit! Check your stack for a dropped present."));
+        victim.playSound(victim.getLocation(), "minecraft:block.snow.break", 0.45f, 1.3f);
         victim.getWorld().spawnParticle(Particle.SNOWFLAKE, victim.getLocation().add(0, 1, 0), 8, 0.3, 0.4, 0.3, 0);
     }
     @Override public void onDamageByPlayer(Player victim, Player damager, EntityDamageByEntityEvent event) { event.setCancelled(true); }
@@ -287,6 +326,14 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
     @Override public void onInventoryDrag(Player player, org.bukkit.event.inventory.InventoryDragEvent event) { event.setCancelled(true); }
 
     @Override public void onSecond(int elapsed) {
+        for (Player player : game.alivePlayers()) if (!player.hasMetadata("NPC") && !wrapping.containsKey(player.getUniqueId())) {
+            Present next = nextUnwrapped(stack(player));
+            String hint = stack(player).isEmpty() ? "Grab a toy from a conveyor"
+                    : next != null ? "Find " + next.toy().key() + " paper; sneak or use toy"
+                    : stack(player).stream().anyMatch(p -> !p.bow()) ? "Add bows, then load your " + TEAMS.get(team(player)) + " sleigh"
+                    : "Load your " + TEAMS.get(team(player)) + " sleigh!";
+            player.sendActionBar(Text.mm("<yellow>" + hint));
+        }
         if (elapsed > 0 && elapsed % 45 == 0 && timeLimitSeconds() - elapsed > 30) {
             event = Event.values()[1 + random.nextInt(4)]; eventUntil = tick + 300;
             naughtyTeam = java.util.stream.IntStream.range(0, Math.max(1, game.teams().size())).boxed()
@@ -312,7 +359,10 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         List<String> lines = new ArrayList<>();
         for (int i = 0; i < game.teams().size(); i++) lines.add("<gold>" + TEAMS.get(i) + " sleigh: " + points.getOrDefault(i, 0));
         lines.add(mvp("Master Wrapper", wraps)); lines.add(mvp("Present Packer", delivered)); lines.add(mvp("Sneaky Elf", steals));
-        return new EndSummary("Sleighs away!", winners.isEmpty() ? "Christmas cheer wins the day" : "The busiest sleigh wins!", lines);
+        int best = points.values().stream().mapToInt(Integer::intValue).max().orElse(0);
+        List<String> leaders = java.util.stream.IntStream.range(0, game.teams().size()).filter(i -> best > 0 && points.getOrDefault(i,0) == best).mapToObj(TEAMS::get).toList();
+        String result = winners.isEmpty() ? "No winning sleigh this time" : String.join(" / ", leaders) + (leaders.size() == 1 ? " sleigh wins!" : " sleighs share the win!");
+        return new EndSummary("Sleighs away!", result, lines);
     }
     private String mvp(String name, Map<UUID, Integer> values) {
         return values.entrySet().stream().max(Map.Entry.comparingByValue()).map(entry -> "<green>" + name + ": " + game.players().stream()
@@ -330,7 +380,7 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
             if (from == null || to == null || visuals == null) continue;
             ItemDisplay sleigh = visuals.spawn(from.clone().add(0, 1, 0), "christmas_sleigh", Material.MINECART, 2);
             if (sleigh == null) continue;
-            visuals.sound(from, "launch", Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 0.8f, 1.2f);
+            visuals.sound(from, "launch", "minecraft:entity.firework_rocket.launch", 0.8f, 1.2f);
             for (int step = 1; step <= 40; step++) {
                 final double part = step / 40.0;
                 game.runLater(step * 2L, () -> {
@@ -342,12 +392,17 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         }
     }
     private void restore(Player player) {
-        Float original = speeds.remove(player.getUniqueId()); if (original != null) player.setWalkSpeed(original);
+        restoreSpeed(player);
         player.removePotionEffect(org.bukkit.potion.PotionEffectType.SLOWNESS);
+    }
+    private void restoreSpeed(Player player) {
+        Float original = speeds.remove(player.getUniqueId()); if (original != null) player.setWalkSpeed(original);
+        Double npcBase = npcBaseSpeeds.remove(player.getUniqueId());
+        if (npcBase != null) { var attribute = movementSpeed.apply(player); if (attribute != null) attribute.setBaseValue(npcBase); }
     }
     @Override public void onQuit(Player player) {
         if (!ended && visuals != null) while (!stack(player).isEmpty()) dropTop(player);
-        carrying.remove(player.getUniqueId()); wrapping.remove(player.getUniqueId()); restore(player);
+        carrying.remove(player.getUniqueId()); wrapping.remove(player.getUniqueId()); wrapAssist.remove(player.getUniqueId()); restore(player);
     }
     @Override public void onDeath(Player victim, Player killer) {
         while (!stack(victim).isEmpty()) dropTop(victim);
@@ -362,12 +417,12 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         ended = true; if (loop != null) loop.cancel();
         for (Player player : game.players()) restore(player);
         if (visuals != null) visuals.close(); snowballs.values().forEach(Entity::remove);
-        toys.clear(); snowballs.clear(); carrying.clear(); wrapping.clear();
+        toys.clear(); snowballs.clear(); carrying.clear(); wrapping.clear(); wrapAssist.clear();
     }
     @Override public List<String> sidebar(Player player) {
-        List<String> lines = new ArrayList<>(List.of("<gold>Role: " + role(player), "<yellow>Carry: " + stack(player).size() + "/" + capacity(role(player)), phaseCountdown()));
-        for (int i = 0; i < game.teams().size(); i++) lines.add("<gray>" + TEAMS.get(i) + ": <white>" + points.getOrDefault(i, 0));
-        lines.add("<aqua>Sneak at a bench to wrap");
+        List<String> lines = new ArrayList<>(List.of("<gold>" + role(player) + " <yellow>Carry: " + stack(player).size() + "/" + capacity(role(player)), phaseCountdown()));
+        for (int i = 0; i < game.teams().size(); i++) lines.add((i == team(player) ? "<gold>Your " : "<gray>") + TEAMS.get(i) + ": <white>" + points.getOrDefault(i, 0));
+        lines.add(wrapAssist.contains(player.getUniqueId()) ? "<aqua>Auto wrap ON; use toy to stop" : "<aqua>Sneak or use toy to wrap");
         if (event != Event.NONE) lines.add("<gold>" + event.name().replace('_', ' '));
         return lines;
     }
@@ -383,12 +438,5 @@ public final class PresentPanicGame extends MiniGame implements BotMovement {
         }
         return toys.stream().filter(t -> t.belt != null && t.display.isValid()).map(t -> t.display.getLocation())
                 .min(Comparator.comparingDouble(p -> p.distanceSquared(bot.getLocation()))).orElse(markers.point("pp.belt.1.feed"));
-    }
-    @Override public void botTick(Player bot, long ignored, BotDifficulty difficulty) {
-        processWrap(bot, true);
-        if (!stack(bot).isEmpty() && stack(bot).peekLast().paper() != null) {
-            Location sleigh = markers.point("pp.sleigh." + TEAMS.get(team(bot)));
-            if (near(bot.getLocation(), sleigh, 2.2)) deposit(bot);
-        }
     }
 }

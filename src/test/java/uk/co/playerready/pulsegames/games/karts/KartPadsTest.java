@@ -56,4 +56,24 @@ class KartPadsTest {
   var c=new UUID(0,3);assertFalse(pads.triggerBoth(c,a,"bump",120,40),"a is still cooling down");
   assertTrue(pads.triggerBoth(a,b,"bump",140,40));
  }
+ @Test void directionalEntryRejectsReverseAndWrongWayTravel() {
+  var box=new Cuboid(0,0,10,2,2,10);
+  assertTrue(KartPads.forwardEntry(box,at(1,0,9),at(1,0,12),0d));
+  assertFalse(KartPads.forwardEntry(box,at(1,0,12),at(1,0,9),0d));
+  var reverse=new KartPhysics.State(1,0,12,0,-3,0,true);
+  assertFalse(KartPads.forwardEntry(box,at(1,0,9),reverse,0d));
+ }
+ @Test void materialStripNeedsAnExitBeforeRetriggering() {
+  var pads=new KartPads();
+  assertTrue(pads.contactEntry(a,"block",true,100,20));
+  assertFalse(pads.contactEntry(a,"block",true,200,20));
+  assertFalse(pads.contactEntry(a,"block",false,201,20));
+  assertTrue(pads.contactEntry(a,"block",true,202,20));
+  pads.forget(a);assertTrue(pads.contactEntry(a,"block",true,203,20));
+ }
+ @Test void surfaceDirectionAllowsWallPanelsWithoutHorizontalMotion() {
+  var box=new Cuboid(0,10,0,2,10,2);
+  assertTrue(KartPads.forwardEntry(box,at(1,9,1),at(1,12,1),0,1,0));
+  assertFalse(KartPads.forwardEntry(box,at(1,12,1),at(1,9,1),0,1,0));
+ }
 }

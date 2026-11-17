@@ -1225,6 +1225,11 @@ public final class GameInstance {
                 }
                 default -> { }
             }
+            if (plugin.canUseNewFeatures(p) && (state == GameState.WAITING || state == GameState.COUNTDOWN || state == GameState.RUNNING)) {
+                boolean eligible = state == GameState.RUNNING ? ranked() : !practice && CompetitiveEligibility.eligible(humanCount(), botIds.size(), maxPlayers(), logic.cooperative());
+                lines.add(eligible ? "<gold>Match tokens: eligible" : "<yellow>Practice: no match tokens");
+                if (state != GameState.RUNNING) lines.add("<gray>Rewards fixed at round start");
+            }
             lines.add("");
             if (!botIds.isEmpty()) lines.add("<gray>Bots: <yellow>" + botIds.size());
             lines.add("<gray>Mode: <yellow>" + mode.displayName());

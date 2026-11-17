@@ -14,6 +14,8 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 import uk.co.playerready.pulsegames.core.game.*;
+import uk.co.playerready.pulsegames.core.bot.BotMovement;
+import uk.co.playerready.pulsegames.core.bot.BotDifficulty;
 import uk.co.playerready.pulsegames.core.seasonal.ChristmasMarkers;
 import uk.co.playerready.pulsegames.core.util.Text;
 
@@ -22,7 +24,7 @@ import java.util.*;
 import static uk.co.playerready.pulsegames.games.christmas.GrinchRules.*;
 
 /** Snow footprints are observable evidence. No villager gadget reads an invisible player's location at unlimited range. */
-public final class GrinchHuntGame extends MiniGame {
+public final class GrinchHuntGame extends MiniGame implements BotMovement {
     private record Print(Location at, UUID owner, int made, int expires, ItemDisplay display, boolean decoy) {}
     private record Trap(Location at, int expires, ItemDisplay display) {}
     private record Hold(UUID target, int ticks) {}
@@ -38,6 +40,7 @@ public final class GrinchHuntGame extends MiniGame {
     private final Map<UUID, Integer> hits = new HashMap<>(), lastHit = new HashMap<>(), immuneUntil = new HashMap<>(), revealUntil = new HashMap<>(), quietUntil = new HashMap<>();
     private final Map<UUID, Location> lastFoot = new HashMap<>();
     private final Map<UUID, Float> speeds = new HashMap<>();
+    private final Set<UUID> catchUpBoosted = new HashSet<>();
     private final Map<UUID, Boolean> invisibleBefore = new HashMap<>();
     private final Map<UUID, VillagerRole> roles = new HashMap<>();
     private final Map<String, Integer> cooldowns = new HashMap<>();
@@ -50,9 +53,11 @@ public final class GrinchHuntGame extends MiniGame {
     private final Map<UUID, Snowball> snowballs = new HashMap<>();
     private final Map<UUID, Integer> stolen = new HashMap<>(), tags = new HashMap<>(), recovered = new HashMap<>();
     private final Map<UUID, ItemDisplay> eyes = new HashMap<>();
+    private final Map<UUID, Integer> patrol = new HashMap<>(), nextBotTag = new HashMap<>();
     private ChristmasVisuals visuals;
     private BukkitTask loop;
     private int tick, banked;
+    private String outcomeReason = "";
     private boolean ended;
     private boolean started;
     private boolean originalStorm;
@@ -70,6 +75,8 @@ public final class GrinchHuntGame extends MiniGame {
         if (players.stream().anyMatch(p -> !p.hasMetadata("NPC") && !game.plugin().seasons().canPlay(p, "grinchhunt")))
             return "Grinch Hunt is limited to the current seasonal trial players.";
         if (players.size() < 2) return "Grinch Hunt needs a Grinch and at least one villager.";
+        var markerProblems = uk.co.playerready.pulsegames.core.seasonal.MarkerContract.savedProblems("grinchhunt", game.arena().settings().get("markers"));
+        if (!markerProblems.isEmpty()) return markerProblems.getFirst();
         if (markers.points("gh.grinch.spawn").isEmpty() || markers.points("gh.villager.spawn").isEmpty()
                 || markers.point("gh.cave.pile") == null || markers.keys("gh.tree.").isEmpty()) return "Import the Grinch Hunt map markers first.";
         return null;
@@ -93,7 +100,7 @@ public final class GrinchHuntGame extends MiniGame {
             if (index < count) {
                 grinches.add(id); player.setInvisible(true);
                 teleportSpawn(player, "gh.grinch.spawn", index);
-                player.sendMessage(Text.msg("<green>You are the Grinch! Sneak at trees to steal, return to the cave pile. Bank 15, or be carrying a present when time runs out!"));
+                player.sendMessage(Text.msg("<green>You are the Grinch! Sneak at trees to steal, return to the cave pile. Bank 15, or hold " + heldMinimum() + (heldMinimum() == 1 ? " present" : " presents") + " when time runs out!"));
                 player.sendMessage(Text.msg("<yellow>Five hotbar abilities. Your eyes appear when revealed. Sneak for faint prints. Heart escape and cave back exit can each save you once."));
             } else {
                 roles.put(id, VillagerRole.values()[villager++ % VillagerRole.values().length]);
@@ -148,6 +155,7 @@ public final class GrinchHuntGame extends MiniGame {
     private void step() {
         if (ended || game.state() != GameState.RUNNING) return;
         tick += 2;
+        if (tick % 20 == 0) visuals.refreshViewers();
         for (Iterator<Print> iterator = prints.iterator(); iterator.hasNext();) {
             Print print = iterator.next();
             if (tick >= print.expires || !print.display.isValid()) { visuals.remove(print.display); iterator.remove(); }
@@ -164,6 +172,9 @@ public final class GrinchHuntGame extends MiniGame {
         for (Map.Entry<UUID, Wolf> entry : dogs.entrySet()) {
             Wolf dog = entry.getValue();
             ItemDisplay model = dogModels.get(entry.getKey());
+            if (model != null && !visuals.custom()) {
+                dog.setInvisible(false); visuals.remove(model); dogModels.remove(entry.getKey()); model = null;
+            }
             if (model != null && dog.isValid()) model.teleport(dog.getLocation());
             if (!dog.isValid() || tick % 20 != 0) continue;
             Print freshest = freshestPrint();
@@ -201,6 +212,7 @@ public final class GrinchHuntGame extends MiniGame {
         if (near(at, markers.point("gh.cave.pile"), 2.3) && !cargo(player).isEmpty()) {
             int amount = cargo(player).size(); banked += amount; cargo(player).clear(); game.addScore(player, amount);
             game.broadcast("<green>The cave pile now holds " + banked + "/15 presents!");
+            visuals.sound(at, "delivery", "minecraft:entity.experience_orb.pickup", 0.65f, 1.2f);
             for (int i = banked - amount; i < banked && i < 15; i++) visuals.spawn(markers.point("gh.cave.pile").clone().add((i % 3 - 1) * 0.6, 0.35 + i / 9 * 0.5, (i / 3 % 3 - 1) * 0.6),
                     "christmas_present_green", Material.GREEN_WOOL, 0.5f);
             if (banked >= 15) { finish(true, "fifteen-presents"); return; }
@@ -211,14 +223,17 @@ public final class GrinchHuntGame extends MiniGame {
             visuals.remove(trap.display); traps.remove(trap);
             game.broadcast("<gold>A present trap has caught a trail!");
         }
-        if (tick > timeLimitSeconds() * 10 && banked < 4) player.setWalkSpeed(0.23f);
+        boolean boosted = tick > timeLimitSeconds() * 10 && banked < 4;
+        // CraftPlayer.setWalkSpeed also resets MOVEMENT_SPEED, disrupting Citizens navigation if repeated.
+        if (boosted ? catchUpBoosted.add(id) : catchUpBoosted.remove(id))
+            player.setWalkSpeed(boosted ? 0.23f : speeds.getOrDefault(id, 0.2f));
     }
     private void steal(Player player) {
         for (Map.Entry<String, Tree> entry : trees.entrySet()) {
             Tree tree = entry.getValue();
             if (tree.stock > 0 && near(player.getLocation(), tree.at, 2.2)) {
                 tree.stock--; cargo(player).add(entry.getKey()); stolen.merge(player.getUniqueId(), 1, Integer::sum); renderTree(tree);
-                visuals.sound(tree.at, "alarm", Sound.BLOCK_BELL_USE, 1.5f, 1.4f);
+                visuals.sound(tree.at, "alarm", "minecraft:block.bell.use", 1.5f, 1.4f);
                 tree.at.getWorld().spawnParticle(Particle.FIREWORK, tree.at, 10, 1, 1, 1, 0);
                 game.broadcast("<gold>Tree alarm! A present was taken near " + entry.getKey().substring("gh.tree.".length()) + ".");
                 reveal(player, banked >= 10 ? 50 : 20);
@@ -274,7 +289,7 @@ public final class GrinchHuntGame extends MiniGame {
     private void reveal(Player grinch, int ticks) {
         revealUntil.merge(grinch.getUniqueId(), tick + ticks, Math::max); grinch.setInvisible(false);
         grinch.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, ticks, 0, false, false));
-        if (visuals != null) visuals.sound(grinch.getLocation(), "reveal", Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.4f, 1.3f);
+        if (visuals != null) visuals.sound(grinch.getLocation(), "reveal", "minecraft:block.amethyst_block.chime", 0.4f, 1.3f);
     }
     private boolean ready(Player player, String ability, int cooldown) {
         String key = player.getUniqueId() + ":" + ability;
@@ -468,6 +483,7 @@ public final class GrinchHuntGame extends MiniGame {
     }
     private void finish(boolean grinchWin, String reason) {
         if (ended) return;
+        outcomeReason = reason;
         List<Player> winners = game.alivePlayers().stream().filter(p -> grinchWin ? activeGrinch(p) : !isGrinch(p)).toList();
         game.end(winners, reason);
     }
@@ -476,6 +492,7 @@ public final class GrinchHuntGame extends MiniGame {
         if (game.alivePlayers().stream().noneMatch(this::activeGrinch)) { finish(false, "no-grinch"); return; }
         if (game.alivePlayers().stream().noneMatch(p -> !isGrinch(p))) { finish(true, "no-villagers"); return; }
         if (elapsed == timeLimitSeconds() / 2 && banked < 4) game.broadcast("<green>Catch-up cheer: the Grinch gets a little speed to help fill the cave!");
+        if (timeLimitSeconds() - elapsed == 30) game.broadcast("<gold>30 seconds! Grinches need " + heldMinimum() + (heldMinimum() == 1 ? " held present" : " held presents") + " at morning; villagers must catch them all!");
         if (banked >= 10 && elapsed % 15 == 0) {
             for (Player grinch : game.alivePlayers()) if (activeGrinch(grinch)) {
                 grinch.getWorld().playSound(grinch.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1.5f, 1.8f);
@@ -486,15 +503,17 @@ public final class GrinchHuntGame extends MiniGame {
     }
     @Override public void onTimeUp() {
         int carried = game.alivePlayers().stream().filter(this::activeGrinch).mapToInt(p -> cargo(p).size()).sum();
-        int heldMinimum = Math.max(1, Math.min(15, game.arena().settings().getInt("timeout-held-min", 1)));
-        finish(grinchWins(banked, carried, heldMinimum), "christmas-morning");
+        finish(grinchWins(banked, carried, heldMinimum()), "christmas-morning");
     }
+    private int heldMinimum() { return Math.max(1, Math.min(15, game.arena().settings().getInt("timeout-held-min", 1))); }
     @Override public String phaseCountdown() { return "Christmas morning in " + Math.max(0, timeLimitSeconds() - tick / 20) + "s"; }
     @Override public EndSummary endSummary(List<Player> winners) {
+        if (winners.isEmpty()) return new EndSummary("Grinch Hunt is over", "No winner this time", List.of("<gold>Cave presents: " + banked + "/15"));
         boolean grinchWin = winners.stream().anyMatch(this::isGrinch);
+        int held = game.alivePlayers().stream().filter(this::activeGrinch).mapToInt(p -> cargo(p).size()).sum();
         return new EndSummary(grinchWin ? "A very Grinchy Christmas!" : "Christmas is saved!",
-                grinchWin ? "The cave is full of Christmas cheer" : "The village celebrates together",
-                List.of("<gold>Cave presents: " + banked + "/15", mvp("Present Pilferer", stolen), mvp("Village Tracker", tags), mvp("Christmas Saver", recovered)));
+                grinchWin ? banked >= 15 ? "15 presents banked in the cave" : outcomeReason.equals("no-villagers") ? "No villagers remain in the hunt" : held + (held == 1 ? " present" : " presents") + " still held at morning" : "The village celebrates together",
+                List.of("<gold>Cave presents: " + banked + "/15", "<yellow>Still carried: " + held, mvp("Present Pilferer", stolen), mvp("Village Tracker", tags), mvp("Christmas Saver", recovered)));
     }
     private String mvp(String title, Map<UUID, Integer> scores) {
         return scores.entrySet().stream().max(Map.Entry.comparingByValue()).map(entry -> "<green>" + title + ": " + game.players().stream()
@@ -510,6 +529,7 @@ public final class GrinchHuntGame extends MiniGame {
         cleanupEntities();
     }
     private void restore(Player player) {
+        catchUpBoosted.remove(player.getUniqueId());
         Boolean invisible = invisibleBefore.remove(player.getUniqueId()); if (invisible != null) player.setInvisible(invisible);
         Float speed = speeds.remove(player.getUniqueId()); if (speed != null) player.setWalkSpeed(speed);
         for (PotionEffectType type : List.of(PotionEffectType.SPEED, PotionEffectType.SLOWNESS, PotionEffectType.GLOWING, PotionEffectType.BLINDNESS)) player.removePotionEffect(type);
@@ -528,6 +548,8 @@ public final class GrinchHuntGame extends MiniGame {
         game.respawn(victim, 2);
     }
     @Override public void onRespawn(Player player) {
+        catchUpBoosted.remove(player.getUniqueId());
+        player.setWalkSpeed(speeds.getOrDefault(player.getUniqueId(), 0.2f));
         teleportSpawn(player, isGrinch(player) ? "gh.grinch.spawn" : "gh.villager.spawn", 0);
         if (isGrinch(player) && !caught.contains(player.getUniqueId())) player.setInvisible(true);
         equip(player); immuneUntil.put(player.getUniqueId(), tick + 60);
@@ -538,7 +560,7 @@ public final class GrinchHuntGame extends MiniGame {
     }
     @Override public void onCleanup() {
         ended = true; if (loop != null) loop.cancel();
-        for (Player player : game.players()) restore(player); cleanupEntities();
+        for (Player player : game.players()) restore(player); cleanupEntities(); nextBotTag.clear();
         if (started && game.world() != null) { game.world().setTime(originalTime); game.world().setStorm(originalStorm); }
     }
     @Override public void onInventoryClick(Player player, InventoryClickEvent event) { event.setCancelled(true); }
@@ -547,8 +569,54 @@ public final class GrinchHuntGame extends MiniGame {
         List<String> lines = new ArrayList<>();
         lines.add(isGrinch(player) ? "<green>Role: Grinch" : "<gold>Role: " + roles.getOrDefault(player.getUniqueId(), VillagerRole.TRACKER).name().replace('_', ' '));
         lines.add("<gold>Cave presents: " + banked + "/15"); lines.add(phaseCountdown());
-        if (isGrinch(player)) { lines.add("<green>Carrying: " + cargo(player).size() + "/3"); lines.add("<gray>Tag hits: " + hits.getOrDefault(player.getUniqueId(), 0) + "/3"); }
+        if (caught.contains(player.getUniqueId())) lines.add("<gray>Caught! Watching the village");
+        else if (isGrinch(player)) { lines.add("<green>Carrying: " + cargo(player).size() + "/3"); lines.add("<gray>Tag hits: " + hits.getOrDefault(player.getUniqueId(), 0) + "/3");
+            lines.add(cargo(player).size() >= 3 ? "<yellow>Return to the cave pile" : "<yellow>Sneak at a tree to steal"); }
         else { lines.add("<aqua>Follow fresh green footprints"); lines.add("<gray>3 hits or sneak-hold 3s"); }
         return lines;
+    }
+
+    /** Villagers see revealed players and nearby prints, never an invisible player's live position. */
+    private Player visibleGrinch(Player bot) {
+        return game.alivePlayers().stream().filter(this::activeGrinch)
+                .filter(p -> !p.isInvisible() && bot.canSee(p) && near(bot.getLocation(), p.getLocation(), 24) && bot.hasLineOfSight(p))
+                .min(Comparator.comparingDouble(p -> bot.getLocation().distanceSquared(p.getLocation()))).orElse(null);
+    }
+
+    @Override public Location botDestination(Player bot) {
+        if (activeGrinch(bot)) {
+            if (cargo(bot).size() >= 3) return markers.point("gh.cave.pile");
+            Location tree = trees.values().stream().filter(t -> t.stock > 0).map(t -> t.at)
+                    .min(Comparator.comparingDouble(at -> bot.getLocation().distanceSquared(at))).orElse(null);
+            return tree != null ? tree.clone() : markers.point("gh.cave.pile");
+        }
+        Player visible = visibleGrinch(bot);
+        if (visible != null) return visible.getLocation();
+        Print clue = prints.stream().filter(p -> tick < p.expires && p.display.isValid()
+                        && near(bot.getLocation(), p.at, 24) && bot.hasLineOfSight(p.display))
+                .max(Comparator.comparingInt(Print::made)).orElse(null);
+        if (clue != null && !near(bot.getLocation(), clue.at, 1.5)) return clue.at.clone();
+        List<Tree> route = new ArrayList<>(trees.values());
+        if (route.isEmpty()) return null;
+        int index = patrol.computeIfAbsent(bot.getUniqueId(), id -> Math.floorMod(id.hashCode(), route.size()));
+        if (near(bot.getLocation(), route.get(index).at, 2)) { index = (index + 1) % route.size(); patrol.put(bot.getUniqueId(), index); }
+        return route.get(index).at.clone();
+    }
+
+    @Override public void botTick(Player bot, long ignored, BotDifficulty difficulty) {
+        if (ended || !game.isActive(bot)) return;
+        if (activeGrinch(bot)) {
+            bot.setSneaking(cargo(bot).size() < 3 && trees.values().stream().anyMatch(t -> t.stock > 0 && near(bot.getLocation(), t.at, 2.2)));
+            return;
+        }
+        Player target = visibleGrinch(bot);
+        boolean inReach = target != null && near(bot.getLocation(), target.getLocation(), 2.2);
+        bot.setSneaking(inReach);
+        if (inReach && tick >= nextBotTag.getOrDefault(bot.getUniqueId(), 0)) {
+            nextBotTag.put(bot.getUniqueId(), tick + difficulty.meleeDelayTicks());
+            bot.swingMainHand();
+            bot.attack(target); // Ordinary damage event enforces the three-hit, immunity and heart rules.
+        }
+        // The ordinary three-second hold is also resolved by stepVillager.
     }
 }

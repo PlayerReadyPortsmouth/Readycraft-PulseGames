@@ -257,3 +257,19 @@ so the normal 8-second revive applies. `BotObjectives` has a per-bot `botGuardPo
 to the shared no-argument `botGuardPoint()`, so Villager Defense (which guards the Mayor) is unchanged; ReadyPlayerZ
 overrides it. A bot only walks to a door it can itself afford. The framework's 24-block target search is used instead
 of a 6-block attack rule; bots do not use the Mystery Box or Pack-a-Punch.
+
+
+## RC1 seasonal candidate
+
+Present Panic (`teams`) bots collect toys, choose matching named paper, wrap using
+ordinary hold timing, add bows and deliver to their own sleigh. Grinch Hunt
+(`classic`) now has both roles: Grinches steal at public tree markers and bank in
+the cave; villagers chase visible Grinches, inspect nearby line-of-sight prints
+(including decoys) and patrol trees when no clue is available. They use the ordinary
+three-second tag hold. No invisible live-position chase or teleport recovery is
+added. Gadget and escape tactics are limited; this is a first navigation controller.
+
+The same seasonal, per-player trial, provider and map opt-ins still apply.
+The local probe in `tools/playtest/` is separate from the plugin jar. Unsupported
+games receive injected NPCs only for lifecycle checks, labelled `lifecycle-only`;
+this does not add queue support or establish objective completion for those games.
