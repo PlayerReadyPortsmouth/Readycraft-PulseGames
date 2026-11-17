@@ -97,6 +97,13 @@ class ChristmasActionsTest {
         when(thief.getWalkSpeed()).thenReturn(0.2f);
         invoke(logic, "stepGrinch", new Class<?>[]{Player.class}, thief);
         verify(thief,times(1)).setWalkSpeed(0.2f);
+        set(logic, "banked", 0);
+        invoke(logic, "stepGrinch", new Class<?>[]{Player.class}, thief);
+        verify(thief,times(2)).setWalkSpeed(0.23f);
+        try (var ignored = mockConstruction(ItemStack.class)) { logic.onRespawn(thief); }
+        verify(thief,times(2)).setWalkSpeed(0.2f);
+        invoke(logic, "stepGrinch", new Class<?>[]{Player.class}, thief);
+        verify(thief,times(3)).setWalkSpeed(0.23f);
     }
 
     @Test void botsAndHumansUseTheSameWrappingClock() throws Exception {

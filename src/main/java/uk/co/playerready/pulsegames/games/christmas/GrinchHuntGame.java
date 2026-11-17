@@ -549,6 +549,7 @@ public final class GrinchHuntGame extends MiniGame implements BotMovement {
     }
     @Override public void onRespawn(Player player) {
         catchUpBoosted.remove(player.getUniqueId());
+        player.setWalkSpeed(speeds.getOrDefault(player.getUniqueId(), 0.2f));
         teleportSpawn(player, isGrinch(player) ? "gh.grinch.spawn" : "gh.villager.spawn", 0);
         if (isGrinch(player) && !caught.contains(player.getUniqueId())) player.setInvisible(true);
         equip(player); immuneUntil.put(player.getUniqueId(), tick + 60);
