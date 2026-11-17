@@ -68,7 +68,18 @@ public final class LocalProbe extends JavaPlugin implements CommandExecutor {
         flat.setGameRule(GameRule.DO_MOB_SPAWNING,false);
         for(int x=-46;x<=46;x++)for(int z=-46;z<=46;z++) flat.getBlockAt(x,64,z).setType(Material.SNOW_BLOCK,false);
         // Visible cover, loot and a ramp for the general controller smoke maps.
-        for(int i=0;i<8;i++)flat.getBlockAt(-18+i*5,65,8).setType(Material.CHEST,false);
+        for(int i=0;i<8;i++) {
+            var block=flat.getBlockAt(-18+i*5,65,8);block.setType(Material.CHEST,false);
+            ((org.bukkit.block.Chest)block.getState()).getBlockInventory().addItem(
+                    new org.bukkit.inventory.ItemStack(Material.STONE_SWORD),new org.bukkit.inventory.ItemStack(Material.OAK_PLANKS,32),
+                    new org.bukkit.inventory.ItemStack(Material.COOKED_BEEF,8),new org.bukkit.inventory.ItemStack(Material.BOW),new org.bukkit.inventory.ItemStack(Material.ARROW,16));
+        }
+        for(int base:new int[]{-13,12})for(int part=0;part<2;part++) {
+            var bed=(org.bukkit.block.data.type.Bed)(base<0?Material.RED_BED:Material.BLUE_BED).createBlockData();
+            bed.setFacing(org.bukkit.block.BlockFace.EAST);
+            bed.setPart(part==0?org.bukkit.block.data.type.Bed.Part.FOOT:org.bukkit.block.data.type.Bed.Part.HEAD);
+            flat.getBlockAt(base+part,65,0).setBlockData(bed,false);
+        }
         flat.setSpawnLocation(0,65,0);
         games.worlds().saveAsTemplate(flat,"rc1_flat",() -> {
             for(GameType type:games.registry().all()) if(!Set.of("presentpanic","grinchhunt").contains(type.id())) arenas.put(type.id(), arena(type));
@@ -158,6 +169,8 @@ public final class LocalProbe extends JavaPlugin implements CommandExecutor {
         waiting[0]=getServer().getScheduler().runTaskTimer(this,() -> {
             if(round.state()!=GameState.WAITING)return;
             waiting[0].cancel();
+            if(id.equals("volcano"))for(int step=0;step<16;step++)for(int z=-4;z<=4;z++)for(int y=64;y<=64+step;y++)
+                round.world().getBlockAt(-16+step,y,z).setType(Material.STONE,false);
             human.closeInventory();
             if(!round.add(human)) {log("ROUND FAILED human admission "+id);return;}
             boolean supported=games.bots().supports(id,mode.rulesId());
