@@ -212,7 +212,10 @@ public final class LocalProbe extends JavaPlugin implements CommandExecutor {
             if(current.type().id().equals("grinchhunt")) detail=" banked="+field(current.logic(),"banked")+" stolen="+field(current.logic(),"stolen")+" caught="+field(current.logic(),"caught");
         }catch(Exception e){throw new RuntimeException(e);}
         log("SAMPLE "+current.type().id()+" state="+current.state()+" bots="+games.bots().count(current)+" time="+current.gameTime()+" entities="+(current.world()==null||current.state()==GameState.RESETTING?0:current.world().getEntities().size())+detail);
-        if(current.state()==GameState.RUNNING && ++samples%2==1)for(Player p:current.players())log("ACTOR "+p.getName()+" at="+p.getLocation().toVector());
+        if(current.state()==GameState.RUNNING && ++samples%2==1) {
+            for(Player p:current.players())log("ACTOR "+p.getName()+" at="+p.getLocation().toVector()+" speed="+p.getWalkSpeed());
+            games.bots().diagnostics().stream().filter(d -> d.gameId().equals(current.id())).limit(4).forEach(d -> log("BOT "+d));
+        }
     }
     private Object field(Object owner,String name) throws Exception {Field f=owner.getClass().getDeclaredField(name);f.setAccessible(true);return f.get(owner);}
     private void cleanup() {
