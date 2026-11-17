@@ -62,6 +62,18 @@ class BotServiceTest {
         bots.reconcile(game);
         assertEquals("Bots: 1 joined", bots.queueStatus(game));
     }
+    @Test void grinchCalibrationUsesTwoSidesInsteadOfOneWinnerPerPlayer() {
+        when(game.type().id()).thenReturn("grinchhunt");
+        for(int i=1;i<12;i++)roster.add(player("Villager"+i));
+        var skills=mock(AdaptiveBotSkillStore.class);
+        when(skills.difficulty(any(UUID.class),anyString())).thenReturn(BotDifficulty.NORMAL);
+        when(plugin.getServer()).thenReturn(mock(org.bukkit.Server.class,RETURNS_DEEP_STUBS));
+        when(game.gameTime()).thenReturn(60);
+        bots=new BotService(plugin,provider,skills);
+        bots.onRoundStart(game);
+        bots.onRoundEnd(game,List.of(human),"christmas-morning");
+        verify(skills).record(human.getUniqueId(),"grinchhunt:classic",true,0.5);
+    }
     @Test void waitingLobbyUsesReloadedBotOptInButRunningRoundKeepsSnapshot() {
         var arenas = mock(uk.co.playerready.pulsegames.core.arena.ArenaService.class);
         var latest = mock(uk.co.playerready.pulsegames.core.arena.Arena.class, RETURNS_DEEP_STUBS);

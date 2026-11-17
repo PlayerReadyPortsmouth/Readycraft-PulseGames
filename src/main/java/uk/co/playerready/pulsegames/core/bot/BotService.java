@@ -213,7 +213,7 @@ public final class BotService implements AutoCloseable {
         var sorted = levels.values().stream().sorted().toList();
         BotDifficulty group = sorted.isEmpty() ? BotDifficulty.NORMAL : sorted.get((sorted.size() - 1) / 2);
         long teams = game.teams().stream().filter(t -> !t.members().isEmpty()).count();
-        double expected = game.logic().cooperative() || game.type().id().equals("prophunt") ? 0.5
+        double expected = game.logic().cooperative() || Set.of("prophunt", "grinchhunt").contains(game.type().id()) ? 0.5
                 : teams > 1 ? 1.0 / teams : 1.0 / Math.max(2, game.players().size());
         skillRounds.put(game, new SkillRound(mode, Map.copyOf(levels), group, expected));
     }
