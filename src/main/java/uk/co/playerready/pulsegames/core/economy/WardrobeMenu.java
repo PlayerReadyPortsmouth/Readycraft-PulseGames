@@ -81,12 +81,13 @@ public final class WardrobeMenu implements TabbedShop.Source {
 
     private org.bukkit.inventory.ItemStack icon(Player player, Cosmetic c, boolean owned, boolean equipped, int level) {
         Lore lore = Lore.of();
-        lore.line(c.levelUnlock() ? Theme.ACCENT + "Unlocked by level" : Theme.MONEY + "Bought with tokens");
+        lore.line(c.earnedOnly() ? Theme.ACCENT + "Earned in seasonal games" : c.levelUnlock() ? Theme.ACCENT + "Unlocked by level" : Theme.MONEY + "Bought with tokens");
         lore.desc(c.description()).blank();
         if (c.nameStyleId() != null && !owned) lore.line(Theme.ACCENT + "Set it with /namestyle");
         if (equipped) lore.status(Theme.GOOD + "Equipped").hint("Click to take it off");
         else if (owned && c.nameStyleId() != null) lore.status("<yellow>Yours").line(Theme.ACCENT + "Set it with /namestyle").hint("Click to use this style");
         else if (owned) lore.status("<yellow>Yours").hint("Click to equip");
+        else if (c.earnedOnly()) lore.status(Theme.ACCENT + "Finish a seasonal game to earn");
         else if (c.levelUnlock()) lore.status(level >= c.level() ? Theme.GOOD + "Ready to unlock" : Theme.BAD + "Reach level " + c.level() + " (you are " + level + ")");
         else {
             int have = plugin.economy().tokens(player);
@@ -120,6 +121,7 @@ public final class WardrobeMenu implements TabbedShop.Source {
             Theme.sound(player, Theme.Cue.SUCCESS);
             return;
         }
+        if (c.earnedOnly()) { player.sendMessage(Text.msg("<yellow>Finish a seasonal game to earn this cosmetic.")); return; }
         int have = economy.tokens(player);
         if (have < c.price()) {
             player.sendMessage(Text.msg("<red>You need <gold>" + COIN + " " + c.price() + " tokens</gold> for that <gray>(you have " + have + ")"));
@@ -136,7 +138,7 @@ public final class WardrobeMenu implements TabbedShop.Source {
     /** Safe to call twice: an item already owned is never charged for again. */
     private void buy(Player player, Cosmetic c) {
         if (plugin.economy().isUnlocked(player, c.id())) return;
-        if (c.levelUnlock() || !plugin.economy().spend(player, c.price())) return;
+        if (c.earnedOnly() || c.levelUnlock() || !plugin.economy().spend(player, c.price())) return;
         plugin.economy().unlock(player, c.id());
         plugin.economy().equip(player, c.category(), c.id());
         player.sendMessage(Text.msg("<green><b>Unlocked " + c.name() + "!</b> <gray>(equipped)"));

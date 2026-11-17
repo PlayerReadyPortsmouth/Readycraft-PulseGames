@@ -33,6 +33,8 @@ public final class PulseGamesPlugin extends JavaPlugin {
     private uk.co.playerready.pulsegames.core.game.MatchResults results;
     private uk.co.playerready.pulsegames.core.maps.MapReviewService maps;
     private uk.co.playerready.pulsegames.core.progression.ProgressionService progression;
+    private uk.co.playerready.pulsegames.core.seasonal.SeasonService seasons;
+    private uk.co.playerready.pulsegames.core.seasonal.MarkerImporter markerImporter;
     private GameRegistry registry;
     private ArenaService arenas;
     private WorldService worlds;
@@ -134,6 +136,8 @@ public final class PulseGamesPlugin extends JavaPlugin {
             getLogger().severe("Kit load failed; continuing with no kits: " + ex);
         }
         GameCatalog.registerAll(registry);
+        seasons = new uk.co.playerready.pulsegames.core.seasonal.SeasonService(this);
+        markerImporter = new uk.co.playerready.pulsegames.core.seasonal.MarkerImporter(this);
 
         getServer().getPluginManager().registerEvents(new GameListener(this), this);
         getServer().getPluginManager().registerEvents(levels, this);
@@ -168,6 +172,8 @@ public final class PulseGamesPlugin extends JavaPlugin {
         } catch (Throwable ex) {
             getLogger().severe("Instance shutdown failed: " + ex);
         }
+        try { if (seasons != null) seasons.close(); }
+        catch (RuntimeException ex) { getLogger().warning("Season overlay cleanup failed: " + ex.getMessage()); }
         try { if (content != null) content.close(); }
         catch (RuntimeException ex) { getLogger().log(java.util.logging.Level.SEVERE, "Content shutdown failed", ex); }
         try { if (lobbyPlacements != null) lobbyPlacements.close(); }
@@ -188,12 +194,17 @@ public final class PulseGamesPlugin extends JavaPlugin {
     }
 
     public boolean gameAvailable(uk.co.playerready.pulsegames.core.game.GameType type) {
+        if (seasons != null && seasons.seasonalGame(type.id())) return seasons.gameEnabled(type.id());
         return !type.wip() || gamePublic(type) || getConfig().getStringList("games.preview").contains(type.id());
     }
 
     public boolean gamePublic(uk.co.playerready.pulsegames.core.game.GameType type) {
         return getConfig().getStringList("games.public").contains(type.id());
     }
+
+    public uk.co.playerready.pulsegames.core.seasonal.SeasonService seasons() { return seasons; }
+
+    public uk.co.playerready.pulsegames.core.seasonal.MarkerImporter markerImporter() { return markerImporter; }
 
     public uk.co.playerready.pulsegames.core.content.PulseContentBridge content() { return content; }
 

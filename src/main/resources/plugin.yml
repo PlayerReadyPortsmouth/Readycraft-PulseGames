@@ -6,6 +6,10 @@ api-version: '1.21'
 softdepend: [floodgate, Citizens, PulseContent, OldCombatMechanics, LuckPerms]
 description: Multi-instance minigame engine for the Readycraft network.
 commands:
+  season:
+    description: Preview or override the seasonal calendar.
+    usage: /season preview [id] | set <id> | clear | reload
+    permission: pulsegames.admin
   play:
     description: Join a minigame.
     usage: /play <game> [mode]

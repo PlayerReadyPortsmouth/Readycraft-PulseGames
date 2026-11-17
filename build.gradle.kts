@@ -39,3 +39,12 @@ tasks.jar {
 tasks.test {
     useJUnitPlatform()
 }
+
+// Uses Paper API only to load the shared marker definitions; no server is started.
+tasks.register<JavaExec>("exportChristmasTestMaps") {
+    dependsOn(tasks.classes)
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("uk.co.playerready.pulsegames.core.seasonal.ChristmasTestMapExport")
+    args(layout.buildDirectory.dir("christmas-test-maps").get().asFile.absolutePath)
+}
+tasks.jar { finalizedBy("exportChristmasTestMaps") }
