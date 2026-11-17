@@ -69,6 +69,7 @@ class BotServiceTest {
         when(skills.difficulty(any(UUID.class),anyString())).thenReturn(BotDifficulty.NORMAL);
         when(plugin.getServer()).thenReturn(mock(org.bukkit.Server.class,RETURNS_DEEP_STUBS));
         when(game.gameTime()).thenReturn(60);
+        when(game.state()).thenReturn(GameState.RUNNING);
         bots=new BotService(plugin,provider,skills);
         bots.onRoundStart(game);
         bots.onRoundEnd(game,List.of(human),"christmas-morning");
